@@ -79,10 +79,12 @@ export const INITIAL_STATE = {
   debtIRS: 17937,
   debtFirstmark: 21470,
 
-  // UI — Tooltips
-  savingsTooltip: null,
-  msftTooltip: null,
-  incomeTooltip: null,
+  // Goals
+  goals: [
+    { id: 'default-1', name: 'Savings positive at Y6', type: 'savings_floor', targetAmount: 0, targetMonth: 72, color: '#4ade80' },
+    { id: 'default-2', name: 'Cash flow breakeven', type: 'income_target', targetAmount: 0, targetMonth: 36, color: '#60a5fa' },
+    { id: 'default-3', name: 'Emergency fund $50k', type: 'savings_target', targetAmount: 50000, targetMonth: 48, color: '#fbbf24' },
+  ],
 
   // UI — Scenario Management
   savedScenarios: [],
@@ -146,4 +148,6 @@ export const MODEL_KEYS = [
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation',
+  'seqBadY1', 'seqBadY2',
+  'goals',
 ];

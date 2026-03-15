@@ -1,15 +1,16 @@
 import { computeWealthProjection } from './projection.js';
+import { INITIAL_STATE } from '../state/initialState.js';
 
 export function exportModelData(state, projection, vestEvents, totalRemainingVesting, extras) {
   const { rawMonthlyGap, sarahCurrentNet, advanceNeeded, ssdiDenied, lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS,
     cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
-    lifestyleCuts, cutInHalf, extraCuts } = extras;
+    lifestyleCuts, cutInHalf, extraCuts, goalResults } = extras;
   const s = state;
   const data = projection.data;
   const md = projection.monthlyData;
   const totalCuts = lifestyleCuts + cutInHalf + extraCuts;
-  const totalDiscretionary = 5832 + 2040 + 2746 + 4666 + 1901 + 1166 + 655 + 563 + 557 + 500 + 2478;
+  const totalDiscretionary = INITIAL_STATE.cutOliver + INITIAL_STATE.cutVacation + INITIAL_STATE.cutShopping + INITIAL_STATE.cutMedical + INITIAL_STATE.cutGym + INITIAL_STATE.cutAmazon + INITIAL_STATE.cutSaaS + INITIAL_STATE.cutEntertainment + INITIAL_STATE.cutGroceries + INITIAL_STATE.cutPersonalCare + INITIAL_STATE.cutSmallItems;
   const milestoneMonths = [0, 3, 6, 9, 12, 18, 24, 30, 36, 42, 48, 60, 72];
   const bcsFamilyMonthly = s.bcsFamilyMonthly;
 
@@ -57,17 +58,17 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       totalKeeping: totalDiscretionary - totalCuts,
       cutPercentage: Math.round((totalCuts / totalDiscretionary) * 100),
       items: [
-        { category: "Oliver support (sober living + transfers)", current: 5832, cut: cutOliver, keeping: 5832 - cutOliver },
-        { category: "Medical out-of-pocket (excl insurance)", current: 4666, cut: cutMedical, keeping: 4666 - cutMedical },
-        { category: "Shopping + clothing", current: 2746, cut: cutShopping, keeping: 2746 - cutShopping },
-        { category: "Vacation + travel", current: 2040, cut: cutVacation, keeping: 2040 - cutVacation },
-        { category: "Groceries (family of 5)", current: 1901, cut: cutGroceries, keeping: 1901 - cutGroceries },
-        { category: "Personal care (salon, nails, cleaning)", current: 1166, cut: cutPersonalCare, keeping: 1166 - cutPersonalCare },
-        { category: "Gym memberships", current: 655, cut: cutGym, keeping: 655 - cutGym },
-        { category: "Amazon + household", current: 563, cut: cutAmazon, keeping: 563 - cutAmazon },
-        { category: "AI / SaaS tools", current: 557, cut: cutSaaS, keeping: 557 - cutSaaS },
-        { category: "Entertainment + recreation", current: 500, cut: cutEntertainment, keeping: 500 - cutEntertainment },
-        { category: "Other small items", current: 2478, cut: cutSmallItems, keeping: 2478 - cutSmallItems },
+        { category: "Oliver support (sober living + transfers)", current: INITIAL_STATE.cutOliver, cut: cutOliver, keeping: INITIAL_STATE.cutOliver - cutOliver },
+        { category: "Medical out-of-pocket (excl insurance)", current: INITIAL_STATE.cutMedical, cut: cutMedical, keeping: INITIAL_STATE.cutMedical - cutMedical },
+        { category: "Shopping + clothing", current: INITIAL_STATE.cutShopping, cut: cutShopping, keeping: INITIAL_STATE.cutShopping - cutShopping },
+        { category: "Vacation + travel", current: INITIAL_STATE.cutVacation, cut: cutVacation, keeping: INITIAL_STATE.cutVacation - cutVacation },
+        { category: "Groceries (family of 5)", current: INITIAL_STATE.cutGroceries, cut: cutGroceries, keeping: INITIAL_STATE.cutGroceries - cutGroceries },
+        { category: "Personal care (salon, nails, cleaning)", current: INITIAL_STATE.cutPersonalCare, cut: cutPersonalCare, keeping: INITIAL_STATE.cutPersonalCare - cutPersonalCare },
+        { category: "Gym memberships", current: INITIAL_STATE.cutGym, cut: cutGym, keeping: INITIAL_STATE.cutGym - cutGym },
+        { category: "Amazon + household", current: INITIAL_STATE.cutAmazon, cut: cutAmazon, keeping: INITIAL_STATE.cutAmazon - cutAmazon },
+        { category: "AI / SaaS tools", current: INITIAL_STATE.cutSaaS, cut: cutSaaS, keeping: INITIAL_STATE.cutSaaS - cutSaaS },
+        { category: "Entertainment + recreation", current: INITIAL_STATE.cutEntertainment, cut: cutEntertainment, keeping: INITIAL_STATE.cutEntertainment - cutEntertainment },
+        { category: "Other small items", current: INITIAL_STATE.cutSmallItems, cut: cutSmallItems, keeping: INITIAL_STATE.cutSmallItems - cutSmallItems },
       ],
     },
     debt: {
@@ -75,7 +76,7 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       personalLoans: s.debtPersonal,
       irs: s.debtIRS,
       firstmark: s.debtFirstmark,
-      totalRetired: s.debtCC + s.debtPersonal + s.debtIRS,
+      totalRetired: s.debtCC + s.debtPersonal + s.debtIRS + s.debtFirstmark,
       monthlyServiceEliminated: s.debtService,
     },
     oneTimeCosts: {
@@ -100,6 +101,11 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
     }),
     msftVesting: vestEvents.map(v => ({
       label: v.label, shares: v.shares, gross: v.gross, net: v.net, monthlySmoothed: Math.round(v.net / 3),
+    })),
+    goals: (goalResults || []).map(r => ({
+      name: r.name, type: r.type, targetAmount: r.targetAmount,
+      targetMonth: r.targetMonth, achieved: r.achieved,
+      currentValue: r.currentValue, progress: r.progress,
     })),
     wealth: (() => {
       const { wealthData } = computeWealthProjection(s);

@@ -9,7 +9,7 @@ export function reducer(state, action) {
       // Backward compatibility: if old scenario has aggregate cuts but no individual cuts,
       // use defaults for individual cuts
       if (s.lifestyleCuts !== undefined && s.cutOliver === undefined) {
-        return {
+        const legacy = {
           ...state,
           ...s,
           cutOliver: INITIAL_STATE.cutOliver,
@@ -24,8 +24,12 @@ export function reducer(state, action) {
           cutPersonalCare: INITIAL_STATE.cutPersonalCare,
           cutSmallItems: INITIAL_STATE.cutSmallItems,
         };
+        if (!Array.isArray(legacy.goals)) legacy.goals = INITIAL_STATE.goals;
+        return legacy;
       }
-      return { ...state, ...s };
+      const result = { ...state, ...s };
+      if (!Array.isArray(result.goals)) result.goals = INITIAL_STATE.goals;
+      return result;
     }
     case 'RESET_ALL':
       return {

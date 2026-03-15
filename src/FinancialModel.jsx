@@ -5,6 +5,7 @@ import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
 import { computeProjection, computeWealthProjection } from './model/projection.js';
 import { runMonteCarlo, runDadMonteCarlo } from './model/monteCarlo.js';
 import { exportModelData } from './model/exportData.js';
+import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { reducer } from './state/reducer.js';
 import Header from './components/Header.jsx';
@@ -21,6 +22,7 @@ import TimelineChart from './charts/TimelineChart.jsx';
 import SarahPracticeChart from './charts/SarahPracticeChart.jsx';
 import IncomeCompositionChart from './charts/IncomeCompositionChart.jsx';
 import MonthlyCashFlowChart from './charts/MonthlyCashFlowChart.jsx';
+import GoalPanel from './panels/GoalPanel.jsx';
 import DadMode from './panels/DadMode.jsx';
 import ScenarioStrip from './panels/ScenarioStrip.jsx';
 import IncomeControls from './panels/IncomeControls.jsx';
@@ -56,6 +58,7 @@ export default function FinancialModel() {
     starting401k, return401k, homeEquity, homeAppreciation,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     seqBadY1, seqBadY2,
+    goals,
     storageStatus,
   } = state;
 
@@ -71,7 +74,7 @@ export default function FinancialModel() {
   const vestEvents = useMemo(() => getVestEvents(msftGrowth), [msftGrowth]);
   const totalRemainingVesting = useMemo(() => getTotalRemainingVesting(msftGrowth), [msftGrowth]);
   const bcsFamilyMonthly = Math.round(Math.max(0, bcsAnnualTotal - bcsParentsAnnual) / 12);
-  const debtTotal = debtCC + debtPersonal + debtIRS;
+  const debtTotal = debtCC + debtPersonal + debtIRS + debtFirstmark;
   const oneTimeTotal = (moldInclude ? moldCost : 0) + (roofInclude ? roofCost : 0) + (otherInclude ? otherProjects : 0);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
   const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
@@ -111,6 +114,11 @@ export default function FinancialModel() {
 
   const wealthProjection = useMemo(() => computeWealthProjection({ starting401k, return401k, homeEquity, homeAppreciation }), [starting401k, return401k, homeEquity, homeAppreciation]);
   const wealthData = wealthProjection.wealthData;
+
+  const goalResults = useMemo(() => {
+    if (!goals || goals.length === 0) return [];
+    return evaluateAllGoals(goals, monthlyDetail, { wealthData, retireDebt });
+  }, [goals, monthlyDetail, wealthData, retireDebt]);
 
   const compareProjection = useMemo(() => {
     if (!compareState) return null;
@@ -182,7 +190,7 @@ export default function FinancialModel() {
     setTimeout(() => {
       const base = gatherState();
       const mcParams = { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline };
-      const results = runMonteCarlo(base, mcParams);
+      const results = runMonteCarlo(base, mcParams, goals);
       set('mcResults')(results);
       set('mcRunning')(false);
     }, 50);
@@ -251,13 +259,15 @@ export default function FinancialModel() {
   const steadyIdx = data.findIndex(d => d.month >= 36) || data.length - 1;
   const steadyStateNet = data[steadyIdx]?.netMonthly || data[data.length - 1].netMonthly;
 
+  const mcGoalResults = mcResults?.goalSuccessRates || null;
+
   // Export handler
   const handleExportJSON = () => {
     exportModelData(gatherState(), projection, vestEvents, totalRemainingVesting, {
       rawMonthlyGap, sarahCurrentNet, advanceNeeded, ssdiDenied, lifestyleCutsApplied,
       cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS,
       cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
-      lifestyleCuts, cutInHalf, extraCuts,
+      lifestyleCuts, cutInHalf, extraCuts, goalResults,
     });
   };
 
@@ -353,6 +363,15 @@ export default function FinancialModel() {
             rawMonthlyGap={rawMonthlyGap}
             steadyStateNet={steadyStateNet}
             steadyLabel={data[steadyIdx]?.label}
+          />
+
+          <GoalPanel
+            goals={goals}
+            goalResults={goalResults}
+            mcGoalResults={mcGoalResults}
+            mcRunning={mcRunning}
+            presentMode={presentMode}
+            onGoalsChange={(newGoals) => set('goals')(newGoals)}
           />
 
           <ComparisonBanner

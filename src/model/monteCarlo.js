@@ -1,10 +1,11 @@
-import { runMonthlySimulation } from './projection.js';
+import { runMonthlySimulation, computeWealthProjection } from './projection.js';
+import { evaluateGoalPass } from './goalEvaluation.js';
 
 /**
  * Full Monte Carlo simulation with randomized parameters.
- * Returns percentile bands, solvency rate, and summary statistics.
+ * Returns percentile bands, solvency rate, summary statistics, and goal success rates.
  */
-export function runMonteCarlo(base, mcParams) {
+export function runMonteCarlo(base, mcParams, goals = []) {
   const { mcNumSims: N, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline } = mcParams;
   const months = 72;
 
@@ -16,6 +17,13 @@ export function runMonteCarlo(base, mcParams) {
   };
 
   const allBalances = [];
+  const goalSuccessCounts = goals.map(() => 0);
+
+  // Pre-compute deterministic wealth data once for net_worth_target goals
+  let wealthData = null;
+  if (goals.some(g => g.type === 'net_worth_target')) {
+    wealthData = computeWealthProjection(base).wealthData;
+  }
 
   for (let sim = 0; sim < N; sim++) {
     const simParams = {
@@ -35,6 +43,16 @@ export function runMonteCarlo(base, mcParams) {
 
     const { monthlyData } = runMonthlySimulation(simParams);
     allBalances.push(monthlyData.map(d => d.balance));
+
+    // Evaluate goals for this simulation
+    if (goals.length > 0) {
+      const goalOpts = { wealthData, retireDebt: simParams.retireDebt };
+      goals.forEach((goal, i) => {
+        if (evaluateGoalPass(goal, monthlyData, goalOpts)) {
+          goalSuccessCounts[i]++;
+        }
+      });
+    }
   }
 
   // Compute percentiles at each month
@@ -63,10 +81,16 @@ export function runMonteCarlo(base, mcParams) {
   const p10Final = finals[Math.floor(finals.length * 0.1)];
   const p90Final = finals[Math.floor(finals.length * 0.9)];
 
+  const goalSuccessRates = goals.map((g, i) => ({
+    goalId: g.id,
+    successRate: goalSuccessCounts[i] / N,
+  }));
+
   return {
     bands, solvencyRate, medianTrough, medianFinal,
     p10Final, p90Final, numSims: N,
-    params: { investVol: mcInvestVol, bizGrowthVol: mcBizGrowthVol, msftVol: mcMsftVol, ssdiDelay: mcSsdiDelay, cutsDiscipline: mcCutsDiscipline }
+    params: { investVol: mcInvestVol, bizGrowthVol: mcBizGrowthVol, msftVol: mcMsftVol, ssdiDelay: mcSsdiDelay, cutsDiscipline: mcCutsDiscipline },
+    goalSuccessRates,
   };
 }
 

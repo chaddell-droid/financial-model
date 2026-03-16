@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function Header({ presentMode, onTogglePresentMode, onEnterDadMode, showSaveLoad, onToggleSaveLoad, savedScenarios, onReset, onExportJSON }) {
+export default function Header({ presentMode, onTogglePresentMode, onEnterDadMode, onEnterSarahMode, showSaveLoad, onToggleSaveLoad, savedScenarios, onReset, onExportJSON }) {
   return (
     <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <div>
@@ -24,6 +24,16 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
         >
           {presentMode ? "\u2715 Exit Presentation" : "\u25B6 Present"}
         </button>
+        {!presentMode && <button
+          onClick={onEnterSarahMode}
+          style={{
+            background: "transparent", border: "1px solid #2dd4bf", borderRadius: 8,
+            color: "#2dd4bf", fontSize: 12, padding: "8px 14px", cursor: "pointer",
+            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap"
+          }}
+        >
+          {"\uD83C\uDF1F"} Sarah's View
+        </button>}
         {!presentMode && <button
           onClick={onEnterDadMode}
           style={{

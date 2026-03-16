@@ -24,6 +24,7 @@ import IncomeCompositionChart from './charts/IncomeCompositionChart.jsx';
 import MonthlyCashFlowChart from './charts/MonthlyCashFlowChart.jsx';
 import GoalPanel from './panels/GoalPanel.jsx';
 import DadMode from './panels/DadMode.jsx';
+import SarahMode from './panels/SarahMode.jsx';
 import ScenarioStrip from './panels/ScenarioStrip.jsx';
 import IncomeControls from './panels/IncomeControls.jsx';
 import ExpenseControls from './panels/ExpenseControls.jsx';
@@ -54,6 +55,7 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     compareState, compareName,
+    sarahMode,
     dadMode, dadStep, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects, dadMcResult, dadBaselineBalance,
     starting401k, return401k, homeEquity, homeAppreciation,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
@@ -297,6 +299,7 @@ export default function FinancialModel() {
           presentMode={presentMode}
           onTogglePresentMode={() => set('presentMode')(!presentMode)}
           onEnterDadMode={enterDadMode}
+          onEnterSarahMode={() => set('sarahMode')(true)}
           showSaveLoad={showSaveLoad}
           onToggleSaveLoad={() => set('showSaveLoad')(!showSaveLoad)}
           savedScenarios={savedScenarios}
@@ -321,6 +324,21 @@ export default function FinancialModel() {
             onDelete={deleteScenario}
             storageStatus={storageStatus}
             storageAvailable={storageAvailable}
+          />
+        )}
+
+        {sarahMode && !dadMode && (
+          <SarahMode
+            sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
+            sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
+            lifestyleCutsApplied={lifestyleCutsApplied}
+            cutOliver={cutOliver} cutVacation={cutVacation} cutShopping={cutShopping}
+            cutMedical={cutMedical} cutGym={cutGym} cutAmazon={cutAmazon} cutSaaS={cutSaaS}
+            cutEntertainment={cutEntertainment} cutGroceries={cutGroceries} cutPersonalCare={cutPersonalCare} cutSmallItems={cutSmallItems}
+            mcResults={mcResults} goalResults={goalResults} goals={goals}
+            monthlyDetail={monthlyDetail}
+            onFieldChange={set}
+            onExit={() => set('sarahMode')(false)}
           />
         )}
 
@@ -351,7 +369,7 @@ export default function FinancialModel() {
           />
         )}
 
-        {!dadMode && <>
+        {!dadMode && !sarahMode && <>
           <KeyMetrics
             netMonthly={data[0].netMonthly}
             breakevenLabel={breakevenLabel}

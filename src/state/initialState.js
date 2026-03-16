@@ -96,6 +96,9 @@ export const INITIAL_STATE = {
   compareState: null,
   compareName: "",
 
+  // UI — Sarah Mode
+  sarahMode: false,
+
   // UI — Dad Mode
   dadMode: false,
   dadStep: 1,

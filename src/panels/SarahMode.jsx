@@ -35,8 +35,8 @@ export default function SarahMode({
   onFieldChange, onExit,
 }) {
   const cuts = { cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems };
-  const totalCutsAnnual = Object.values(cuts).reduce((s, v) => s + v, 0);
-  const totalCutsMonthly = Math.round(totalCutsAnnual / 12);
+  const totalCutsMonthly = Object.values(cuts).reduce((s, v) => s + v, 0);
+  const totalCutsAnnual = totalCutsMonthly * 12;
 
   // Sarah's current and projected income
   const currentMonthly = Math.round(sarahRate * sarahCurrentClients * DAYS_PER_MONTH);
@@ -244,7 +244,7 @@ export default function SarahMode({
                   }}>
                     <span style={{ fontSize: 12, color: "#8ba4c4" }}>{label}</span>
                     <span style={{ fontSize: 12, color: "#f0abfc", fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
-                      {fmtFull(val)}/yr
+                      {fmtFull(val)}/mo
                     </span>
                   </div>
                 );

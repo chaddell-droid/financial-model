@@ -31,7 +31,7 @@ export default function SarahMode({
   cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
   cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
   mcResults, goalResults, goals,
-  monthlyDetail,
+  monthlyDetail, savingsData, wealthData,
   onFieldChange, onExit,
 }) {
   const cuts = { cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems };
@@ -47,6 +47,18 @@ export default function SarahMode({
 
   // Per-client impact
   const perClientImpact = Math.round(sarahRate * DAYS_PER_MONTH);
+
+  // Net worth computations
+  const nowSavings = savingsData?.[0]?.balance || 0;
+  const now401k = wealthData?.[0]?.balance401k || 0;
+  const nowHome = wealthData?.[0]?.homeEquity || 0;
+  const nowNetWorth = nowSavings + now401k + nowHome;
+  const y6Savings = savingsData?.[72]?.balance || 0;
+  const y6_401k = wealthData?.[72]?.balance401k || 0;
+  const y6Home = wealthData?.[72]?.homeEquity || 0;
+  const y6NetWorth = y6Savings + y6_401k + y6Home;
+  const nwChange = y6NetWorth - nowNetWorth;
+  const nwGrowing = nwChange >= 0;
 
   // Breakeven month from projection
   const breakevenMonth = monthlyDetail?.findIndex(d => d.netCashFlow >= 0);
@@ -96,6 +108,84 @@ export default function SarahMode({
         >
           {"\u2715"} Back to Full View
         </button>
+      </div>
+
+      {/* Card 0: Our Net Worth */}
+      <div style={cardStyle}>
+        <h3 style={headingStyle("#60a5fa")}>Our Net Worth</h3>
+        <p style={subtextStyle}>
+          Everything we've built together — savings, retirement, and our home.
+        </p>
+
+        {/* Big numbers: Now → Year 6 */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, margin: "8px 0 20px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#6b8db5", marginBottom: 4 }}>Today</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(nowNetWorth)}
+            </div>
+          </div>
+          <div style={{ fontSize: 24, color: nwGrowing ? WARM_GREEN : "#f87171" }}>{nwGrowing ? "\u2192" : "\u2192"}</div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#6b8db5", marginBottom: 4 }}>Year 6</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: nwGrowing ? WARM_GREEN : "#fbbf24", fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(y6NetWorth)}
+            </div>
+          </div>
+        </div>
+
+        {/* Mini bar chart showing components */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {[
+            { label: "Today", savings: nowSavings, ret: now401k, home: nowHome, total: nowNetWorth },
+            { label: "Year 6", savings: y6Savings, ret: y6_401k, home: y6Home, total: y6NetWorth },
+          ].map((col, ci) => {
+            const maxVal = Math.max(Math.abs(nowNetWorth), Math.abs(y6NetWorth)) || 1;
+            return (
+              <div key={ci} style={{ background: "#0c1a2e", borderRadius: 10, padding: "12px 14px", border: `1px solid ${CARD_BORDER}` }}>
+                <div style={{ fontSize: 11, color: "#6b8db5", fontWeight: 600, marginBottom: 10 }}>{col.label}</div>
+                {[
+                  { name: "Savings", value: col.savings, color: "#60a5fa" },
+                  { name: "401(k)", value: col.ret, color: WARM_GREEN },
+                  { name: "Home equity", value: col.home, color: TEAL },
+                ].map((item, i) => (
+                  <div key={i} style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: "#8ba4c4" }}>{item.name}</span>
+                      <span style={{ fontSize: 11, color: item.value >= 0 ? item.color : "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                        {fmtFull(item.value)}
+                      </span>
+                    </div>
+                    <div style={{ height: 4, background: "#1e3a5f", borderRadius: 2 }}>
+                      <div style={{
+                        height: 4, borderRadius: 2,
+                        background: item.value >= 0 ? item.color : "#f87171",
+                        width: `${Math.max(0, Math.min(100, (Math.abs(item.value) / maxVal) * 100))}%`,
+                        opacity: item.value < 0 ? 0.5 : 1,
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Narrative */}
+        <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "12px 16px", marginTop: 12, border: `1px solid ${CARD_BORDER}` }}>
+          <p style={{ fontSize: 13, color: "#8ba4c4", margin: 0, lineHeight: 1.6 }}>
+            {nwGrowing ? (
+              <>Our net worth grows by <span style={{ color: WARM_GREEN, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(nwChange)}</span> over 6 years.
+              {" "}Even through this transition, our 401(k) and home equity keep building toward retirement.</>
+            ) : y6Savings < 0 ? (
+              <>Our savings face pressure during this transition, but our 401(k) ({fmtFull(y6_401k)}) and home equity ({fmtFull(y6Home)}) continue growing.
+              {" "}The retirement foundation stays strong — this is a temporary bridge period.</>
+            ) : (
+              <>While our net worth shifts during this period, our long-term assets — 401(k) and home — continue building.
+              {" "}We're navigating a transition, not losing ground.</>
+            )}
+          </p>
+        </div>
       </div>
 
       {/* Card 1: Your Income Impact */}

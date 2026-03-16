@@ -336,7 +336,7 @@ export default function FinancialModel() {
             cutMedical={cutMedical} cutGym={cutGym} cutAmazon={cutAmazon} cutSaaS={cutSaaS}
             cutEntertainment={cutEntertainment} cutGroceries={cutGroceries} cutPersonalCare={cutPersonalCare} cutSmallItems={cutSmallItems}
             mcResults={mcResults} goalResults={goalResults} goals={goals}
-            monthlyDetail={monthlyDetail}
+            monthlyDetail={monthlyDetail} savingsData={savingsData} wealthData={wealthData}
             onFieldChange={set}
             onExit={() => set('sarahMode')(false)}
           />

@@ -9,7 +9,7 @@ const BridgeChart = ({
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
   retireDebt, vanSold, lifestyleCutsApplied,
   ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
-  ssMonthlyBenefit, ssStartMonth,
+  ssFamilyTotal, ssStartMonth,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   milestones, bcsYearsLeft, bcsFamilyMonthly,
   llcAnnual, llcImproves, llcMultiplier,
@@ -52,7 +52,7 @@ const BridgeChart = ({
   const useSS = ssType === 'ss';
   if (lifestyleCutsApplied) events.push({ m: 0.5, label: "Cuts applied", color: "#4ade80" });
   if (useSS) {
-    events.push({ m: ssStartMonth, label: `SS +${fmtFull(ssMonthlyBenefit)}`, color: "#4ade80" });
+    events.push({ m: ssStartMonth, label: `SS +${fmtFull(ssFamilyTotal)}`, color: "#4ade80" });
   } else {
     events.push({ m: ssdiApprovalMonth, label: `SSDI +${fmtFull(ssdiFamilyTotal)}`, color: "#4ade80" });
   }
@@ -89,7 +89,7 @@ const BridgeChart = ({
   let running = todayGap;
   const monthlyReturn = startingSavings > 0 ? Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1/12) - 1)) : 0;
   const ssLever = useSS
-    ? { name: "SS (62)", value: ssMonthlyBenefit, color: "#4ade80" }
+    ? { name: "SS (62)", value: ssFamilyTotal, color: "#4ade80" }
     : { name: "SSDI", value: ssdiFamilyTotal, color: "#4ade80" };
   const ssActive = useSS ? true : !ssdiDenied;
   const wfLevers = [

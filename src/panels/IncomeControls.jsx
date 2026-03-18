@@ -12,7 +12,7 @@ const IncomeControls = ({
   ssdiDenied,
   ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
   ssdiApprovalMonth, ssdiBackPayMonths, ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
-  ssMonthlyBenefit, ssStartMonth,
+  ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
   chadConsulting,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings,
@@ -123,14 +123,25 @@ const IncomeControls = ({
             {ssType === 'ss' && (
               <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155", marginBottom: 12 }}>
                 <h4 style={{ fontSize: 11, color: "#4ade80", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>SS Retirement at 62</h4>
-                <Slider label="Monthly SS benefit" value={ssMonthlyBenefit} onChange={set('ssMonthlyBenefit')} min={1500} max={4000} step={50} color="#4ade80" />
+                <Slider label="Family total/mo (you + twins)" value={ssFamilyTotal} onChange={set('ssFamilyTotal')} min={4000} max={9000} step={50} color="#4ade80" />
+                <Slider label="Personal/mo (after twins age out)" value={ssPersonal} onChange={set('ssPersonal')} min={1500} max={4000} step={50} color="#4ade80" />
+                <Slider label="Twins age out (months after SS)" value={ssKidsAgeOutMonths} onChange={set('ssKidsAgeOutMonths')} min={6} max={36} color="#4ade80" format={(v) => v + " mo"} />
                 <Slider label="SS starts (months out)" value={ssStartMonth} onChange={set('ssStartMonth')} min={1} max={36} color="#4ade80" format={(v) => v + " mo"} />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
-                  <span style={{ color: "#64748b" }}>Annual benefit:</span>
-                  <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(ssMonthlyBenefit * 12)}/yr</span>
+                <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "#64748b" }}>Stage 1 (twins eligible):</span>
+                    <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(ssFamilyTotal)}/mo</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                    <span style={{ color: "#64748b" }}>Stage 2 (you only):</span>
+                    <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(ssPersonal)}/mo</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: "#64748b" }}>
+                    <span>Twins: $2,083 each (50% of PIA)</span>
+                  </div>
                 </div>
                 <div style={{ fontSize: 10, color: "#475569", marginTop: 6, fontStyle: "italic" }}>
-                  SS retirement begins at age 62 and continues for life. No back pay. No SGA earnings limit.
+                  SS retirement begins at age 62 and continues for life. Twins eligible as minor children until 18. No back pay. No SGA earnings limit.
                 </div>
 
                 <div style={{ marginTop: 12 }}>

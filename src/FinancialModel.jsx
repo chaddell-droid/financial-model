@@ -40,7 +40,7 @@ export default function FinancialModel() {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
-    ssMonthlyBenefit, ssStartMonth,
+    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied,
@@ -99,7 +99,7 @@ export default function FinancialModel() {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
-    ssMonthlyBenefit, ssStartMonth,
+    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     baseExpenses, debtService, bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, milestones,
     lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
@@ -238,7 +238,7 @@ export default function FinancialModel() {
   }, [dadMode, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects,
       sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
       llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth, ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal,
-      ssMonthlyBenefit, ssStartMonth, kidsAgeOutMonths, chadConsulting, baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
+      ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths, kidsAgeOutMonths, chadConsulting, baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
       cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
       trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
       vanMonthlySavings, startingSavings, investmentReturn, ssdiBackPayMonths,
@@ -429,7 +429,7 @@ export default function FinancialModel() {
             sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
             retireDebt={retireDebt} vanSold={vanSold} lifestyleCutsApplied={lifestyleCutsApplied}
             ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiFamilyTotal={ssdiFamilyTotal} chadConsulting={chadConsulting}
-            ssMonthlyBenefit={ssMonthlyBenefit} ssStartMonth={ssStartMonth}
+            ssFamilyTotal={ssFamilyTotal} ssStartMonth={ssStartMonth}
             trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
             milestones={milestones} bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
             llcAnnual={llcAnnual} llcImproves={llcImproves} llcMultiplier={llcMultiplier}
@@ -470,7 +470,7 @@ export default function FinancialModel() {
             onParamChange={set}
             startingSavings={startingSavings} investmentReturn={investmentReturn}
             ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiBackPayActual={ssdiBackPayActual}
-            ssStartMonth={ssStartMonth}
+            ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
             monthlyDetail={monthlyDetail}
             presentMode={presentMode}
           />
@@ -479,7 +479,7 @@ export default function FinancialModel() {
             retireDebt={retireDebt} debtService={debtService}
             ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
             ssdiPersonal={ssdiPersonal} ssdiBackPayActual={ssdiBackPayActual}
-            ssMonthlyBenefit={ssMonthlyBenefit} ssStartMonth={ssStartMonth}
+            ssFamilyTotal={ssFamilyTotal} ssPersonal={ssPersonal} ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
             chadConsulting={chadConsulting} milestones={milestones}
             bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
             llcImproves={llcImproves} llcDelayMonths={llcDelayMonths} llcAnnual={llcAnnual} llcMultiplier={llcMultiplier}
@@ -517,7 +517,7 @@ export default function FinancialModel() {
                 ssdiFamilyTotal={ssdiFamilyTotal} ssdiPersonal={ssdiPersonal} kidsAgeOutMonths={kidsAgeOutMonths}
                 ssdiApprovalMonth={ssdiApprovalMonth} ssdiBackPayMonths={ssdiBackPayMonths}
                 ssdiBackPayGross={ssdiBackPayGross} ssdiAttorneyFee={ssdiAttorneyFee} ssdiBackPayActual={ssdiBackPayActual}
-                ssMonthlyBenefit={ssMonthlyBenefit} ssStartMonth={ssStartMonth}
+                ssFamilyTotal={ssFamilyTotal} ssPersonal={ssPersonal} ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
                 chadConsulting={chadConsulting}
                 trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
                 vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}

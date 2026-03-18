@@ -16,7 +16,9 @@ export function runMonthlySimulation(s) {
   const backPayFee = Math.min(Math.round(backPayGross * 0.25), 9200);
   const backPayActual = backPayGross - backPayFee;
   const ssStartMonth = s.ssStartMonth || 18;
-  const ssMonthlyBenefit = s.ssMonthlyBenefit || 2933;
+  const ssFamilyTotal = s.ssFamilyTotal || 7099;
+  const ssPersonal = s.ssPersonal || 2933;
+  const ssKidsAgeOutMonths = s.ssKidsAgeOutMonths || 18;
   const ms = s.milestones || [];
   const trustNow = s.trustIncomeNow || 0;
   const trustFuture = s.trustIncomeFuture || 0;
@@ -36,8 +38,10 @@ export function runMonthlySimulation(s) {
     const trust = m < trustMonth ? trustNow : trustFuture;
     let ssdi = 0;
     if (useSS) {
-      // SS retirement: flat benefit from age 62 onward, continues until death
-      if (m >= ssStartMonth) ssdi = ssMonthlyBenefit;
+      // SS retirement: family total while twins are under 18, then personal only
+      if (m >= ssStartMonth) {
+        ssdi = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
+      }
     } else if (m >= effectiveSsdiApproval) {
       ssdi = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
     }

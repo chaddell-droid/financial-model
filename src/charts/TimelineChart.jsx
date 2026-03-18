@@ -10,7 +10,7 @@ export default function TimelineChart({
   ssdiFamilyTotal,
   ssdiPersonal,
   ssdiBackPayActual,
-  ssMonthlyBenefit, ssStartMonth,
+  ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
   chadConsulting,
   milestones,
   bcsYearsLeft,
@@ -41,7 +41,7 @@ export default function TimelineChart({
   }
   const useSS = ssType === 'ss';
   if (useSS) {
-    above.push({ m: ssStartMonth, label: "SS at 62 starts", detail: `+${fmtFull(ssMonthlyBenefit)}/mo` });
+    above.push({ m: ssStartMonth, label: "SS at 62 starts", detail: `+${fmtFull(ssFamilyTotal)}/mo (family)` });
     if (chadConsulting > 0) {
       above.push({ m: ssStartMonth + 1, label: "Consulting starts", detail: `+${fmtFull(chadConsulting)}/mo` });
     }
@@ -75,6 +75,9 @@ export default function TimelineChart({
   below.push({ m: 6, label: "MSFT drops", detail: `→ ${fmtFull(getVestingMonthly(6, msftGrowth))}/mo (88 sh)`, color: "#f59e0b" });
   below.push({ m: 18, label: "MSFT cliff", detail: `→ ${fmtFull(getVestingMonthly(18, msftGrowth))}/mo (32 sh)`, color: "#f87171" });
   below.push({ m: 30, label: "MSFT ends", detail: "$0/mo — final vest", color: "#f87171" });
+  if (useSS && ssStartMonth + ssKidsAgeOutMonths < totalMonths) {
+    below.push({ m: ssStartMonth + ssKidsAgeOutMonths, label: "Twins turn 18", detail: `SS → ${fmtFull(ssPersonal)}/mo`, color: "#f87171" });
+  }
   if (!useSS && ssdiApprovalMonth + kidsAgeOutMonths < totalMonths) {
     below.push({ m: ssdiApprovalMonth + kidsAgeOutMonths, label: "Kids turn 18", detail: `SSDI → ${fmtFull(ssdiPersonal)}/mo`, color: "#f87171" });
   }

@@ -23,8 +23,10 @@ export const INITIAL_STATE = {
   chadConsulting: 0,
   ssdiBackPayMonths: 18,
   // SS retirement at 62
-  ssMonthlyBenefit: 2933,
-  ssStartMonth: 18,
+  ssFamilyTotal: 7099,       // You + twins (each at 50% PIA) while twins <18
+  ssPersonal: 2933,          // You alone after twins age out
+  ssStartMonth: 18,          // Sept 2027 = ~18 months from baseline
+  ssKidsAgeOutMonths: 18,    // Twins turn 18 ~18 months after SS starts (Mar 2029)
 
   // Expenses
   baseExpenses: 43818,
@@ -144,7 +146,7 @@ export const MODEL_KEYS = [
   'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth',
   'llcAnnual', 'llcMultiplier', 'llcDelayMonths', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
-  'ssMonthlyBenefit', 'ssStartMonth',
+  'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',

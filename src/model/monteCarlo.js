@@ -26,18 +26,20 @@ export function runMonteCarlo(base, mcParams, goals = []) {
   }
 
   for (let sim = 0; sim < N; sim++) {
+    const useSS = base.ssType === 'ss';
     const simParams = {
       ...base,
       investmentReturn: Math.max(0, randNorm(base.investmentReturn, mcInvestVol)),
       sarahClientGrowth: Math.max(0, randNorm(base.sarahClientGrowth, mcBizGrowthVol)),
       sarahRateGrowth: Math.max(0, randNorm(base.sarahRateGrowth, mcBizGrowthVol * 0.5)),
       msftGrowth: randNorm(base.msftGrowth, mcMsftVol),
-      ssdiApprovalMonth: base.ssdiApprovalMonth + Math.max(0, Math.round(Math.random() * mcSsdiDelay)),
+      // SS retirement is guaranteed at age 62 — no delay or denial risk
+      ssdiApprovalMonth: useSS ? base.ssdiApprovalMonth : base.ssdiApprovalMonth + Math.max(0, Math.round(Math.random() * mcSsdiDelay)),
       cutsDiscipline: Math.min(1, Math.max(0, randNorm(1, mcCutsDiscipline / 100))),
     };
 
-    // Randomly deny SSDI based on denial probability
-    if (mcSsdiDenialPct > 0 && Math.random() * 100 < mcSsdiDenialPct) {
+    // Randomly deny SSDI based on denial probability (not applicable to SS retirement)
+    if (!useSS && mcSsdiDenialPct > 0 && Math.random() * 100 < mcSsdiDenialPct) {
       simParams.ssdiDenied = true;
     }
 

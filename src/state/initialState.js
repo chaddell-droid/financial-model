@@ -13,7 +13,8 @@ export const INITIAL_STATE = {
   llcDelayMonths: 24,
   msftGrowth: 0,
 
-  // SSDI
+  // Social Security (SSDI vs SS retirement — mutually exclusive)
+  ssType: 'ssdi',            // 'ssdi' or 'ss'
   ssdiApprovalMonth: 7,
   ssdiDenied: false,
   ssdiPersonal: 4152,
@@ -21,6 +22,9 @@ export const INITIAL_STATE = {
   kidsAgeOutMonths: 36,
   chadConsulting: 0,
   ssdiBackPayMonths: 18,
+  // SS retirement at 62
+  ssMonthlyBenefit: 2933,
+  ssStartMonth: 18,
 
   // Expenses
   baseExpenses: 43818,
@@ -139,7 +143,8 @@ export const INITIAL_STATE = {
 export const MODEL_KEYS = [
   'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth',
   'llcAnnual', 'llcMultiplier', 'llcDelayMonths', 'msftGrowth',
-  'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
+  'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
+  'ssMonthlyBenefit', 'ssStartMonth',
   'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',

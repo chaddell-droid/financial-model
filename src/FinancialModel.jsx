@@ -39,7 +39,8 @@ export default function FinancialModel() {
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth,
-    ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
+    ssMonthlyBenefit, ssStartMonth,
     baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied,
@@ -97,7 +98,8 @@ export default function FinancialModel() {
   const projection = useMemo(() => computeProjection(gatherState()), [
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth,
-    ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
+    ssMonthlyBenefit, ssStartMonth,
     baseExpenses, debtService, bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, milestones,
     lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
@@ -235,8 +237,8 @@ export default function FinancialModel() {
     };
   }, [dadMode, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects,
       sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-      llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal,
-      kidsAgeOutMonths, chadConsulting, baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
+      llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth, ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal,
+      ssMonthlyBenefit, ssStartMonth, kidsAgeOutMonths, chadConsulting, baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
       cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
       trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
       vanMonthlySavings, startingSavings, investmentReturn, ssdiBackPayMonths,
@@ -506,10 +508,12 @@ export default function FinancialModel() {
                 sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
                 sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
                 sarahCurrentNet={sarahCurrentNet} sarahCeiling={sarahCeiling}
+                ssType={ssType}
                 ssdiDenied={ssdiDenied}
                 ssdiFamilyTotal={ssdiFamilyTotal} ssdiPersonal={ssdiPersonal} kidsAgeOutMonths={kidsAgeOutMonths}
                 ssdiApprovalMonth={ssdiApprovalMonth} ssdiBackPayMonths={ssdiBackPayMonths}
                 ssdiBackPayGross={ssdiBackPayGross} ssdiAttorneyFee={ssdiAttorneyFee} ssdiBackPayActual={ssdiBackPayActual}
+                ssMonthlyBenefit={ssMonthlyBenefit} ssStartMonth={ssStartMonth}
                 chadConsulting={chadConsulting}
                 trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
                 vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}

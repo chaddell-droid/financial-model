@@ -9,11 +9,14 @@ import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 export function runMonthlySimulation(s) {
   const months = 72;
   const cutsDiscipline = s.cutsDiscipline ?? 1.0;
-  // If SSDI denied, push approval to never and zero back pay
-  const effectiveSsdiApproval = s.ssdiDenied ? 999 : (s.ssdiApprovalMonth || 7);
-  const backPayGross = s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152);
+  const useSS = s.ssType === 'ss';
+  // If SS retirement: no SSDI, no back pay. If SSDI denied: push approval to never.
+  const effectiveSsdiApproval = useSS ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth || 7));
+  const backPayGross = useSS ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
   const backPayFee = Math.min(Math.round(backPayGross * 0.25), 9200);
   const backPayActual = backPayGross - backPayFee;
+  const ssStartMonth = s.ssStartMonth || 18;
+  const ssMonthlyBenefit = s.ssMonthlyBenefit || 2933;
   const ms = s.milestones || [];
   const trustNow = s.trustIncomeNow || 0;
   const trustFuture = s.trustIncomeFuture || 0;
@@ -32,10 +35,16 @@ export function runMonthlySimulation(s) {
     const llcMonthly = Math.round(m < (s.llcDelayMonths || 24) ? s.llcAnnual / 12 : (s.llcImproves ? (s.llcAnnual * s.llcMultiplier) / 12 : s.llcAnnual / 12));
     const trust = m < trustMonth ? trustNow : trustFuture;
     let ssdi = 0;
-    if (m >= effectiveSsdiApproval) {
+    if (useSS) {
+      // SS retirement: flat benefit from age 62 onward, continues until death
+      if (m >= ssStartMonth) ssdi = ssMonthlyBenefit;
+    } else if (m >= effectiveSsdiApproval) {
       ssdi = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
     }
-    const consulting = m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0;
+    // Consulting: SGA limit only applies under SSDI, not SS retirement
+    const consulting = useSS
+      ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
+      : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
 
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
 

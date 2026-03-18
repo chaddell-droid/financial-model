@@ -25,6 +25,7 @@ const CUT_ITEMS = [
 ];
 
 export default function SarahMode({
+  ssType,
   sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
   lifestyleCutsApplied,
@@ -305,7 +306,7 @@ export default function SarahMode({
               {goalResults && goalResults.filter(g => g.achieved).length > 0 ? (
                 <>Based on our current plan, we're already meeting {goalResults.filter(g => g.achieved).length} of our {goalResults.length} goals. Run Monte Carlo in the full view for confidence percentages.</>
               ) : (
-                <>Our plan has multiple income streams working together — your practice, SSDI, MSFT vesting, and trust income. Run Monte Carlo in the full view to see confidence percentages.</>
+                <>Our plan has multiple income streams working together — your practice, {ssType === 'ss' ? 'Social Security' : 'SSDI'}, MSFT vesting, and trust income. Run Monte Carlo in the full view to see confidence percentages.</>
               )}
             </p>
           </div>
@@ -357,7 +358,7 @@ export default function SarahMode({
             <div style={{ position: "absolute", top: 14, left: 0, right: 0, height: 2, background: "#1e3a5f", borderRadius: 1 }} />
             {[
               { label: "Now", month: 0, color: TEAL },
-              { label: "SSDI", month: 7, color: "#fbbf24" },
+              { label: ssType === 'ss' ? "SS at 62" : "SSDI", month: ssType === 'ss' ? 18 : 7, color: "#fbbf24" },
               { label: "BCS ends", month: 36, color: "#f0abfc" },
               { label: "Year 6", month: 72, color: WARM_GREEN },
             ].map((evt, i) => (

@@ -5,10 +5,12 @@ import { getVestingMonthly } from "../model/vesting.js";
 export default function TimelineChart({
   retireDebt,
   debtService,
+  ssType,
   ssdiApprovalMonth,
   ssdiFamilyTotal,
   ssdiPersonal,
   ssdiBackPayActual,
+  ssMonthlyBenefit, ssStartMonth,
   chadConsulting,
   milestones,
   bcsYearsLeft,
@@ -37,10 +39,18 @@ export default function TimelineChart({
   if (retireDebt) {
     above.push({ m: 1, label: "Debt retired", detail: `+${fmtFull(debtService)}/mo freed` });
   }
-  above.push({ m: ssdiApprovalMonth, label: "SSDI approved", detail: `+${fmtFull(ssdiFamilyTotal)}/mo` });
-  above.push({ m: ssdiApprovalMonth + 2, label: "SSDI back pay", detail: `+${fmtFull(ssdiBackPayActual)} lump` });
-  if (chadConsulting > 0) {
-    above.push({ m: ssdiApprovalMonth + 1, label: "Consulting starts", detail: `+${fmtFull(chadConsulting)}/mo` });
+  const useSS = ssType === 'ss';
+  if (useSS) {
+    above.push({ m: ssStartMonth, label: "SS at 62 starts", detail: `+${fmtFull(ssMonthlyBenefit)}/mo` });
+    if (chadConsulting > 0) {
+      above.push({ m: ssStartMonth + 1, label: "Consulting starts", detail: `+${fmtFull(chadConsulting)}/mo` });
+    }
+  } else {
+    above.push({ m: ssdiApprovalMonth, label: "SSDI approved", detail: `+${fmtFull(ssdiFamilyTotal)}/mo` });
+    above.push({ m: ssdiApprovalMonth + 2, label: "SSDI back pay", detail: `+${fmtFull(ssdiBackPayActual)} lump` });
+    if (chadConsulting > 0) {
+      above.push({ m: ssdiApprovalMonth + 1, label: "Consulting starts", detail: `+${fmtFull(chadConsulting)}/mo` });
+    }
   }
   for (const ms of milestones) {
     if (ms.savings > 0 && ms.month <= totalMonths) {
@@ -65,7 +75,7 @@ export default function TimelineChart({
   below.push({ m: 6, label: "MSFT drops", detail: `→ ${fmtFull(getVestingMonthly(6, msftGrowth))}/mo (88 sh)`, color: "#f59e0b" });
   below.push({ m: 18, label: "MSFT cliff", detail: `→ ${fmtFull(getVestingMonthly(18, msftGrowth))}/mo (32 sh)`, color: "#f87171" });
   below.push({ m: 30, label: "MSFT ends", detail: "$0/mo — final vest", color: "#f87171" });
-  if (ssdiApprovalMonth + kidsAgeOutMonths < totalMonths) {
+  if (!useSS && ssdiApprovalMonth + kidsAgeOutMonths < totalMonths) {
     below.push({ m: ssdiApprovalMonth + kidsAgeOutMonths, label: "Kids turn 18", detail: `SSDI → ${fmtFull(ssdiPersonal)}/mo`, color: "#f87171" });
   }
   below.sort((a, b) => a.m - b.m);

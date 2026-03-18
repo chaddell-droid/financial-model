@@ -10,6 +10,7 @@ export default function MonthlyCashFlowChart({
   maxVesting,
   highlightIdx,
   highlightLabel,
+  ssType,
   ssdiApprovalMonth,
   ssdiFamilyTotal,
   msftGrowth,
@@ -124,7 +125,7 @@ export default function MonthlyCashFlowChart({
                 pointerEvents: "none"
               }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
-                  SSDI starts
+                  {ssType === 'ss' ? 'SS starts' : 'SSDI starts'}
                 </span>
               </div>
             );
@@ -237,7 +238,7 @@ export default function MonthlyCashFlowChart({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 16, height: 2, background: "#4ade80", borderTop: "2px dashed #4ade80" }} />
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>SSDI starts</span>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>{ssType === 'ss' ? 'SS starts' : 'SSDI starts'}</span>
         </div>
       </div>
     </div>

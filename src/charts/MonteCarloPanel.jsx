@@ -36,8 +36,10 @@ export default function MonteCarloPanel({
       { name: "Sarah client growth", upState: { ...base, sarahClientGrowth: base.sarahClientGrowth + mcBizGrowthVol }, downState: { ...base, sarahClientGrowth: Math.max(0, base.sarahClientGrowth - mcBizGrowthVol) } },
       { name: "Sarah rate growth", upState: { ...base, sarahRateGrowth: base.sarahRateGrowth + mcBizGrowthVol * 0.5 }, downState: { ...base, sarahRateGrowth: Math.max(0, base.sarahRateGrowth - mcBizGrowthVol * 0.5) } },
       { name: "MSFT price", upState: { ...base, msftGrowth: base.msftGrowth + mcMsftVol }, downState: { ...base, msftGrowth: base.msftGrowth - mcMsftVol } },
-      { name: "SSDI timing", upState: { ...base, ssdiApprovalMonth: base.ssdiApprovalMonth }, downState: { ...base, ssdiApprovalMonth: base.ssdiApprovalMonth + mcSsdiDelay } },
-      { name: "SSDI denied", upState: { ...base }, downState: { ...base, ssdiDenied: true } },
+      ...(base.ssType !== 'ss' ? [
+        { name: "SSDI timing", upState: { ...base, ssdiApprovalMonth: base.ssdiApprovalMonth }, downState: { ...base, ssdiApprovalMonth: base.ssdiApprovalMonth + mcSsdiDelay } },
+        { name: "SSDI denied", upState: { ...base }, downState: { ...base, ssdiDenied: true } },
+      ] : []),
       ...(base.lifestyleCutsApplied ? [{
         name: "Spending discipline",
         upState: { ...base },

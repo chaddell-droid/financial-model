@@ -8,7 +8,8 @@ const BridgeChart = ({
   sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
   retireDebt, vanSold, lifestyleCutsApplied,
-  ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
+  ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
+  ssMonthlyBenefit, ssStartMonth,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   milestones, bcsYearsLeft, bcsFamilyMonthly,
   llcAnnual, llcImproves, llcMultiplier,
@@ -48,8 +49,13 @@ const BridgeChart = ({
   const events = [];
   if (retireDebt) events.push({ m: 0, label: "Debt retired", color: "#4ade80" });
   if (vanSold) events.push({ m: 0, label: "Van sold", color: "#4ade80" });
+  const useSS = ssType === 'ss';
   if (lifestyleCutsApplied) events.push({ m: 0.5, label: "Cuts applied", color: "#4ade80" });
-  events.push({ m: ssdiApprovalMonth, label: `SSDI +${fmtFull(ssdiFamilyTotal)}`, color: "#4ade80" });
+  if (useSS) {
+    events.push({ m: ssStartMonth, label: `SS +${fmtFull(ssMonthlyBenefit)}`, color: "#4ade80" });
+  } else {
+    events.push({ m: ssdiApprovalMonth, label: `SSDI +${fmtFull(ssdiFamilyTotal)}`, color: "#4ade80" });
+  }
   if (trustIncomeFuture > trustIncomeNow) {
     events.push({ m: trustIncreaseMonth, label: `Trust +${fmtFull(trustIncomeFuture - trustIncomeNow)}`, color: "#a78bfa" });
   }
@@ -82,14 +88,17 @@ const BridgeChart = ({
   const wfSteps = [{ name: "Today", value: todayGap, isStart: true }];
   let running = todayGap;
   const monthlyReturn = startingSavings > 0 ? Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1/12) - 1)) : 0;
-  const ssdLever = { name: "SSDI", value: ssdiFamilyTotal, color: "#4ade80" };
+  const ssLever = useSS
+    ? { name: "SS (62)", value: ssMonthlyBenefit, color: "#4ade80" }
+    : { name: "SSDI", value: ssdiFamilyTotal, color: "#4ade80" };
+  const ssActive = useSS ? true : !ssdiDenied;
   const wfLevers = [
     ...(monthlyReturn > 0 ? [{ name: `Returns (${investmentReturn}%)`, value: monthlyReturn, color: "#22d3ee" }] : []),
     ...(retireDebt ? [{ name: "Retire debt", value: debtService, color: "#4ade80" }] : []),
     ...(vanSold ? [{ name: "Van sold", value: vanMonthlySavings, color: "#4ade80" }] : []),
     ...(lifestyleCutsApplied ? [{ name: "Spending cuts", value: lifestyleCuts + cutInHalf + extraCuts, color: "#4ade80" }] : []),
-    ...(!ssdiDenied ? [ssdLever] : []),
-    ...(chadConsulting > 0 && !ssdiDenied ? [{ name: "Consulting", value: Math.min(chadConsulting, SGA_LIMIT), color: "#38bdf8" }] : []),
+    ...(ssActive ? [ssLever] : []),
+    ...(chadConsulting > 0 && ssActive ? [{ name: "Consulting", value: useSS ? chadConsulting : Math.min(chadConsulting, SGA_LIMIT), color: "#38bdf8" }] : []),
   ];
   const sarahY3Rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, 3), sarahMaxRate);
   const sarahY3Clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, 3), sarahMaxClients);

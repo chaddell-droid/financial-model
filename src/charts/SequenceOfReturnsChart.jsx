@@ -4,7 +4,8 @@ import Slider from '../components/Slider.jsx';
 
 export default function SequenceOfReturnsChart({
   seqBadY1, seqBadY2, onParamChange,
-  startingSavings, investmentReturn, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
+  startingSavings, investmentReturn, ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
+  ssStartMonth,
   monthlyDetail, presentMode
 }) {
   if (presentMode) return null;
@@ -44,8 +45,9 @@ export default function SequenceOfReturnsChart({
       const investRet = bal > 0 ? bal * mRate : 0;
       const cashFlow = md.cashIncome - md.expenses;
       bal += investRet + cashFlow;
-      const effApproval = ssdiDenied ? 999 : ssdiApprovalMonth;
-      if (m === effApproval + 2) bal += ssdiBackPayActual;
+      const useSS = ssType === 'ss';
+      const effApproval = useSS ? 999 : (ssdiDenied ? 999 : ssdiApprovalMonth);
+      if (!useSS && m === effApproval + 2) bal += ssdiBackPayActual;
       pts.push(Math.round(bal));
     }
     return { ...sc, pts };
@@ -134,10 +136,19 @@ export default function SequenceOfReturnsChart({
 
       <svg viewBox={`0 0 ${seqW} ${seqH}`} style={{ width: "100%", height: "auto" }}>
         {/* Vulnerability shading */}
-        <rect x={seqX(0)} y={spt} width={seqX(ssdiDenied ? months : ssdiApprovalMonth) - seqX(0)} height={sph} fill="#f8717108" />
-        <text x={seqX((ssdiDenied ? months : ssdiApprovalMonth) / 2)} y={spt + 10} textAnchor="middle" fill="#f87171" fontSize="7" opacity="0.5">
-          PRE-SSDI DEFICIT
-        </text>
+        {(() => {
+          const useSS = ssType === 'ss';
+          const deficitEnd = useSS ? (ssStartMonth || 18) : (ssdiDenied ? months : ssdiApprovalMonth);
+          const deficitLabel = useSS ? 'PRE-SS DEFICIT' : 'PRE-SSDI DEFICIT';
+          return (
+            <>
+              <rect x={seqX(0)} y={spt} width={seqX(deficitEnd) - seqX(0)} height={sph} fill="#f8717108" />
+              <text x={seqX(deficitEnd / 2)} y={spt + 10} textAnchor="middle" fill="#f87171" fontSize="7" opacity="0.5">
+                {deficitLabel}
+              </text>
+            </>
+          );
+        })()}
 
         {/* MSFT cliff marker */}
         <line x1={seqX(cliffMonth)} x2={seqX(cliffMonth)} y1={spt} y2={spt + sph} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />

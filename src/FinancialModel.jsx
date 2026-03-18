@@ -331,6 +331,7 @@ export default function FinancialModel() {
 
         {sarahMode && !dadMode && (
           <SarahMode
+            ssType={ssType}
             sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
             sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
             lifestyleCutsApplied={lifestyleCutsApplied}
@@ -427,7 +428,8 @@ export default function FinancialModel() {
             sarahCurrentNet={sarahCurrentNet} sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
             sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
             retireDebt={retireDebt} vanSold={vanSold} lifestyleCutsApplied={lifestyleCutsApplied}
-            ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiFamilyTotal={ssdiFamilyTotal} chadConsulting={chadConsulting}
+            ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiFamilyTotal={ssdiFamilyTotal} chadConsulting={chadConsulting}
+            ssMonthlyBenefit={ssMonthlyBenefit} ssStartMonth={ssStartMonth}
             trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
             milestones={milestones} bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
             llcAnnual={llcAnnual} llcImproves={llcImproves} llcMultiplier={llcMultiplier}
@@ -467,15 +469,17 @@ export default function FinancialModel() {
             seqBadY1={seqBadY1} seqBadY2={seqBadY2}
             onParamChange={set}
             startingSavings={startingSavings} investmentReturn={investmentReturn}
-            ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiBackPayActual={ssdiBackPayActual}
+            ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiBackPayActual={ssdiBackPayActual}
+            ssStartMonth={ssStartMonth}
             monthlyDetail={monthlyDetail}
             presentMode={presentMode}
           />
 
           <TimelineChart
             retireDebt={retireDebt} debtService={debtService}
-            ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
+            ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
             ssdiPersonal={ssdiPersonal} ssdiBackPayActual={ssdiBackPayActual}
+            ssMonthlyBenefit={ssMonthlyBenefit} ssStartMonth={ssStartMonth}
             chadConsulting={chadConsulting} milestones={milestones}
             bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
             llcImproves={llcImproves} llcDelayMonths={llcDelayMonths} llcAnnual={llcAnnual} llcMultiplier={llcMultiplier}
@@ -497,7 +501,7 @@ export default function FinancialModel() {
               data={data} chartH={chartH} netRange={netRange}
               minNet={minNet} maxNet={maxNet} maxVesting={maxVesting}
               highlightIdx={highlightIdx} highlightLabel={highlightLabel}
-              ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
+              ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
               msftGrowth={msftGrowth}
             />
           )}

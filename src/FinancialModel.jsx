@@ -14,6 +14,7 @@ import KeyMetrics from './components/KeyMetrics.jsx';
 import ComparisonBanner from './components/ComparisonBanner.jsx';
 import TabBar from './components/TabBar.jsx';
 import ActiveTogglePills from './components/ActiveTogglePills.jsx';
+import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
 import ScenarioStrip from './panels/ScenarioStrip.jsx';
@@ -421,7 +422,7 @@ export default function FinancialModel() {
       minHeight: "100vh",
       padding: "24px 16px"
     }}>
-      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         <Header
           presentMode={presentMode}
           onTogglePresentMode={() => set('presentMode')(!presentMode)}
@@ -533,52 +534,61 @@ export default function FinancialModel() {
             <TabBar activeTab={effectiveTab} onChange={set('activeTab')} />
           )}
 
-          {effectiveTab === "overview" && (
-            <OverviewTab
-              goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
-              mcRunning={mcRunning} presentMode={presentMode}
-              onGoalsChange={(newGoals) => set('goals')(newGoals)}
-              bridgeProps={bridgeProps} savingsDrawdownProps={savingsDrawdownProps}
-            />
-          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 420px", gap: 24, alignItems: "start" }}>
+            {/* Left column: Tab content */}
+            <div style={{ minWidth: 0 }}>
+              {effectiveTab === "overview" && (
+                <OverviewTab
+                  goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
+                  mcRunning={mcRunning} presentMode={presentMode}
+                  onGoalsChange={(newGoals) => set('goals')(newGoals)}
+                  bridgeProps={bridgeProps}
+                />
+              )}
 
-          {effectiveTab === "plan" && (
-            <PlanTab
-              scenarioStripProps={scenarioStripProps}
-              bridgeProps={bridgeProps}
-              cashFlowProps={cashFlowProps}
-              incomeControlsProps={incomeControlsProps}
-              expenseControlsProps={expenseControlsProps}
-              presentMode={presentMode}
-            />
-          )}
+              {effectiveTab === "plan" && (
+                <PlanTab
+                  bridgeProps={bridgeProps}
+                  cashFlowProps={cashFlowProps}
+                  incomeControlsProps={incomeControlsProps}
+                  expenseControlsProps={expenseControlsProps}
+                  presentMode={presentMode}
+                />
+              )}
 
-          {effectiveTab === "income" && (
-            <IncomeTab
-              vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
-              msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
-              sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
-              sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-              data={data} investmentReturn={investmentReturn}
-            />
-          )}
+              {effectiveTab === "income" && (
+                <IncomeTab
+                  vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
+                  msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
+                  sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
+                  sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
+                  data={data} investmentReturn={investmentReturn}
+                />
+              )}
 
-          {effectiveTab === "risk" && (
-            <RiskTab
-              monteCarloProps={monteCarloProps}
-              seqReturnsProps={seqReturnsProps}
-              savingsDrawdownProps={savingsDrawdownProps}
-              netWorthProps={netWorthProps}
-            />
-          )}
+              {effectiveTab === "risk" && (
+                <RiskTab
+                  monteCarloProps={monteCarloProps}
+                  seqReturnsProps={seqReturnsProps}
+                  savingsDrawdownProps={savingsDrawdownProps}
+                  netWorthProps={netWorthProps}
+                />
+              )}
 
-          {effectiveTab === "details" && (
-            <DetailsTab
-              dataTableProps={dataTableProps}
-              summaryAskProps={summaryAskProps}
-              presentMode={presentMode}
-            />
-          )}
+              {effectiveTab === "details" && (
+                <DetailsTab
+                  dataTableProps={dataTableProps}
+                  summaryAskProps={summaryAskProps}
+                  presentMode={presentMode}
+                />
+              )}
+            </div>
+
+            {/* Right column: Savings chart — always visible, sticky */}
+            <div style={{ position: "sticky", top: 16, alignSelf: "start" }}>
+              <SavingsDrawdownChart {...savingsDrawdownProps} />
+            </div>
+          </div>
         </>}
       </div>
     </div>

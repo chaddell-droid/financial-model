@@ -45,6 +45,12 @@ const BridgeChart = ({
     return `H ${x} V ${y}`;
   }).join(" ");
 
+  // Chad Job computed values (needed by both event markers and waterfall)
+  const effectiveStartMonth = chadJobStartMonth ?? 3;
+  const chadJobMonthlyNet = chadJob ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
+  const chadJobHealthVal = chadJob ? (chadJobHealthSavings || 4200) : 0;
+  const jobImmediate = chadJob && effectiveStartMonth === 0;
+
   // Build event markers
   const events = [];
   if (retireDebt) events.push({ m: 0, label: "Debt retired", color: "#4ade80" });
@@ -83,10 +89,6 @@ const BridgeChart = ({
   // === MINI WATERFALL DATA ===
   // "Today" bar uses RAW values — no toggles
   const currentMsft = data[0].msftVesting;
-  const effectiveStartMonth = chadJobStartMonth ?? 3;
-  const chadJobMonthlyNet = chadJob ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
-  const chadJobHealthVal = chadJob ? (chadJobHealthSavings || 4200) : 0;
-  const jobImmediate = chadJob && effectiveStartMonth === 0;
 
   const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow + (jobImmediate ? chadJobMonthlyNet : 0);
   const rawExpenses = baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - (jobImmediate ? chadJobHealthVal : 0);

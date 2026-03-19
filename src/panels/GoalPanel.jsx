@@ -14,6 +14,7 @@ const COLOR_PRESETS = ['#4ade80', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#
 const TYPE_LABELS = Object.fromEntries(GOAL_TYPES.map(t => [t.value, t.label]));
 
 export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning, presentMode, onGoalsChange }) {
+  const [collapsed, setCollapsed] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newGoal, setNewGoal] = useState({
     name: '', type: 'savings_target', targetAmount: 50000, targetMonth: 36, color: '#4ade80'
@@ -52,9 +53,20 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 16, color: '#94a3b8' }}>Goal Tracker</h3>
-        {!presentMode && (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed ? 0 : 12 }}>
+        <h3
+          onClick={() => setCollapsed(!collapsed)}
+          style={{ margin: 0, fontSize: 16, color: '#94a3b8', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <span style={{ fontSize: 12, color: '#64748b', transition: 'transform 0.15s', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>{'\u25BC'}</span>
+          Goal Tracker
+          {collapsed && goals.length > 0 && (
+            <span style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+              ({goalResults.filter(g => g.achieved).length}/{goals.length} met)
+            </span>
+          )}
+        </h3>
+        {!presentMode && !collapsed && (
           <button
             onClick={() => setShowForm(!showForm)}
             style={{
@@ -72,6 +84,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
         )}
       </div>
 
+      {collapsed ? null : <>
       {/* Add Goal Form */}
       {showForm && !presentMode && (
         <div style={{ background: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -232,6 +245,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
           No goals defined. {!presentMode && 'Click "+ Add Goal" to get started.'}
         </div>
       )}
+      </>}
     </div>
   );
 }

@@ -12,6 +12,7 @@ export default function RetirementIncomeChart({
   const [retirementReturn, setRetirementReturn] = useState(investmentReturn || 8);
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [targetAge, setTargetAge] = useState(92);
+  const [poolFloor, setPoolFloor] = useState(0);
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);
   const endSavings = Math.max(0, savingsData[endIdx]?.balance || 0);
@@ -51,20 +52,21 @@ export default function RetirementIncomeChart({
   const yearlyData = [];
   let pool = totalPool;
   for (let y = 0; y <= years; y++) {
-    const effectiveWithdrawal = pool > 0 ? fixedMonthlySpend : 0;
+    const effectiveWithdrawal = pool > poolFloor ? fixedMonthlySpend : 0;
     yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: effectiveWithdrawal + ssMonthly + trustMonthly });
     for (let m = 0; m < 12; m++) {
-      if (pool > 0) {
+      if (pool > poolFloor) {
         pool += pool * monthlyReturnRate;
         pool -= fixedMonthlySpend;
-        if (pool < 0) pool = 0;
+        if (pool < poolFloor) pool = poolFloor;
       }
     }
   }
 
   // Calculate optimal withdrawal rate for target age via binary search
+  // Pool must stay above poolFloor at the target age
   const optimalRate = (() => {
-    if (totalPool <= 0) return 0;
+    if (totalPool <= poolFloor) return 0;
     const targetYears = targetAge - 67;
     let lo = 0.1, hi = 30;
     for (let iter = 0; iter < 50; iter++) {
@@ -74,10 +76,10 @@ export default function RetirementIncomeChart({
       let survived = true;
       for (let y = 0; y < targetYears; y++) {
         for (let m = 0; m < 12; m++) {
-          if (p > 0) {
+          if (p > poolFloor) {
             p += p * monthlyReturnRate;
             p -= testSpend;
-            if (p < 0) { survived = false; break; }
+            if (p < poolFloor) { survived = false; break; }
           }
         }
         if (!survived) break;
@@ -119,7 +121,7 @@ export default function RetirementIncomeChart({
   ];
 
   // Find age when pool depletes
-  const depleteAge = yearlyData.find(d => d.pool <= 0);
+  const depleteAge = yearlyData.find(d => d.pool <= poolFloor);
   const poolSurvives = !depleteAge;
 
   return (
@@ -132,7 +134,7 @@ export default function RetirementIncomeChart({
           Retirement Income (from age 67)
         </h3>
         <span style={{ fontSize: 11, color: poolSurvives ? '#4ade80' : '#f87171', fontWeight: 600 }}>
-          {poolSurvives ? 'Pool survives to 97' : `Pool depleted at ${depleteAge.age}`}
+          {poolSurvives ? `Pool ${poolFloor > 0 ? '> ' + fmtFull(poolFloor) : 'survives'} to 97` : `Pool hits ${poolFloor > 0 ? fmtFull(poolFloor) : '$0'} at ${depleteAge.age}`}
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
@@ -190,6 +192,12 @@ export default function RetirementIncomeChart({
         <path d={poolLine} fill="none" stroke="#60a5fa" strokeWidth="2.5"
           strokeLinejoin="round" strokeLinecap="round" />
 
+        {/* Pool floor line */}
+        {poolFloor > 0 && (
+          <line x1={padL} x2={svgW - padR} y1={yPool(poolFloor)} y2={yPool(poolFloor)}
+            stroke="#f59e0b" strokeWidth="1" strokeDasharray="6,3" opacity="0.6" />
+        )}
+
         {/* Depletion marker */}
         {depleteAge && (
           <g>
@@ -231,7 +239,7 @@ export default function RetirementIncomeChart({
         border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <div>
-          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Optimal withdrawal to last to age {targetAge}</div>
+          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Optimal withdrawal to last to age {targetAge}{poolFloor > 0 ? ` (keeping ${fmtFull(poolFloor)})` : ''}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
             {optimalRate}% = {fmtFull(optimalMonthly)}/mo
           </div>
@@ -245,13 +253,15 @@ export default function RetirementIncomeChart({
       </div>
 
       {/* Sliders */}
-      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Slider label="Investment return" value={retirementReturn} onChange={setRetirementReturn}
           min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
         <Slider label="Withdrawal rate" value={withdrawalRate} onChange={setWithdrawalRate}
           min={4} max={15} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
         <Slider label="Target age" value={targetAge} onChange={setTargetAge}
           min={77} max={100} step={1} format={(v) => v + ''} color="#4ade80" />
+        <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
+          min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
       </div>
     </div>
   );

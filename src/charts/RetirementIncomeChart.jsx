@@ -164,17 +164,12 @@ export default function RetirementIncomeChart({
   const depleteAge = yearlyData.find(d => d.pool <= poolFloor);
   const poolSurvives = !depleteAge;
 
-  // Income summary for survivor phase
-  const survivorStart = yearlyData.find(d => d.phase === 'survivor');
-  const survivorMonthly = survivorStart ? survivorStart.monthly : 0;
-
-  const incomeCards = [
-    { label: 'Investment Pool (age 67)', value: fmtFull(totalPool), color: '#e2e8f0', sub: `Savings ${fmtFull(endSavings)} + 401k ${fmtFull(end401k)} + Home ${fmtFull(homeSaleNet)}` },
-    { label: `${withdrawalRate}% Withdrawal`, value: fmtFull(monthlyWithdrawal) + '/mo', color: '#60a5fa' },
-    { label: "Chad's SS", value: fmtFull(chadSS) + '/mo', color: '#4ade80' },
-    { label: `Sarah survivor SS`, value: fmtFull(survivorSS) + '/mo', color: '#f59e0b', sub: `After Chad (at ${chadPassesAge})` },
-    { label: 'Trust/LLC', value: fmtFull(trustMonthly) + '/mo', color: '#c084fc' },
-  ];
+  // Income summaries for both phases
+  const phase1SS = chadSS;
+  const phase1Total = coupleMonthlySpend + phase1SS + trustMonthly;
+  const phase2SS = survivorSS;
+  const phase2Spend = survivorMonthlySpend;
+  const phase2Total = phase2Spend + phase2SS + trustMonthly;
 
   return (
     <div style={{
@@ -196,28 +191,40 @@ export default function RetirementIncomeChart({
         House sold at 67 · {withdrawalRate}% withdrawal · {retirementReturn}% returns · Chad passes at {chadPassesAge} · Sarah survivor to {sarahTargetAge}
       </div>
 
-      {/* Key numbers */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 16, flexWrap: 'wrap' }}>
-        {incomeCards.map((item, i) => (
-          <div key={i} style={{
-            flex: 1, minWidth: 90,
-            background: '#0f172a', borderRadius: 6, padding: '6px 10px',
-            border: '1px solid #1e293b',
-          }}>
-            <div style={{ fontSize: 9, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
-            <div style={{
-              fontSize: i === 0 ? 12 : 14, fontWeight: 700, color: item.color,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {item.value}
-            </div>
-            {item.sub && (
-              <div style={{ fontSize: 8, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
-                {item.sub}
-              </div>
-            )}
+      {/* Pool + Two-phase income summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+        {/* Pool */}
+        <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
+          <div style={{ fontSize: 9, color: '#64748b', marginBottom: 4 }}>Investment Pool (age 67)</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(totalPool)}
           </div>
-        ))}
+          <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+            Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
+          </div>
+        </div>
+
+        {/* Phase 1: Chad + Sarah */}
+        <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
+          <div style={{ fontSize: 9, color: '#60a5fa', marginBottom: 4 }}>Retirement Income (67–{chadPassesAge})</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(phase1Total)}/mo
+          </div>
+          <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(coupleMonthlySpend)} withdraw + {fmtFull(phase1SS)} SS + {fmtFull(trustMonthly)} trust
+          </div>
+        </div>
+
+        {/* Phase 2: Sarah survivor */}
+        <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #f59e0b33' }}>
+          <div style={{ fontSize: 9, color: '#f59e0b', marginBottom: 4 }}>Sarah Survivor (after {chadPassesAge})</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(phase2Total)}/mo
+          </div>
+          <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(phase2Spend)} withdraw + {fmtFull(phase2SS)} SS + {fmtFull(trustMonthly)} trust
+          </div>
+        </div>
       </div>
 
       {/* Chart */}

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { fmtFull } from '../model/formatters.js';
+import Slider from '../components/Slider.jsx';
 
 export default function RetirementIncomeChart({
   savingsData, wealthData,
@@ -8,6 +9,7 @@ export default function RetirementIncomeChart({
   trustIncomeFuture,
   investmentReturn,
 }) {
+  const [retirementReturn, setRetirementReturn] = useState(investmentReturn || 8);
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);
   const endSavings = Math.max(0, savingsData[endIdx]?.balance || 0);
@@ -35,7 +37,7 @@ export default function RetirementIncomeChart({
 
   // Project 25 years of retirement (age 67-92) showing pool depletion
   const years = 25;
-  const monthlyReturnRate = Math.pow(1 + (investmentReturn || 8) / 100, 1/12) - 1;
+  const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
   const monthlySpend = monthlyWithdrawal; // withdraw this much each month
   const yearlyData = [];
   let pool = totalPool;
@@ -50,7 +52,7 @@ export default function RetirementIncomeChart({
   }
 
   // Chart dimensions
-  const svgW = 800, svgH = 200;
+  const svgW = 800, svgH = 340;
   const padL = 60, padR = 20, padT = 20, padB = 30;
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
@@ -104,7 +106,7 @@ export default function RetirementIncomeChart({
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        Assumes house sold at 67, 4% safe withdrawal rate, {investmentReturn}% returns on pool
+        Assumes house sold at 67, 4% safe withdrawal rate, {retirementReturn}% returns on pool
       </div>
 
       {/* Key numbers */}
@@ -175,6 +177,12 @@ export default function RetirementIncomeChart({
             <span style={{ color: '#94a3b8' }}>{item.label}</span>
           </div>
         ))}
+      </div>
+
+      {/* Slider */}
+      <div style={{ marginTop: 12 }}>
+        <Slider label="Retirement investment return" value={retirementReturn} onChange={setRetirementReturn}
+          min={0} max={15} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
       </div>
     </div>
   );

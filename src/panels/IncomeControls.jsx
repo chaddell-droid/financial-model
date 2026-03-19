@@ -14,12 +14,17 @@ const IncomeControls = ({
   ssdiApprovalMonth, ssdiBackPayMonths, ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
   ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
   chadConsulting,
+  chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings,
   onFieldChange,
 }) => {
   const set = onFieldChange;
   const sgaLimit = SGA_LIMIT;
+  const chadJobMonthlyNet = Math.round(chadJobSalary * (1 - chadJobTaxRate / 100) / 12);
+  const ssEarningsLimit = 22320;
+  const ssExcess = Math.max(0, chadJobSalary - ssEarningsLimit);
+  const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
 
   return (
           <div style={{
@@ -81,6 +86,58 @@ const IncomeControls = ({
               <div style={{ fontSize: 10, color: "#475569", marginTop: 6, fontStyle: "italic" }}>
                 SSDI and SS retirement cannot be received at the same time.
               </div>
+            </div>
+
+            {/* Chad Gets a Job */}
+            <div style={{ marginBottom: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: `1px solid ${chadJob ? "#22c55e33" : "#334155"}` }}>
+              <h4 style={{ fontSize: 11, color: "#22c55e", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chad Gets a Job</h4>
+              <Toggle label="Chad employed (W-2 income)" checked={chadJob} onChange={set('chadJob')} color="#22c55e" />
+              {chadJob && (
+                <>
+                  <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} min={30000} max={150000} step={5000} color="#22c55e" format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
+                  <Slider label="Effective tax rate" value={chadJobTaxRate} onChange={set('chadJobTaxRate')} min={10} max={40} color="#22c55e" format={(v) => v + "%"} />
+                  <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} min={0} max={24} color="#22c55e" format={(v) => v === 0 ? "Now" : v + " mo"} />
+                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ color: "#64748b" }}>Monthly gross:</span>
+                      <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(Math.round(chadJobSalary / 12))}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                      <span style={{ color: "#64748b" }}>Monthly after tax:</span>
+                      <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(chadJobMonthlyNet)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                      <span style={{ color: "#64748b" }}>Health insurance saved:</span>
+                      <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(chadJobHealthSavings)}/mo</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155", fontWeight: 700 }}>
+                      <span style={{ color: "#22c55e" }}>Total monthly impact:</span>
+                      <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(chadJobMonthlyNet + chadJobHealthSavings)}</span>
+                    </div>
+                  </div>
+                  {ssType === 'ss' && (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "#1e293b", borderRadius: 6, border: "1px solid #f59e0b33" }}>
+                      <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 600, marginBottom: 4 }}>SS EARNINGS TEST</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
+                        Before age 67, SS is reduced by $1 per $2 earned above {fmtFull(ssEarningsLimit)}/yr.
+                        At {fmtFull(chadJobSalary)}/yr salary, SS reduced by <span style={{ color: "#f59e0b", fontWeight: 600 }}>{fmtFull(ssMonthlyReduction)}/mo</span>.
+                        {ssMonthlyReduction >= ssPersonal
+                          ? <span style={{ color: "#f87171" }}> SS benefit fully offset while working.</span>
+                          : <span> Effective SS: <span style={{ fontWeight: 600, color: "#4ade80" }}>{fmtFull(Math.max(0, ssPersonal - ssMonthlyReduction))}/mo</span> (personal).</span>
+                        }
+                      </div>
+                    </div>
+                  )}
+                  {ssType === 'ssdi' && (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "#1e293b", borderRadius: 6, border: "1px solid #f8717133" }}>
+                      <div style={{ fontSize: 10, color: "#f87171", fontWeight: 600, marginBottom: 4 }}>SSDI DISQUALIFIED</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
+                        Full-time employment exceeds the SGA limit ({fmtFull(sgaLimit)}/mo). SSDI benefits are zeroed while Chad is employed. Consulting income is also replaced by job income.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {ssType === 'ssdi' && (

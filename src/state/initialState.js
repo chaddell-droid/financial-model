@@ -28,6 +28,13 @@ export const INITIAL_STATE = {
   ssStartMonth: 18,          // Sept 2027 = ~18 months from baseline
   ssKidsAgeOutMonths: 18,    // Twins turn 18 ~18 months after SS starts (Mar 2029)
 
+  // Chad Gets a Job
+  chadJob: false,
+  chadJobSalary: 80000,       // Gross annual
+  chadJobTaxRate: 25,          // Effective tax rate %
+  chadJobStartMonth: 3,        // Months from now
+  chadJobHealthSavings: 4200,  // Monthly health insurance savings from employer coverage
+
   // Expenses
   baseExpenses: 43818,
   debtService: 6434,
@@ -150,6 +157,7 @@ export const MODEL_KEYS = [
   'llcAnnual', 'llcMultiplier', 'llcDelayMonths', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
+  'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',

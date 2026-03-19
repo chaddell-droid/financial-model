@@ -13,7 +13,7 @@ const DataTable = ({ data, presentMode }) => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #334155" }}>
-                {["Period", "Sarah", "MSFT", "Trust/LLC", "SSDI", "Consult", "Invest/Q", "Total In", "Expenses", "Net/Mo"].map((h, i) => (
+                {["Period", "Sarah", "MSFT", "Trust/LLC", "Chad Job", "SSDI", "Consult", "Invest/Q", "Total In", "Expenses", "Net/Mo"].map((h, i) => (
                   <th key={i} style={{ padding: "8px 6px", textAlign: i === 0 ? "left" : "right", color: "#64748b", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -32,6 +32,7 @@ const DataTable = ({ data, presentMode }) => {
                       {d.msftVesting > 0 ? fmt(d.msftVesting) : (d.month > 0 ? "\u2014" : fmt(d.msftVesting))}
                     </td>
                     <td style={{ padding: "6px", textAlign: "right", color: "#c084fc" }}>{fmt(d.trustLLC)}</td>
+                    <td style={{ padding: "6px", textAlign: "right", color: d.chadJobIncome > 0 ? "#22c55e" : "#334155" }}>{d.chadJobIncome > 0 ? fmt(d.chadJobIncome) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.ssdi > 0 ? "#fbbf24" : "#334155" }}>{d.ssdi > 0 ? fmt(d.ssdi) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.consulting > 0 ? "#38bdf8" : "#334155" }}>{d.consulting > 0 ? fmt(d.consulting) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.investReturnQtr > 0 ? "#22d3ee" : "#334155" }}>{d.investReturnQtr > 0 ? fmt(d.investReturnQtr) : "\u2014"}</td>

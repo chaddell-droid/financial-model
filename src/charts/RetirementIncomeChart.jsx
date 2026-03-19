@@ -127,7 +127,7 @@ export default function RetirementIncomeChart({
 
   // Chart
   const svgW = 800, svgH = 340;
-  const padL = 60, padR = 20, padT = 20, padB = 30;
+  const padL = 70, padR = 20, padT = 20, padB = 40;
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
 
@@ -144,7 +144,11 @@ export default function RetirementIncomeChart({
   // Survivor phase shading
   const survivorStartIdx = yearlyData.findIndex(d => d.phase === 'survivor');
 
-  const poolTickStep = poolRange > 2000000 ? 500000 : poolRange > 1000000 ? 250000 : poolRange > 500000 ? 100000 : 50000;
+  // Aim for ~5 ticks max for readability
+  const targetTicks = 5;
+  const rawStep = poolRange / targetTicks;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const poolTickStep = Math.ceil(rawStep / magnitude) * magnitude;
   const yTicks = [];
   for (let v = 0; v <= maxPool; v += poolTickStep) yTicks.push(v);
 
@@ -214,8 +218,8 @@ export default function RetirementIncomeChart({
           <g key={i}>
             <line x1={padL} x2={svgW - padR} y1={yPool(v)} y2={yPool(v)}
               stroke={v === 0 ? '#475569' : '#1e293b'} strokeWidth={v === 0 ? 1 : 0.5} />
-            <text x={padL - 6} y={yPool(v) + 3} textAnchor="end"
-              fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
+            <text x={padL - 8} y={yPool(v) + 4} textAnchor="end"
+              fill="#94a3b8" fontSize="12" fontFamily="'JetBrains Mono', monospace">
               {v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`}
             </text>
           </g>
@@ -275,12 +279,12 @@ export default function RetirementIncomeChart({
         {/* X-axis labels — show both Chad and Sarah ages */}
         {yearlyData.filter((_, i) => i % 5 === 0).map((d, i) => (
           <g key={i}>
-            <text x={x(d.age - 67)} y={svgH - 14} textAnchor="middle"
-              fill="#64748b" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+            <text x={x(d.age - 67)} y={svgH - 20} textAnchor="middle"
+              fill="#94a3b8" fontSize="11" fontFamily="'JetBrains Mono', monospace">
               C:{d.age}
             </text>
-            <text x={x(d.age - 67)} y={svgH - 4} textAnchor="middle"
-              fill="#f59e0b" fontSize="9" fontFamily="'JetBrains Mono', monospace" opacity="0.6">
+            <text x={x(d.age - 67)} y={svgH - 8} textAnchor="middle"
+              fill="#f59e0b" fontSize="11" fontFamily="'JetBrains Mono', monospace" opacity="0.7">
               S:{d.sarahAge}
             </text>
           </g>

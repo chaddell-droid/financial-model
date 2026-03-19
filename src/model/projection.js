@@ -3,6 +3,8 @@ import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
 /**
  * Core monthly simulation loop — single source of truth for all projections.
+ * Tracks both savings balance AND 401k balance. When savings would go negative,
+ * draws from 401k to cover the deficit (no early withdrawal penalty at 60+).
  * Accepts `cutsDiscipline` (default 1.0) to scale lifestyle cuts for Monte Carlo.
  * Returns { monthlyData, backPayActual }.
  */
@@ -36,8 +38,12 @@ export function runMonthlySimulation(s) {
   const ssAnnualExcess = chadJob ? Math.max(0, (s.chadJobSalary || 0) - ssEarningsLimitAnnual) : 0;
   const ssMonthlyReduction = Math.round(ssAnnualExcess / 2 / 12); // $1 per $2 excess, monthly
 
+  // 401k — tracked alongside savings for deficit drawdown
+  const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;
+
   const monthlyData = [];
   let balance = s.startingSavings || 0;
+  let bal401k = s.starting401k || 0;
 
   for (let m = 0; m <= months; m++) {
     const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
@@ -90,6 +96,18 @@ export function runMonthlySimulation(s) {
     balance += (cashIncomeLump - expenses);
     if (m === effectiveSsdiApproval + 2) balance += backPayActual;
 
+    // 401k grows (skip month 0 to match standalone behavior)
+    if (m > 0) bal401k *= (1 + monthly401kRate);
+    bal401k = Math.round(bal401k);
+
+    // Deficit transfer: if savings negative, draw from 401k to cover
+    let withdrawal401k = 0;
+    if (balance < 0 && bal401k > 0) {
+      withdrawal401k = Math.min(Math.round(-balance), bal401k);
+      balance += withdrawal401k;
+      bal401k -= withdrawal401k;
+    }
+
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssdi, consulting, chadJobIncome,
@@ -97,6 +115,8 @@ export function runMonthlySimulation(s) {
       netCashFlow: cashIncome - expenses,
       netMonthly: cashIncome + investReturn - expenses,
       balance: Math.round(balance),
+      balance401k: bal401k,
+      withdrawal401k,
     });
   }
 
@@ -147,19 +167,18 @@ export function computeProjection(s) {
   return { data, savingsData, backPayActual, monthlyData };
 }
 
-export function computeWealthProjection(s) {
+/**
+ * Home equity projection — independent of cash flow.
+ * 401k is now tracked in runMonthlySimulation for deficit drawdown.
+ */
+export function computeHomeProjection(s) {
   const months = 72;
-  const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;
   const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation || 4) / 100, 1/12) - 1;
-  const wealthData = [];
-  let bal401k = s.starting401k || 0;
+  const homeData = [];
   let home = s.homeEquity || 0;
   for (let m = 0; m <= months; m++) {
-    if (m > 0) {
-      bal401k *= (1 + monthly401kRate);
-      home *= (1 + monthlyHomeRate);
-    }
-    wealthData.push({ month: m, balance401k: Math.round(bal401k), homeEquity: Math.round(home) });
+    if (m > 0) home *= (1 + monthlyHomeRate);
+    homeData.push({ month: m, homeEquity: Math.round(home) });
   }
-  return { wealthData };
+  return { homeData };
 }

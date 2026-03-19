@@ -2,7 +2,7 @@ import { useReducer, useMemo, useEffect } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
-import { computeProjection, computeWealthProjection } from './model/projection.js';
+import { computeProjection, computeHomeProjection } from './model/projection.js';
 import { runMonteCarlo, runDadMonteCarlo } from './model/monteCarlo.js';
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
@@ -108,15 +108,26 @@ export default function FinancialModel() {
     retireDebt,
     startingSavings, investmentReturn, ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
-    debtCC, debtPersonal, debtIRS, debtFirstmark
+    debtCC, debtPersonal, debtIRS, debtFirstmark,
+    starting401k, return401k,
   ]);
   const data = projection.data;
   const savingsData = projection.savingsData;
   const monthlyDetail = projection.monthlyData;
   const ssdiBackPayActual = projection.backPayActual;
 
-  const wealthProjection = useMemo(() => computeWealthProjection({ starting401k, return401k, homeEquity, homeAppreciation }), [starting401k, return401k, homeEquity, homeAppreciation]);
-  const wealthData = wealthProjection.wealthData;
+  // Home equity is independent of cash flow (not liquidated until retirement at 67)
+  const homeProjection = useMemo(() => computeHomeProjection({ homeEquity, homeAppreciation }), [homeEquity, homeAppreciation]);
+
+  // Assemble wealthData from merged 401k (in monthlyDetail) + independent home equity
+  const wealthData = useMemo(() =>
+    monthlyDetail.map((d, i) => ({
+      month: d.month,
+      balance401k: d.balance401k,
+      homeEquity: homeProjection.homeData[i]?.homeEquity || 0,
+    })),
+    [monthlyDetail, homeProjection]
+  );
 
   const goalResults = useMemo(() => {
     if (!goals || goals.length === 0) return [];

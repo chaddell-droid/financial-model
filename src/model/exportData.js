@@ -1,4 +1,4 @@
-import { computeWealthProjection } from './projection.js';
+import { computeHomeProjection } from './projection.js';
 import { INITIAL_STATE } from '../state/initialState.js';
 
 export function exportModelData(state, projection, vestEvents, totalRemainingVesting, extras) {
@@ -107,9 +107,11 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       currentValue: r.currentValue, progress: r.progress,
     })),
     wealth: (() => {
-      const { wealthData } = computeWealthProjection(s);
+      const { homeData } = computeHomeProjection(s);
       const savingsEnd = md[md.length - 1]?.balance || 0;
-      const endW = wealthData[72] || wealthData[wealthData.length - 1];
+      const endMd = md[72] || md[md.length - 1];
+      const endHome = homeData[72] || homeData[homeData.length - 1];
+      const endW = { balance401k: endMd?.balance401k || 0, homeEquity: endHome?.homeEquity || 0 };
       return {
         starting401k: s.starting401k, return401k: s.return401k,
         homeEquity: s.homeEquity, homeAppreciation: s.homeAppreciation,

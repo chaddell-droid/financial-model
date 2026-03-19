@@ -31,7 +31,7 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
     income: {
       sarah: { rate: s.sarahRate, maxRate: s.sarahMaxRate, rateGrowth: s.sarahRateGrowth, currentClients: s.sarahCurrentClients, maxClients: s.sarahMaxClients, clientGrowth: s.sarahClientGrowth, currentMonthly: sarahCurrentNet },
       msft: { floorPrice: 410.68, growth: s.msftGrowth, currentMonthly: data[0]?.msftVesting, totalRemaining: totalRemainingVesting },
-      farmLLC: { annual: s.llcAnnual, multiplier: s.llcMultiplier, delayMonths: s.llcDelayMonths, improves: s.llcImproves, currentMonthly: Math.round(s.llcAnnual / 12), futureMonthly: s.llcImproves ? Math.round(s.llcAnnual * s.llcMultiplier / 12) : Math.round(s.llcAnnual / 12) },
+      trustLLC: { trustNow: s.trustIncomeNow, trustFuture: s.trustIncomeFuture, trustIncreaseMonth: s.trustIncreaseMonth, llcAnnual: s.llcAnnual, multiplier: s.llcMultiplier, delayMonths: s.llcDelayMonths, improves: s.llcImproves, currentCombined: (s.trustIncomeNow || 0) + Math.round(s.llcAnnual / 12), futureCombined: Math.max(s.trustIncomeNow, s.trustIncomeFuture) + (s.llcImproves ? Math.round(s.llcAnnual * s.llcMultiplier / 12) : Math.round(s.llcAnnual / 12)) },
       ssdi: { approvalMonth: s.ssdiApprovalMonth, denied: ssdiDenied, personal: s.ssdiPersonal, familyTotal: s.ssdiFamilyTotal, kidsAgeOutMonths: s.kidsAgeOutMonths, backPayMonths: s.ssdiBackPayMonths, backPayNet: projection.backPayActual },
       consulting: { monthly: s.chadConsulting, sgaLimit: 1690 },
       totalMonthly: data[0]?.netCashFlow + data[0]?.expenses,
@@ -94,7 +94,7 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       const d = md[m];
       return {
         month: m, label: `Y${Math.floor(m/12)}M${m%12}`,
-        sarahIncome: d.sarahIncome, msftIncome: d.msftSmoothed, llcIncome: d.llcMonthly,
+        sarahIncome: d.sarahIncome, msftIncome: d.msftSmoothed, trustLLCIncome: d.trustLLC,
         ssdi: d.ssdi, investReturn: d.investReturn, totalCashIncome: d.cashIncome,
         expenses: d.expenses, netMonthly: d.netMonthly, savingsBalance: d.balance,
       };

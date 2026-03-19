@@ -306,7 +306,7 @@ export default function SarahMode({
               {goalResults && goalResults.filter(g => g.achieved).length > 0 ? (
                 <>Based on our current plan, we're already meeting {goalResults.filter(g => g.achieved).length} of our {goalResults.length} goals. Run Monte Carlo in the full view for confidence percentages.</>
               ) : (
-                <>Our plan has multiple income streams working together — your practice, {ssType === 'ss' ? 'Social Security' : 'SSDI'}, MSFT vesting, and trust income. Run Monte Carlo in the full view to see confidence percentages.</>
+                <>Our plan has multiple income streams working together — your practice, {ssType === 'ss' ? 'Social Security' : 'SSDI'}, MSFT vesting, and trust/LLC income. Run Monte Carlo in the full view to see confidence percentages.</>
               )}
             </p>
           </div>

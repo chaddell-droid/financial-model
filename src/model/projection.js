@@ -36,6 +36,7 @@ export function runMonthlySimulation(s) {
     const msftLump = getVestingLumpSum(m, s.msftGrowth || 0);
     const llcMonthly = Math.round(m < (s.llcDelayMonths || 24) ? s.llcAnnual / 12 : (s.llcImproves ? (s.llcAnnual * s.llcMultiplier) / 12 : s.llcAnnual / 12));
     const trust = m < trustMonth ? trustNow : trustFuture;
+    const trustLLC = llcMonthly + trust;
     let ssdi = 0;
     if (useSS) {
       // SS retirement: family total while twins are under 18, then personal only
@@ -70,7 +71,7 @@ export function runMonthlySimulation(s) {
 
     monthlyData.push({
       month: m,
-      sarahIncome, msftSmoothed, msftLump, llcMonthly, ssdi, consulting, trust,
+      sarahIncome, msftSmoothed, msftLump, llcMonthly, ssdi, consulting, trust, trustLLC,
       investReturn, cashIncome, expenses,
       netCashFlow: cashIncome - expenses,
       netMonthly: cashIncome + investReturn - expenses,
@@ -105,6 +106,7 @@ export function computeProjection(s) {
       ssdi: first.ssdi,
       consulting: first.consulting,
       trust: first.trust,
+      trustLLC: first.trustLLC,
       investReturn: avgInvestReturn,
       investReturnQtr: qtrInvestReturn,
       totalIncome: Math.round(avgCashIncome + avgInvestReturn),

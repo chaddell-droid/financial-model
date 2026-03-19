@@ -159,13 +159,30 @@ const IncomeControls = ({
             )}
 
             <div style={{ marginTop: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-              <h4 style={{ fontSize: 11, color: "#a78bfa", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trust Income (Guaranteed)</h4>
-              <Slider label="Current monthly" value={trustIncomeNow} onChange={set('trustIncomeNow')} min={0} max={3000} step={50} color="#a78bfa" />
-              <Slider label="After increase" value={trustIncomeFuture} onChange={set('trustIncomeFuture')} min={0} max={5000} step={50} color="#a78bfa" />
-              <Slider label="Increase at month" value={trustIncreaseMonth} onChange={set('trustIncreaseMonth')} min={3} max={24} format={(v) => v + " mo"} color="#a78bfa" />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: "#64748b" }}>
-                <span>Annual: {fmtFull(trustIncomeNow * 12)} → {fmtFull(trustIncomeFuture * 12)}</span>
+              <h4 style={{ fontSize: 11, color: "#c084fc", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trust / LLC Income</h4>
+              <Slider label="Trust — current monthly" value={trustIncomeNow} onChange={set('trustIncomeNow')} min={0} max={3000} step={50} color="#c084fc" />
+              <Slider label="Trust — after increase" value={trustIncomeFuture} onChange={set('trustIncomeFuture')} min={0} max={5000} step={50} color="#c084fc" />
+              <Slider label="Trust increase at month" value={trustIncreaseMonth} onChange={set('trustIncreaseMonth')} min={3} max={24} format={(v) => v + " mo"} color="#c084fc" />
+              <Slider label="LLC annual ($10K/yr)" value={llcAnnual} onChange={set('llcAnnual')} min={5000} max={20000} step={500} color="#c084fc" />
+              <div style={{ opacity: llcImproves ? 1 : 0.4 }}>
+                <Slider label="Post-1031 multiplier" value={llcMultiplier} onChange={set('llcMultiplier')} min={1.5} max={3.5} step={0.1} format={(v) => v.toFixed(1) + "x"} color={llcImproves ? "#c084fc" : "#334155"} />
+                <Slider label="1031 exchange completes" value={llcDelayMonths} onChange={set('llcDelayMonths')} min={6} max={36} format={(v) => v + " mo"} color={llcImproves ? "#c084fc" : "#334155"} />
               </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
+                <span style={{ color: "#64748b" }}>Combined monthly:</span>
+                <span style={{ color: "#c084fc", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(trustIncomeNow + Math.round(llcAnnual / 12))}</span>
+              </div>
+              {llcImproves && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                  <span style={{ color: "#64748b" }}>Post-1031 combined:</span>
+                  <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(Math.max(trustIncomeNow, trustIncomeFuture) + Math.round(llcAnnual * llcMultiplier / 12))}</span>
+                </div>
+              )}
+              {!llcImproves && (
+                <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontStyle: "italic" }}>
+                  Enable "LLC distributions improve" toggle to model post-1031 increase
+                </div>
+              )}
             </div>
 
             <div style={{ marginTop: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
@@ -173,35 +190,6 @@ const IncomeControls = ({
               <Toggle label={`Van sold (saves ${fmtFull(vanMonthlySavings)}/mo)`} checked={vanSold} onChange={set('vanSold')} color="#4ade80" />
               {!vanSold && (
                 <Slider label="Van monthly cost" value={vanMonthlySavings} onChange={set('vanMonthlySavings')} min={1500} max={4000} step={50} color="#f87171" />
-              )}
-            </div>
-
-            <div style={{ marginTop: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-              <h4 style={{ fontSize: 11, color: "#c084fc", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Farm LLC Income</h4>
-              <Slider label="Current annual ($10K/yr)" value={llcAnnual} onChange={set('llcAnnual')} min={5000} max={20000} step={500} color="#c084fc" />
-              <div style={{ opacity: llcImproves ? 1 : 0.4 }}>
-                <Slider label="Post-1031 multiplier" value={llcMultiplier} onChange={set('llcMultiplier')} min={1.5} max={3.5} step={0.1} format={(v) => v.toFixed(1) + "x"} color={llcImproves ? "#c084fc" : "#334155"} />
-                <Slider label="1031 exchange completes" value={llcDelayMonths} onChange={set('llcDelayMonths')} min={6} max={36} format={(v) => v + " mo"} color={llcImproves ? "#c084fc" : "#334155"} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
-                <span style={{ color: "#64748b" }}>Current monthly:</span>
-                <span style={{ color: "#c084fc", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(Math.round(llcAnnual / 12))}</span>
-              </div>
-              {llcImproves && (
-                <>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                    <span style={{ color: "#64748b" }}>Post-1031 monthly:</span>
-                    <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(Math.round(llcAnnual * llcMultiplier / 12))}</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, fontStyle: "italic" }}>
-                    Improvement kicks in at month {llcDelayMonths} ({Math.round(llcDelayMonths / 12 * 10) / 10} yrs)
-                  </div>
-                </>
-              )}
-              {!llcImproves && (
-                <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontStyle: "italic" }}>
-                  Enable "Farm LLC income increases" toggle to model post-1031 increase
-                </div>
               )}
             </div>
 

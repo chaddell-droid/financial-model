@@ -25,7 +25,7 @@ const ScenarioStrip = ({
             </h3>
             <Toggle label={`Retire all debt (${fmtFull(debtTotal)} → saves ${fmtFull(debtService)}/mo)`} checked={retireDebt} onChange={set('retireDebt')} color="#4ade80" />
             <Toggle label={`Lifestyle + spending cuts (saves ${fmtFull(lifestyleCuts + cutInHalf + extraCuts)}/mo)`} checked={lifestyleCutsApplied} onChange={set('lifestyleCutsApplied')} color="#4ade80" />
-            <Toggle label="LLC distributions improve (1031 exchange)" checked={llcImproves} onChange={set('llcImproves')} color="#60a5fa" />
+            <Toggle label="Trust/LLC distributions improve (1031 exchange)" checked={llcImproves} onChange={set('llcImproves')} color="#60a5fa" />
             <div style={{ margin: "8px 0 2px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "#94a3b8" }}>BCS tuition — parents' contribution</span>

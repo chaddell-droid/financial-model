@@ -92,7 +92,6 @@ export const INCOME_SOURCES = [
   { key: "msftVesting", label: "MSFT Vesting", color: COLORS.amber },
   { key: "ssdi", label: "SSDI", color: COLORS.green },
   { key: "consulting", label: "Chad Consulting", color: COLORS.blueLight },
-  { key: "trust", label: "Trust Income", color: COLORS.purpleLight },
+  { key: "trustLLC", label: "Trust / LLC", color: COLORS.purple },
   { key: "investReturn", label: "Invest Returns", color: COLORS.cyan },
-  { key: "llcMonthly", label: "LLC Distribution", color: COLORS.purple },
 ];

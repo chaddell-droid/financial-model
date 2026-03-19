@@ -13,7 +13,7 @@ const DataTable = ({ data, presentMode }) => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #334155" }}>
-                {["Period", "Sarah", "MSFT", "LLC", "SSDI", "Consult", "Trust", "Invest/Q", "Total In", "Expenses", "Net/Mo"].map((h, i) => (
+                {["Period", "Sarah", "MSFT", "Trust/LLC", "SSDI", "Consult", "Invest/Q", "Total In", "Expenses", "Net/Mo"].map((h, i) => (
                   <th key={i} style={{ padding: "8px 6px", textAlign: i === 0 ? "left" : "right", color: "#64748b", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -31,10 +31,9 @@ const DataTable = ({ data, presentMode }) => {
                     <td style={{ padding: "6px", textAlign: "right", color: d.msftVesting > 0 ? (d.msftVesting < 6000 ? "#f87171" : "#f59e0b") : "#334155", fontWeight: d.msftVesting === 0 ? 400 : 600 }}>
                       {d.msftVesting > 0 ? fmt(d.msftVesting) : (d.month > 0 ? "\u2014" : fmt(d.msftVesting))}
                     </td>
-                    <td style={{ padding: "6px", textAlign: "right", color: "#c084fc" }}>{fmt(d.llcMonthly)}</td>
+                    <td style={{ padding: "6px", textAlign: "right", color: "#c084fc" }}>{fmt(d.trustLLC)}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.ssdi > 0 ? "#fbbf24" : "#334155" }}>{d.ssdi > 0 ? fmt(d.ssdi) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.consulting > 0 ? "#38bdf8" : "#334155" }}>{d.consulting > 0 ? fmt(d.consulting) : "\u2014"}</td>
-                    <td style={{ padding: "6px", textAlign: "right", color: d.trust > 0 ? "#a78bfa" : "#334155" }}>{d.trust > 0 ? fmt(d.trust) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.investReturnQtr > 0 ? "#22d3ee" : "#334155" }}>{d.investReturnQtr > 0 ? fmt(d.investReturnQtr) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: "#e2e8f0", fontWeight: 600 }}>{fmt(d.totalIncome)}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: "#f87171" }}>{fmt(d.expenses)}</td>

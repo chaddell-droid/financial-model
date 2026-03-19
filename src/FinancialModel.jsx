@@ -12,24 +12,15 @@ import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
 import KeyMetrics from './components/KeyMetrics.jsx';
 import ComparisonBanner from './components/ComparisonBanner.jsx';
-import MsftVestingChart from './charts/MsftVestingChart.jsx';
-import BridgeChart from './charts/BridgeChart.jsx';
-import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
-import MonteCarloPanel from './charts/MonteCarloPanel.jsx';
-import NetWorthChart from './charts/NetWorthChart.jsx';
-import SequenceOfReturnsChart from './charts/SequenceOfReturnsChart.jsx';
-import TimelineChart from './charts/TimelineChart.jsx';
-import SarahPracticeChart from './charts/SarahPracticeChart.jsx';
-import IncomeCompositionChart from './charts/IncomeCompositionChart.jsx';
-import MonthlyCashFlowChart from './charts/MonthlyCashFlowChart.jsx';
-import GoalPanel from './panels/GoalPanel.jsx';
+import TabBar from './components/TabBar.jsx';
+import ActiveTogglePills from './components/ActiveTogglePills.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
-import ScenarioStrip from './panels/ScenarioStrip.jsx';
-import IncomeControls from './panels/IncomeControls.jsx';
-import ExpenseControls from './panels/ExpenseControls.jsx';
-import DataTable from './panels/DataTable.jsx';
-import SummaryAsk from './panels/SummaryAsk.jsx';
+import OverviewTab from './panels/tabs/OverviewTab.jsx';
+import PlanTab from './panels/tabs/PlanTab.jsx';
+import IncomeTab from './panels/tabs/IncomeTab.jsx';
+import RiskTab from './panels/tabs/RiskTab.jsx';
+import DetailsTab from './panels/tabs/DetailsTab.jsx';
 
 
 export default function FinancialModel() {
@@ -63,6 +54,7 @@ export default function FinancialModel() {
     seqBadY1, seqBadY2,
     goals,
     storageStatus,
+    activeTab,
   } = state;
 
   // Backward-compatible computed totals from individual cuts
@@ -256,7 +248,7 @@ export default function FinancialModel() {
 
   // Raw monthly gap — no toggles, no returns. Matches waterfall "Today" bar.
   const currentMsft = data[0]?.msftVesting || 0;
-  const rawMonthlyGap = (sarahCurrentNet + currentMsft + Math.round(llcAnnual / 12))
+  const rawMonthlyGap = (sarahCurrentNet + currentMsft + trustIncomeNow)
     - Math.max(baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly, 0);
 
   // Steady state net at Y3
@@ -287,6 +279,138 @@ export default function FinancialModel() {
   const highlightIdx = breakevenIdx >= 0 ? breakevenIdx : bestIdx;
   const highlightLabel = breakevenIdx >= 0 ? "BREAKEVEN" : "BEST";
   const breakevenLabel = breakevenIdx >= 0 ? data[breakevenIdx].label : `Best: ${fmt(data[bestIdx].netMonthly)} at ${data[bestIdx].label}`;
+
+  // === PROP BUNDLES for tab components ===
+  const bridgeProps = {
+    monthlyDetail, data,
+    sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
+    retireDebt, vanSold, lifestyleCutsApplied,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
+    ssFamilyTotal, ssStartMonth,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    milestones, bcsYearsLeft, bcsFamilyMonthly,
+    baseExpenses, debtService, vanMonthlySavings,
+    lifestyleCuts, cutInHalf, extraCuts,
+    startingSavings, investmentReturn, msftGrowth,
+  };
+
+  const timelineProps = {
+    retireDebt, debtService,
+    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
+    ssdiPersonal, ssdiBackPayActual,
+    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    chadConsulting, milestones,
+    bcsYearsLeft, bcsFamilyMonthly,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    vanSold, vanMonthlySavings,
+    kidsAgeOutMonths, msftGrowth,
+    currentMsftVesting: data[0].msftVesting,
+  };
+
+  const scenarioStripProps = {
+    retireDebt, lifestyleCutsApplied,
+    lifestyleCuts, cutInHalf, extraCuts,
+    debtTotal, debtService,
+    bcsAnnualTotal, bcsParentsAnnual,
+    bcsYearsLeft, bcsFamilyMonthly,
+    moldCost, moldInclude,
+    roofCost, roofInclude,
+    otherProjects, otherInclude,
+    advanceNeeded,
+    onFieldChange: set,
+  };
+
+  const cashFlowProps = {
+    data, chartH, netRange,
+    minNet, maxNet, maxVesting,
+    highlightIdx, highlightLabel,
+    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
+    msftGrowth,
+  };
+
+  const incomeControlsProps = {
+    sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
+    sarahCurrentNet, sarahCeiling,
+    ssType, ssdiDenied,
+    ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
+    ssdiApprovalMonth, ssdiBackPayMonths,
+    ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
+    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    chadConsulting,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    vanSold, vanMonthlySavings,
+    onFieldChange: set,
+  };
+
+  const expenseControlsProps = {
+    baseExpenses, debtService,
+    debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
+    retireDebt, lifestyleCutsApplied,
+    cutOliver, cutVacation, cutShopping,
+    cutMedical, cutGym, cutAmazon, cutSaaS,
+    cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
+    lifestyleCuts, cutInHalf, extraCuts,
+    bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+    vanSold, vanMonthlySavings,
+    milestones,
+    moldCost, moldInclude, roofCost, roofInclude,
+    otherProjects, otherInclude,
+    onFieldChange: set,
+  };
+
+  const monteCarloProps = {
+    mcResults, mcRunning,
+    mcNumSims, mcInvestVol, mcBizGrowthVol,
+    mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
+    onParamChange: set, onRun: handleRunMonteCarlo,
+    savingsData, presentMode,
+    gatherState,
+    mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline },
+  };
+
+  const seqReturnsProps = {
+    seqBadY1, seqBadY2,
+    onParamChange: set,
+    startingSavings, investmentReturn,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
+    ssStartMonth, ssKidsAgeOutMonths,
+    monthlyDetail, presentMode,
+  };
+
+  const savingsDrawdownProps = {
+    savingsData, savingsZeroMonth, savingsZeroLabel,
+    compareProjection, compareName,
+    data, startingSavings, investmentReturn,
+    debtCC, debtPersonal, debtIRS, debtFirstmark,
+    debtService, ssdiApprovalMonth, ssdiBackPayActual,
+    milestones, retireDebt, presentMode,
+    onFieldChange: set, baseExpenses,
+  };
+
+  const netWorthProps = {
+    savingsData, wealthData,
+    starting401k, return401k,
+    homeEquity, homeAppreciation,
+    presentMode, onFieldChange: set,
+  };
+
+  const dataTableProps = { data };
+
+  const summaryAskProps = {
+    totalRemainingVesting, data, startingSavings,
+    savingsZeroMonth, savingsZeroLabel,
+    ssdiApprovalMonth, ssdiBackPayActual, ssdiBackPayMonths,
+    retireDebt, debtTotal, debtService,
+    moldInclude, moldCost, roofInclude, roofCost,
+    otherInclude, otherProjects,
+    bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+    advanceNeeded, breakevenIdx,
+  };
+
+  // Present mode locks to overview, hides tab bar
+  const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
 
   return (
     <div style={{
@@ -386,13 +510,12 @@ export default function FinancialModel() {
             steadyLabel={data[steadyIdx]?.label}
           />
 
-          <GoalPanel
-            goals={goals}
-            goalResults={goalResults}
-            mcGoalResults={mcGoalResults}
-            mcRunning={mcRunning}
-            presentMode={presentMode}
-            onGoalsChange={(newGoals) => set('goals')(newGoals)}
+          <ActiveTogglePills
+            retireDebt={retireDebt}
+            lifestyleCutsApplied={lifestyleCutsApplied}
+            vanSold={vanSold}
+            debtService={debtService}
+            totalCuts={lifestyleCuts + cutInHalf + extraCuts}
           />
 
           <ComparisonBanner
@@ -401,157 +524,56 @@ export default function FinancialModel() {
             onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
           />
 
-          {!presentMode && <>
-            <MsftVestingChart
-              vestEvents={vestEvents}
-              totalRemainingVesting={totalRemainingVesting}
-              msftGrowth={msftGrowth}
-              onMsftGrowthChange={set('msftGrowth')}
-            />
-
-            <ScenarioStrip
-              retireDebt={retireDebt} lifestyleCutsApplied={lifestyleCutsApplied} llcImproves={llcImproves}
-              lifestyleCuts={lifestyleCuts} cutInHalf={cutInHalf} extraCuts={extraCuts}
-              debtTotal={debtTotal} debtService={debtService}
-              bcsAnnualTotal={bcsAnnualTotal} bcsParentsAnnual={bcsParentsAnnual}
-              bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-              moldCost={moldCost} moldInclude={moldInclude}
-              roofCost={roofCost} roofInclude={roofInclude}
-              otherProjects={otherProjects} otherInclude={otherInclude}
-              advanceNeeded={advanceNeeded}
-              onFieldChange={set}
-            />
-          </>}
-
-          <BridgeChart
-            monthlyDetail={monthlyDetail} data={data}
-            sarahCurrentNet={sarahCurrentNet} sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
-            sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-            retireDebt={retireDebt} vanSold={vanSold} lifestyleCutsApplied={lifestyleCutsApplied}
-            ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiFamilyTotal={ssdiFamilyTotal} chadConsulting={chadConsulting}
-            ssFamilyTotal={ssFamilyTotal} ssStartMonth={ssStartMonth}
-            trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
-            milestones={milestones} bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-            baseExpenses={baseExpenses} debtService={debtService} vanMonthlySavings={vanMonthlySavings}
-            lifestyleCuts={lifestyleCuts} cutInHalf={cutInHalf} extraCuts={extraCuts}
-            startingSavings={startingSavings} investmentReturn={investmentReturn} msftGrowth={msftGrowth}
-          />
-
-          <SavingsDrawdownChart
-            savingsData={savingsData} savingsZeroMonth={savingsZeroMonth} savingsZeroLabel={savingsZeroLabel}
-            compareProjection={compareProjection} compareName={compareName}
-            data={data} startingSavings={startingSavings} investmentReturn={investmentReturn}
-            debtCC={debtCC} debtPersonal={debtPersonal} debtIRS={debtIRS} debtFirstmark={debtFirstmark}
-            debtService={debtService} ssdiApprovalMonth={ssdiApprovalMonth} ssdiBackPayActual={ssdiBackPayActual}
-            milestones={milestones} retireDebt={retireDebt} presentMode={presentMode}
-            onFieldChange={set} baseExpenses={baseExpenses}
-          />
-
-          <NetWorthChart
-            savingsData={savingsData} wealthData={wealthData}
-            starting401k={starting401k} return401k={return401k}
-            homeEquity={homeEquity} homeAppreciation={homeAppreciation}
-            presentMode={presentMode} onFieldChange={set}
-          />
-
-          <MonteCarloPanel
-            mcResults={mcResults} mcRunning={mcRunning}
-            mcNumSims={mcNumSims} mcInvestVol={mcInvestVol} mcBizGrowthVol={mcBizGrowthVol}
-            mcMsftVol={mcMsftVol} mcSsdiDelay={mcSsdiDelay} mcSsdiDenialPct={mcSsdiDenialPct} mcCutsDiscipline={mcCutsDiscipline}
-            onParamChange={set} onRun={handleRunMonteCarlo}
-            savingsData={savingsData} presentMode={presentMode}
-            gatherState={gatherState}
-            mcParams={{ mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline }}
-          />
-
-          <SequenceOfReturnsChart
-            seqBadY1={seqBadY1} seqBadY2={seqBadY2}
-            onParamChange={set}
-            startingSavings={startingSavings} investmentReturn={investmentReturn}
-            ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiDenied={ssdiDenied} ssdiBackPayActual={ssdiBackPayActual}
-            ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
-            monthlyDetail={monthlyDetail}
-            presentMode={presentMode}
-          />
-
-          <TimelineChart
-            retireDebt={retireDebt} debtService={debtService}
-            ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
-            ssdiPersonal={ssdiPersonal} ssdiBackPayActual={ssdiBackPayActual}
-            ssFamilyTotal={ssFamilyTotal} ssPersonal={ssPersonal} ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
-            chadConsulting={chadConsulting} milestones={milestones}
-            bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-            trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
-            vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}
-            kidsAgeOutMonths={kidsAgeOutMonths} msftGrowth={msftGrowth}
-            currentMsftVesting={data[0].msftVesting}
-          />
-
-          <SarahPracticeChart
-            sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
-            sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-          />
-
-          <IncomeCompositionChart data={data} investmentReturn={investmentReturn} />
-
           {!presentMode && (
-            <MonthlyCashFlowChart
-              data={data} chartH={chartH} netRange={netRange}
-              minNet={minNet} maxNet={maxNet} maxVesting={maxVesting}
-              highlightIdx={highlightIdx} highlightLabel={highlightLabel}
-              ssType={ssType} ssdiApprovalMonth={ssdiApprovalMonth} ssdiFamilyTotal={ssdiFamilyTotal}
-              msftGrowth={msftGrowth}
+            <TabBar activeTab={effectiveTab} onChange={set('activeTab')} />
+          )}
+
+          {effectiveTab === "overview" && (
+            <OverviewTab
+              goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
+              mcRunning={mcRunning} presentMode={presentMode}
+              onGoalsChange={(newGoals) => set('goals')(newGoals)}
+              bridgeProps={bridgeProps} timelineProps={timelineProps}
             />
           )}
 
-          {!presentMode && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 24 }}>
-              <IncomeControls
-                sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
-                sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-                sarahCurrentNet={sarahCurrentNet} sarahCeiling={sarahCeiling}
-                ssType={ssType}
-                ssdiDenied={ssdiDenied}
-                ssdiFamilyTotal={ssdiFamilyTotal} ssdiPersonal={ssdiPersonal} kidsAgeOutMonths={kidsAgeOutMonths}
-                ssdiApprovalMonth={ssdiApprovalMonth} ssdiBackPayMonths={ssdiBackPayMonths}
-                ssdiBackPayGross={ssdiBackPayGross} ssdiAttorneyFee={ssdiAttorneyFee} ssdiBackPayActual={ssdiBackPayActual}
-                ssFamilyTotal={ssFamilyTotal} ssPersonal={ssPersonal} ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
-                chadConsulting={chadConsulting}
-                trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
-                vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}
-                onFieldChange={set}
-              />
-              <ExpenseControls
-                baseExpenses={baseExpenses} debtService={debtService}
-                debtCC={debtCC} debtPersonal={debtPersonal} debtIRS={debtIRS} debtFirstmark={debtFirstmark} debtTotal={debtTotal}
-                retireDebt={retireDebt}
-                lifestyleCutsApplied={lifestyleCutsApplied}
-                cutOliver={cutOliver} cutVacation={cutVacation} cutShopping={cutShopping}
-                cutMedical={cutMedical} cutGym={cutGym} cutAmazon={cutAmazon} cutSaaS={cutSaaS}
-                cutEntertainment={cutEntertainment} cutGroceries={cutGroceries} cutPersonalCare={cutPersonalCare} cutSmallItems={cutSmallItems}
-                lifestyleCuts={lifestyleCuts} cutInHalf={cutInHalf} extraCuts={extraCuts}
-                bcsAnnualTotal={bcsAnnualTotal} bcsParentsAnnual={bcsParentsAnnual} bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-                vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}
-                milestones={milestones}
-                moldCost={moldCost} moldInclude={moldInclude} roofCost={roofCost} roofInclude={roofInclude}
-                otherProjects={otherProjects} otherInclude={otherInclude}
-                onFieldChange={set}
-              />
-            </div>
+          {effectiveTab === "plan" && (
+            <PlanTab
+              scenarioStripProps={scenarioStripProps}
+              bridgeProps={bridgeProps}
+              cashFlowProps={cashFlowProps}
+              incomeControlsProps={incomeControlsProps}
+              expenseControlsProps={expenseControlsProps}
+              presentMode={presentMode}
+            />
           )}
 
-          <DataTable data={data} presentMode={presentMode} />
+          {effectiveTab === "income" && (
+            <IncomeTab
+              vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
+              msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
+              sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
+              sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
+              data={data} investmentReturn={investmentReturn}
+            />
+          )}
 
-          <SummaryAsk
-            totalRemainingVesting={totalRemainingVesting} data={data} startingSavings={startingSavings}
-            savingsZeroMonth={savingsZeroMonth} savingsZeroLabel={savingsZeroLabel}
-            ssdiApprovalMonth={ssdiApprovalMonth} ssdiBackPayActual={ssdiBackPayActual} ssdiBackPayMonths={ssdiBackPayMonths}
-            retireDebt={retireDebt} debtTotal={debtTotal} debtService={debtService}
-            moldInclude={moldInclude} moldCost={moldCost} roofInclude={roofInclude} roofCost={roofCost}
-            otherInclude={otherInclude} otherProjects={otherProjects}
-            bcsParentsAnnual={bcsParentsAnnual} bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-            advanceNeeded={advanceNeeded} breakevenIdx={breakevenIdx}
-          />
+          {effectiveTab === "risk" && (
+            <RiskTab
+              monteCarloProps={monteCarloProps}
+              seqReturnsProps={seqReturnsProps}
+              savingsDrawdownProps={savingsDrawdownProps}
+              netWorthProps={netWorthProps}
+            />
+          )}
+
+          {effectiveTab === "details" && (
+            <DetailsTab
+              dataTableProps={dataTableProps}
+              summaryAskProps={summaryAskProps}
+              presentMode={presentMode}
+            />
+          )}
         </>}
       </div>
     </div>

@@ -137,6 +137,9 @@ export const INITIAL_STATE = {
   seqBadY1: -10,
   seqBadY2: -5,
 
+  // UI
+  activeTab: "overview",
+
   // Storage
   storageStatus: "",
 };

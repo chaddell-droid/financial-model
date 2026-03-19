@@ -16,6 +16,7 @@ import TabBar from './components/TabBar.jsx';
 import ActiveTogglePills from './components/ActiveTogglePills.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
+import ScenarioStrip from './panels/ScenarioStrip.jsx';
 import OverviewTab from './panels/tabs/OverviewTab.jsx';
 import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
@@ -517,6 +518,10 @@ export default function FinancialModel() {
             debtService={debtService}
             totalCuts={lifestyleCuts + cutInHalf + extraCuts}
           />
+
+          {!presentMode && (
+            <ScenarioStrip {...scenarioStripProps} />
+          )}
 
           <ComparisonBanner
             compareState={compareState}

@@ -19,6 +19,7 @@ import NetWorthChart from './charts/NetWorthChart.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
 import ScenarioStrip from './panels/ScenarioStrip.jsx';
+import GoalPanel from './panels/GoalPanel.jsx';
 import OverviewTab from './panels/tabs/OverviewTab.jsx';
 import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
@@ -535,16 +536,17 @@ export default function FinancialModel() {
             <TabBar activeTab={effectiveTab} onChange={set('activeTab')} />
           )}
 
+          <GoalPanel
+            goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
+            mcRunning={mcRunning} presentMode={presentMode}
+            onGoalsChange={(newGoals) => set('goals')(newGoals)}
+          />
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 520px", gap: 24, alignItems: "start" }}>
             {/* Left column: Tab content */}
             <div style={{ minWidth: 0 }}>
               {effectiveTab === "overview" && (
-                <OverviewTab
-                  goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
-                  mcRunning={mcRunning} presentMode={presentMode}
-                  onGoalsChange={(newGoals) => set('goals')(newGoals)}
-                  bridgeProps={bridgeProps}
-                />
+                <OverviewTab bridgeProps={bridgeProps} />
               )}
 
               {effectiveTab === "plan" && (

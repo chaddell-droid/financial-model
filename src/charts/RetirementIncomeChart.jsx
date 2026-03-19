@@ -42,17 +42,20 @@ export default function RetirementIncomeChart({
   const totalMonthly = monthlyWithdrawal + ssMonthly + trustMonthly;
 
   // Project 25 years of retirement (age 67-92) showing pool depletion
+  // Uses fixed dollar withdrawal (standard 4% rule interpretation):
+  // set withdrawal from initial pool, hold constant — bad returns deplete the pool
   const years = 25;
   const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
+  const fixedMonthlySpend = monthlyWithdrawal; // locked to initial pool amount
   const yearlyData = [];
   let pool = totalPool;
   for (let y = 0; y <= years; y++) {
-    const yearlyWithdrawal = Math.round(pool * (withdrawalRate / 100) / 12);
-    yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: yearlyWithdrawal + ssMonthly + trustMonthly });
-    // Simulate 12 months of returns minus withdrawals (recalculated from current pool)
+    const effectiveWithdrawal = pool > 0 ? fixedMonthlySpend : 0;
+    yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: effectiveWithdrawal + ssMonthly + trustMonthly });
+    // Simulate 12 months of returns minus fixed withdrawals
     for (let m = 0; m < 12; m++) {
-      pool += pool * monthlyReturnRate;
-      pool -= yearlyWithdrawal;
+      pool += pool > 0 ? pool * monthlyReturnRate : 0;
+      pool -= fixedMonthlySpend;
     }
     if (pool < 0) pool = 0;
   }

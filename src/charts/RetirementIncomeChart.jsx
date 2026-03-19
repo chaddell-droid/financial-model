@@ -44,15 +44,15 @@ export default function RetirementIncomeChart({
   // Project 25 years of retirement (age 67-92) showing pool depletion
   const years = 25;
   const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
-  const monthlySpend = monthlyWithdrawal; // withdraw this much each month
   const yearlyData = [];
   let pool = totalPool;
   for (let y = 0; y <= years; y++) {
-    yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: Math.round(pool * (withdrawalRate / 100) / 12) + ssMonthly + trustMonthly });
-    // Simulate 12 months of returns minus withdrawals
+    const yearlyWithdrawal = Math.round(pool * (withdrawalRate / 100) / 12);
+    yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: yearlyWithdrawal + ssMonthly + trustMonthly });
+    // Simulate 12 months of returns minus withdrawals (recalculated from current pool)
     for (let m = 0; m < 12; m++) {
       pool += pool * monthlyReturnRate;
-      pool -= monthlySpend;
+      pool -= yearlyWithdrawal;
     }
     if (pool < 0) pool = 0;
   }

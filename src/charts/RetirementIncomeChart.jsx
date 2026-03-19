@@ -327,9 +327,12 @@ export default function RetirementIncomeChart({
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Survivor monthly (Sarah)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull((pool > poolFloor ? optimalMonthly : 0) + survivorSS + trustMonthly)}/mo
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Sarah's income after Chad ({chadPassesAge})</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(Math.round(optimalMonthly * survivorSpendRatio) + survivorSS + trustMonthly)}/mo
+            </div>
+            <div style={{ fontSize: 9, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(Math.round(optimalMonthly * survivorSpendRatio))} withdraw + {fmtFull(survivorSS)} SS + {fmtFull(trustMonthly)} trust
             </div>
           </div>
         </div>

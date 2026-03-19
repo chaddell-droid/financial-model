@@ -11,7 +11,11 @@
       "mcp__claude_ai_Gmail__gmail_search_messages",
       "Bash(mkdir -p C:/Users/chad_/.claude/skills/bento)",
       "Bash(cp C:/Users/chad_/financial-model/financial-model/bento-SKILL.md C:/Users/chad_/.claude/skills/bento/SKILL.md)",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(lsof -ti:5173,5174,5175)",
+      "Bash(for pid:*)",
+      "Bash(do taskkill:*)",
+      "Bash(done)"
     ]
   }
 }

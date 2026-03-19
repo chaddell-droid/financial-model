@@ -10,6 +10,7 @@ export function runMonthlySimulation(s) {
   const months = 72;
   const cutsDiscipline = s.cutsDiscipline ?? 1.0;
   const useSS = s.ssType === 'ss';
+  const chadJob = s.chadJob || false;
   // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
   const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth || 7));
   const backPayGross = (useSS || chadJob) ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
@@ -26,7 +27,6 @@ export function runMonthlySimulation(s) {
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
   // Chad Gets a Job
-  const chadJob = s.chadJob || false;
   const chadJobStartMonth = s.chadJobStartMonth || 3;
   const chadJobMonthlyGross = chadJob ? Math.round((s.chadJobSalary || 0) / 12) : 0;
   const chadJobMonthlyNet = chadJob ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100) / 12) : 0;

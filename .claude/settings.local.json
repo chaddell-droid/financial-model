@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(kill %1 2>/dev/null; pkill -f \"vite\" 2>/dev/null; echo \"done\")",
+      "Bash(npm run:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(npx vite:*)",
+      "mcp__claude_ai_Gmail__gmail_search_messages",
+      "Bash(mkdir -p C:/Users/chad_/.claude/skills/bento)",
+      "Bash(cp C:/Users/chad_/financial-model/financial-model/bento-SKILL.md C:/Users/chad_/.claude/skills/bento/SKILL.md)",
+      "Bash(xargs sed:*)"
+    ]
+  }
+}

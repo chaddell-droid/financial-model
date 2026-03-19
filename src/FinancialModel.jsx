@@ -432,7 +432,6 @@ export default function FinancialModel() {
             ssFamilyTotal={ssFamilyTotal} ssStartMonth={ssStartMonth}
             trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
             milestones={milestones} bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-            llcAnnual={llcAnnual} llcImproves={llcImproves} llcMultiplier={llcMultiplier}
             baseExpenses={baseExpenses} debtService={debtService} vanMonthlySavings={vanMonthlySavings}
             lifestyleCuts={lifestyleCuts} cutInHalf={cutInHalf} extraCuts={extraCuts}
             startingSavings={startingSavings} investmentReturn={investmentReturn} msftGrowth={msftGrowth}
@@ -482,7 +481,6 @@ export default function FinancialModel() {
             ssFamilyTotal={ssFamilyTotal} ssPersonal={ssPersonal} ssStartMonth={ssStartMonth} ssKidsAgeOutMonths={ssKidsAgeOutMonths}
             chadConsulting={chadConsulting} milestones={milestones}
             bcsYearsLeft={bcsYearsLeft} bcsFamilyMonthly={bcsFamilyMonthly}
-            llcImproves={llcImproves} llcDelayMonths={llcDelayMonths} llcAnnual={llcAnnual} llcMultiplier={llcMultiplier}
             trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
             vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}
             kidsAgeOutMonths={kidsAgeOutMonths} msftGrowth={msftGrowth}
@@ -521,7 +519,6 @@ export default function FinancialModel() {
                 chadConsulting={chadConsulting}
                 trustIncomeNow={trustIncomeNow} trustIncomeFuture={trustIncomeFuture} trustIncreaseMonth={trustIncreaseMonth}
                 vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}
-                llcAnnual={llcAnnual} llcMultiplier={llcMultiplier} llcDelayMonths={llcDelayMonths} llcImproves={llcImproves}
                 onFieldChange={set}
               />
               <ExpenseControls

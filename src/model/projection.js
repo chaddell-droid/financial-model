@@ -34,9 +34,7 @@ export function runMonthlySimulation(s) {
     const sarahIncome = Math.round(rate * clients * DAYS_PER_MONTH);
     const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0);
     const msftLump = getVestingLumpSum(m, s.msftGrowth || 0);
-    const llcMonthly = Math.round(m < (s.llcDelayMonths || 24) ? s.llcAnnual / 12 : (s.llcImproves ? (s.llcAnnual * s.llcMultiplier) / 12 : s.llcAnnual / 12));
-    const trust = m < trustMonth ? trustNow : trustFuture;
-    const trustLLC = llcMonthly + trust;
+    const trustLLC = m < trustMonth ? trustNow : trustFuture;
     let ssdi = 0;
     if (useSS) {
       // SS retirement: family total while twins are under 18, then personal only
@@ -62,8 +60,8 @@ export function runMonthlySimulation(s) {
     for (const mi of ms) { if (m >= mi.month) expenses -= mi.savings; }
     expenses = Math.max(expenses, 0);
 
-    const cashIncome = sarahIncome + msftSmoothed + llcMonthly + ssdi + consulting + trust;
-    const cashIncomeLump = sarahIncome + msftLump + llcMonthly + ssdi + consulting + trust;
+    const cashIncome = sarahIncome + msftSmoothed + trustLLC + ssdi + consulting;
+    const cashIncomeLump = sarahIncome + msftLump + trustLLC + ssdi + consulting;
 
     balance += investReturn;
     balance += (cashIncomeLump - expenses);
@@ -71,7 +69,7 @@ export function runMonthlySimulation(s) {
 
     monthlyData.push({
       month: m,
-      sarahIncome, msftSmoothed, msftLump, llcMonthly, ssdi, consulting, trust, trustLLC,
+      sarahIncome, msftSmoothed, msftLump, trustLLC, ssdi, consulting,
       investReturn, cashIncome, expenses,
       netCashFlow: cashIncome - expenses,
       netMonthly: cashIncome + investReturn - expenses,
@@ -102,11 +100,9 @@ export function computeProjection(s) {
       label: MONTHS[i], month: m,
       sarahIncome: first.sarahIncome,
       msftVesting: first.msftSmoothed,
-      llcMonthly: first.llcMonthly,
+      trustLLC: first.trustLLC,
       ssdi: first.ssdi,
       consulting: first.consulting,
-      trust: first.trust,
-      trustLLC: first.trustLLC,
       investReturn: avgInvestReturn,
       investReturnQtr: qtrInvestReturn,
       totalIncome: Math.round(avgCashIncome + avgInvestReturn),

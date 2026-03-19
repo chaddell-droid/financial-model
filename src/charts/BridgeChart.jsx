@@ -12,7 +12,6 @@ const BridgeChart = ({
   ssFamilyTotal, ssStartMonth,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   milestones, bcsYearsLeft, bcsFamilyMonthly,
-  llcAnnual, llcImproves, llcMultiplier,
   baseExpenses, debtService, vanMonthlySavings,
   lifestyleCuts, cutInHalf, extraCuts,
   startingSavings, investmentReturn, msftGrowth,
@@ -79,9 +78,9 @@ const BridgeChart = ({
   const finalNet = Math.round(pts[pts.length - 1]?.netMonthly || 0);
 
   // === MINI WATERFALL DATA ===
-  // "Today" bar uses RAW values — no toggles, no trust income
+  // "Today" bar uses RAW values — no toggles
   const currentMsft = data[0].msftVesting;
-  const rawIncome = sarahCurrentNet + currentMsft + Math.round(llcAnnual / 12);
+  const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow;
   const rawExpenses = baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly;
   const todayGap = rawIncome - rawExpenses;
 
@@ -105,9 +104,7 @@ const BridgeChart = ({
   const sarahGrowth = Math.round(sarahY3Rate * sarahY3Clients * DAYS_PER_MONTH) - sarahCurrentNet;
   if (sarahGrowth > 0) wfLevers.push({ name: "Sarah (Y3)", value: sarahGrowth, color: "#60a5fa" });
   const trustSteady = Math.max(trustIncomeNow, trustIncomeFuture);
-  const llcSteady = llcImproves ? Math.round(llcAnnual * llcMultiplier / 12) : Math.round(llcAnnual / 12);
-  const trustLLCTotal = trustSteady + llcSteady;
-  if (trustLLCTotal > 0) wfLevers.push({ name: "Trust/LLC", value: trustLLCTotal, color: "#c084fc" });
+  if (trustIncomeFuture > trustIncomeNow) wfLevers.push({ name: "Trust/LLC increase", value: trustIncomeFuture - trustIncomeNow, color: "#c084fc" });
   for (const ms of (milestones || [])) {
     if (ms.savings > 0) wfLevers.push({ name: ms.name, value: ms.savings, color: "#94a3b8" });
   }

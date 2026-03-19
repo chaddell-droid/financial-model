@@ -15,10 +15,6 @@ export default function TimelineChart({
   milestones,
   bcsYearsLeft,
   bcsFamilyMonthly,
-  llcImproves,
-  llcDelayMonths,
-  llcAnnual,
-  llcMultiplier,
   trustIncomeNow,
   trustIncomeFuture,
   trustIncreaseMonth,
@@ -58,11 +54,8 @@ export default function TimelineChart({
     }
   }
   above.push({ m: bcsYearsLeft * 12 + 3, label: "BCS graduates", detail: `+${fmtFull(bcsFamilyMonthly)}/mo saved` });
-  if (llcImproves) {
-    above.push({ m: llcDelayMonths, label: "1031 exchange", detail: `Trust/LLC → ${fmtFull(Math.round(llcAnnual * llcMultiplier / 12) + Math.max(trustIncomeNow, trustIncomeFuture))}/mo total` });
-  }
-  if (trustIncomeFuture > trustIncomeNow && !llcImproves) {
-    above.push({ m: trustIncreaseMonth, label: "Trust/LLC increases", detail: `${fmtFull(trustIncomeNow + Math.round(llcAnnual / 12))} → ${fmtFull(trustIncomeFuture + Math.round(llcAnnual / 12))}/mo` });
+  if (trustIncomeFuture > trustIncomeNow) {
+    above.push({ m: trustIncreaseMonth, label: "Trust/LLC increases", detail: `${fmtFull(trustIncomeNow)} → ${fmtFull(trustIncomeFuture)}/mo` });
   }
   if (vanSold) {
     above.push({ m: 1.5, label: "Van sold", detail: `+${fmtFull(vanMonthlySavings)}/mo freed` });

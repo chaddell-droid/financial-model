@@ -428,13 +428,54 @@ export default function RetirementIncomeChart({
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Slider label="Investment return" value={retirementReturn} onChange={setRetirementReturn}
           min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
-        <Slider label="Withdrawal rate" value={withdrawalRate} onChange={setWithdrawalRate}
-          min={4} max={25} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
+
+        {/* Withdrawal rate with optimal marker */}
+        <div style={{ padding: "4px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 13, color: "#8b8fa3" }}>Withdrawal rate</span>
+            <span style={{ fontSize: 13, color: withdrawalRate > optimalRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+              {withdrawalRate}%
+              {withdrawalRate > optimalRate && <span style={{ fontSize: 10, color: '#f87171' }}> (over limit)</span>}
+            </span>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <input type="range" min={4} max={25} step={0.5} value={withdrawalRate}
+              onChange={(e) => setWithdrawalRate(Number(e.target.value))}
+              style={{ width: "100%", accentColor: withdrawalRate > optimalRate ? '#f87171' : '#f59e0b', height: 6 }} />
+            {/* Optimal rate marker on the slider track */}
+            <div style={{
+              position: 'absolute',
+              left: `${((optimalRate - 4) / (25 - 4)) * 100}%`,
+              top: -6,
+              transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              pointerEvents: 'none',
+            }}>
+              <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {optimalRate}% max
+              </div>
+              <div style={{ width: 2, height: 8, background: '#4ade80', borderRadius: 1 }} />
+            </div>
+          </div>
+        </div>
+
         <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
           min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
         <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
           min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
       </div>
+
+      {/* Over-withdrawal warning */}
+      {withdrawalRate > optimalRate && (
+        <div style={{
+          marginTop: 8, padding: '8px 12px', background: '#1e293b', borderRadius: 6,
+          border: '1px solid #f8717133', fontSize: 11, color: '#f87171', lineHeight: 1.5,
+        }}>
+          At {withdrawalRate}% withdrawal, the pool depletes before Sarah reaches {sarahTargetAge}.
+          The maximum sustainable rate is <span style={{ fontWeight: 700, color: '#4ade80' }}>{optimalRate}%</span> ({fmtFull(optimalMonthly)}/mo).
+          The cliff between sustainable and depletion is sharp — small changes near {optimalRate}% cause dramatic outcome differences.
+        </div>
+      )}
     </div>
   );
 }

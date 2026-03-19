@@ -11,6 +11,7 @@ export default function RetirementIncomeChart({
 }) {
   const [retirementReturn, setRetirementReturn] = useState(investmentReturn || 8);
   const [withdrawalRate, setWithdrawalRate] = useState(4);
+  const [targetAge, setTargetAge] = useState(92);
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);
   const endSavings = Math.max(0, savingsData[endIdx]?.balance || 0);
@@ -60,6 +61,32 @@ export default function RetirementIncomeChart({
       }
     }
   }
+
+  // Calculate optimal withdrawal rate for target age via binary search
+  const optimalRate = (() => {
+    if (totalPool <= 0) return 0;
+    const targetYears = targetAge - 67;
+    let lo = 0.1, hi = 30;
+    for (let iter = 0; iter < 50; iter++) {
+      const mid = (lo + hi) / 2;
+      const testSpend = Math.round(totalPool * (mid / 100) / 12);
+      let p = totalPool;
+      let survived = true;
+      for (let y = 0; y < targetYears; y++) {
+        for (let m = 0; m < 12; m++) {
+          if (p > 0) {
+            p += p * monthlyReturnRate;
+            p -= testSpend;
+            if (p < 0) { survived = false; break; }
+          }
+        }
+        if (!survived) break;
+      }
+      if (survived) lo = mid; else hi = mid;
+    }
+    return Math.round(lo * 10) / 10;
+  })();
+  const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
 
   // Chart: pool balance trajectory (the dramatic visual)
   const svgW = 800, svgH = 340;
@@ -198,12 +225,33 @@ export default function RetirementIncomeChart({
         ))}
       </div>
 
+      {/* Optimal withdrawal callout */}
+      <div style={{
+        marginTop: 12, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
+        border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Optimal withdrawal to last to age {targetAge}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
+            {optimalRate}% = {fmtFull(optimalMonthly)}/mo
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Total monthly w/ SS + Trust</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(optimalMonthly + ssMonthly + trustMonthly)}/mo
+          </div>
+        </div>
+      </div>
+
       {/* Sliders */}
-      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         <Slider label="Investment return" value={retirementReturn} onChange={setRetirementReturn}
           min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
         <Slider label="Withdrawal rate" value={withdrawalRate} onChange={setWithdrawalRate}
           min={4} max={15} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
+        <Slider label="Target age" value={targetAge} onChange={setTargetAge}
+          min={77} max={100} step={1} format={(v) => v + ''} color="#4ade80" />
       </div>
     </div>
   );

@@ -128,6 +128,48 @@ export default function NetWorthChart({
               opacity={l.dashed ? 0.7 : 1} />
           ))}
 
+          {/* Savings depleted marker */}
+          {(() => {
+            const savZeroIdx = savingsData.findIndex((d, i) => i > 0 && d.balance <= 0);
+            if (savZeroIdx < 0) return null;
+            const m = savingsData[savZeroIdx].month;
+            return (
+              <g>
+                <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
+                  stroke="#4ade80" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+                <text x={xOf(m) + 4} y={padT + 12}
+                  fill="#4ade80" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  Savings depleted
+                </text>
+                <text x={xOf(m) + 4} y={padT + 22}
+                  fill="#4ade80" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  → 401k drawdown
+                </text>
+              </g>
+            );
+          })()}
+
+          {/* 401k depleted marker */}
+          {(() => {
+            const k401ZeroIdx = wealthData.findIndex((w, i) => i > 0 && w.balance401k <= 0);
+            if (k401ZeroIdx < 0) return null;
+            const m = wealthData[k401ZeroIdx].month;
+            return (
+              <g>
+                <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
+                  stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+                <text x={xOf(m) + 4} y={padT + 36}
+                  fill="#f87171" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  401k depleted
+                </text>
+                <text x={xOf(m) + 4} y={padT + 46}
+                  fill="#f87171" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  → insolvency
+                </text>
+              </g>
+            );
+          })()}
+
           {/* Endpoint labels */}
           {lines.map((l, i) => (
             <text key={i} x={svgW - padR + 6} y={yOf(l.endVal) + 4}

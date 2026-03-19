@@ -1,4 +1,4 @@
-import { runMonthlySimulation, computeHomeProjection } from './projection.js';
+import { runMonthlySimulation } from './projection.js';
 import { evaluateGoalPass } from './goalEvaluation.js';
 
 /**
@@ -19,12 +19,8 @@ export function runMonteCarlo(base, mcParams, goals = []) {
   const allBalances = [];
   const goalSuccessCounts = goals.map(() => 0);
 
-  // Pre-compute home equity once (deterministic — doesn't vary per sim)
-  // 401k is now per-sim since it depends on cash flow via deficit drawdown
-  let homeData = null;
-  if (goals.some(g => g.type === 'net_worth_target')) {
-    homeData = computeHomeProjection(base).homeData;
-  }
+  // Both 401k and home equity are now tracked per-sim in monthlyData
+  // (home equity can be drawn down via HELOC in insolvency scenarios)
 
   for (let sim = 0; sim < N; sim++) {
     const useSS = base.ssType === 'ss';
@@ -49,10 +45,10 @@ export function runMonteCarlo(base, mcParams, goals = []) {
 
     // Evaluate goals for this simulation
     if (goals.length > 0) {
-      const wealthData = homeData ? monthlyData.map((d, i) => ({
+      const wealthData = goals.some(g => g.type === 'net_worth_target') ? monthlyData.map(d => ({
         month: d.month,
         balance401k: d.balance401k,
-        homeEquity: homeData[i]?.homeEquity || 0,
+        homeEquity: d.homeEquity,
       })) : null;
       const goalOpts = { wealthData, retireDebt: simParams.retireDebt };
       goals.forEach((goal, i) => {

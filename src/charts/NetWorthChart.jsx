@@ -164,7 +164,24 @@ export default function NetWorthChart({
                 </text>
                 <text x={xOf(m) + 4} y={padT + 46}
                   fill="#f87171" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                  → insolvency
+                  → home equity (HELOC)
+                </text>
+              </g>
+            );
+          })()}
+
+          {/* Home equity depleted marker */}
+          {(() => {
+            const homeZeroIdx = wealthData.findIndex((w, i) => i > 0 && w.homeEquity <= 0);
+            if (homeZeroIdx < 0) return null;
+            const m = wealthData[homeZeroIdx].month;
+            return (
+              <g>
+                <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
+                  stroke="#f87171" strokeWidth="1.5" strokeDasharray="4,3" />
+                <text x={xOf(m) + 4} y={padT + 60}
+                  fill="#f87171" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+                  All assets depleted
                 </text>
               </g>
             );

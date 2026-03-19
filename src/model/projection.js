@@ -38,12 +38,14 @@ export function runMonthlySimulation(s) {
   const ssAnnualExcess = chadJob ? Math.max(0, (s.chadJobSalary || 0) - ssEarningsLimitAnnual) : 0;
   const ssMonthlyReduction = Math.round(ssAnnualExcess / 2 / 12); // $1 per $2 excess, monthly
 
-  // 401k — tracked alongside savings for deficit drawdown
+  // 401k and home equity — tracked alongside savings for deficit drawdown
   const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;
+  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation || 4) / 100, 1/12) - 1;
 
   const monthlyData = [];
   let balance = s.startingSavings || 0;
   let bal401k = s.starting401k || 0;
+  let homeEquity = s.homeEquity || 0;
 
   for (let m = 0; m <= months; m++) {
     const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
@@ -100,18 +102,28 @@ export function runMonthlySimulation(s) {
     if (m > 0) bal401k *= (1 + monthly401kRate);
     bal401k = Math.round(bal401k);
 
-    // Deficit transfer: if savings negative, draw from 401k to cover
+    // Deficit transfer chain: savings → 401k → home equity (HELOC)
     let withdrawal401k = 0;
+    let withdrawalHome = 0;
     if (balance < 0 && bal401k > 0) {
       withdrawal401k = Math.min(Math.round(-balance), bal401k);
       balance += withdrawal401k;
       bal401k -= withdrawal401k;
     }
+    // If still negative after 401k exhausted, draw from home equity
+    if (balance < 0 && homeEquity > 0) {
+      withdrawalHome = Math.min(Math.round(-balance), homeEquity);
+      balance += withdrawalHome;
+      homeEquity -= withdrawalHome;
+    }
+
+    // Home equity appreciates (even if partially drawn via HELOC)
+    if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
 
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssdi, consulting, chadJobIncome,
-      investReturn, cashIncome, expenses,
+      investReturn, cashIncome, expenses, homeEquity,
       netCashFlow: cashIncome - expenses,
       netMonthly: cashIncome + investReturn - expenses,
       balance: Math.round(balance),

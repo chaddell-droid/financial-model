@@ -2,7 +2,7 @@ import { useReducer, useMemo, useEffect } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
-import { computeProjection, computeHomeProjection } from './model/projection.js';
+import { computeProjection } from './model/projection.js';
 import { runMonteCarlo, runDadMonteCarlo } from './model/monteCarlo.js';
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
@@ -110,23 +110,21 @@ export default function FinancialModel() {
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     starting401k, return401k,
+    homeEquity, homeAppreciation,
   ]);
   const data = projection.data;
   const savingsData = projection.savingsData;
   const monthlyDetail = projection.monthlyData;
   const ssdiBackPayActual = projection.backPayActual;
 
-  // Home equity is independent of cash flow (not liquidated until retirement at 67)
-  const homeProjection = useMemo(() => computeHomeProjection({ homeEquity, homeAppreciation }), [homeEquity, homeAppreciation]);
-
-  // Assemble wealthData from merged 401k (in monthlyDetail) + independent home equity
+  // wealthData assembled from monthlyDetail (401k + home equity now both in main simulation)
   const wealthData = useMemo(() =>
-    monthlyDetail.map((d, i) => ({
+    monthlyDetail.map(d => ({
       month: d.month,
       balance401k: d.balance401k,
-      homeEquity: homeProjection.homeData[i]?.homeEquity || 0,
+      homeEquity: d.homeEquity,
     })),
-    [monthlyDetail, homeProjection]
+    [monthlyDetail]
   );
 
   const goalResults = useMemo(() => {

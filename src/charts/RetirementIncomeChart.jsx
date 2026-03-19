@@ -14,6 +14,7 @@ export default function RetirementIncomeChart({
   const [targetAge, setTargetAge] = useState(92);
   const [poolFloor, setPoolFloor] = useState(0);
   const [chadPassesAge, setChadPassesAge] = useState(82);
+  const [tooltip, setTooltip] = useState(null);
 
   // Chad is 60, Sarah is 46 (14 years younger)
   const ageDiff = 14;
@@ -219,7 +220,22 @@ export default function RetirementIncomeChart({
       </div>
 
       {/* Chart */}
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <div style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const mouseX = (e.clientX - rect.left) / rect.width * svgW;
+          let closestIdx = 0;
+          let closestDist = Infinity;
+          for (let i = 0; i < yearlyData.length; i++) {
+            const dist = Math.abs(x(i) - mouseX);
+            if (dist < closestDist) { closestDist = dist; closestIdx = i; }
+          }
+          const d = yearlyData[closestIdx];
+          const pctX = (x(closestIdx) / svgW) * 100;
+          const pctY = (yPool(d.pool) / svgH) * 100;
+          setTooltip({ pctX, pctY, ...d });
+        }}>
         {/* Grid */}
         {yTicks.map((v, i) => (
           <g key={i}>
@@ -283,6 +299,39 @@ export default function RetirementIncomeChart({
           </g>
         )}
 
+        {/* Start label */}
+        <text x={padL + 4} y={yPool(totalPool) - 6}
+          fill="#60a5fa" fontSize="11" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+          {totalPool >= 1000000 ? `$${(totalPool/1000000).toFixed(1)}M` : `$${(totalPool/1000).toFixed(0)}K`}
+        </text>
+
+        {/* End label */}
+        {(() => {
+          const endPool = yearlyData[yearlyData.length - 1]?.pool || 0;
+          return endPool > 0 ? (
+            <text x={x(years) - 4} y={yPool(endPool) - 6} textAnchor="end"
+              fill={endPool > totalPool ? '#4ade80' : '#60a5fa'} fontSize="11" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+              {endPool >= 1000000 ? `$${(endPool/1000000).toFixed(1)}M` : `$${(endPool/1000).toFixed(0)}K`}
+            </text>
+          ) : null;
+        })()}
+
+        {/* Pool value at Chad passes */}
+        {survivorStartIdx >= 0 && yearlyData[survivorStartIdx]?.pool > 0 && (
+          <text x={x(survivorStartIdx) + 4} y={yPool(yearlyData[survivorStartIdx].pool) - 6}
+            fill="#f59e0b" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+            {yearlyData[survivorStartIdx].pool >= 1000000
+              ? `$${(yearlyData[survivorStartIdx].pool/1000000).toFixed(1)}M`
+              : `$${(yearlyData[survivorStartIdx].pool/1000).toFixed(0)}K`}
+          </text>
+        )}
+
+        {/* Hover dot */}
+        {tooltip && (
+          <circle cx={x(tooltip.age - 67)} cy={yPool(tooltip.pool)} r="5"
+            fill="#60a5fa" stroke="#f8fafc" strokeWidth="2" />
+        )}
+
         {/* X-axis labels — show both Chad and Sarah ages */}
         {yearlyData.filter((_, i) => i % 5 === 0).map((d, i) => (
           <g key={i}>
@@ -297,6 +346,35 @@ export default function RetirementIncomeChart({
           </g>
         ))}
       </svg>
+
+      {/* Hover tooltip */}
+      {tooltip && (
+        <div style={{
+          position: 'absolute',
+          left: `${tooltip.pctX}%`,
+          top: `${Math.min(tooltip.pctY, 65)}%`,
+          transform: 'translate(-50%, -120%)',
+          background: '#0f172a',
+          border: '1px solid #475569',
+          borderRadius: 6,
+          padding: '8px 12px',
+          pointerEvents: 'none',
+          zIndex: 10,
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : ''}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
+            Pool: {fmtFull(tooltip.pool)}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            Income: {fmtFull(tooltip.monthly)}/mo (SS: {fmtFull(tooltip.ssIncome)})
+          </div>
+        </div>
+      )}
+      </div>
 
       {/* Legend */}
       <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11, flexWrap: 'wrap' }}>

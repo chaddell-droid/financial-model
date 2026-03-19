@@ -107,24 +107,38 @@ const IncomeControls = ({
                   <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} min={30000} max={150000} step={5000} color="#22c55e" format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
                   <Slider label="Effective tax rate" value={chadJobTaxRate} onChange={set('chadJobTaxRate')} min={10} max={40} color="#22c55e" format={(v) => v + "%"} />
                   <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} min={0} max={24} color="#22c55e" format={(v) => v === 0 ? "Now" : v + " mo"} />
-                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                      <span style={{ color: "#64748b" }}>Monthly gross:</span>
-                      <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(Math.round(chadJobSalary / 12))}</span>
+                  {(() => {
+                    const lostSS = ssType === 'ss' ? (ssFamilyTotal || 7099) : (ssdiFamilyTotal || 6500);
+                    const lostBackPayMonthly = ssType !== 'ss' && !ssdiDenied ? Math.round(((ssdiBackPayMonths || 18) * (ssdiPersonal || 4152) * 0.75) / 72) : 0;
+                    const netImpact = chadJobMonthlyNet + effectiveHealthSavings - lostSS;
+                    const netColor = netImpact >= 0 ? "#22c55e" : "#f59e0b";
+                    return (
+                    <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "#64748b" }}>Monthly after tax:</span>
+                        <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>+{fmtFull(chadJobMonthlyNet)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                        <span style={{ color: "#64748b" }}>Health insurance saved:</span>
+                        <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(effectiveHealthSavings)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                        <span style={{ color: "#64748b" }}>Lost {ssType === 'ss' ? 'SS' : 'SSDI'} income:</span>
+                        <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(lostSS)}</span>
+                      </div>
+                      {lostBackPayMonthly > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                          <span style={{ color: "#64748b" }}>Lost SSDI back pay (amortized):</span>
+                          <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(lostBackPayMonthly)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155", fontWeight: 700 }}>
+                        <span style={{ color: netColor }}>Net monthly vs {ssType === 'ss' ? 'SS' : 'SSDI'} path:</span>
+                        <span style={{ color: netColor, fontFamily: "'JetBrains Mono', monospace" }}>{netImpact >= 0 ? '+' : ''}{fmtFull(netImpact)}/mo</span>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                      <span style={{ color: "#64748b" }}>Monthly after tax:</span>
-                      <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(chadJobMonthlyNet)}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                      <span style={{ color: "#64748b" }}>Health insurance saved:</span>
-                      <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(effectiveHealthSavings)}/mo</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155", fontWeight: 700 }}>
-                      <span style={{ color: "#22c55e" }}>Total monthly impact:</span>
-                      <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(chadJobMonthlyNet + effectiveHealthSavings)}/mo</span>
-                    </div>
-                  </div>
+                    );
+                  })()}
                   <div style={{ marginTop: 8, fontSize: 10, color: "#64748b", fontStyle: "italic", lineHeight: 1.5 }}>
                     SS/SSDI income and consulting are excluded while employed. This scenario models the go-back-to-work path as an alternative.
                   </div>

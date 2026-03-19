@@ -41,10 +41,10 @@ export default function RetirementIncomeChart({
   // Total monthly retirement income
   const totalMonthly = monthlyWithdrawal + ssMonthly + trustMonthly;
 
-  // Project 25 years of retirement (age 67-92) showing pool depletion
-  // Uses fixed dollar withdrawal (standard 4% rule interpretation):
-  // set withdrawal from initial pool, hold constant — bad returns deplete the pool
-  const years = 25;
+  // Project 30 years of retirement (age 67-97) showing pool depletion
+  // Fixed dollar withdrawal from initial pool (standard 4% rule).
+  // Returns grow/shrink the pool; fixed spend depletes it if returns are low.
+  const years = 30;
   const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
   const fixedMonthlySpend = monthlyWithdrawal; // locked to initial pool amount
   const yearlyData = [];
@@ -52,12 +52,13 @@ export default function RetirementIncomeChart({
   for (let y = 0; y <= years; y++) {
     const effectiveWithdrawal = pool > 0 ? fixedMonthlySpend : 0;
     yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: effectiveWithdrawal + ssMonthly + trustMonthly });
-    // Simulate 12 months of returns minus fixed withdrawals
     for (let m = 0; m < 12; m++) {
-      pool += pool > 0 ? pool * monthlyReturnRate : 0;
-      pool -= fixedMonthlySpend;
+      if (pool > 0) {
+        pool += pool * monthlyReturnRate;
+        pool -= fixedMonthlySpend;
+        if (pool < 0) pool = 0;
+      }
     }
-    if (pool < 0) pool = 0;
   }
 
   // Chart dimensions
@@ -73,16 +74,19 @@ export default function RetirementIncomeChart({
   const x = (i) => padL + (i / years) * plotW;
   const y = (v) => padT + (1 - (v - minMonthly) / range) * plotH;
 
-  // Stacked areas: SS on bottom, Trust in middle, Withdrawals on top
-  const ssLine = yearlyData.map((d, i) => `${x(i)},${y(ssMonthly + trustMonthly)}`).join(' L ');
-  const trustLine = yearlyData.map((d, i) => `${x(i)},${y(trustMonthly)}`).join(' L ');
-  const totalLine = yearlyData.map((d, i) => `${x(i)},${y(d.monthly)}`).join(' L ');
-  const zeroLine = yearlyData.map((d, i) => `${x(i)},${y(0)}`).join(' L ');
+  // Stacked areas: Trust on bottom, SS in middle, Withdrawals on top
+  const totalPts = yearlyData.map((d, i) => ({ x: x(i), y: y(d.monthly) }));
+  const ssBasePts = yearlyData.map((d, i) => ({ x: x(i), y: y(ssMonthly + trustMonthly) }));
+  const trustBasePts = yearlyData.map((d, i) => ({ x: x(i), y: y(trustMonthly) }));
+  const zeroPts = yearlyData.map((d, i) => ({ x: x(i), y: y(0) }));
 
-  // Areas
-  const withdrawalArea = `M ${totalLine} L ${x(years)},${y(ssMonthly + trustMonthly)} L ${ssLine.split(' L ').reverse().join(' L ')} Z`;
-  const ssArea = ssMonthly > 0 ? `M ${ssLine} L ${x(years)},${y(trustMonthly)} L ${trustLine.split(' L ').reverse().join(' L ')} Z` : null;
-  const trustArea = trustMonthly > 0 ? `M ${trustLine} L ${x(years)},${y(0)} L ${zeroLine.split(' L ').reverse().join(' L ')} Z` : null;
+  const ptsToPath = (pts) => pts.map(p => `${p.x},${p.y}`).join(' L ');
+  const ptsToPathRev = (pts) => [...pts].reverse().map(p => `${p.x},${p.y}`).join(' L ');
+
+  const totalLine = ptsToPath(totalPts);
+  const withdrawalArea = `M ${ptsToPath(ssBasePts)} L ${ptsToPathRev(totalPts)} Z`;
+  const ssArea = ssMonthly > 0 ? `M ${ptsToPath(trustBasePts)} L ${ptsToPathRev(ssBasePts)} Z` : null;
+  const trustArea = trustMonthly > 0 ? `M ${ptsToPath(zeroPts)} L ${ptsToPathRev(trustBasePts)} Z` : null;
 
   // Y ticks
   const tickStep = range > 20000 ? 5000 : range > 10000 ? 2000 : 1000;
@@ -111,7 +115,7 @@ export default function RetirementIncomeChart({
           Retirement Income (from age 67)
         </h3>
         <span style={{ fontSize: 11, color: poolSurvives ? '#4ade80' : '#f87171', fontWeight: 600 }}>
-          {poolSurvives ? 'Pool survives to 92' : `Pool depleted at ${depleteAge.age}`}
+          {poolSurvives ? 'Pool survives to 97' : `Pool depleted at ${depleteAge.age}`}
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>

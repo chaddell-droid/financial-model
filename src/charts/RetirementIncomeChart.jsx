@@ -15,8 +15,8 @@ export default function RetirementIncomeChart({
   const [poolFloor, setPoolFloor] = useState(0);
   const [chadPassesAge, setChadPassesAge] = useState(82);
 
-  // Chad is ~61, Sarah is ~46 (19 years younger)
-  const ageDiff = 19;
+  // Chad is 60, Sarah is 46 (14 years younger)
+  const ageDiff = 14;
 
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);

@@ -10,6 +10,7 @@ export default function RetirementIncomeChart({
   investmentReturn,
 }) {
   const [retirementReturn, setRetirementReturn] = useState(investmentReturn || 8);
+  const [withdrawalRate, setWithdrawalRate] = useState(4);
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);
   const endSavings = Math.max(0, savingsData[endIdx]?.balance || 0);
@@ -22,8 +23,7 @@ export default function RetirementIncomeChart({
   // Total investment pool = savings + 401k + home sale proceeds
   const totalPool = endSavings + end401k + homeSaleNet;
 
-  // Monthly withdrawal using 4% rule (safe withdrawal rate)
-  const withdrawalRate = 4;
+  // Monthly withdrawal using configured withdrawal rate
   const monthlyWithdrawal = Math.round(totalPool * (withdrawalRate / 100) / 12);
 
   // SS income (personal rate — twins aged out by 67)
@@ -82,7 +82,7 @@ export default function RetirementIncomeChart({
 
   const incomeCards = [
     { label: 'Investment Pool (age 67)', value: fmtFull(totalPool), color: '#e2e8f0', sub: `Savings ${fmtFull(endSavings)} + 401k ${fmtFull(end401k)} + Home ${fmtFull(homeSaleNet)}` },
-    { label: '4% Withdrawal', value: fmtFull(monthlyWithdrawal) + '/mo', color: '#60a5fa' },
+    { label: `${withdrawalRate}% Withdrawal`, value: fmtFull(monthlyWithdrawal) + '/mo', color: '#60a5fa' },
     { label: ssType === 'ss' ? 'SS Personal' : 'SSDI Personal', value: chadJob ? 'N/A (employed)' : fmtFull(ssMonthly) + '/mo', color: '#4ade80' },
     { label: 'Trust/LLC', value: fmtFull(trustMonthly) + '/mo', color: '#c084fc' },
     { label: 'Total Retirement Income', value: fmtFull(totalMonthly) + '/mo', color: totalMonthly > 8000 ? '#4ade80' : totalMonthly > 5000 ? '#fbbf24' : '#f87171' },
@@ -106,7 +106,7 @@ export default function RetirementIncomeChart({
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        Assumes house sold at 67, 4% safe withdrawal rate, {retirementReturn}% returns on pool
+        Assumes house sold at 67, {withdrawalRate}% withdrawal rate, {retirementReturn}% returns on pool
       </div>
 
       {/* Key numbers */}
@@ -168,7 +168,7 @@ export default function RetirementIncomeChart({
       {/* Legend */}
       <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11 }}>
         {[
-          { label: 'Withdrawals (4%)', color: '#60a5fa' },
+          { label: `Withdrawals (${withdrawalRate}%)`, color: '#60a5fa' },
           ...(ssMonthly > 0 ? [{ label: ssType === 'ss' ? 'SS' : 'SSDI', color: '#4ade80' }] : []),
           ...(trustMonthly > 0 ? [{ label: 'Trust/LLC', color: '#c084fc' }] : []),
         ].map((item, i) => (
@@ -179,10 +179,12 @@ export default function RetirementIncomeChart({
         ))}
       </div>
 
-      {/* Slider */}
-      <div style={{ marginTop: 12 }}>
-        <Slider label="Retirement investment return" value={retirementReturn} onChange={setRetirementReturn}
-          min={0} max={15} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
+      {/* Sliders */}
+      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Slider label="Investment return" value={retirementReturn} onChange={setRetirementReturn}
+          min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
+        <Slider label="Withdrawal rate" value={withdrawalRate} onChange={setWithdrawalRate}
+          min={4} max={15} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
       </div>
     </div>
   );

@@ -82,7 +82,7 @@ export default function FinancialModel() {
 
   const gatherState = () => {
     const s = {};
-    for (const key of MODEL_KEYS) s[key] = state[key];
+    for (const key of MODEL_KEYS) s[key] = state[key] ?? INITIAL_STATE[key];
     s.bcsFamilyMonthly = bcsFamilyMonthly;
     // Add computed aggregate cuts for projection compatibility
     s.lifestyleCuts = lifestyleCuts;

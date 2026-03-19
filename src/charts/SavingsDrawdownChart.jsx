@@ -46,11 +46,14 @@ export default function SavingsDrawdownChart({
           }}>
             {(() => {
               const annualReturn = Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1) - 1));
+              // Show steady-state numbers (Q3 / month 6) rather than always Q1,
+              // so toggling job/SSDI/cuts is immediately visible in the display
+              const steady = data[Math.min(2, data.length - 1)];
               return [
                 { label: "Starting Savings", value: fmtFull(startingSavings), color: "#e2e8f0" },
-                { label: "Monthly Income (incl. returns)", value: fmtFull(data[0].totalIncome), color: "#4ade80" },
-                { label: "Monthly Expenses", value: fmtFull(data[0].expenses), color: "#f87171" },
-                { label: "Monthly Net", value: (data[0].netMonthly >= 0 ? "+" : "") + fmtFull(data[0].netMonthly), color: data[0].netMonthly >= 0 ? "#4ade80" : "#f87171" },
+                { label: "Monthly Income (at Q3)", value: fmtFull(steady.totalIncome), color: "#4ade80" },
+                { label: "Monthly Expenses (at Q3)", value: fmtFull(steady.expenses), color: "#f87171" },
+                { label: "Monthly Net (at Q3)", value: (steady.netMonthly >= 0 ? "+" : "") + fmtFull(steady.netMonthly), color: steady.netMonthly >= 0 ? "#4ade80" : "#f87171" },
                 { label: `Annual Return (${investmentReturn}% on savings)`, value: fmtFull(annualReturn) + "/yr", sub: `${fmtFull(data[0].investReturnQtr)}/qtr · ${fmtFull(data[0].investReturn)}/mo`, color: "#22d3ee" },
               ];
             })().map((item, i) => (
@@ -304,7 +307,7 @@ export default function SavingsDrawdownChart({
           </div>
           <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, padding: "0 2px" }}>
             <span style={{ color: "#64748b" }}>
-              Total outflow: <span style={{ color: "#f87171", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(data[0].expenses)}/mo</span>
+              Total outflow (Q3): <span style={{ color: "#f87171", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(data[Math.min(2, data.length - 1)].expenses)}/mo</span>
             </span>
             <span style={{ color: "#64748b" }}>
               Investment returns ({investmentReturn}%): <span style={{ color: "#22d3ee", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1) - 1)))}/yr</span> on initial savings

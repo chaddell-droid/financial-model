@@ -32,7 +32,7 @@ export const INITIAL_STATE = {
   chadJob: false,
   chadJobSalary: 80000,       // Gross annual
   chadJobTaxRate: 25,          // Effective tax rate %
-  chadJobStartMonth: 3,        // Months from now
+  chadJobStartMonth: 0,        // Months from now (0 = immediate)
   chadJobHealthSavings: 4200,  // Monthly health insurance savings from employer coverage
 
   // Expenses

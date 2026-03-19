@@ -33,7 +33,7 @@ export default function FinancialModel() {
 
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth,
+    msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
@@ -45,7 +45,7 @@ export default function FinancialModel() {
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings,
     milestones,
-    retireDebt, llcImproves,
+    retireDebt,
     startingSavings, investmentReturn,
     ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
@@ -94,7 +94,7 @@ export default function FinancialModel() {
   // Projections
   const projection = useMemo(() => computeProjection(gatherState()), [
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth,
+    msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
@@ -104,7 +104,7 @@ export default function FinancialModel() {
     cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings,
-    retireDebt, llcImproves,
+    retireDebt,
     startingSavings, investmentReturn, ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
     debtCC, debtPersonal, debtIRS, debtFirstmark
@@ -235,7 +235,7 @@ export default function FinancialModel() {
     };
   }, [dadMode, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects,
       sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-      llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth, ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal,
+      msftGrowth, ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal,
       ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths, kidsAgeOutMonths, chadConsulting,
       chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
       baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
@@ -256,8 +256,11 @@ export default function FinancialModel() {
 
   // Raw monthly gap — no toggles, no returns. Matches waterfall "Today" bar.
   const currentMsft = data[0]?.msftVesting || 0;
-  const rawMonthlyGap = (sarahCurrentNet + currentMsft + trustIncomeNow)
-    - Math.max(baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly, 0);
+  const chadJobImmediate = chadJob && (chadJobStartMonth ?? 3) === 0;
+  const chadJobNetForGap = chadJobImmediate ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
+  const chadJobHealthForGap = chadJobImmediate ? (chadJobHealthSavings || 4200) : 0;
+  const rawMonthlyGap = (sarahCurrentNet + currentMsft + trustIncomeNow + chadJobNetForGap)
+    - Math.max(baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
 
   // Steady state net at Y3
   const steadyIdx = data.findIndex(d => d.month >= 36) || data.length - 1;
@@ -301,6 +304,7 @@ export default function FinancialModel() {
     baseExpenses, debtService, vanMonthlySavings,
     lifestyleCuts, cutInHalf, extraCuts,
     startingSavings, investmentReturn, msftGrowth,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   };
 
   const timelineProps = {

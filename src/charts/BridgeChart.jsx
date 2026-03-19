@@ -15,6 +15,7 @@ const BridgeChart = ({
   baseExpenses, debtService, vanMonthlySavings,
   lifestyleCuts, cutInHalf, extraCuts,
   startingSavings, investmentReturn, msftGrowth,
+  chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
 }) => {
   const months = 60;
   const svgW = 800;
@@ -50,7 +51,9 @@ const BridgeChart = ({
   if (vanSold) events.push({ m: 0, label: "Van sold", color: "#4ade80" });
   const useSS = ssType === 'ss';
   if (lifestyleCutsApplied) events.push({ m: 0.5, label: "Cuts applied", color: "#4ade80" });
-  if (useSS) {
+  if (chadJob) {
+    if (effectiveStartMonth > 0) events.push({ m: effectiveStartMonth, label: "Job starts", color: "#22c55e" });
+  } else if (useSS) {
     events.push({ m: ssStartMonth, label: `SS +${fmtFull(ssFamilyTotal)}`, color: "#4ade80" });
   } else {
     events.push({ m: ssdiApprovalMonth, label: `SSDI +${fmtFull(ssdiFamilyTotal)}`, color: "#4ade80" });
@@ -80,8 +83,13 @@ const BridgeChart = ({
   // === MINI WATERFALL DATA ===
   // "Today" bar uses RAW values — no toggles
   const currentMsft = data[0].msftVesting;
-  const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow;
-  const rawExpenses = baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly;
+  const effectiveStartMonth = chadJobStartMonth ?? 3;
+  const chadJobMonthlyNet = chadJob ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
+  const chadJobHealthVal = chadJob ? (chadJobHealthSavings || 4200) : 0;
+  const jobImmediate = chadJob && effectiveStartMonth === 0;
+
+  const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow + (jobImmediate ? chadJobMonthlyNet : 0);
+  const rawExpenses = baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - (jobImmediate ? chadJobHealthVal : 0);
   const todayGap = rawIncome - rawExpenses;
 
   const wfSteps = [{ name: "Today", value: todayGap, isStart: true }];
@@ -96,8 +104,12 @@ const BridgeChart = ({
     ...(retireDebt ? [{ name: "Retire debt", value: debtService, color: "#4ade80" }] : []),
     ...(vanSold ? [{ name: "Van sold", value: vanMonthlySavings, color: "#4ade80" }] : []),
     ...(lifestyleCutsApplied ? [{ name: "Spending cuts", value: lifestyleCuts + cutInHalf + extraCuts, color: "#4ade80" }] : []),
-    ...(ssActive ? [ssLever] : []),
-    ...(chadConsulting > 0 && ssActive ? [{ name: "Consulting", value: useSS ? chadConsulting : Math.min(chadConsulting, SGA_LIMIT), color: "#38bdf8" }] : []),
+    // Chad's Job levers (mutually exclusive with SS/SSDI)
+    ...(chadJob && !jobImmediate ? [{ name: "Chad's Job", value: chadJobMonthlyNet, color: "#22c55e" }] : []),
+    ...(chadJob && !jobImmediate && chadJobHealthVal > 0 ? [{ name: "Health ins.", value: chadJobHealthVal, color: "#22c55e" }] : []),
+    // SS/SSDI + Consulting — only when NOT employed
+    ...(!chadJob && ssActive ? [ssLever] : []),
+    ...(!chadJob && chadConsulting > 0 && ssActive ? [{ name: "Consulting", value: useSS ? chadConsulting : Math.min(chadConsulting, SGA_LIMIT), color: "#38bdf8" }] : []),
   ];
   const sarahY3Rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, 3), sarahMaxRate);
   const sarahY3Clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, 3), sarahMaxClients);

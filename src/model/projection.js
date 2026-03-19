@@ -27,7 +27,7 @@ export function runMonthlySimulation(s) {
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
   // Chad Gets a Job
-  const chadJobStartMonth = s.chadJobStartMonth || 3;
+  const chadJobStartMonth = s.chadJobStartMonth ?? 3;
   const chadJobMonthlyGross = chadJob ? Math.round((s.chadJobSalary || 0) / 12) : 0;
   const chadJobMonthlyNet = chadJob ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
@@ -80,6 +80,9 @@ export function runMonthlySimulation(s) {
     if (chadJob && m >= chadJobStartMonth) expenses -= chadJobHealthSavings;
     expenses = Math.max(expenses, 0);
 
+    // cashIncome uses smoothed MSFT for display (avoids jarring quarter-to-quarter jumps).
+    // cashIncomeLump uses actual quarterly lumps for the balance calculation.
+    // netCashFlow/netMonthly won't exactly reconcile to balance changes in vest quarters.
     const cashIncome = sarahIncome + msftSmoothed + trustLLC + ssdi + consulting + chadJobIncome;
     const cashIncomeLump = sarahIncome + msftLump + trustLLC + ssdi + consulting + chadJobIncome;
 
@@ -118,12 +121,12 @@ export function computeProjection(s) {
 
     return {
       label: MONTHS[i], month: m,
-      sarahIncome: first.sarahIncome,
-      msftVesting: first.msftSmoothed,
-      trustLLC: first.trustLLC,
-      ssdi: first.ssdi,
-      consulting: first.consulting,
-      chadJobIncome: first.chadJobIncome,
+      sarahIncome: Math.round(months.reduce((sum, d) => sum + d.sarahIncome, 0) / months.length),
+      msftVesting: Math.round(months.reduce((sum, d) => sum + d.msftSmoothed, 0) / months.length),
+      trustLLC: Math.round(months.reduce((sum, d) => sum + d.trustLLC, 0) / months.length),
+      ssdi: Math.round(months.reduce((sum, d) => sum + d.ssdi, 0) / months.length),
+      consulting: Math.round(months.reduce((sum, d) => sum + d.consulting, 0) / months.length),
+      chadJobIncome: Math.round(months.reduce((sum, d) => sum + d.chadJobIncome, 0) / months.length),
       investReturn: avgInvestReturn,
       investReturnQtr: qtrInvestReturn,
       totalIncome: Math.round(avgCashIncome + avgInvestReturn),

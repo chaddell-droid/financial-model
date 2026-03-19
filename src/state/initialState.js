@@ -7,10 +7,7 @@ export const INITIAL_STATE = {
   sarahMaxClients: 4.5,
   sarahClientGrowth: 10,
 
-  // LLC & MSFT
-  llcAnnual: 10700,
-  llcMultiplier: 2.5,
-  llcDelayMonths: 24,
+  // MSFT
   msftGrowth: 0,
 
   // Social Security (SSDI vs SS retirement — mutually exclusive)
@@ -72,7 +69,6 @@ export const INITIAL_STATE = {
 
   // Scenario toggles
   retireDebt: false,
-  llcImproves: false,
 
   // Savings & Investment
   startingSavings: 200000,
@@ -154,7 +150,7 @@ export const INITIAL_STATE = {
 // Keys that constitute the financial model (for save/restore/projection)
 export const MODEL_KEYS = [
   'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth',
-  'llcAnnual', 'llcMultiplier', 'llcDelayMonths', 'msftGrowth',
+  'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
@@ -164,7 +160,7 @@ export const MODEL_KEYS = [
   'cutAmazon', 'cutSaaS', 'cutEntertainment', 'cutGroceries', 'cutPersonalCare', 'cutSmallItems',
   'trustIncomeNow', 'trustIncomeFuture', 'trustIncreaseMonth',
   'vanSold', 'vanMonthlySavings',
-  'retireDebt', 'llcImproves',
+  'retireDebt',
   'startingSavings', 'investmentReturn', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',

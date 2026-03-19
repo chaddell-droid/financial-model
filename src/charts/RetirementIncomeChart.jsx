@@ -26,8 +26,10 @@ export default function RetirementIncomeChart({
   // Monthly withdrawal using configured withdrawal rate
   const monthlyWithdrawal = Math.round(totalPool * (withdrawalRate / 100) / 12);
 
-  // SS income (personal rate — twins aged out by 67)
-  const ssMonthly = chadJob ? 0 : (ssType === 'ss' ? (ssPersonal || 2933) : (ssdiPersonal || 4152));
+  // SS income at 67 — at FRA you get full benefit regardless of work history
+  // If Chad worked until 67, he gets full SS at FRA (use personal rate as proxy)
+  // If on SSDI, it converts to retirement SS at FRA automatically
+  const ssMonthly = ssPersonal || 2933;
 
   // Trust/LLC continues
   const trustMonthly = trustIncomeFuture || 0;
@@ -83,7 +85,7 @@ export default function RetirementIncomeChart({
   const incomeCards = [
     { label: 'Investment Pool (age 67)', value: fmtFull(totalPool), color: '#e2e8f0', sub: `Savings ${fmtFull(endSavings)} + 401k ${fmtFull(end401k)} + Home ${fmtFull(homeSaleNet)}` },
     { label: `${withdrawalRate}% Withdrawal`, value: fmtFull(monthlyWithdrawal) + '/mo', color: '#60a5fa' },
-    { label: ssType === 'ss' ? 'SS Personal' : 'SSDI Personal', value: chadJob ? 'N/A (employed)' : fmtFull(ssMonthly) + '/mo', color: '#4ade80' },
+    { label: 'SS at FRA (67)', value: fmtFull(ssMonthly) + '/mo', color: '#4ade80' },
     { label: 'Trust/LLC', value: fmtFull(trustMonthly) + '/mo', color: '#c084fc' },
     { label: 'Total Retirement Income', value: fmtFull(totalMonthly) + '/mo', color: totalMonthly > 8000 ? '#4ade80' : totalMonthly > 5000 ? '#fbbf24' : '#f87171' },
   ];
@@ -169,7 +171,7 @@ export default function RetirementIncomeChart({
       <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11 }}>
         {[
           { label: `Withdrawals (${withdrawalRate}%)`, color: '#60a5fa' },
-          ...(ssMonthly > 0 ? [{ label: ssType === 'ss' ? 'SS' : 'SSDI', color: '#4ade80' }] : []),
+          ...(ssMonthly > 0 ? [{ label: 'SS at FRA', color: '#4ade80' }] : []),
           ...(trustMonthly > 0 ? [{ label: 'Trust/LLC', color: '#c084fc' }] : []),
         ].map((item, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

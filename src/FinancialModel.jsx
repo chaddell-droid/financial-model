@@ -16,6 +16,7 @@ import TabBar from './components/TabBar.jsx';
 import ActiveTogglePills from './components/ActiveTogglePills.jsx';
 import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
 import NetWorthChart from './charts/NetWorthChart.jsx';
+import RetirementIncomeChart from './charts/RetirementIncomeChart.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
 import ScenarioStrip from './panels/ScenarioStrip.jsx';
@@ -600,6 +601,13 @@ export default function FinancialModel() {
             <div style={{ position: "sticky", top: 16, alignSelf: "start" }}>
               <SavingsDrawdownChart {...savingsDrawdownProps} />
               <NetWorthChart {...netWorthProps} />
+              <RetirementIncomeChart
+                savingsData={savingsData} wealthData={wealthData}
+                ssType={ssType} ssPersonal={ssPersonal} ssdiPersonal={ssdiPersonal}
+                chadJob={chadJob}
+                trustIncomeFuture={trustIncomeFuture}
+                investmentReturn={investmentReturn}
+              />
             </div>
           </div>
         </>}

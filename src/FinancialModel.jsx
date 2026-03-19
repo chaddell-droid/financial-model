@@ -533,7 +533,7 @@ export default function FinancialModel() {
               goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
               mcRunning={mcRunning} presentMode={presentMode}
               onGoalsChange={(newGoals) => set('goals')(newGoals)}
-              bridgeProps={bridgeProps} timelineProps={timelineProps}
+              bridgeProps={bridgeProps} savingsDrawdownProps={savingsDrawdownProps}
             />
           )}
 

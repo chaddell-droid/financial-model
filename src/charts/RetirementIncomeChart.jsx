@@ -13,6 +13,11 @@ export default function RetirementIncomeChart({
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [targetAge, setTargetAge] = useState(92);
   const [poolFloor, setPoolFloor] = useState(0);
+  const [chadPassesAge, setChadPassesAge] = useState(82);
+
+  // Chad is ~61, Sarah is ~46 (19 years younger)
+  const ageDiff = 19;
+
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);
   const endSavings = Math.max(0, savingsData[endIdx]?.balance || 0);
@@ -28,32 +33,63 @@ export default function RetirementIncomeChart({
   // Monthly withdrawal using configured withdrawal rate
   const monthlyWithdrawal = Math.round(totalPool * (withdrawalRate / 100) / 12);
 
-  // SS income in retirement depends on which path was taken:
-  // - SS at 62: locked into reduced early rate for life
-  // - SSDI: auto-converts to full FRA benefit ($4,213) at 67
-  // - Chad works until 67: claims full FRA benefit at 67
+  // Chad's SS at retirement
   const ssFRA = 4213;
-  const ssMonthly = (ssType === 'ss' && !chadJob)
-    ? (ssPersonal || 2933)   // took early SS at 62 — locked in at reduced rate
-    : ssFRA;                  // SSDI converts to FRA, or worked and claims at 67
+  const chadSS = (ssType === 'ss' && !chadJob)
+    ? (ssPersonal || 2933)
+    : ssFRA;
 
-  // Trust/LLC continues
+  // Sarah's own SS (estimated ~$1,900/mo at her FRA 67, ~$1,330 at 62)
+  const sarahOwnSS = 1900;
+  // Survivor benefit — she gets the larger of her own or Chad's record
+  const survivorSS = 4186; // from SS statement
+
+  // Trust/LLC continues for both phases
   const trustMonthly = trustIncomeFuture || 0;
 
-  // Total monthly retirement income
-  const totalMonthly = monthlyWithdrawal + ssMonthly + trustMonthly;
+  // Total monthly retirement income (Chad alive)
+  const totalMonthly = monthlyWithdrawal + chadSS + trustMonthly;
 
-  // Project 30 years of retirement (age 67-97) showing pool depletion
-  // Fixed dollar withdrawal from initial pool (standard 4% rule).
-  // Returns grow/shrink the pool; fixed spend depletes it if returns are low.
-  const years = 30;
+  // Simulation: two phases
+  // Phase 1: Chad alive (age 67 to chadPassesAge)
+  // Phase 2: Sarah survivor (chadPassesAge to Sarah age 90)
+  // Sarah age 90 = Chad age (90 + ageDiff) = 109
+  const sarahTargetAge = 90;
+  const endChadAge = chadPassesAge;
+  const endAge = sarahTargetAge + ageDiff; // on Chad's age scale
+  const years = endAge - 67;
+
   const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
-  const fixedMonthlySpend = monthlyWithdrawal; // locked to initial pool amount
+  const fixedMonthlySpend = monthlyWithdrawal;
   const yearlyData = [];
   let pool = totalPool;
+
   for (let y = 0; y <= years; y++) {
+    const chadAge = 67 + y;
+    const sarahAge = chadAge - ageDiff;
+    const chadAlive = chadAge < endChadAge;
+    const isSurvivorPhase = !chadAlive;
+
+    // SS income for this year
+    let ssIncome;
+    if (chadAlive) {
+      // Sarah can claim spousal at 62 (50% of Chad's PIA ≈ $2,107)
+      const sarahSpousal = sarahAge >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
+      ssIncome = chadSS + sarahSpousal;
+    } else {
+      // Survivor: Sarah gets the larger of survivor benefit or her own
+      const sarahBenefit = sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS) :
+        sarahAge >= 60 ? Math.round(survivorSS * 0.715) : 0; // reduced survivor at 60
+      ssIncome = sarahBenefit;
+    }
+
     const effectiveWithdrawal = pool > poolFloor ? fixedMonthlySpend : 0;
-    yearlyData.push({ age: 67 + y, pool: Math.round(pool), monthly: effectiveWithdrawal + ssMonthly + trustMonthly });
+    yearlyData.push({
+      age: chadAge, sarahAge, pool: Math.round(pool),
+      monthly: effectiveWithdrawal + ssIncome + trustMonthly,
+      ssIncome, phase: chadAlive ? 'chad' : 'survivor',
+    });
+
     for (let m = 0; m < 12; m++) {
       if (pool > poolFloor) {
         pool += pool * monthlyReturnRate;
@@ -63,18 +99,17 @@ export default function RetirementIncomeChart({
     }
   }
 
-  // Calculate optimal withdrawal rate for target age via binary search
-  // Pool must stay above poolFloor at the target age
+  // Optimal withdrawal to keep pool above floor through Sarah age 90
   const optimalRate = (() => {
     if (totalPool <= poolFloor) return 0;
-    const targetYears = targetAge - 67;
+    const totalYears = years;
     let lo = 0.1, hi = 30;
     for (let iter = 0; iter < 50; iter++) {
       const mid = (lo + hi) / 2;
       const testSpend = Math.round(totalPool * (mid / 100) / 12);
       let p = totalPool;
       let survived = true;
-      for (let y = 0; y < targetYears; y++) {
+      for (let y = 0; y < totalYears; y++) {
         for (let m = 0; m < 12; m++) {
           if (p > poolFloor) {
             p += p * monthlyReturnRate;
@@ -90,7 +125,7 @@ export default function RetirementIncomeChart({
   })();
   const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
 
-  // Chart: pool balance trajectory (the dramatic visual)
+  // Chart
   const svgW = 800, svgH = 340;
   const padL = 60, padR = 20, padT = 20, padB = 30;
   const plotW = svgW - padL - padR;
@@ -102,27 +137,31 @@ export default function RetirementIncomeChart({
   const x = (i) => padL + (i / years) * plotW;
   const yPool = (v) => padT + (1 - v / poolRange) * plotH;
 
-  // Pool balance line and area
   const poolPts = yearlyData.map((d, i) => `${x(i)},${yPool(d.pool)}`);
   const poolLine = `M ${poolPts.join(' L ')}`;
   const poolArea = `M ${x(0)},${yPool(0)} L ${poolPts.join(' L ')} L ${x(years)},${yPool(0)} Z`;
 
-  // Y ticks for pool
+  // Survivor phase shading
+  const survivorStartIdx = yearlyData.findIndex(d => d.phase === 'survivor');
+
   const poolTickStep = poolRange > 2000000 ? 500000 : poolRange > 1000000 ? 250000 : poolRange > 500000 ? 100000 : 50000;
   const yTicks = [];
   for (let v = 0; v <= maxPool; v += poolTickStep) yTicks.push(v);
 
+  const depleteAge = yearlyData.find(d => d.pool <= poolFloor);
+  const poolSurvives = !depleteAge;
+
+  // Income summary for survivor phase
+  const survivorStart = yearlyData.find(d => d.phase === 'survivor');
+  const survivorMonthly = survivorStart ? survivorStart.monthly : 0;
+
   const incomeCards = [
     { label: 'Investment Pool (age 67)', value: fmtFull(totalPool), color: '#e2e8f0', sub: `Savings ${fmtFull(endSavings)} + 401k ${fmtFull(end401k)} + Home ${fmtFull(homeSaleNet)}` },
     { label: `${withdrawalRate}% Withdrawal`, value: fmtFull(monthlyWithdrawal) + '/mo', color: '#60a5fa' },
-    { label: 'SS at FRA (67)', value: fmtFull(ssMonthly) + '/mo', color: '#4ade80' },
+    { label: "Chad's SS", value: fmtFull(chadSS) + '/mo', color: '#4ade80' },
+    { label: `Sarah survivor SS`, value: fmtFull(survivorSS) + '/mo', color: '#f59e0b', sub: `After Chad (at ${chadPassesAge})` },
     { label: 'Trust/LLC', value: fmtFull(trustMonthly) + '/mo', color: '#c084fc' },
-    { label: 'Total Retirement Income', value: fmtFull(totalMonthly) + '/mo', color: totalMonthly > 8000 ? '#4ade80' : totalMonthly > 5000 ? '#fbbf24' : '#f87171' },
   ];
-
-  // Find age when pool depletes
-  const depleteAge = yearlyData.find(d => d.pool <= poolFloor);
-  const poolSurvives = !depleteAge;
 
   return (
     <div style={{
@@ -131,14 +170,17 @@ export default function RetirementIncomeChart({
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <h3 style={{ fontSize: 14, color: '#e2e8f0', margin: 0, fontWeight: 600 }}>
-          Retirement Income (from age 67)
+          Retirement + Survivor Income
         </h3>
         <span style={{ fontSize: 11, color: poolSurvives ? '#4ade80' : '#f87171', fontWeight: 600 }}>
-          {poolSurvives ? `Pool ${poolFloor > 0 ? '> ' + fmtFull(poolFloor) : 'survives'} to 97` : `Pool hits ${poolFloor > 0 ? fmtFull(poolFloor) : '$0'} at ${depleteAge.age}`}
+          {poolSurvives
+            ? `Pool ${poolFloor > 0 ? '> ' + fmtFull(poolFloor) : 'lasts'} to Sarah age ${sarahTargetAge}`
+            : `Pool hits ${poolFloor > 0 ? fmtFull(poolFloor) : '$0'} at Chad ${depleteAge.age} (Sarah ${depleteAge.sarahAge})`
+          }
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        Assumes house sold at 67, {withdrawalRate}% withdrawal rate, {retirementReturn}% returns on pool
+        House sold at 67 · {withdrawalRate}% withdrawal · {retirementReturn}% returns · Chad passes at {chadPassesAge} · Sarah survivor to {sarahTargetAge}
       </div>
 
       {/* Key numbers */}
@@ -165,7 +207,7 @@ export default function RetirementIncomeChart({
         ))}
       </div>
 
-      {/* Chart: Pool balance trajectory */}
+      {/* Chart */}
       <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Grid */}
         {yTicks.map((v, i) => (
@@ -178,6 +220,12 @@ export default function RetirementIncomeChart({
             </text>
           </g>
         ))}
+
+        {/* Survivor phase background */}
+        {survivorStartIdx >= 0 && (
+          <rect x={x(survivorStartIdx)} y={padT} width={x(years) - x(survivorStartIdx)} height={plotH}
+            fill="#f59e0b" opacity="0.04" />
+        )}
 
         {/* Pool area fill */}
         <defs>
@@ -198,33 +246,53 @@ export default function RetirementIncomeChart({
             stroke="#f59e0b" strokeWidth="1" strokeDasharray="6,3" opacity="0.6" />
         )}
 
+        {/* Chad passes marker */}
+        {survivorStartIdx >= 0 && (
+          <g>
+            <line x1={x(survivorStartIdx)} x2={x(survivorStartIdx)}
+              y1={padT} y2={padT + plotH}
+              stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3" />
+            <text x={x(survivorStartIdx)} y={padT - 4} textAnchor="middle"
+              fill="#f59e0b" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              Chad {chadPassesAge} / Sarah {chadPassesAge - ageDiff}
+            </text>
+          </g>
+        )}
+
         {/* Depletion marker */}
         {depleteAge && (
           <g>
             <line x1={x(depleteAge.age - 67)} x2={x(depleteAge.age - 67)}
               y1={padT} y2={padT + plotH}
               stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" />
-            <text x={x(depleteAge.age - 67)} y={padT - 4} textAnchor="middle"
-              fill="#f87171" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
-              Pool depleted ({depleteAge.age})
+            <text x={x(depleteAge.age - 67)} y={padT + 12} textAnchor="middle"
+              fill="#f87171" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              Depleted
             </text>
           </g>
         )}
 
-        {/* X-axis labels */}
+        {/* X-axis labels — show both Chad and Sarah ages */}
         {yearlyData.filter((_, i) => i % 5 === 0).map((d, i) => (
-          <text key={i} x={x(d.age - 67)} y={svgH - 5} textAnchor="middle"
-            fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-            {d.age}
-          </text>
+          <g key={i}>
+            <text x={x(d.age - 67)} y={svgH - 14} textAnchor="middle"
+              fill="#64748b" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+              C:{d.age}
+            </text>
+            <text x={x(d.age - 67)} y={svgH - 4} textAnchor="middle"
+              fill="#f59e0b" fontSize="9" fontFamily="'JetBrains Mono', monospace" opacity="0.6">
+              S:{d.sarahAge}
+            </text>
+          </g>
         ))}
       </svg>
 
       {/* Legend */}
-      <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11 }}>
+      <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11, flexWrap: 'wrap' }}>
         {[
           { label: 'Investment Pool', color: '#60a5fa' },
-          ...(depleteAge ? [{ label: `Depleted at ${depleteAge.age}`, color: '#f87171' }] : [{ label: 'Pool survives', color: '#4ade80' }]),
+          { label: `Survivor phase (Sarah)`, color: '#f59e0b' },
+          ...(depleteAge ? [{ label: `Depleted at Chad ${depleteAge.age}`, color: '#f87171' }] : [{ label: 'Pool lasts', color: '#4ade80' }]),
         ].map((item, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 12, height: 12, borderRadius: 2, background: item.color, opacity: 0.4 }} />
@@ -233,21 +301,25 @@ export default function RetirementIncomeChart({
         ))}
       </div>
 
-      {/* Optimal withdrawal callout */}
+      {/* Optimal withdrawal */}
       <div style={{
         marginTop: 12, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
-        border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        border: '1px solid #334155',
       }}>
-        <div>
-          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Optimal withdrawal to last to age {targetAge}{poolFloor > 0 ? ` (keeping ${fmtFull(poolFloor)})` : ''}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
-            {optimalRate}% = {fmtFull(optimalMonthly)}/mo
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
+              Optimal withdrawal to Sarah age {sarahTargetAge}{poolFloor > 0 ? ` (keeping ${fmtFull(poolFloor)})` : ''}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
+              {optimalRate}% = {fmtFull(optimalMonthly)}/mo
+            </div>
           </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Total monthly w/ SS + Trust</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(optimalMonthly + ssMonthly + trustMonthly)}/mo
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Survivor monthly (Sarah)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull((pool > poolFloor ? optimalMonthly : 0) + survivorSS + trustMonthly)}/mo
+            </div>
           </div>
         </div>
       </div>
@@ -258,8 +330,8 @@ export default function RetirementIncomeChart({
           min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
         <Slider label="Withdrawal rate" value={withdrawalRate} onChange={setWithdrawalRate}
           min={4} max={15} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
-        <Slider label="Target age" value={targetAge} onChange={setTargetAge}
-          min={77} max={100} step={1} format={(v) => v + ''} color="#4ade80" />
+        <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+          min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
         <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
           min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
       </div>

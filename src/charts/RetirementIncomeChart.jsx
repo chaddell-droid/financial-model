@@ -21,7 +21,7 @@ export default function RetirementIncomeChart({
 
   // Assets at month 72 (approximately age 67)
   const endIdx = Math.min(72, savingsData.length - 1);
-  const endSavings = Math.max(0, savingsData[endIdx]?.balance || 0);
+  const endSavings = savingsData[endIdx]?.balance || 0; // can be negative (represents debt)
   const end401k = wealthData[endIdx]?.balance401k || 0;
   const endHome = wealthData[endIdx]?.homeEquity || 0;
 
@@ -29,7 +29,8 @@ export default function RetirementIncomeChart({
   const homeSaleNet = Math.round(endHome * 0.94);
 
   // Total investment pool = savings + 401k + home sale proceeds
-  const totalPool = endSavings + end401k + homeSaleNet;
+  // Negative savings (debt) reduces the pool — must be paid from home proceeds
+  const totalPool = Math.max(0, endSavings + end401k + homeSaleNet);
 
   // Monthly withdrawal using configured withdrawal rate
   const monthlyWithdrawal = Math.round(totalPool * (withdrawalRate / 100) / 12);

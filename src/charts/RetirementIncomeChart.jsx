@@ -60,7 +60,13 @@ export default function RetirementIncomeChart({
   const years = endAge - 67;
 
   const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
-  const fixedMonthlySpend = monthlyWithdrawal;
+
+  // Two-phase withdrawal: Chad alive needs more (2 people), survivor needs less (1 person)
+  // Assume survivor phase needs ~60% of the couple withdrawal (single person household)
+  const survivorSpendRatio = 0.6;
+  const coupleMonthlySpend = monthlyWithdrawal;
+  const survivorMonthlySpend = Math.round(monthlyWithdrawal * survivorSpendRatio);
+
   const yearlyData = [];
   let pool = totalPool;
 
@@ -68,22 +74,21 @@ export default function RetirementIncomeChart({
     const chadAge = 67 + y;
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
-    const isSurvivorPhase = !chadAlive;
 
     // SS income for this year
     let ssIncome;
     if (chadAlive) {
-      // Sarah can claim spousal at 62 (50% of Chad's PIA ≈ $2,107)
       const sarahSpousal = sarahAge >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
       ssIncome = chadSS + sarahSpousal;
     } else {
-      // Survivor: Sarah gets the larger of survivor benefit or her own
       const sarahBenefit = sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS) :
-        sarahAge >= 60 ? Math.round(survivorSS * 0.715) : 0; // reduced survivor at 60
+        sarahAge >= 60 ? Math.round(survivorSS * 0.715) : 0;
       ssIncome = sarahBenefit;
     }
 
-    const effectiveWithdrawal = pool > poolFloor ? fixedMonthlySpend : 0;
+    // Withdrawal depends on phase
+    const phaseSpend = chadAlive ? coupleMonthlySpend : survivorMonthlySpend;
+    const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     yearlyData.push({
       age: chadAge, sarahAge, pool: Math.round(pool),
       monthly: effectiveWithdrawal + ssIncome + trustMonthly,
@@ -93,27 +98,29 @@ export default function RetirementIncomeChart({
     for (let m = 0; m < 12; m++) {
       if (pool > poolFloor) {
         pool += pool * monthlyReturnRate;
-        pool -= fixedMonthlySpend;
+        pool -= phaseSpend;
         if (pool < poolFloor) pool = poolFloor;
       }
     }
   }
 
-  // Optimal withdrawal to keep pool above floor through Sarah age 90
+  // Optimal withdrawal: binary search accounting for phase-dependent spending
   const optimalRate = (() => {
     if (totalPool <= poolFloor) return 0;
-    const totalYears = years;
     let lo = 0.1, hi = 30;
     for (let iter = 0; iter < 50; iter++) {
       const mid = (lo + hi) / 2;
-      const testSpend = Math.round(totalPool * (mid / 100) / 12);
+      const testCouple = Math.round(totalPool * (mid / 100) / 12);
+      const testSurvivor = Math.round(testCouple * survivorSpendRatio);
       let p = totalPool;
       let survived = true;
-      for (let y = 0; y < totalYears; y++) {
+      for (let y = 0; y < years; y++) {
+        const chadAge = 67 + y;
+        const spend = chadAge < endChadAge ? testCouple : testSurvivor;
         for (let m = 0; m < 12; m++) {
           if (p > poolFloor) {
             p += p * monthlyReturnRate;
-            p -= testSpend;
+            p -= spend;
             if (p < poolFloor) { survived = false; break; }
           }
         }

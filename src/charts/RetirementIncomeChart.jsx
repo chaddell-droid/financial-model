@@ -26,10 +26,11 @@ export default function RetirementIncomeChart({
   // Monthly withdrawal using configured withdrawal rate
   const monthlyWithdrawal = Math.round(totalPool * (withdrawalRate / 100) / 12);
 
-  // SS income at 67 — at FRA you get full benefit regardless of work history
-  // If Chad worked until 67, he gets full SS at FRA (use personal rate as proxy)
-  // If on SSDI, it converts to retirement SS at FRA automatically
-  const ssMonthly = ssPersonal || 2933;
+  // SS income at 67 (FRA) — full benefit from SS statement: $4,213/mo
+  // At FRA there's no earnings test, no reduction. SSDI auto-converts to this.
+  // This is the FRA amount, not the reduced age-62 amount ($2,933).
+  const ssFRA = 4213;
+  const ssMonthly = ssFRA;
 
   // Trust/LLC continues
   const trustMonthly = trustIncomeFuture || 0;

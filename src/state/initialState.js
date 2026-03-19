@@ -14,7 +14,7 @@ export const INITIAL_STATE = {
   ssType: 'ssdi',            // 'ssdi' or 'ss'
   ssdiApprovalMonth: 7,
   ssdiDenied: false,
-  ssdiPersonal: 4152,
+  ssdiPersonal: 4166,
   ssdiFamilyTotal: 6500,
   kidsAgeOutMonths: 36,
   chadConsulting: 0,

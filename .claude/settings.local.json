@@ -15,7 +15,9 @@
       "Bash(lsof -ti:5173,5174,5175)",
       "Bash(for pid:*)",
       "Bash(do taskkill:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(python3 -c \":*)",
+      "Bash(python -c \":*)"
     ]
   }
 }

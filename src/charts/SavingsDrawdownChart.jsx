@@ -75,7 +75,7 @@ export default function SavingsDrawdownChart({
             ))}
           </div>
           {(() => {
-            const svgH = 200;
+            const svgH = 340;
             const svgW = 800;
             const padL = 60;
             const padR = 20;

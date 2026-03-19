@@ -534,7 +534,7 @@ export default function FinancialModel() {
             <TabBar activeTab={effectiveTab} onChange={set('activeTab')} />
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 420px", gap: 24, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 520px", gap: 24, alignItems: "start" }}>
             {/* Left column: Tab content */}
             <div style={{ minWidth: 0 }}>
               {effectiveTab === "overview" && (

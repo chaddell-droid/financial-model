@@ -429,7 +429,7 @@ export default function RetirementIncomeChart({
         <Slider label="Investment return" value={retirementReturn} onChange={setRetirementReturn}
           min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
         <Slider label="Withdrawal rate" value={withdrawalRate} onChange={setWithdrawalRate}
-          min={4} max={15} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
+          min={4} max={25} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
         <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
           min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
         <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}

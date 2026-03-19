@@ -51,11 +51,13 @@ export default function NetWorthChart({
     { path: `M ${totalPath}`, color: '#e2e8f0', label: 'Total', endVal: endNetWorth, dashed: true },
   ];
 
+  const k401Change = end401k - (starting401k || 0);
+  const homeChange = endHome - (homeEquity || 0);
   const keyCards = [
     { label: 'Starting Net Worth', value: fmtFull(startNetWorth), color: '#e2e8f0' },
     { label: '6-Year Net Worth', value: fmtFull(endNetWorth), color: endNetWorth >= startNetWorth ? '#4ade80' : '#f87171' },
-    { label: '401k Growth', value: '+' + fmtFull(end401k - (starting401k || 0)), color: '#60a5fa' },
-    { label: 'Home Appreciation', value: '+' + fmtFull(endHome - (homeEquity || 0)), color: '#f59e0b' },
+    { label: '401k Growth', value: (k401Change >= 0 ? '+' : '') + fmtFull(k401Change), color: k401Change >= 0 ? '#60a5fa' : '#f87171' },
+    { label: 'Home Appreciation', value: (homeChange >= 0 ? '+' : '') + fmtFull(homeChange), color: '#f59e0b' },
   ];
 
   return (

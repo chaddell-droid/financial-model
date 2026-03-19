@@ -6,7 +6,7 @@ export default function IncomeCompositionChart({ data, investmentReturn }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   const stackH = 300;
-  const maxIncome = Math.max(...data.map(d => d.sarahIncome + d.msftVesting + d.ssdi + (d.trustLLC || 0) + d.consulting + (d.investReturn || 0)));
+  const maxIncome = Math.max(...data.map(d => d.sarahIncome + d.msftVesting + d.ssdi + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0)));
   const maxExpense = Math.max(...data.map(d => d.expenses));
   const stackMax = Math.max(maxIncome, maxExpense) * 1.1 || 1;
   const stackYPad = 60;

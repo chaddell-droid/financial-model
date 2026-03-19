@@ -10,9 +10,9 @@ export function runMonthlySimulation(s) {
   const months = 72;
   const cutsDiscipline = s.cutsDiscipline ?? 1.0;
   const useSS = s.ssType === 'ss';
-  // If SS retirement: no SSDI, no back pay. If SSDI denied: push approval to never.
-  const effectiveSsdiApproval = useSS ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth || 7));
-  const backPayGross = useSS ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
+  // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
+  const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth || 7));
+  const backPayGross = (useSS || chadJob) ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
   const backPayFee = Math.min(Math.round(backPayGross * 0.25), 9200);
   const backPayActual = backPayGross - backPayFee;
   const ssStartMonth = s.ssStartMonth || 18;
@@ -50,29 +50,19 @@ export function runMonthlySimulation(s) {
     // Chad's job income (after tax)
     const chadJobIncome = (chadJob && m >= chadJobStartMonth) ? chadJobMonthlyNet : 0;
 
+    // SS/SSDI: fully skipped when Chad has a job — mutually exclusive paths
     let ssdi = 0;
-    if (useSS) {
-      // SS retirement: family total while twins are under 18, then personal only
-      if (m >= ssStartMonth) {
-        const rawSS = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
-        // Apply earnings test if Chad has a job — reduces SS benefits
-        if (chadJob && m >= chadJobStartMonth) {
-          ssdi = Math.max(0, rawSS - ssMonthlyReduction);
-        } else {
-          ssdi = rawSS;
+    if (!chadJob) {
+      if (useSS) {
+        if (m >= ssStartMonth) {
+          ssdi = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
         }
-      }
-    } else if (m >= effectiveSsdiApproval) {
-      // SSDI: a full-time job exceeds SGA, disqualifying SSDI
-      if (chadJob && m >= chadJobStartMonth) {
-        ssdi = 0; // Can't receive SSDI while working full-time
-      } else {
+      } else if (m >= effectiveSsdiApproval) {
         ssdi = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
       }
     }
-    // Consulting: SGA limit only applies under SSDI, not SS retirement
-    // If Chad has a full-time job, consulting is replaced by the job
-    const consulting = (chadJob && m >= chadJobStartMonth) ? 0
+    // Consulting: only when not employed full-time
+    const consulting = chadJob ? 0
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);

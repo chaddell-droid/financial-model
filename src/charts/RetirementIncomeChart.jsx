@@ -9,7 +9,8 @@ export default function RetirementIncomeChart({
   trustIncomeFuture,
   investmentReturn,
 }) {
-  const [retirementReturn, setRetirementReturn] = useState(investmentReturn || 8);
+  // Retirement portfolios are more conservative than growth phase — default 7%
+  const [retirementReturn, setRetirementReturn] = useState(7);
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [targetAge, setTargetAge] = useState(92);
   const [poolFloor, setPoolFloor] = useState(0);

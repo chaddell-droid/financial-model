@@ -17,7 +17,7 @@ export default function NetWorthChart({
   const startNetWorth = startingSavings + (starting401k || 0) + (homeEquity || 0);
   const endNetWorth = endSavings + end401k + endHome;
 
-  const svgW = 800, svgH = 280;
+  const svgW = 800, svgH = 340;
   const padL = 60, padR = 80, padT = 20, padB = 30;
 
   // Compute total net worth at each month for scaling

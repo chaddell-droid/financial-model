@@ -15,6 +15,7 @@ import ComparisonBanner from './components/ComparisonBanner.jsx';
 import TabBar from './components/TabBar.jsx';
 import ActiveTogglePills from './components/ActiveTogglePills.jsx';
 import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
+import NetWorthChart from './charts/NetWorthChart.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
 import ScenarioStrip from './panels/ScenarioStrip.jsx';
@@ -584,9 +585,10 @@ export default function FinancialModel() {
               )}
             </div>
 
-            {/* Right column: Savings chart — always visible, sticky */}
+            {/* Right column: Key charts — always visible, sticky */}
             <div style={{ position: "sticky", top: 16, alignSelf: "start" }}>
               <SavingsDrawdownChart {...savingsDrawdownProps} />
+              <NetWorthChart {...netWorthProps} />
             </div>
           </div>
         </>}

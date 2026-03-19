@@ -61,37 +61,27 @@ export default function RetirementIncomeChart({
     }
   }
 
-  // Chart dimensions
+  // Chart: pool balance trajectory (the dramatic visual)
   const svgW = 800, svgH = 340;
   const padL = 60, padR = 20, padT = 20, padB = 30;
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
 
-  const maxMonthly = Math.max(...yearlyData.map(d => d.monthly));
-  const minMonthly = 0;
-  const range = maxMonthly - minMonthly || 1;
+  const maxPool = Math.max(...yearlyData.map(d => d.pool), totalPool) * 1.05;
+  const poolRange = maxPool || 1;
 
   const x = (i) => padL + (i / years) * plotW;
-  const y = (v) => padT + (1 - (v - minMonthly) / range) * plotH;
+  const yPool = (v) => padT + (1 - v / poolRange) * plotH;
 
-  // Stacked areas: Trust on bottom, SS in middle, Withdrawals on top
-  const totalPts = yearlyData.map((d, i) => ({ x: x(i), y: y(d.monthly) }));
-  const ssBasePts = yearlyData.map((d, i) => ({ x: x(i), y: y(ssMonthly + trustMonthly) }));
-  const trustBasePts = yearlyData.map((d, i) => ({ x: x(i), y: y(trustMonthly) }));
-  const zeroPts = yearlyData.map((d, i) => ({ x: x(i), y: y(0) }));
+  // Pool balance line and area
+  const poolPts = yearlyData.map((d, i) => `${x(i)},${yPool(d.pool)}`);
+  const poolLine = `M ${poolPts.join(' L ')}`;
+  const poolArea = `M ${x(0)},${yPool(0)} L ${poolPts.join(' L ')} L ${x(years)},${yPool(0)} Z`;
 
-  const ptsToPath = (pts) => pts.map(p => `${p.x},${p.y}`).join(' L ');
-  const ptsToPathRev = (pts) => [...pts].reverse().map(p => `${p.x},${p.y}`).join(' L ');
-
-  const totalLine = ptsToPath(totalPts);
-  const withdrawalArea = `M ${ptsToPath(ssBasePts)} L ${ptsToPathRev(totalPts)} Z`;
-  const ssArea = ssMonthly > 0 ? `M ${ptsToPath(trustBasePts)} L ${ptsToPathRev(ssBasePts)} Z` : null;
-  const trustArea = trustMonthly > 0 ? `M ${ptsToPath(zeroPts)} L ${ptsToPathRev(trustBasePts)} Z` : null;
-
-  // Y ticks
-  const tickStep = range > 20000 ? 5000 : range > 10000 ? 2000 : 1000;
+  // Y ticks for pool
+  const poolTickStep = poolRange > 2000000 ? 500000 : poolRange > 1000000 ? 250000 : poolRange > 500000 ? 100000 : 50000;
   const yTicks = [];
-  for (let v = 0; v <= maxMonthly; v += tickStep) yTicks.push(v);
+  for (let v = 0; v <= maxPool; v += poolTickStep) yTicks.push(v);
 
   const incomeCards = [
     { label: 'Investment Pool (age 67)', value: fmtFull(totalPool), color: '#e2e8f0', sub: `Savings ${fmtFull(endSavings)} + 401k ${fmtFull(end401k)} + Home ${fmtFull(homeSaleNet)}` },
@@ -146,28 +136,45 @@ export default function RetirementIncomeChart({
         ))}
       </div>
 
-      {/* Chart */}
+      {/* Chart: Pool balance trajectory */}
       <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Grid */}
         {yTicks.map((v, i) => (
           <g key={i}>
-            <line x1={padL} x2={svgW - padR} y1={y(v)} y2={y(v)}
-              stroke="#1e293b" strokeWidth="0.5" />
-            <text x={padL - 6} y={y(v) + 3} textAnchor="end"
+            <line x1={padL} x2={svgW - padR} y1={yPool(v)} y2={yPool(v)}
+              stroke={v === 0 ? '#475569' : '#1e293b'} strokeWidth={v === 0 ? 1 : 0.5} />
+            <text x={padL - 6} y={yPool(v) + 3} textAnchor="end"
               fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-              {v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`}
+              {v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`}
             </text>
           </g>
         ))}
 
-        {/* Stacked areas */}
-        {trustArea && <path d={trustArea} fill="#c084fc" opacity="0.2" />}
-        {ssArea && <path d={ssArea} fill="#4ade80" opacity="0.2" />}
-        <path d={withdrawalArea} fill="#60a5fa" opacity="0.2" />
+        {/* Pool area fill */}
+        <defs>
+          <linearGradient id="retPoolGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="transparent" />
+          </linearGradient>
+        </defs>
+        <path d={poolArea} fill="url(#retPoolGrad)" opacity="0.25" />
 
-        {/* Total line */}
-        <path d={`M ${totalLine}`} fill="none" stroke="#e2e8f0" strokeWidth="2"
+        {/* Pool balance line */}
+        <path d={poolLine} fill="none" stroke="#60a5fa" strokeWidth="2.5"
           strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* Depletion marker */}
+        {depleteAge && (
+          <g>
+            <line x1={x(depleteAge.age - 67)} x2={x(depleteAge.age - 67)}
+              y1={padT} y2={padT + plotH}
+              stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" />
+            <text x={x(depleteAge.age - 67)} y={padT - 4} textAnchor="middle"
+              fill="#f87171" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              Pool depleted ({depleteAge.age})
+            </text>
+          </g>
+        )}
 
         {/* X-axis labels */}
         {yearlyData.filter((_, i) => i % 5 === 0).map((d, i) => (
@@ -181,9 +188,8 @@ export default function RetirementIncomeChart({
       {/* Legend */}
       <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11 }}>
         {[
-          { label: `Withdrawals (${withdrawalRate}%)`, color: '#60a5fa' },
-          ...(ssMonthly > 0 ? [{ label: 'SS at FRA', color: '#4ade80' }] : []),
-          ...(trustMonthly > 0 ? [{ label: 'Trust/LLC', color: '#c084fc' }] : []),
+          { label: 'Investment Pool', color: '#60a5fa' },
+          ...(depleteAge ? [{ label: `Depleted at ${depleteAge.age}`, color: '#f87171' }] : [{ label: 'Pool survives', color: '#4ade80' }]),
         ].map((item, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 12, height: 12, borderRadius: 2, background: item.color, opacity: 0.4 }} />

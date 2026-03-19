@@ -61,7 +61,7 @@ export const INITIAL_STATE = {
   vanMonthlySavings: 2597,
 
   // Milestones
-  milestones: [{ name: "Twins to college", month: 36, savings: 2000 }],
+  milestones: [{ name: "Twins to college", month: 36, savings: 3000 }],
 
   // Scenario toggles
   retireDebt: false,

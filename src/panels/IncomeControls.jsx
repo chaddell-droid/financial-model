@@ -21,9 +21,12 @@ const IncomeControls = ({
 }) => {
   const set = onFieldChange;
   const sgaLimit = SGA_LIMIT;
-  const chadJobMonthlyNet = Math.round(chadJobSalary * (1 - chadJobTaxRate / 100) / 12);
+  const effectiveSalary = chadJobSalary || 80000;
+  const effectiveTaxRate = chadJobTaxRate ?? 25;
+  const effectiveHealthSavings = chadJobHealthSavings ?? 4200;
+  const chadJobMonthlyNet = Math.round(effectiveSalary * (1 - effectiveTaxRate / 100) / 12);
   const ssEarningsLimit = 22320;
-  const ssExcess = Math.max(0, chadJobSalary - ssEarningsLimit);
+  const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
   const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
 
   return (
@@ -108,11 +111,11 @@ const IncomeControls = ({
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
                       <span style={{ color: "#64748b" }}>Health insurance saved:</span>
-                      <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(chadJobHealthSavings)}/mo</span>
+                      <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(effectiveHealthSavings)}/mo</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155", fontWeight: 700 }}>
                       <span style={{ color: "#22c55e" }}>Total monthly impact:</span>
-                      <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(chadJobMonthlyNet + chadJobHealthSavings)}</span>
+                      <span style={{ color: "#22c55e", fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(chadJobMonthlyNet + effectiveHealthSavings)}/mo</span>
                     </div>
                   </div>
                   {ssType === 'ss' && (

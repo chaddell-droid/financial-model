@@ -167,8 +167,8 @@ export default function RetirementIncomeChart({
       }
       const simResult = runRetirementSim(monthlyReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
       allPools.push(simResult.yearPools);
-      const endOk = simResult.finalPool >= poolFloor;
-      const neverDepleted = !hasInheritance || simResult.preInheritanceMinPool >= poolFloor;
+      const endOk = simResult.finalPool > poolFloor;
+      const neverDepleted = !hasInheritance || simResult.preInheritanceMinPool > poolFloor;
       if (endOk && neverDepleted) survivedCount++;
     }
 
@@ -223,7 +223,7 @@ export default function RetirementIncomeChart({
         let survived = 0;
         for (let sim = 0; sim < N; sim++) {
           const simResult = runRetirementSim(allReturns[sim], testCouple, testSurvivor, poolFloor);
-          if (simResult.finalPool >= poolFloor) survived++;
+          if (simResult.finalPool > poolFloor) survived++;
         }
         if (survived / N >= targetSurvival) lo = mid; else hi = mid;
       }
@@ -245,8 +245,8 @@ export default function RetirementIncomeChart({
           const simResult = runRetirementSim(allReturns[sim], postCouple, postSurvivor, poolFloor,
             { preInhCouple: preCouple, preInhSurvivor: preSurvivor });
           // Must survive to end AND pool must never hit floor before inheritance arrives
-          const endOk = simResult.finalPool >= poolFloor;
-          const preOk = simResult.preInheritanceMinPool >= poolFloor;
+          const endOk = simResult.finalPool > poolFloor;
+          const preOk = simResult.preInheritanceMinPool > poolFloor;
           if (endOk && preOk) survived++;
         }
         if (survived / N >= targetSurvival) loP = mid; else hiP = mid;

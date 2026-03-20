@@ -9,8 +9,9 @@ export default function RetirementIncomeChart({
   trustIncomeFuture,
   investmentReturn,
 }) {
-  // Retirement portfolios are more conservative than growth phase — default 7%
+  // Retirement portfolios are more conservative than growth phase
   const [retirementReturn, setRetirementReturn] = useState(7);
+  const [retirementVol, setRetirementVol] = useState(10); // 60/40 portfolio ~10%, pure stocks ~15%
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [poolFloor, setPoolFloor] = useState(0);
   const [chadPassesAge, setChadPassesAge] = useState(82);
@@ -114,7 +115,7 @@ export default function RetirementIncomeChart({
   const mcResult = useMemo(() => {
     const N = 500;
     const totalMonths = years * 12 + 12;
-    const annualVol = 15; // S&P historical volatility ~15%
+    const annualVol = retirementVol; // S&P historical volatility ~15%
     const monthlyVol = annualVol / Math.sqrt(12) / 100;
     const monthlyMean = monthlyReturnRate;
 
@@ -152,14 +153,14 @@ export default function RetirementIncomeChart({
     });
 
     return { bands, survivalRate: survivedCount / N, numSims: N };
-  }, [totalPool, retirementReturn, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, survivorMonthlySpend]);
+  }, [totalPool, retirementReturn, retirementVol, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, survivorMonthlySpend]);
 
   // Optimal withdrawal at 90% survival (MC-based)
   const optimalRate = useMemo(() => {
     if (totalPool <= poolFloor) return 0;
     const N = 200; // fewer sims for binary search speed
     const totalMonths = years * 12 + 12;
-    const annualVol = 15;
+    const annualVol = retirementVol;
     const monthlyVol = annualVol / Math.sqrt(12) / 100;
     const monthlyMean = monthlyReturnRate;
     const targetSurvival = 0.90;
@@ -193,7 +194,7 @@ export default function RetirementIncomeChart({
       if (survived / N >= targetSurvival) lo = mid; else hi = mid;
     }
     return Math.round(lo * 10) / 10;
-  }, [totalPool, retirementReturn, poolFloor, years, monthlyReturnRate, survivorSpendRatio]);
+  }, [totalPool, retirementReturn, retirementVol, poolFloor, years, monthlyReturnRate, survivorSpendRatio]);
 
   const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
 
@@ -254,7 +255,7 @@ export default function RetirementIncomeChart({
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        House sold at 67 · {withdrawalRate}% withdrawal + 3% inflation · {retirementReturn}% mean return (15% vol) · Chad passes at {chadPassesAge}
+        House sold at 67 · {withdrawalRate}% withdrawal + 3% inflation · {retirementReturn}% mean return · {retirementVol}% volatility · Chad passes at {chadPassesAge}
       </div>
 
       {/* Pool + Two-phase income summary */}
@@ -476,6 +477,8 @@ export default function RetirementIncomeChart({
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Slider label="Mean return" value={retirementReturn} onChange={setRetirementReturn}
           min={0} max={12} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
+        <Slider label="Volatility (risk)" value={retirementVol} onChange={setRetirementVol}
+          min={5} max={20} step={1} format={(v) => v + '%'} color="#94a3b8" />
 
         {/* Withdrawal rate with optimal marker */}
         <div style={{ padding: "4px 0" }}>

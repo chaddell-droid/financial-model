@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
@@ -92,31 +92,18 @@ export default function RetirementIncomeChart({
     return { flows, scaling };
   }, [horizonMonths, chadPassesAge, survivorSpendRatio, hasInheritance, inheritanceMonth, inheritanceAmount]);
 
-  // Historical cohort analysis (replaces Monte Carlo)
-  const cohortResult = useMemo(() => {
+  // Optimal rates (independent of withdrawal slider — computed via binary search)
+  const optimalRates = useMemo(() => {
     const empty = {
       optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
-      survivalRate: 0,
-      bands: [10, 25, 50, 75, 90].map(p => ({ pct: p, series: Array(years + 1).fill(0) })),
-      numCohorts: 0, worstCohort: { year: 0, swr: 0 }, cohortRange: '',
+      numCohorts: 0, worstCohort: { year: 0 }, cohortRange: '',
     };
     if (totalPool <= 0) return empty;
 
     const numCohorts = getNumCohorts(horizonMonths);
     if (numCohorts <= 0) return empty;
 
-    const allYearlyPools = new Array(numCohorts);
-    let survivedCount = 0;
-
-    // Simulate pool path at user's withdrawal rate (for bands + survival)
-    for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, monthlyWithdrawal, flows, scaling, totalPool, poolFloor);
-      allYearlyPools[c] = sim.yearlyPools;
-      if (sim.finalPool > poolFloor && !sim.everDepleted) survivedCount++;
-    }
-
-    // Optimal rate via simulation-based binary search (90% survival)
-    // This properly enforces the pool floor at every month, unlike closed-form
+    // Binary search for optimal rate (90% survival, pool never depletes)
     const targetSurvival = 0.90;
     let lo = 0.1, hi = 25;
     for (let iter = 0; iter < 30; iter++) {
@@ -133,9 +120,7 @@ export default function RetirementIncomeChart({
     const optimalW = Math.round(totalPool * (optimalRate / 100) / 12);
     const optimalMonthly = optimalW;
 
-    // Pre-inheritance optimal rate (binary search: max pre-inh rate at 90% survival)
-    // Only constrains the pre-inheritance period — pool must not deplete before inheritance.
-    // Post-inheritance uses the optimal rate which is already proven sustainable.
+    // Pre-inheritance optimal rate (only constrains pre-inh period)
     let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
     if (hasInheritance && inheritanceMonth > 0 && inheritanceMonth < horizonMonths) {
       const postW = optimalW;
@@ -144,7 +129,6 @@ export default function RetirementIncomeChart({
       for (let iter = 0; iter < 30; iter++) {
         const mid = (loP + hiP) / 2;
         const preW = Math.round(totalPool * (mid / 100) / 12);
-        // Build pre-inh scaling: preW for pre-inh months, postW for post-inh months
         const preScaling = new Float64Array(horizonMonths);
         const survivorStartMonth = (chadPassesAge - 67) * 12;
         for (let t = 0; t < horizonMonths; t++) {
@@ -157,7 +141,6 @@ export default function RetirementIncomeChart({
         let survived = 0;
         for (let c = 0; c < numCohorts; c++) {
           const sim = simulatePath(blendedReturns, c, horizonMonths, preW, flows, preScaling, totalPool, poolFloor);
-          // Only constrain pre-inheritance: pool must not deplete before inheritance arrives
           const preInhOk = sim.yearlyPools.slice(0, inhYear + 1).every(p => p > poolFloor);
           if (preInhOk && sim.finalPool > poolFloor) survived++;
         }
@@ -167,8 +150,7 @@ export default function RetirementIncomeChart({
       optimalPreMonthly = Math.round(totalPool * (optimalPreRate / 100) / 12);
     }
 
-    // Worst historical cohort: find the cohort that depletes fastest at optimal rate
-    // Simulate at optimal rate and find cohort with lowest final pool
+    // Worst historical cohort
     let worstIdx = 0;
     let worstFinal = Infinity;
     for (let c = 0; c < numCohorts; c++) {
@@ -177,7 +159,41 @@ export default function RetirementIncomeChart({
     }
     const worstLabel = getCohortLabel(worstIdx);
 
-    // Percentile bands (sort once per year, pick all percentiles)
+    const firstLabel = getCohortLabel(0);
+    const lastLabel = getCohortLabel(numCohorts - 1);
+    const cohortRange = `${firstLabel.year}\u2013${lastLabel.year}`;
+
+    return {
+      optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
+      numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
+    };
+  }, [blendedReturns, totalPool, poolFloor, flows, scaling,
+    horizonMonths, hasInheritance, inheritanceMonth, chadPassesAge, survivorSpendRatio]);
+
+  // Sync withdrawal slider to optimal rate whenever it changes
+  useEffect(() => {
+    if (optimalRates.optimalRate > 0) {
+      setWithdrawalRate(optimalRates.optimalRate);
+    }
+  }, [optimalRates.optimalRate]);
+
+  // Bands and survival at the user's slider rate
+  const bandResult = useMemo(() => {
+    const emptyBands = [10, 25, 50, 75, 90].map(p => ({ pct: p, series: Array(years + 1).fill(0) }));
+    if (totalPool <= 0) return { survivalRate: 0, bands: emptyBands };
+
+    const numCohorts = getNumCohorts(horizonMonths);
+    if (numCohorts <= 0) return { survivalRate: 0, bands: emptyBands };
+
+    const allYearlyPools = new Array(numCohorts);
+    let survivedCount = 0;
+
+    for (let c = 0; c < numCohorts; c++) {
+      const sim = simulatePath(blendedReturns, c, horizonMonths, monthlyWithdrawal, flows, scaling, totalPool, poolFloor);
+      allYearlyPools[c] = sim.yearlyPools;
+      if (sim.finalPool > poolFloor && !sim.everDepleted) survivedCount++;
+    }
+
     const percentiles = [10, 25, 50, 75, 90];
     const temp = new Float64Array(numCohorts);
     const bandSeries = percentiles.map(() => []);
@@ -192,18 +208,8 @@ export default function RetirementIncomeChart({
     }
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
-    // Cohort range for display
-    const firstLabel = getCohortLabel(0);
-    const lastLabel = getCohortLabel(numCohorts - 1);
-    const cohortRange = `${firstLabel.year}\u2013${lastLabel.year}`;
-
-    return {
-      optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
-      survivalRate: survivedCount / numCohorts,
-      bands, numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
-    };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, flows, scaling,
-    horizonMonths, years, hasInheritance, inheritanceMonth, chadPassesAge, survivorSpendRatio]);
+    return { survivalRate: survivedCount / numCohorts, bands };
+  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, flows, scaling, horizonMonths, years]);
 
   // Deterministic trajectory using average historical return
   // Uses rate-based recalculation at inheritance and survivor transitions
@@ -294,7 +300,7 @@ export default function RetirementIncomeChart({
   const plotH = svgH - padT - padB;
 
   // Scale to fit historical bands
-  const allBandValues = cohortResult.bands.flatMap(b => b.series);
+  const allBandValues = bandResult.bands.flatMap(b => b.series);
   const maxPool = Math.max(...allBandValues, totalPool, ...deterministicPools) * 1.05;
   const poolRange = maxPool || 1;
 
@@ -330,18 +336,18 @@ export default function RetirementIncomeChart({
 
   // Band paths for chart
   const bandPairs = [
-    { lo: cohortResult.bands[0], hi: cohortResult.bands[4], color: '#60a5fa', opacity: 0.08 },
-    { lo: cohortResult.bands[1], hi: cohortResult.bands[3], color: '#60a5fa', opacity: 0.12 },
+    { lo: bandResult.bands[0], hi: bandResult.bands[4], color: '#60a5fa', opacity: 0.08 },
+    { lo: bandResult.bands[1], hi: bandResult.bands[3], color: '#60a5fa', opacity: 0.12 },
   ];
 
   const fmtPool = (v) => v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}`;
 
   // Shorthand for cohort results
-  const sr = cohortResult.survivalRate;
-  const optRate = cohortResult.optimalRate;
-  const optMonthly = cohortResult.optimalMonthly;
-  const optPreRate = cohortResult.optimalPreRate;
-  const optPreMonthly = cohortResult.optimalPreMonthly;
+  const sr = bandResult.survivalRate;
+  const optRate = optimalRates.optimalRate;
+  const optMonthly = optimalRates.optimalMonthly;
+  const optPreRate = optimalRates.optimalPreRate;
+  const optPreMonthly = optimalRates.optimalPreMonthly;
 
   return (
     <div style={{
@@ -354,14 +360,14 @@ export default function RetirementIncomeChart({
           Retirement + Survivor Income (today's dollars)
         </h3>
         <span style={{ fontSize: 11, color: sr >= 0.9 ? '#4ade80' : sr >= 0.7 ? '#f59e0b' : '#f87171', fontWeight: 600 }}>
-          {Math.round(sr * 100)}% historical success to Sarah {sarahTargetAge} ({cohortResult.numCohorts.toLocaleString()} cohorts, {cohortResult.cohortRange})
+          {Math.round(sr * 100)}% historical success to Sarah {sarahTargetAge} ({optimalRates.numCohorts.toLocaleString()} cohorts, {optimalRates.cohortRange})
         </span>
       </div>
 
       {/* Subtitle */}
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
         House sold at 67 · {withdrawalRate}% withdrawal · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
-        {cohortResult.worstCohort.year > 0 && ` · Worst start: ${cohortResult.worstCohort.year}`}
+        {optimalRates.worstCohort.year > 0 && ` · Worst start: ${optimalRates.worstCohort.year}`}
       </div>
 
       {/* Income phase summary */}
@@ -430,7 +436,7 @@ export default function RetirementIncomeChart({
           const d = yearlyData[closestIdx];
           const pctX = (xScale(closestIdx) / svgW) * 100;
           const pctY = (yPool(d.pool) / svgH) * 100;
-          const histBands = cohortResult.bands.map(b => b.series[closestIdx]);
+          const histBands = bandResult.bands.map(b => b.series[closestIdx]);
           setTooltip({ pctX, pctY, ...d, p10: histBands[0], p25: histBands[1], p50: histBands[2], p75: histBands[3], p90: histBands[4] });
         }}>
         {/* Grid */}
@@ -461,7 +467,7 @@ export default function RetirementIncomeChart({
 
         {/* Historical median line (50th percentile) */}
         {(() => {
-          const medianPts = cohortResult.bands[2].series.map((v, i) => `${xScale(i)},${yPool(v)}`);
+          const medianPts = bandResult.bands[2].series.map((v, i) => `${xScale(i)},${yPool(v)}`);
           return <path d={`M ${medianPts.join(' L ')}`} fill="none" stroke="#60a5fa" strokeWidth="1.5"
             strokeDasharray="4,3" opacity="0.5" />;
         })()}

@@ -1,11 +1,13 @@
 import React from "react";
 import Toggle from '../components/Toggle.jsx';
+import Slider from '../components/Slider.jsx';
 import { fmtFull } from '../model/formatters.js';
 
 const ScenarioStrip = ({
   retireDebt, lifestyleCutsApplied,
   lifestyleCuts, cutInHalf, extraCuts,
   debtTotal, debtService,
+  baseExpenses, currentExpenses,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
   advanceNeeded,
@@ -23,6 +25,34 @@ const ScenarioStrip = ({
             <h3 style={{ fontSize: 13, color: "#fbbf24", margin: "0 0 10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Scenarios
             </h3>
+
+            {/* Total spending control */}
+            {(() => {
+              const defaultBase = 43818;
+              const delta = baseExpenses - defaultBase;
+              const deltaColor = delta < 0 ? '#4ade80' : delta > 0 ? '#f87171' : '#64748b';
+              return (
+                <div style={{ marginBottom: 10, padding: '8px 12px', background: '#0f172a', borderRadius: 8, border: '1px solid #1e293b' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>Total monthly spending</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171', fontFamily: "'JetBrains Mono', monospace" }}>
+                        {fmtFull(currentExpenses)}/mo
+                      </span>
+                      {delta !== 0 && (
+                        <span style={{ fontSize: 10, color: deltaColor, marginLeft: 6, fontFamily: "'JetBrains Mono', monospace" }}>
+                          ({delta > 0 ? '+' : ''}{fmtFull(delta)} base)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Slider label="" value={baseExpenses} onChange={set('baseExpenses')}
+                    min={25000} max={55000} step={500} color="#f87171"
+                    format={(v) => fmtFull(v)} />
+                </div>
+              );
+            })()}
+
             <Toggle label={`Retire all debt (${fmtFull(debtTotal)} → saves ${fmtFull(debtService)}/mo)`} checked={retireDebt} onChange={set('retireDebt')} color="#4ade80" />
             <Toggle label={`Lifestyle + spending cuts (saves ${fmtFull(lifestyleCuts + cutInHalf + extraCuts)}/mo)`} checked={lifestyleCutsApplied} onChange={set('lifestyleCutsApplied')} color="#4ade80" />
             <div style={{ margin: "8px 0 2px" }}>

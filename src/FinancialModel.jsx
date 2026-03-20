@@ -335,6 +335,7 @@ export default function FinancialModel() {
     retireDebt, lifestyleCutsApplied,
     lifestyleCuts, cutInHalf, extraCuts,
     debtTotal, debtService,
+    baseExpenses, currentExpenses: data[0].expenses,
     bcsAnnualTotal, bcsParentsAnnual,
     bcsYearsLeft, bcsFamilyMonthly,
     moldCost, moldInclude,

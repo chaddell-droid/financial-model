@@ -473,7 +473,7 @@ export default function RetirementIncomeChart({
       {/* Sliders */}
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Slider label="Mean return" value={retirementReturn} onChange={setRetirementReturn}
-          min={0} max={12} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
+          min={0} max={15} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
         <Slider label="Volatility (risk)" value={retirementVol} onChange={setRetirementVol}
           min={5} max={20} step={1} format={(v) => v + '%'} color="#94a3b8" />
 

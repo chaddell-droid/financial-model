@@ -97,17 +97,23 @@ export default function IncomeCompositionChart({ data, investmentReturn }) {
             );
           })}
 
-          {/* Expense line */}
-          <div style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: stackH - (data[0].expenses / stackMax) * stackH,
-            height: 2,
-            background: "#f87171",
-            zIndex: 3,
-            pointerEvents: "none"
-          }} />
+          {/* Expense line — follows actual expenses at each quarter */}
+          <svg viewBox={`0 0 ${data.length * 100} ${stackH}`} preserveAspectRatio="none"
+            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
+            {(() => {
+              const n = data.length;
+              const colW = 100;
+              const pts = data.map((d, i) => {
+                const xPos = i * colW + colW / 2;
+                const yPos = stackH - (d.expenses / stackMax) * stackH;
+                return `${xPos},${yPos}`;
+              });
+              return (
+                <path d={`M ${pts.join(' L ')}`} fill="none" stroke="#f87171" strokeWidth="3"
+                  strokeLinejoin="round" strokeLinecap="round" />
+              );
+            })()}
+          </svg>
         </div>
 
         {/* Tooltip */}

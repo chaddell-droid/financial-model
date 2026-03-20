@@ -299,26 +299,28 @@ export default function RetirementIncomeChart({
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
 
-  // Scale to fit historical bands
+  // Scale: use sqrt to compress large post-inheritance values while keeping
+  // pre-inheritance pool visible. A linear scale makes $215K look like zero
+  // when the chart goes to $4M+.
   const allBandValues = bandResult.bands.flatMap(b => b.series);
-  const maxPool = Math.max(...allBandValues, totalPool, ...deterministicPools) * 1.05;
-  const poolRange = maxPool || 1;
+  const rawMax = Math.max(...allBandValues, totalPool, ...deterministicPools) * 1.05;
+  const poolRange = rawMax || 1;
+  const sqrtMax = Math.sqrt(poolRange);
 
   const xScale = (i) => padL + (i / years) * plotW;
-  const yPool = (v) => padT + (1 - Math.max(0, v) / poolRange) * plotH;
+  const yPool = (v) => padT + (1 - Math.sqrt(Math.max(0, v)) / sqrtMax) * plotH;
 
   const poolPts = deterministicPools.map((p, i) => `${xScale(i)},${yPool(p)}`);
   const poolLine = `M ${poolPts.join(' L ')}`;
 
   const survivorStartIdx = yearlyData.findIndex(d => d.phase === 'survivor');
 
-  // Y-axis ticks
-  const targetTicks = 5;
-  const rawStep = poolRange / targetTicks;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
-  const poolTickStep = Math.ceil(rawStep / magnitude) * magnitude;
+  // Y-axis ticks — placed at nice round values that look good on sqrt scale
   const yTicks = [];
-  for (let v = 0; v <= maxPool; v += poolTickStep) yTicks.push(v);
+  const tickCandidates = [0, 50000, 100000, 250000, 500000, 1000000, 2000000, 3000000, 5000000, 10000000];
+  for (const v of tickCandidates) {
+    if (v <= poolRange) yTicks.push(v);
+  }
 
   // Income phase calculations
   const phase1SS = chadSS;

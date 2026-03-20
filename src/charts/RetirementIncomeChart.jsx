@@ -79,28 +79,36 @@ export default function RetirementIncomeChart({
   const hasInheritance = inheritanceAmount > 0;
 
   // Helper: run one retirement simulation with a given return sequence (real returns)
-  // Supports two-phase withdrawal (preRate/postRate for pre/post inheritance)
-  // and inheritance injection at the specified year
-  function runRetirementSim(monthlyReturns, coupleSpend, survivorSpend, floor, opts = {}) {
+  // Supports two-phase withdrawal and inheritance injection.
+  // Survivor withdrawal is recalculated from the pool at the transition point
+  // using the SAME rate as the couple phase (not the slider value).
+  function runRetirementSim(monthlyReturns, coupleSpend, coupleRate, floor, opts = {}) {
     const { preInhCouple, preInhSurvivor } = opts;
     let pool = totalPool;
     const yearPools = [];
     let preInheritanceMinPool = Infinity;
     let monthIdx = 0;
+    let survivorSpendActual = 0;
+    // The rate used for survivor recalculation: same % as the couple phase
+    const effectiveRate = coupleRate || (totalPool > 0 ? (coupleSpend * 12 / totalPool * 100) : withdrawalRate);
     for (let y = 0; y <= years; y++) {
-      // Inject inheritance at the right year
       if (hasInheritance && y === inheritanceYear) {
         pool += inheritanceAmount;
       }
       yearPools.push(Math.round(pool));
       const chadAge = 67 + y;
-      // Pre-inheritance can use a different (higher) withdrawal rate
       const isPreInheritance = hasInheritance && y < inheritanceYear;
+
+      // At the survivor transition, recalculate withdrawal from current pool
+      if (chadAge === endChadAge && survivorSpendActual === 0) {
+        survivorSpendActual = Math.round(pool * (effectiveRate / 100) / 12);
+      }
+
       let spend;
       if (chadAge < endChadAge) {
         spend = (isPreInheritance && preInhCouple != null) ? preInhCouple : coupleSpend;
       } else {
-        spend = (isPreInheritance && preInhSurvivor != null) ? preInhSurvivor : survivorSpend;
+        spend = (isPreInheritance && preInhSurvivor != null) ? preInhSurvivor : survivorSpendActual;
       }
       for (let m = 0; m < 12; m++) {
         if (pool > floor) {
@@ -118,13 +126,16 @@ export default function RetirementIncomeChart({
       yearPools,
       finalPool: Math.round(pool),
       preInheritanceMinPool: Number.isFinite(preInheritanceMinPool) ? Math.round(preInheritanceMinPool) : Math.round(totalPool),
+      survivorSpendActual,
     };
   }
 
   // Deterministic baseline using real return rate
   const monthlyReturnRate = Math.pow(1 + realReturn / 100, 1/12) - 1;
   const deterministicReturns = Array(years * 12 + 12).fill(monthlyReturnRate);
-  const deterministicPools = runRetirementSim(deterministicReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor).yearPools;
+  const deterministicResult = runRetirementSim(deterministicReturns, coupleMonthlySpend, withdrawalRate, poolFloor);
+  const deterministicPools = deterministicResult.yearPools;
+  const deterministicSurvivorSpend = deterministicResult.survivorSpendActual;
 
   // Build deterministic yearlyData (for tooltip + income display)
   const yearlyData = deterministicPools.map((pool, y) => {
@@ -132,7 +143,7 @@ export default function RetirementIncomeChart({
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
     const ssInfo = getSSInfo(chadAge, chadAlive);
-    const phaseSpend = chadAlive ? coupleMonthlySpend : survivorMonthlySpend;
+    const phaseSpend = chadAlive ? coupleMonthlySpend : deterministicSurvivorSpend;
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     const isInheritanceYear = hasInheritance && y === inheritanceYear;
     return {
@@ -170,7 +181,7 @@ export default function RetirementIncomeChart({
       for (let m = 0; m < totalMonths; m++) {
         monthlyReturns.push(randNorm(monthlyMean, monthlyVol));
       }
-      const simResult = runRetirementSim(monthlyReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
+      const simResult = runRetirementSim(monthlyReturns, coupleMonthlySpend, withdrawalRate, poolFloor);
       allPools.push(simResult.yearPools);
       const endOk = simResult.finalPool > poolFloor;
       const neverDepleted = !hasInheritance || simResult.preInheritanceMinPool > poolFloor;
@@ -190,7 +201,7 @@ export default function RetirementIncomeChart({
     });
 
     return { bands, survivalRate: survivedCount / N, numSims: N };
-  }, [totalPool, retirementReturn, retirementVol, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, survivorMonthlySpend, inheritanceAmount, inheritanceYear]);
+  }, [totalPool, retirementReturn, retirementVol, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, inheritanceAmount, inheritanceYear]);
 
   // Optimal withdrawal at 90% survival (MC-based)
   // When inheritance is set: finds the max PRE-inheritance rate while keeping
@@ -224,10 +235,9 @@ export default function RetirementIncomeChart({
       for (let iter = 0; iter < 40; iter++) {
         const mid = (lo + hi) / 2;
         const testCouple = Math.round(totalPool * (mid / 100) / 12);
-        const testSurvivor = Math.round(testCouple * survivorSpendRatio);
         let survived = 0;
         for (let sim = 0; sim < N; sim++) {
-          const simResult = runRetirementSim(allReturns[sim], testCouple, testSurvivor, poolFloor);
+          const simResult = runRetirementSim(allReturns[sim], testCouple, mid, poolFloor);
           if (simResult.finalPool > poolFloor) survived++;
         }
         if (survived / N >= targetSurvival) lo = mid; else hi = mid;
@@ -239,16 +249,14 @@ export default function RetirementIncomeChart({
     let preOptimal = baseOptimal;
     if (hasInheritance) {
       const postCouple = coupleMonthlySpend;
-      const postSurvivor = survivorMonthlySpend;
       let loP = 0.1, hiP = 50; // higher cap for short pre-inheritance periods
       for (let iter = 0; iter < 40; iter++) {
         const mid = (loP + hiP) / 2;
         const preCouple = Math.round(totalPool * (mid / 100) / 12);
-        const preSurvivor = Math.round(preCouple * survivorSpendRatio);
         let survived = 0;
         for (let sim = 0; sim < N; sim++) {
-          const simResult = runRetirementSim(allReturns[sim], postCouple, postSurvivor, poolFloor,
-            { preInhCouple: preCouple, preInhSurvivor: preSurvivor });
+          const simResult = runRetirementSim(allReturns[sim], postCouple, withdrawalRate, poolFloor,
+            { preInhCouple: preCouple, preInhSurvivor: preCouple });
           // Must survive to end AND pool must never hit floor before inheritance arrives
           const endOk = simResult.finalPool > poolFloor;
           const preOk = simResult.preInheritanceMinPool > poolFloor;
@@ -260,7 +268,7 @@ export default function RetirementIncomeChart({
     }
 
     return { optimalRate: baseOptimal, optimalPreRate: preOptimal };
-  }, [totalPool, retirementReturn, retirementVol, poolFloor, years, monthlyReturnRate, survivorSpendRatio, hasInheritance, inheritanceYear, inheritanceAmount, coupleMonthlySpend, survivorMonthlySpend, withdrawalRate]);
+  }, [totalPool, retirementReturn, retirementVol, poolFloor, years, monthlyReturnRate, hasInheritance, inheritanceYear, inheritanceAmount, coupleMonthlySpend, withdrawalRate]);
 
   const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
   const optimalPreMonthly = Math.round(totalPool * (optimalPreRate / 100) / 12);
@@ -297,7 +305,7 @@ export default function RetirementIncomeChart({
   const phase1SS = chadSS;
   const phase1Total = coupleMonthlySpend + phase1SS + trustMonthly;
   const phase2SS = survivorSS;
-  const phase2Spend = survivorMonthlySpend;
+  const phase2Spend = deterministicSurvivorSpend;
   const phase2Total = phase2Spend + phase2SS + trustMonthly;
 
   // MC band paths (filled regions between percentiles)
@@ -346,7 +354,7 @@ export default function RetirementIncomeChart({
           </div>
         </div>
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #f59e0b33' }}>
-          <div style={{ fontSize: 9, color: '#f59e0b', marginBottom: 4 }}>Sarah Survivor (after {chadPassesAge})</div>
+          <div style={{ fontSize: 9, color: '#f59e0b', marginBottom: 4 }}>Sarah Survivor (after {chadPassesAge}) — {withdrawalRate}% of pool at transition</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(phase2Total)}/mo
           </div>
@@ -549,10 +557,10 @@ export default function RetirementIncomeChart({
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Sarah's income after Chad ({chadPassesAge})</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(Math.round(optimalMonthly * survivorSpendRatio) + survivorSS + trustMonthly)}/mo
+              {fmtFull(deterministicSurvivorSpend + survivorSS + trustMonthly)}/mo
             </div>
             <div style={{ fontSize: 9, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(Math.round(optimalMonthly * survivorSpendRatio))} withdraw + {fmtFull(survivorSS)} SS + {fmtFull(trustMonthly)} trust
+              {fmtFull(deterministicSurvivorSpend)} withdraw + {fmtFull(survivorSS)} SS + {fmtFull(trustMonthly)} trust
             </div>
           </div>
         </div>

@@ -79,7 +79,13 @@ export function runMonthlySimulation(s) {
 
     let expenses = s.baseExpenses;
     if (!s.retireDebt) expenses += s.debtService;
-    if (!s.vanSold) expenses += (s.vanMonthlySavings || 0);
+    // Van: if sold, monthly cost stops at sale month; if not sold, cost continues forever
+    const vanSaleMonth = s.vanSaleMonth ?? 6;
+    if (s.vanSold) {
+      if (m < vanSaleMonth) expenses += (s.vanMonthlySavings || 0); // still paying before sale
+    } else {
+      expenses += (s.vanMonthlySavings || 0); // never sold, always paying
+    }
     const totalCuts = (s.lifestyleCuts || 0) + (s.cutInHalf || 0) + (s.extraCuts || 0);
     if (s.lifestyleCutsApplied) expenses -= totalCuts * cutsDiscipline;
     if (m < (s.bcsYearsLeft || 3) * 12) expenses += s.bcsFamilyMonthly;
@@ -97,6 +103,11 @@ export function runMonthlySimulation(s) {
     balance += investReturn;
     balance += (cashIncomeLump - expenses);
     if (m === effectiveSsdiApproval + 2) balance += backPayActual;
+    // Van sale shortfall: one-time cost at sale month (loan balance - sale price)
+    if (s.vanSold && m === vanSaleMonth) {
+      const vanShortfall = Math.max(0, (s.vanLoanBalance || 0) - (s.vanSalePrice || 0));
+      balance -= vanShortfall;
+    }
 
     // 401k grows (skip month 0 to match standalone behavior)
     if (m > 0) bal401k *= (1 + monthly401kRate);

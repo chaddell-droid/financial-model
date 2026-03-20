@@ -1,0 +1,26 @@
+# Research: financial-model
+
+**Date:** 2026-03-19  
+**Backend:** inline (parallel file reads; no subagent runtime available)  
+**Scope:** React/Vite SPA runtime, financial model logic, UI composition, and persistence/testing flow
+
+## Summary
+This repo is a client-side-only family financial planning app. The core product is a 72-month cash-flow model that combines Sarah's practice income, MSFT vesting, SSDI or Social Security, trust/LLC income, debt service, spending cuts, one-time capital asks, and optional W-2 employment into a single projection engine. The same state also feeds Monte Carlo risk analysis, goal tracking, scenario comparison, and export. `FinancialModel.jsx` owns the state, computes all derived projections, and routes the UI into overview, plan, income, risk, details, plus Sarah/Dad presentation modes. `src/main.jsx` polyfills `window.storage` on top of `localStorage` and mounts the app; there is no backend. `package.json` only exposes `dev`, `build`, and `preview`, so there is no formal `npm test` workflow. `package.json:6-17`, `src/main.jsx:5-53`, `src/FinancialModel.jsx:31-138`, `src/FinancialModel.jsx:439-626`
+
+## Key Findings
+- The model layer is pure JavaScript and centered on `runMonthlySimulation()`, which iterates month 0..72 and applies income, expenses, back pay, investment returns, and deficit drawdown from savings to 401k to home equity. `computeProjection()` aggregates that into quarterly chart data, and `computeHomeProjection()` remains separate for standalone home-growth analysis. `src/model/projection.js:11-20`, `src/model/projection.js:50-135`, `src/model/projection.js:138-195`
+- Monte Carlo is built in two tiers: `runMonteCarlo()` randomizes return/growth/delay/denial assumptions and returns percentile bands, solvency, trough/final stats, and goal success rates; `runDadMonteCarlo()` is a deterministic 200-sim variant for the Dad Mode story. `src/model/monteCarlo.js:8-98`, `src/model/monteCarlo.js:105-144`
+- Goal tracking supports five types: savings floor, savings target, income target, net worth target, and debt free. The fast boolean evaluator is used inside Monte Carlo, while the full evaluator produces progress and human-readable descriptions. `src/model/goalEvaluation.js:13-140`
+- MSFT vesting is modeled as ten quarterly vest events with a $410.68 floor price and 20% tax withholding. The charting code treats vesting as lump sums for balance math and smoothed monthly values for display. `src/model/constants.js:4-23`, `src/model/vesting.js:3-37`, `src/model/projection.js:54-56`, `src/model/projection.js:91-99`
+- State is split into persistent model assumptions and UI-only flags. `MODEL_KEYS` defines what is saved/restored, and the reducer keeps legacy scenario compatibility for older saved cuts data. `src/state/initialState.js:1-170`, `src/state/reducer.js:3-43`
+- Scenario persistence uses `window.storage` with an `fs_` prefix, saving JSON arrays under `fin-scenarios`. Reset preserves saved scenarios and storage status. `src/main.jsx:5-47`, `src/FinancialModel.jsx:140-197`, `src/state/reducer.js:34-40`
+- The UI is organized around custom SVG charts and reusable control primitives rather than a chart library. `chartUtils.js` centralizes scales, ticks, colors, and income-source metadata. `src/charts/chartUtils.js:1-98`
+- The main tabs are compositional wrappers: Overview = bridge chart, Plan = bridge + monthly cash flow + controls, Income = MSFT vesting + Sarah growth + income composition, Risk = Monte Carlo + sequence-of-returns + savings/net-worth charts, Details = data table + summary ask. `src/panels/tabs/OverviewTab.jsx:4-5`, `src/panels/tabs/PlanTab.jsx:7-24`, `src/panels/tabs/IncomeTab.jsx:6-24`, `src/panels/tabs/RiskTab.jsx:7-17`, `src/panels/tabs/DetailsTab.jsx:5-11`
+- Dad Mode is a separate three-act narrative that converts the model into an inheritance-advance request with adjustable debt payoff, tuition support, and home-safety levers. Sarah Mode reframes the same data around her income growth, spending cuts, and solvency confidence. `src/panels/DadMode.jsx:6-29`, `src/panels/DadMode.jsx:87-425`, `src/panels/SarahMode.jsx:27-120`, `src/panels/SarahMode.jsx:192-378`
+- A second long-horizon simulator exists in `RetirementIncomeChart.jsx`. It models post-67 retirement pool drawdown, survivor income, inheritance timing, real returns after inflation, and a 500-run Monte Carlo. This is a distinct layer from the 72-month family cash-flow model and is rendered in the sticky right rail. `src/charts/RetirementIncomeChart.jsx:5-19`, `src/charts/RetirementIncomeChart.jsx:65-80`, `src/charts/RetirementIncomeChart.jsx:134-250`, `src/FinancialModel.jsx:610-620`
+
+## Notes
+- The codebase is intentionally domain-specific. It is not a generic budgeting tool; it is tuned to one family’s disability, income, debt, education, and support-request scenarios.
+- There is no repo-wide formatter or linter config in the checked-in files, so consistency is enforced by local style and nearby code.
+- The current test gap is real: the only automated regression file is `src/model/__snapshots__.test.js`, which is run directly with Node, and the build is used as a smoke test. `package.json:6-17`, `src/model/__snapshots__.test.js:1-175`
+

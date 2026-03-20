@@ -63,6 +63,9 @@ export const INITIAL_STATE = {
   // Van
   vanSold: false,
   vanMonthlySavings: 2597,
+  vanSalePrice: 25000,          // What we'd get for it
+  vanLoanBalance: 200000,       // What we owe
+  vanSaleMonth: 6,              // When we sell (months from now)
 
   // Milestones
   milestones: [{ name: "Twins to college", month: 36, savings: 3000 }],
@@ -159,7 +162,7 @@ export const MODEL_KEYS = [
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',
   'cutAmazon', 'cutSaaS', 'cutEntertainment', 'cutGroceries', 'cutPersonalCare', 'cutSmallItems',
   'trustIncomeNow', 'trustIncomeFuture', 'trustIncreaseMonth',
-  'vanSold', 'vanMonthlySavings',
+  'vanSold', 'vanMonthlySavings', 'vanSalePrice', 'vanLoanBalance', 'vanSaleMonth',
   'retireDebt',
   'startingSavings', 'investmentReturn', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',

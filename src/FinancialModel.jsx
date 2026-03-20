@@ -44,7 +44,7 @@ export default function FinancialModel() {
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
     cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings,
+    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     milestones,
     retireDebt,
     startingSavings, investmentReturn,
@@ -104,7 +104,7 @@ export default function FinancialModel() {
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
     cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings,
+    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     retireDebt,
     startingSavings, investmentReturn, ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
@@ -251,7 +251,7 @@ export default function FinancialModel() {
       baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
       cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
       trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-      vanMonthlySavings, startingSavings, investmentReturn, ssdiBackPayMonths,
+      vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth, startingSavings, investmentReturn, ssdiBackPayMonths,
       moldCost, roofCost, otherProjects, debtCC, debtPersonal, debtIRS, debtFirstmark, milestones, bcsFamilyMonthly]);
 
   const dadProjection = useMemo(() => {
@@ -364,7 +364,7 @@ export default function FinancialModel() {
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings,
+    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     onFieldChange: set,
   };
 

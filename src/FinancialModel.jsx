@@ -40,7 +40,7 @@ export default function FinancialModel() {
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
-    lifestyleCutsApplied,
+    lifestyleCutsApplied, cutsOverride,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
     cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
@@ -85,10 +85,18 @@ export default function FinancialModel() {
     const s = {};
     for (const key of MODEL_KEYS) s[key] = state[key] ?? INITIAL_STATE[key];
     s.bcsFamilyMonthly = bcsFamilyMonthly;
-    // Add computed aggregate cuts for projection compatibility
-    s.lifestyleCuts = lifestyleCuts;
-    s.cutInHalf = cutInHalf;
-    s.extraCuts = extraCuts;
+    // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
+    // Otherwise use the individual item sums
+    const override = state.cutsOverride;
+    if (override != null) {
+      s.lifestyleCuts = override;
+      s.cutInHalf = 0;
+      s.extraCuts = 0;
+    } else {
+      s.lifestyleCuts = lifestyleCuts;
+      s.cutInHalf = cutInHalf;
+      s.extraCuts = extraCuts;
+    }
     return s;
   };
 
@@ -100,7 +108,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     baseExpenses, debtService, bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, milestones,
-    lifestyleCutsApplied,
+    lifestyleCutsApplied, cutsOverride,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
     cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
@@ -332,7 +340,7 @@ export default function FinancialModel() {
   };
 
   const scenarioStripProps = {
-    retireDebt, lifestyleCutsApplied,
+    retireDebt, lifestyleCutsApplied, cutsOverride,
     lifestyleCuts, cutInHalf, extraCuts,
     debtTotal, debtService,
     baseExpenses, currentExpenses: data[0].expenses,

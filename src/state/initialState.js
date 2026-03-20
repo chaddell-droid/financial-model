@@ -41,8 +41,9 @@ export const INITIAL_STATE = {
   bcsParentsAnnual: 25000,
   bcsYearsLeft: 3,
 
-  // Spending Cuts — individual items
+  // Spending Cuts — individual items (cutsOverride replaces the sum when set)
   lifestyleCutsApplied: false,
+  cutsOverride: null,
   cutOliver: 5832,
   cutVacation: 2040,
   cutShopping: 1946,
@@ -158,7 +159,7 @@ export const MODEL_KEYS = [
   'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
-  'lifestyleCutsApplied',
+  'lifestyleCutsApplied', 'cutsOverride',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',
   'cutAmazon', 'cutSaaS', 'cutEntertainment', 'cutGroceries', 'cutPersonalCare', 'cutSmallItems',
   'trustIncomeNow', 'trustIncomeFuture', 'trustIncreaseMonth',

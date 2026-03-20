@@ -4,7 +4,7 @@ import Slider from '../components/Slider.jsx';
 import { fmtFull } from '../model/formatters.js';
 
 const ScenarioStrip = ({
-  retireDebt, lifestyleCutsApplied,
+  retireDebt, lifestyleCutsApplied, cutsOverride,
   lifestyleCuts, cutInHalf, extraCuts,
   debtTotal, debtService,
   baseExpenses, currentExpenses,
@@ -31,7 +31,9 @@ const ScenarioStrip = ({
             {(() => {
               const vanCost = vanSold ? 0 : (vanMonthlySavings || 0);
               const debtCost = retireDebt ? 0 : debtService;
-              const cutsSavings = lifestyleCutsApplied ? (lifestyleCuts + cutInHalf + extraCuts) : 0;
+              const detailCuts = lifestyleCuts + cutInHalf + extraCuts;
+              const effectiveCuts = cutsOverride != null ? cutsOverride : detailCuts;
+              const cutsSavings = lifestyleCutsApplied ? effectiveCuts : 0;
               const components = [
                 { label: 'Base living', amount: baseExpenses, color: '#f87171' },
                 ...(debtCost > 0 ? [{ label: 'Debt service', amount: debtCost, color: '#f87171' }] : []),
@@ -65,7 +67,24 @@ const ScenarioStrip = ({
             })()}
 
             <Toggle label={`Retire all debt (${fmtFull(debtTotal)} → saves ${fmtFull(debtService)}/mo)`} checked={retireDebt} onChange={set('retireDebt')} color="#4ade80" />
-            <Toggle label={`Lifestyle + spending cuts (saves ${fmtFull(lifestyleCuts + cutInHalf + extraCuts)}/mo)`} checked={lifestyleCutsApplied} onChange={set('lifestyleCutsApplied')} color="#4ade80" />
+            <Toggle label="Lifestyle + spending cuts" checked={lifestyleCutsApplied} onChange={set('lifestyleCutsApplied')} color="#4ade80" />
+            {lifestyleCutsApplied && (
+              <div style={{ marginLeft: 54, marginTop: -2, marginBottom: 6 }}>
+                <Slider label="Total cuts" value={cutsOverride != null ? cutsOverride : (lifestyleCuts + cutInHalf + extraCuts)}
+                  onChange={(v) => set('cutsOverride')(v)}
+                  min={0} max={25000} step={500} color="#4ade80"
+                  format={(v) => fmtFull(v) + '/mo'} />
+                {cutsOverride != null && cutsOverride !== (lifestyleCuts + cutInHalf + extraCuts) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#64748b', marginTop: 2 }}>
+                    <span>Detail total: {fmtFull(lifestyleCuts + cutInHalf + extraCuts)}/mo</span>
+                    <span style={{ color: '#4ade80', cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => set('cutsOverride')(null)}>
+                      Reset to detail
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ margin: "8px 0 2px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "#94a3b8" }}>BCS tuition — parents' contribution</span>

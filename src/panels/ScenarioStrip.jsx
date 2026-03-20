@@ -8,6 +8,7 @@ const ScenarioStrip = ({
   lifestyleCuts, cutInHalf, extraCuts,
   debtTotal, debtService,
   baseExpenses, currentExpenses,
+  vanSold, vanMonthlySavings,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
   advanceNeeded,
@@ -26,27 +27,37 @@ const ScenarioStrip = ({
               Scenarios
             </h3>
 
-            {/* Total spending control */}
+            {/* Total spending control with breakdown */}
             {(() => {
-              const defaultBase = 43818;
-              const delta = baseExpenses - defaultBase;
-              const deltaColor = delta < 0 ? '#4ade80' : delta > 0 ? '#f87171' : '#64748b';
+              const vanCost = vanSold ? 0 : (vanMonthlySavings || 0);
+              const debtCost = retireDebt ? 0 : debtService;
+              const cutsSavings = lifestyleCutsApplied ? (lifestyleCuts + cutInHalf + extraCuts) : 0;
+              const components = [
+                { label: 'Base living', amount: baseExpenses, color: '#f87171' },
+                ...(debtCost > 0 ? [{ label: 'Debt service', amount: debtCost, color: '#f87171' }] : []),
+                ...(vanCost > 0 ? [{ label: 'Van', amount: vanCost, color: '#f87171' }] : []),
+                ...(bcsFamilyMonthly > 0 ? [{ label: 'BCS tuition', amount: bcsFamilyMonthly, color: '#c084fc' }] : []),
+                ...(cutsSavings > 0 ? [{ label: 'Spending cuts', amount: -cutsSavings, color: '#4ade80' }] : []),
+              ];
               return (
                 <div style={{ marginBottom: 10, padding: '8px 12px', background: '#0f172a', borderRadius: 8, border: '1px solid #1e293b' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
                     <span style={{ fontSize: 11, color: '#94a3b8' }}>Total monthly spending</span>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171', fontFamily: "'JetBrains Mono', monospace" }}>
-                        {fmtFull(currentExpenses)}/mo
-                      </span>
-                      {delta !== 0 && (
-                        <span style={{ fontSize: 10, color: deltaColor, marginLeft: 6, fontFamily: "'JetBrains Mono', monospace" }}>
-                          ({delta > 0 ? '+' : ''}{fmtFull(delta)} base)
-                        </span>
-                      )}
-                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: '#f87171', fontFamily: "'JetBrains Mono', monospace" }}>
+                      {fmtFull(currentExpenses)}/mo
+                    </span>
                   </div>
-                  <Slider label="" value={baseExpenses} onChange={set('baseExpenses')}
+                  <div style={{ marginBottom: 6 }}>
+                    {components.map((c, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
+                        <span style={{ color: '#64748b' }}>{c.label}</span>
+                        <span style={{ color: c.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>
+                          {c.amount < 0 ? '' : ''}{fmtFull(c.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Slider label="Base living expenses" value={baseExpenses} onChange={set('baseExpenses')}
                     min={25000} max={55000} step={500} color="#f87171"
                     format={(v) => fmtFull(v)} />
                 </div>

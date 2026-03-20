@@ -212,62 +212,38 @@ export default function RetirementIncomeChart({
   }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, flows, scaling, horizonMonths, years]);
 
   // Deterministic trajectory using average historical return
-  // Uses rate-based recalculation at inheritance and survivor transitions
-  const { deterministicPools, deterministicSurvivorSpend, deterministicPostInhCouple, avgAnnualReal } = useMemo(() => {
+  // Uses CONSTANT dollar withdrawal (same model as simulatePath / binary search)
+  // Withdrawal stays at monthlyWithdrawal throughout couple phase, monthlyWithdrawal * survivorRatio in survivor
+  const { deterministicPools, avgAnnualReal } = useMemo(() => {
     let sum = 0;
     for (let i = 0; i < blendedReturns.length; i++) sum += blendedReturns[i];
     const avgMonthly = sum / blendedReturns.length;
     const avgAnnualReal = Math.round((Math.pow(1 + avgMonthly, 12) - 1) * 1000) / 10;
 
+    // Use the same model as simulatePath: constant withdrawal + scaling + flows
     let pool = totalPool;
     const pools = [];
-    const effectiveRate = withdrawalRate;
-    const coupleSpend = monthlyWithdrawal;
-    let survivorSpend = 0;
-    let postInhCouple = 0;
-    const endChadAge = chadPassesAge;
 
     for (let y = 0; y <= years; y++) {
-      // Inheritance at start of year
-      if (hasInheritance && y === inheritanceYear) {
-        pool += inheritanceAmount;
-        if (67 + y < endChadAge) {
-          postInhCouple = Math.round(pool * (effectiveRate / 100) / 12);
-        } else if (survivorSpend > 0) {
-          survivorSpend = Math.round(pool * (effectiveRate / 100) / 12);
-        }
-      }
       pools.push(Math.round(pool));
-
       if (y >= years) break;
 
-      const chadAge = 67 + y;
-
-      // Survivor transition: recalculate from current pool
-      if (chadAge === endChadAge && survivorSpend === 0) {
-        survivorSpend = Math.round(pool * (effectiveRate / 100) / 12);
-      }
-
-      const isPreInh = hasInheritance && y < inheritanceYear;
-      let spend;
-      if (chadAge < endChadAge) {
-        spend = (!isPreInh && postInhCouple > 0) ? postInhCouple : coupleSpend;
-      } else {
-        spend = survivorSpend;
-      }
-
       for (let m = 0; m < 12; m++) {
+        const t = y * 12 + m;
         if (pool > poolFloor) {
-          pool += pool * avgMonthly;
-          pool -= spend;
+          pool = pool * (1 + avgMonthly) - monthlyWithdrawal * scaling[t] + flows[t];
           if (pool < poolFloor) pool = poolFloor;
+        } else if (flows[t] > 0) {
+          pool += flows[t];
         }
       }
     }
 
-    return { deterministicPools: pools, deterministicSurvivorSpend: survivorSpend, deterministicPostInhCouple: postInhCouple, avgAnnualReal };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, withdrawalRate, poolFloor,
-    chadPassesAge, years, hasInheritance, inheritanceYear, inheritanceAmount]);
+    return { deterministicPools: pools, avgAnnualReal };
+  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, scaling, flows, years]);
+
+  // Constant-dollar withdrawal amounts for each phase
+  const survivorWithdrawal = Math.round(monthlyWithdrawal * survivorSpendRatio);
 
   // Build yearlyData for tooltip and income display
   const yearlyData = deterministicPools.map((pool, y) => {
@@ -276,12 +252,7 @@ export default function RetirementIncomeChart({
     const chadAlive = chadAge < chadPassesAge;
     const ssInfo = getSSInfo(chadAge, chadAlive);
     const isPostInh = hasInheritance && y >= inheritanceYear;
-    let phaseSpend;
-    if (chadAlive) {
-      phaseSpend = (isPostInh && deterministicPostInhCouple > 0) ? deterministicPostInhCouple : monthlyWithdrawal;
-    } else {
-      phaseSpend = deterministicSurvivorSpend;
-    }
+    const phaseSpend = chadAlive ? monthlyWithdrawal : survivorWithdrawal;
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     const isInheritanceYear = hasInheritance && y === inheritanceYear;
     const phase = !chadAlive ? 'survivor' : (isPostInh ? 'postInheritance' : 'chad');
@@ -322,7 +293,9 @@ export default function RetirementIncomeChart({
     if (v <= poolRange) yTicks.push(v);
   }
 
-  // Income phase calculations
+  // Income phase calculations (constant-dollar withdrawal model)
+  // Couple: same withdrawal before and after inheritance
+  // Survivor: withdrawal * survivorRatio
   const phase1SS = chadSS;
   const phase1Total = monthlyWithdrawal + phase1SS + trustMonthly;
   const postInhSS = (() => {
@@ -331,9 +304,10 @@ export default function RetirementIncomeChart({
     const spousal = sarahAtInh >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
     return chadSS + spousal;
   })();
-  const postInhTotal = inhDuringCouple ? (deterministicPostInhCouple + postInhSS + trustMonthly) : 0;
+  // Post-inheritance: same pool withdrawal, SS may differ (spousal kicks in)
+  const postInhTotal = inhDuringCouple ? (monthlyWithdrawal + postInhSS + trustMonthly) : 0;
   const phase2SS = survivorSS;
-  const phase2Spend = deterministicSurvivorSpend;
+  const phase2Spend = survivorWithdrawal;
   const phase2Total = phase2Spend + phase2SS + trustMonthly;
 
   // Band paths for chart
@@ -406,7 +380,7 @@ export default function RetirementIncomeChart({
               {fmtFull(postInhTotal)}/mo
             </div>
             <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(deterministicPostInhCouple)} withdraw + {fmtFull(postInhSS)} SS + {fmtFull(trustMonthly)} trust
+              {fmtFull(monthlyWithdrawal)} withdraw + {fmtFull(postInhSS)} SS + {fmtFull(trustMonthly)} trust
             </div>
           </div>
         )}
@@ -616,10 +590,10 @@ export default function RetirementIncomeChart({
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Sarah's income after Chad ({chadPassesAge})</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(deterministicSurvivorSpend + survivorSS + trustMonthly)}/mo
+              {fmtFull(survivorWithdrawal + survivorSS + trustMonthly)}/mo
             </div>
             <div style={{ fontSize: 9, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(deterministicSurvivorSpend)} withdraw + {fmtFull(survivorSS)} SS + {fmtFull(trustMonthly)} trust
+              {fmtFull(survivorWithdrawal)} withdraw + {fmtFull(survivorSS)} SS + {fmtFull(trustMonthly)} trust
             </div>
           </div>
         </div>

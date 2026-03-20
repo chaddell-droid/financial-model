@@ -60,10 +60,13 @@ export default function RetirementIncomeChart({
     }
   }
 
-  // Inflation: withdrawals increase 3% annually (standard 4% rule assumption)
-  const annualInflation = 0.03;
+  // All calculations use REAL returns (nominal minus 3% inflation).
+  // Pool values shown in today's dollars (purchasing power).
+  // Withdrawals are fixed (no inflation adjustment needed in real terms).
+  const annualInflation = 3;
+  const realReturn = retirementReturn - annualInflation; // e.g., 7% nominal - 3% inflation = 4% real
 
-  // Helper: run one retirement simulation with a given return sequence
+  // Helper: run one retirement simulation with a given return sequence (real returns)
   function runRetirementSim(monthlyReturns, coupleSpend, survivorSpend, floor) {
     let pool = totalPool;
     const yearPools = [];
@@ -71,11 +74,7 @@ export default function RetirementIncomeChart({
     for (let y = 0; y <= years; y++) {
       yearPools.push(Math.round(pool));
       const chadAge = 67 + y;
-      // Withdrawals grow with inflation each year
-      const inflationFactor = Math.pow(1 + annualInflation, y);
-      const spend = chadAge < endChadAge
-        ? Math.round(coupleSpend * inflationFactor)
-        : Math.round(survivorSpend * inflationFactor);
+      const spend = chadAge < endChadAge ? coupleSpend : survivorSpend;
       for (let m = 0; m < 12; m++) {
         if (pool > floor) {
           pool += pool * monthlyReturns[monthIdx % monthlyReturns.length];
@@ -88,8 +87,8 @@ export default function RetirementIncomeChart({
     return yearPools;
   }
 
-  // Deterministic baseline (single line)
-  const monthlyReturnRate = Math.pow(1 + retirementReturn / 100, 1/12) - 1;
+  // Deterministic baseline using real return rate
+  const monthlyReturnRate = Math.pow(1 + realReturn / 100, 1/12) - 1;
   const deterministicReturns = Array(years * 12 + 12).fill(monthlyReturnRate);
   const deterministicPools = runRetirementSim(deterministicReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
 
@@ -99,10 +98,8 @@ export default function RetirementIncomeChart({
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
     const ssIncome = getSSIncome(chadAge, chadAlive);
-    const inflationFactor = Math.pow(1 + annualInflation, y);
-    const phaseSpend = chadAlive
-      ? Math.round(coupleMonthlySpend * inflationFactor)
-      : Math.round(survivorMonthlySpend * inflationFactor);
+    // Fixed spending in real (today's) dollars
+    const phaseSpend = chadAlive ? coupleMonthlySpend : survivorMonthlySpend;
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     return {
       age: chadAge, sarahAge, pool,
@@ -248,14 +245,14 @@ export default function RetirementIncomeChart({
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <h3 style={{ fontSize: 14, color: '#e2e8f0', margin: 0, fontWeight: 600 }}>
-          Retirement + Survivor Income
+          Retirement + Survivor Income (today's dollars)
         </h3>
         <span style={{ fontSize: 11, color: mcResult.survivalRate >= 0.9 ? '#4ade80' : mcResult.survivalRate >= 0.7 ? '#f59e0b' : '#f87171', fontWeight: 600 }}>
           {Math.round(mcResult.survivalRate * 100)}% survival to Sarah {sarahTargetAge} ({mcResult.numSims} sims)
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        House sold at 67 · {withdrawalRate}% withdrawal + 3% inflation · {retirementReturn}% mean return · {retirementVol}% volatility · Chad passes at {chadPassesAge}
+        House sold at 67 · {withdrawalRate}% withdrawal · {retirementReturn}% return ({realReturn}% real after 3% inflation) · {retirementVol}% vol · Chad passes at {chadPassesAge}
       </div>
 
       {/* Pool + Two-phase income summary */}

@@ -69,12 +69,16 @@ const ScenarioStrip = ({
                         <td style={{ color: vanSold ? '#4ade80' : '#94a3b8', lineHeight: 1.8 }}>Van{vanSold ? ' (sold)' : ''}</td>
                         <td style={{ color: vanSold ? '#4ade80' : '#94a3b8', textAlign: 'right', lineHeight: 1.8, textDecoration: vanSold ? 'line-through' : 'none' }}>{fmtFull(vanMonthlySavings)}</td>
                       </tr>
-                      {bcsFamilyMonthly > 0 && (
-                        <tr>
-                          <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>BCS tuition</td>
-                          <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(bcsFamilyMonthly)}</td>
-                        </tr>
-                      )}
+                      {(() => {
+                        const maxBcsFamily = Math.round(Math.max(0, bcsAnnualTotal - 25000) / 12); // default family share
+                        const covered = bcsFamilyMonthly <= 0;
+                        return (
+                          <tr>
+                            <td style={{ color: covered ? '#4ade80' : '#94a3b8', lineHeight: 1.8 }}>BCS tuition{covered ? ' (covered)' : ''}</td>
+                            <td style={{ color: covered ? '#4ade80' : '#94a3b8', textAlign: 'right', lineHeight: 1.8, textDecoration: covered ? 'line-through' : 'none' }}>{fmtFull(covered ? maxBcsFamily : bcsFamilyMonthly)}</td>
+                          </tr>
+                        );
+                      })()}
                       <tr>
                         <td colSpan={2} style={{ borderBottom: '1px solid #475569', paddingBottom: 2 }} />
                       </tr>

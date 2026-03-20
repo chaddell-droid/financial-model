@@ -80,11 +80,11 @@ export const INITIAL_STATE = {
 
   // Capital Projects
   moldCost: 60000,
-  moldInclude: true,
+  moldInclude: false,
   roofCost: 40000,
-  roofInclude: true,
+  roofInclude: false,
   otherProjects: 40000,
-  otherInclude: true,
+  otherInclude: false,
 
   // Debt Balances
   debtCC: 92760,

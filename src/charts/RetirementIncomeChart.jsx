@@ -575,7 +575,7 @@ export default function RetirementIncomeChart({
             </span>
           </div>
           <div style={{ position: 'relative' }}>
-            <input type="range" min={0} max={30} step={0.5} value={withdrawalRate}
+            <input type="range" min={0} max={30} step={0.1} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
               style={{ width: "100%", accentColor: withdrawalRate > optimalRate ? '#f87171' : '#f59e0b', height: 6 }} />
             <div style={{

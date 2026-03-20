@@ -252,7 +252,7 @@ export default function FinancialModel() {
       cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
       trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
       vanMonthlySavings, startingSavings, investmentReturn, ssdiBackPayMonths,
-      moldCost, roofCost, otherProjects, debtCC, debtPersonal, debtIRS, milestones, bcsFamilyMonthly]);
+      moldCost, roofCost, otherProjects, debtCC, debtPersonal, debtIRS, debtFirstmark, milestones, bcsFamilyMonthly]);
 
   const dadProjection = useMemo(() => {
     if (!dadSupportState) return null;
@@ -273,7 +273,8 @@ export default function FinancialModel() {
     - Math.max(baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
 
   // Steady state net at Y3
-  const steadyIdx = data.findIndex(d => d.month >= 36) || data.length - 1;
+  const steadyIdxRaw = data.findIndex(d => d.month >= 36);
+  const steadyIdx = steadyIdxRaw >= 0 ? steadyIdxRaw : data.length - 1;
   const steadyStateNet = data[steadyIdx]?.netMonthly || data[data.length - 1].netMonthly;
 
   const mcGoalResults = mcResults?.goalSuccessRates || null;

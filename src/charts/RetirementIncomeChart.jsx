@@ -240,7 +240,7 @@ export default function RetirementIncomeChart({
     if (hasInheritance) {
       const postCouple = coupleMonthlySpend;
       const postSurvivor = survivorMonthlySpend;
-      let loP = 0.1, hiP = 25;
+      let loP = 0.1, hiP = 50; // higher cap for short pre-inheritance periods
       for (let iter = 0; iter < 40; iter++) {
         const mid = (loP + hiP) / 2;
         const preCouple = Math.round(totalPool * (mid / 100) / 12);

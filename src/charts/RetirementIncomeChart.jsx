@@ -59,6 +59,9 @@ export default function RetirementIncomeChart({
     }
   }
 
+  // Inflation: withdrawals increase 3% annually (standard 4% rule assumption)
+  const annualInflation = 0.03;
+
   // Helper: run one retirement simulation with a given return sequence
   function runRetirementSim(monthlyReturns, coupleSpend, survivorSpend, floor) {
     let pool = totalPool;
@@ -67,7 +70,11 @@ export default function RetirementIncomeChart({
     for (let y = 0; y <= years; y++) {
       yearPools.push(Math.round(pool));
       const chadAge = 67 + y;
-      const spend = chadAge < endChadAge ? coupleSpend : survivorSpend;
+      // Withdrawals grow with inflation each year
+      const inflationFactor = Math.pow(1 + annualInflation, y);
+      const spend = chadAge < endChadAge
+        ? Math.round(coupleSpend * inflationFactor)
+        : Math.round(survivorSpend * inflationFactor);
       for (let m = 0; m < 12; m++) {
         if (pool > floor) {
           pool += pool * monthlyReturns[monthIdx % monthlyReturns.length];
@@ -91,7 +98,10 @@ export default function RetirementIncomeChart({
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
     const ssIncome = getSSIncome(chadAge, chadAlive);
-    const phaseSpend = chadAlive ? coupleMonthlySpend : survivorMonthlySpend;
+    const inflationFactor = Math.pow(1 + annualInflation, y);
+    const phaseSpend = chadAlive
+      ? Math.round(coupleMonthlySpend * inflationFactor)
+      : Math.round(survivorMonthlySpend * inflationFactor);
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     return {
       age: chadAge, sarahAge, pool,
@@ -244,7 +254,7 @@ export default function RetirementIncomeChart({
         </span>
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        House sold at 67 · {withdrawalRate}% withdrawal · {retirementReturn}% mean return (15% vol) · Chad passes at {chadPassesAge}
+        House sold at 67 · {withdrawalRate}% withdrawal + 3% inflation · {retirementReturn}% mean return (15% vol) · Chad passes at {chadPassesAge}
       </div>
 
       {/* Pool + Two-phase income summary */}

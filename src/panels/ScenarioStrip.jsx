@@ -42,30 +42,25 @@ const ScenarioStrip = ({
                   </div>
                   <table style={{ width: '100%', marginBottom: 6, fontSize: 10, borderCollapse: 'collapse', fontFamily: "'JetBrains Mono', monospace" }}>
                     <tbody>
-                      {cutsSavings > 0 ? (
-                        <>
-                          <tr>
-                            <td style={{ color: '#64748b', paddingLeft: 16, lineHeight: 1.8 }}>Base living</td>
-                            <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(baseExpenses)}</td>
-                          </tr>
-                          <tr>
-                            <td style={{ color: '#4ade80', paddingLeft: 16, lineHeight: 1.8 }}>Spending cuts</td>
-                            <td style={{ color: '#4ade80', textAlign: 'right', lineHeight: 1.8 }}>-{fmtFull(cutsSavings)}</td>
-                          </tr>
-                          <tr>
-                            <td colSpan={2} style={{ borderBottom: '1px dashed #334155', paddingBottom: 2 }} />
-                          </tr>
-                          <tr>
-                            <td style={{ color: '#e2e8f0', fontWeight: 600, lineHeight: 1.8 }}>Net living</td>
-                            <td style={{ color: '#e2e8f0', fontWeight: 600, textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(netLiving)}</td>
-                          </tr>
-                        </>
-                      ) : (
-                        <tr>
-                          <td style={{ color: '#e2e8f0', fontWeight: 600, lineHeight: 1.8 }}>Living expenses</td>
-                          <td style={{ color: '#e2e8f0', fontWeight: 600, textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(netLiving)}</td>
-                        </tr>
-                      )}
+                      <tr>
+                        <td style={{ color: '#64748b', paddingLeft: 16, lineHeight: 1.8 }}>Base living</td>
+                        <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(baseExpenses)}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ color: lifestyleCutsApplied ? '#4ade80' : '#64748b', paddingLeft: 16, lineHeight: 1.8 }}>
+                          Spending cuts{!lifestyleCutsApplied ? ' (off)' : ''}
+                        </td>
+                        <td style={{ color: lifestyleCutsApplied ? '#4ade80' : '#64748b', textAlign: 'right', lineHeight: 1.8 }}>
+                          {lifestyleCutsApplied ? `-${fmtFull(cutsSavings)}` : '$0'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={{ borderBottom: '1px dashed #334155', paddingBottom: 2 }} />
+                      </tr>
+                      <tr>
+                        <td style={{ color: '#e2e8f0', fontWeight: 600, lineHeight: 1.8 }}>Net living</td>
+                        <td style={{ color: '#e2e8f0', fontWeight: 600, textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(netLiving)}</td>
+                      </tr>
                       <tr>
                         <td style={{ color: retireDebt ? '#4ade80' : '#94a3b8', lineHeight: 1.8 }}>Debt service{retireDebt ? ' (retired)' : ''}</td>
                         <td style={{ color: retireDebt ? '#4ade80' : '#94a3b8', textAlign: 'right', lineHeight: 1.8, textDecoration: retireDebt ? 'line-through' : 'none' }}>{retireDebt ? fmtFull(debtService) : fmtFull(debtCost)}</td>

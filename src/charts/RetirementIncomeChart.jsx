@@ -15,8 +15,8 @@ export default function RetirementIncomeChart({
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [poolFloor, setPoolFloor] = useState(0);
   const [chadPassesAge, setChadPassesAge] = useState(82);
-  const [inheritanceAmount, setInheritanceAmount] = useState(0);
-  const [inheritanceSarahAge, setInheritanceSarahAge] = useState(65);
+  const [inheritanceAmount, setInheritanceAmount] = useState(1000000);
+  const [inheritanceSarahAge, setInheritanceSarahAge] = useState(60);
   const [tooltip, setTooltip] = useState(null);
 
   // Chad is 60, Sarah is 46 (14 years younger)

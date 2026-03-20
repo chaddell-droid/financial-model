@@ -258,7 +258,7 @@ const IncomeControls = ({
                 <>
                   <Slider label="Expected sale price" value={effectiveSalePrice} onChange={set('vanSalePrice')} min={0} max={effectiveLoanBalance} step={1000} color="#60a5fa" />
                   <Slider label="Loan balance owed" value={effectiveLoanBalance} onChange={set('vanLoanBalance')} min={100000} max={300000} step={5000} color="#f87171" />
-                  <Slider label="Sell at month" value={vanSaleMonth ?? 6} onChange={set('vanSaleMonth')} min={1} max={24} format={(v) => v + " mo"} color="#94a3b8" />
+                  <Slider label="Sell at month" value={vanSaleMonth ?? 6} onChange={set('vanSaleMonth')} min={1} max={48} format={(v) => v + " mo"} color="#94a3b8" />
                   <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                       <span style={{ color: "#64748b" }}>Shortfall (owe - sale):</span>

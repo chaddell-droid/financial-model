@@ -30,7 +30,13 @@ import DetailsTab from './panels/tabs/DetailsTab.jsx';
 
 export default function FinancialModel() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
-  const set = (field) => (value) => dispatch({ type: 'SET_FIELD', field, value });
+  const set = (field) => (value) => {
+    dispatch({ type: 'SET_FIELD', field, value });
+    // If an individual cut changes, clear the macro override so detail takes over
+    if (field.startsWith('cut') && field !== 'cutsOverride') {
+      dispatch({ type: 'SET_FIELD', field: 'cutsOverride', value: null });
+    }
+  };
 
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,

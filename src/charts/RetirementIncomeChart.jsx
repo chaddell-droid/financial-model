@@ -565,12 +565,12 @@ export default function RetirementIncomeChart({
             </span>
           </div>
           <div style={{ position: 'relative' }}>
-            <input type="range" min={4} max={25} step={0.5} value={withdrawalRate}
+            <input type="range" min={0} max={30} step={0.5} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
               style={{ width: "100%", accentColor: withdrawalRate > optimalRate ? '#f87171' : '#f59e0b', height: 6 }} />
             <div style={{
               position: 'absolute',
-              left: `${((optimalRate - 4) / (25 - 4)) * 100}%`,
+              left: `${(Math.min(optimalRate, 30) / 30) * 100}%`,
               top: -6,
               transform: 'translateX(-50%)',
               display: 'flex', flexDirection: 'column', alignItems: 'center',

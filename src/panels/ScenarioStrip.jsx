@@ -34,13 +34,7 @@ const ScenarioStrip = ({
               const detailCuts = lifestyleCuts + cutInHalf + extraCuts;
               const effectiveCuts = cutsOverride != null ? cutsOverride : detailCuts;
               const cutsSavings = lifestyleCutsApplied ? effectiveCuts : 0;
-              const components = [
-                { label: 'Base living', amount: baseExpenses, color: '#f87171' },
-                ...(debtCost > 0 ? [{ label: 'Debt service', amount: debtCost, color: '#f87171' }] : []),
-                ...(vanCost > 0 ? [{ label: 'Van', amount: vanCost, color: '#f87171' }] : []),
-                ...(bcsFamilyMonthly > 0 ? [{ label: 'BCS tuition', amount: bcsFamilyMonthly, color: '#c084fc' }] : []),
-                ...(cutsSavings > 0 ? [{ label: 'Spending cuts', amount: -cutsSavings, color: '#4ade80' }] : []),
-              ];
+              const netLiving = baseExpenses - cutsSavings;
               return (
                 <div style={{ marginBottom: 10, padding: '8px 12px', background: '#0f172a', borderRadius: 8, border: '1px solid #1e293b' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
@@ -50,14 +44,42 @@ const ScenarioStrip = ({
                     </span>
                   </div>
                   <div style={{ marginBottom: 6 }}>
-                    {components.map((c, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
-                        <span style={{ color: '#64748b' }}>{c.label}</span>
-                        <span style={{ color: c.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>
-                          {c.amount < 0 ? '' : ''}{fmtFull(c.amount)}
-                        </span>
+                    {/* Base living with cuts subtracted first */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
+                      <span style={{ color: '#64748b' }}>Base living</span>
+                      <span style={{ color: '#f87171', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(baseExpenses)}</span>
+                    </div>
+                    {cutsSavings > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6, paddingLeft: 10 }}>
+                        <span style={{ color: '#4ade80' }}>Spending cuts</span>
+                        <span style={{ color: '#4ade80', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>-{fmtFull(cutsSavings)}</span>
                       </div>
-                    ))}
+                    )}
+                    {cutsSavings > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6, borderTop: '1px solid #1e293b', paddingTop: 2, marginBottom: 2 }}>
+                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>Net living</span>
+                        <span style={{ color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(netLiving)}</span>
+                      </div>
+                    )}
+                    {/* Additional costs */}
+                    {debtCost > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
+                        <span style={{ color: '#64748b' }}>Debt service</span>
+                        <span style={{ color: '#f87171', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(debtCost)}</span>
+                      </div>
+                    )}
+                    {vanCost > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
+                        <span style={{ color: '#64748b' }}>Van</span>
+                        <span style={{ color: '#f87171', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(vanCost)}</span>
+                      </div>
+                    )}
+                    {bcsFamilyMonthly > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
+                        <span style={{ color: '#64748b' }}>BCS tuition</span>
+                        <span style={{ color: '#c084fc', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(bcsFamilyMonthly)}</span>
+                      </div>
+                    )}
                   </div>
                   <Slider label="Base living expenses" value={baseExpenses} onChange={set('baseExpenses')}
                     min={25000} max={55000} step={500} color="#f87171"

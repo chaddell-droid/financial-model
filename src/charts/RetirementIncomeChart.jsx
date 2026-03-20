@@ -89,11 +89,19 @@ export default function RetirementIncomeChart({
     let preInheritanceMinPool = Infinity;
     let monthIdx = 0;
     let survivorSpendActual = 0;
-    // The rate used for survivor recalculation: same % as the couple phase
+    let postInhCoupleSpend = 0;
     const effectiveRate = coupleRate || (totalPool > 0 ? (coupleSpend * 12 / totalPool * 100) : withdrawalRate);
     for (let y = 0; y <= years; y++) {
       if (hasInheritance && y === inheritanceYear) {
         pool += inheritanceAmount;
+        // Recalculate withdrawal from the enlarged pool
+        if (67 + y < endChadAge) {
+          // Inheritance during couple phase — recalculate couple spend
+          postInhCoupleSpend = Math.round(pool * (effectiveRate / 100) / 12);
+        } else if (survivorSpendActual > 0) {
+          // Inheritance during survivor phase — recalculate survivor spend
+          survivorSpendActual = Math.round(pool * (effectiveRate / 100) / 12);
+        }
       }
       yearPools.push(Math.round(pool));
       const chadAge = 67 + y;
@@ -106,7 +114,13 @@ export default function RetirementIncomeChart({
 
       let spend;
       if (chadAge < endChadAge) {
-        spend = (isPreInheritance && preInhCouple != null) ? preInhCouple : coupleSpend;
+        if (isPreInheritance && preInhCouple != null) {
+          spend = preInhCouple;
+        } else if (postInhCoupleSpend > 0) {
+          spend = postInhCoupleSpend;
+        } else {
+          spend = coupleSpend;
+        }
       } else {
         spend = (isPreInheritance && preInhSurvivor != null) ? preInhSurvivor : survivorSpendActual;
       }
@@ -127,6 +141,7 @@ export default function RetirementIncomeChart({
       finalPool: Math.round(pool),
       preInheritanceMinPool: Number.isFinite(preInheritanceMinPool) ? Math.round(preInheritanceMinPool) : Math.round(totalPool),
       survivorSpendActual,
+      postInhCoupleSpend,
     };
   }
 
@@ -136,6 +151,8 @@ export default function RetirementIncomeChart({
   const deterministicResult = runRetirementSim(deterministicReturns, coupleMonthlySpend, withdrawalRate, poolFloor);
   const deterministicPools = deterministicResult.yearPools;
   const deterministicSurvivorSpend = deterministicResult.survivorSpendActual;
+  const deterministicPostInhCouple = deterministicResult.postInhCoupleSpend;
+  const inhDuringCouple = hasInheritance && inheritanceChadAge < chadPassesAge;
 
   // Build deterministic yearlyData (for tooltip + income display)
   const yearlyData = deterministicPools.map((pool, y) => {
@@ -143,14 +160,21 @@ export default function RetirementIncomeChart({
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
     const ssInfo = getSSInfo(chadAge, chadAlive);
-    const phaseSpend = chadAlive ? coupleMonthlySpend : deterministicSurvivorSpend;
+    const isPostInh = hasInheritance && y >= inheritanceYear;
+    let phaseSpend;
+    if (chadAlive) {
+      phaseSpend = (isPostInh && deterministicPostInhCouple > 0) ? deterministicPostInhCouple : coupleMonthlySpend;
+    } else {
+      phaseSpend = deterministicSurvivorSpend;
+    }
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     const isInheritanceYear = hasInheritance && y === inheritanceYear;
+    const phase = !chadAlive ? 'survivor' : (isPostInh ? 'postInheritance' : 'chad');
     return {
       age: chadAge, sarahAge, pool,
       monthly: effectiveWithdrawal + ssInfo.amount + trustMonthly,
       ssIncome: ssInfo.amount, ssLabel: ssInfo.label,
-      phase: chadAlive ? 'chad' : 'survivor',
+      phase,
       isInheritanceYear,
     };
   });
@@ -301,8 +325,17 @@ export default function RetirementIncomeChart({
   const depleteAge = yearlyData.find(d => d.pool <= poolFloor);
   const poolSurvives = !depleteAge;
 
+  // Income phase calculations
   const phase1SS = chadSS;
   const phase1Total = coupleMonthlySpend + phase1SS + trustMonthly;
+  // Post-inheritance couple phase (only when inheritance arrives before Chad passes)
+  const postInhSS = (() => {
+    if (!inhDuringCouple) return 0;
+    const sarahAtInh = inheritanceSarahAge;
+    const spousal = sarahAtInh >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
+    return chadSS + spousal;
+  })();
+  const postInhTotal = inhDuringCouple ? (deterministicPostInhCouple + postInhSS + trustMonthly) : 0;
   const phase2SS = survivorSS;
   const phase2Spend = deterministicSurvivorSpend;
   const phase2Total = phase2Spend + phase2SS + trustMonthly;
@@ -332,8 +365,9 @@ export default function RetirementIncomeChart({
         House sold at 67 · {withdrawalRate}% withdrawal · {retirementReturn}% return ({realReturn}% real after 3% inflation) · {retirementVol}% vol · Chad passes at {chadPassesAge}
       </div>
 
-      {/* Pool + Two-phase income summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+      {/* Income phase summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: inhDuringCouple ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+        {/* Pool card */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
           <div style={{ fontSize: 9, color: '#64748b', marginBottom: 4 }}>Investment Pool (age 67)</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace" }}>
@@ -343,8 +377,12 @@ export default function RetirementIncomeChart({
             Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
           </div>
         </div>
+
+        {/* Pre-inheritance couple (or full couple if no inheritance during couple phase) */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
-          <div style={{ fontSize: 9, color: '#60a5fa', marginBottom: 4 }}>Retirement Income (67–{chadPassesAge})</div>
+          <div style={{ fontSize: 9, color: '#60a5fa', marginBottom: 4 }}>
+            {inhDuringCouple ? `Pre-Inheritance (67–${inheritanceChadAge})` : `Retirement Income (67–${chadPassesAge})`}
+          </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(phase1Total)}/mo
           </div>
@@ -352,8 +390,23 @@ export default function RetirementIncomeChart({
             {fmtFull(coupleMonthlySpend)} withdraw + {fmtFull(phase1SS)} SS + {fmtFull(trustMonthly)} trust
           </div>
         </div>
+
+        {/* Post-inheritance couple (only when inheritance during couple phase) */}
+        {inhDuringCouple && (
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #4ade8033' }}>
+            <div style={{ fontSize: 9, color: '#4ade80', marginBottom: 4 }}>Post-Inheritance ({inheritanceChadAge}–{chadPassesAge})</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(postInhTotal)}/mo
+            </div>
+            <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(deterministicPostInhCouple)} withdraw + {fmtFull(postInhSS)} SS + {fmtFull(trustMonthly)} trust
+            </div>
+          </div>
+        )}
+
+        {/* Survivor */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #f59e0b33' }}>
-          <div style={{ fontSize: 9, color: '#f59e0b', marginBottom: 4 }}>Sarah Survivor (after {chadPassesAge}) — {withdrawalRate}% of pool at transition</div>
+          <div style={{ fontSize: 9, color: '#f59e0b', marginBottom: 4 }}>Sarah Survivor (after {chadPassesAge})</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(phase2Total)}/mo
           </div>
@@ -494,7 +547,7 @@ export default function RetirementIncomeChart({
           boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
         }}>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
-            Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : ''}
+            Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : tooltip.phase === 'postInheritance' ? '(post-inheritance)' : ''}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
             Pool: {fmtFull(tooltip.pool)}

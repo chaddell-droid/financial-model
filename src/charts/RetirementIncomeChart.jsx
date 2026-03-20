@@ -134,9 +134,12 @@ export default function RetirementIncomeChart({
     const optimalMonthly = optimalW;
 
     // Pre-inheritance optimal rate (binary search: max pre-inh rate at 90% survival)
+    // Only constrains the pre-inheritance period — pool must not deplete before inheritance.
+    // Post-inheritance uses the optimal rate which is already proven sustainable.
     let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
     if (hasInheritance && inheritanceMonth > 0 && inheritanceMonth < horizonMonths) {
       const postW = optimalW;
+      const inhYear = Math.floor(inheritanceMonth / 12);
       let loP = 0.1, hiP = 50;
       for (let iter = 0; iter < 30; iter++) {
         const mid = (loP + hiP) / 2;
@@ -154,7 +157,9 @@ export default function RetirementIncomeChart({
         let survived = 0;
         for (let c = 0; c < numCohorts; c++) {
           const sim = simulatePath(blendedReturns, c, horizonMonths, preW, flows, preScaling, totalPool, poolFloor);
-          if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
+          // Only constrain pre-inheritance: pool must not deplete before inheritance arrives
+          const preInhOk = sim.yearlyPools.slice(0, inhYear + 1).every(p => p > poolFloor);
+          if (preInhOk && sim.finalPool > poolFloor) survived++;
         }
         if (survived / numCohorts >= targetSurvival) loP = mid; else hiP = mid;
       }

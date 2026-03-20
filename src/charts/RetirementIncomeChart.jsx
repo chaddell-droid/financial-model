@@ -248,19 +248,18 @@ export default function RetirementIncomeChart({
     // Post-inheritance uses the user's withdrawalRate
     let preOptimal = baseOptimal;
     if (hasInheritance) {
-      const postCouple = coupleMonthlySpend;
-      let loP = 0.1, hiP = 50; // higher cap for short pre-inheritance periods
+      // Post-inheritance uses the OPTIMAL rate (sustainable), not the slider
+      const postCoupleSpend = Math.round(totalPool * (baseOptimal / 100) / 12);
+      let loP = 0.1, hiP = 50;
       for (let iter = 0; iter < 40; iter++) {
         const mid = (loP + hiP) / 2;
         const preCouple = Math.round(totalPool * (mid / 100) / 12);
         let survived = 0;
         for (let sim = 0; sim < N; sim++) {
-          const simResult = runRetirementSim(allReturns[sim], postCouple, withdrawalRate, poolFloor,
+          const simResult = runRetirementSim(allReturns[sim], postCoupleSpend, baseOptimal, poolFloor,
             { preInhCouple: preCouple, preInhSurvivor: preCouple });
-          // Must survive to end AND pool must never hit floor before inheritance arrives
-          const endOk = simResult.finalPool > poolFloor;
-          const preOk = simResult.preInheritanceMinPool > poolFloor;
-          if (endOk && preOk) survived++;
+          // Only constrain by pre-inheritance survival — end-period is covered by optimal rate
+          if (simResult.preInheritanceMinPool > poolFloor) survived++;
         }
         if (survived / N >= targetSurvival) loP = mid; else hiP = mid;
       }
@@ -649,7 +648,7 @@ export default function RetirementIncomeChart({
             </div>
           </div>
           <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>
-            You can withdraw {fmtFull(optimalPreMonthly)}/mo before the inheritance arrives (at {withdrawalRate}% after), vs {fmtFull(optimalMonthly)}/mo uniform. The inheritance refills the pool.
+            Withdraw {fmtFull(optimalPreMonthly)}/mo before inheritance, then {optimalRate}% (sustainable) after. Compared to {fmtFull(optimalMonthly)}/mo uniform.
           </div>
         </div>
       )}

@@ -15,6 +15,8 @@ export default function RetirementIncomeChart({
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [poolFloor, setPoolFloor] = useState(0);
   const [chadPassesAge, setChadPassesAge] = useState(82);
+  const [inheritanceAmount, setInheritanceAmount] = useState(0);
+  const [inheritanceSarahAge, setInheritanceSarahAge] = useState(65);
   const [tooltip, setTooltip] = useState(null);
 
   // Chad is 60, Sarah is 46 (14 years younger)
@@ -64,17 +66,36 @@ export default function RetirementIncomeChart({
   // Pool values shown in today's dollars (purchasing power).
   // Withdrawals are fixed (no inflation adjustment needed in real terms).
   const annualInflation = 3;
-  const realReturn = retirementReturn - annualInflation; // e.g., 7% nominal - 3% inflation = 4% real
+  const realReturn = retirementReturn - annualInflation;
+
+  // Inheritance: arrives at a specific year on Chad's age scale
+  const inheritanceChadAge = inheritanceSarahAge + ageDiff;
+  const inheritanceYear = inheritanceChadAge - 67; // year index in simulation
+  const hasInheritance = inheritanceAmount > 0;
 
   // Helper: run one retirement simulation with a given return sequence (real returns)
-  function runRetirementSim(monthlyReturns, coupleSpend, survivorSpend, floor) {
+  // Supports two-phase withdrawal (preRate/postRate for pre/post inheritance)
+  // and inheritance injection at the specified year
+  function runRetirementSim(monthlyReturns, coupleSpend, survivorSpend, floor, opts = {}) {
+    const { preInhCouple, preInhSurvivor } = opts;
     let pool = totalPool;
     const yearPools = [];
     let monthIdx = 0;
     for (let y = 0; y <= years; y++) {
+      // Inject inheritance at the right year
+      if (hasInheritance && y === inheritanceYear) {
+        pool += inheritanceAmount;
+      }
       yearPools.push(Math.round(pool));
       const chadAge = 67 + y;
-      const spend = chadAge < endChadAge ? coupleSpend : survivorSpend;
+      // Pre-inheritance can use a different (higher) withdrawal rate
+      const isPreInheritance = hasInheritance && y < inheritanceYear;
+      let spend;
+      if (chadAge < endChadAge) {
+        spend = (isPreInheritance && preInhCouple != null) ? preInhCouple : coupleSpend;
+      } else {
+        spend = (isPreInheritance && preInhSurvivor != null) ? preInhSurvivor : survivorSpend;
+      }
       for (let m = 0; m < 12; m++) {
         if (pool > floor) {
           pool += pool * monthlyReturns[monthIdx % monthlyReturns.length];
@@ -98,13 +119,14 @@ export default function RetirementIncomeChart({
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
     const ssIncome = getSSIncome(chadAge, chadAlive);
-    // Fixed spending in real (today's) dollars
     const phaseSpend = chadAlive ? coupleMonthlySpend : survivorMonthlySpend;
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
+    const isInheritanceYear = hasInheritance && y === inheritanceYear;
     return {
       age: chadAge, sarahAge, pool,
       monthly: effectiveWithdrawal + ssIncome + trustMonthly,
       ssIncome, phase: chadAlive ? 'chad' : 'survivor',
+      isInheritanceYear,
     };
   });
 
@@ -153,22 +175,23 @@ export default function RetirementIncomeChart({
   }, [totalPool, retirementReturn, retirementVol, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, survivorMonthlySpend]);
 
   // Optimal withdrawal at 90% survival (MC-based)
-  const optimalRate = useMemo(() => {
-    if (totalPool <= poolFloor) return 0;
-    const N = 200; // fewer sims for binary search speed
+  // When inheritance is set: finds the max PRE-inheritance rate while keeping
+  // post-inheritance at the user's withdrawalRate. This lets you spend more
+  // aggressively before the windfall arrives.
+  const { optimalRate, optimalPreRate } = useMemo(() => {
+    if (totalPool <= poolFloor) return { optimalRate: 0, optimalPreRate: 0 };
+    const N = 200;
     const totalMonths = years * 12 + 12;
     const annualVol = retirementVol;
     const monthlyVol = annualVol / Math.sqrt(12) / 100;
     const monthlyMean = monthlyReturnRate;
     const targetSurvival = 0.90;
 
-    // Pre-generate random sequences (reuse across binary search iterations)
     const randNorm = (mean, std, rng) => {
       const u1 = rng() || 0.001;
       const u2 = rng();
       return mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     };
-    // Seeded PRNG for deterministic binary search
     const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
     const rng = mulberry32(42);
     const allReturns = [];
@@ -178,6 +201,7 @@ export default function RetirementIncomeChart({
       allReturns.push(seq);
     }
 
+    // Standard optimal rate (uniform withdrawal)
     let lo = 0.1, hi = 25;
     for (let iter = 0; iter < 40; iter++) {
       const mid = (lo + hi) / 2;
@@ -190,10 +214,35 @@ export default function RetirementIncomeChart({
       }
       if (survived / N >= targetSurvival) lo = mid; else hi = mid;
     }
-    return Math.round(lo * 10) / 10;
-  }, [totalPool, retirementReturn, retirementVol, poolFloor, years, monthlyReturnRate, survivorSpendRatio]);
+    const baseOptimal = Math.round(lo * 10) / 10;
+
+    // If inheritance is set, find the max pre-inheritance rate
+    // Post-inheritance uses the user's withdrawalRate
+    let preOptimal = baseOptimal;
+    if (hasInheritance) {
+      const postCouple = coupleMonthlySpend; // user's chosen rate
+      const postSurvivor = survivorMonthlySpend;
+      let loP = 0.1, hiP = 40;
+      for (let iter = 0; iter < 40; iter++) {
+        const mid = (loP + hiP) / 2;
+        const preCouple = Math.round(totalPool * (mid / 100) / 12);
+        const preSurvivor = Math.round(preCouple * survivorSpendRatio);
+        let survived = 0;
+        for (let sim = 0; sim < N; sim++) {
+          const yearPools = runRetirementSim(allReturns[sim], postCouple, postSurvivor, poolFloor,
+            { preInhCouple: preCouple, preInhSurvivor: preSurvivor });
+          if (yearPools[yearPools.length - 1] > poolFloor) survived++;
+        }
+        if (survived / N >= targetSurvival) loP = mid; else hiP = mid;
+      }
+      preOptimal = Math.round(loP * 10) / 10;
+    }
+
+    return { optimalRate: baseOptimal, optimalPreRate: preOptimal };
+  }, [totalPool, retirementReturn, retirementVol, poolFloor, years, monthlyReturnRate, survivorSpendRatio, hasInheritance, inheritanceYear, inheritanceAmount, coupleMonthlySpend, survivorMonthlySpend, withdrawalRate]);
 
   const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
+  const optimalPreMonthly = Math.round(totalPool * (optimalPreRate / 100) / 12);
 
   // Chart
   const svgW = 800, svgH = 340;
@@ -360,6 +409,19 @@ export default function RetirementIncomeChart({
           </g>
         )}
 
+        {/* Inheritance marker */}
+        {hasInheritance && inheritanceYear >= 0 && inheritanceYear <= years && (
+          <g>
+            <line x1={x(inheritanceYear)} x2={x(inheritanceYear)}
+              y1={padT} y2={padT + plotH}
+              stroke="#4ade80" strokeWidth="1.5" strokeDasharray="4,3" />
+            <text x={x(inheritanceYear)} y={padT + plotH + 12} textAnchor="middle"
+              fill="#4ade80" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              +{fmtPool(inheritanceAmount)} inheritance
+            </text>
+          </g>
+        )}
+
         {/* Start label */}
         <text x={padL + 4} y={yPool(totalPool) - 6}
           fill="#60a5fa" fontSize="11" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
@@ -510,10 +572,47 @@ export default function RetirementIncomeChart({
           min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
         <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
           min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
+        <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
+          min={0} max={2000000} step={50000} color="#4ade80" />
+        <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
+          min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
       </div>
 
+      {/* Inheritance pre-withdrawal callout */}
+      {hasInheritance && (
+        <div style={{
+          marginTop: 8, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
+          border: '1px solid #4ade8033',
+        }}>
+          <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>
+            PRE-INHERITANCE STRATEGY (before {fmtPool(inheritanceAmount)} at Sarah {inheritanceSarahAge})
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
+                Max pre-inheritance rate (90% survival)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
+                {optimalPreRate}% = {fmtFull(optimalPreMonthly)}/mo
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
+                vs uniform rate
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: optimalPreRate > optimalRate ? '#4ade80' : '#94a3b8', fontFamily: "'JetBrains Mono', monospace" }}>
+                +{(optimalPreRate - optimalRate).toFixed(1)}% ({fmtFull(optimalPreMonthly - optimalMonthly)}/mo more)
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>
+            You can withdraw {fmtFull(optimalPreMonthly)}/mo before the inheritance arrives (at {withdrawalRate}% after), vs {fmtFull(optimalMonthly)}/mo uniform. The inheritance refills the pool.
+          </div>
+        </div>
+      )}
+
       {/* Over-withdrawal warning */}
-      {withdrawalRate > optimalRate && (
+      {withdrawalRate > optimalRate && !hasInheritance && (
         <div style={{
           marginTop: 8, padding: '8px 12px', background: '#1e293b', borderRadius: 6,
           border: '1px solid #f8717133', fontSize: 11, color: '#f87171', lineHeight: 1.5,

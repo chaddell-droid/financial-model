@@ -66,7 +66,8 @@ export default function RetirementIncomeChart({
   // Pool values shown in today's dollars (purchasing power).
   // Withdrawals are fixed (no inflation adjustment needed in real terms).
   const annualInflation = 3;
-  const realReturn = retirementReturn - annualInflation;
+  // Fisher equation: (1+nominal)/(1+inflation)-1 (not nominal-inflation)
+  const realReturn = Math.round(((1 + retirementReturn / 100) / (1 + annualInflation / 100) - 1) * 10000) / 100;
 
   // Inheritance: arrives at a specific year on Chad's age scale
   const inheritanceChadAge = inheritanceSarahAge + ageDiff;
@@ -138,10 +139,12 @@ export default function RetirementIncomeChart({
     const monthlyVol = annualVol / Math.sqrt(12) / 100;
     const monthlyMean = monthlyReturnRate;
 
-    // Box-Muller normal random
+    // Seeded PRNG for deterministic results (matches optimal rate calc)
+    const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const rng = mulberry32(123); // different seed from optimal calc to avoid correlation
     const randNorm = (mean, std) => {
-      const u1 = Math.random() || 0.001;
-      const u2 = Math.random();
+      const u1 = rng() || 0.001;
+      const u2 = rng();
       return mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     };
 
@@ -606,7 +609,7 @@ export default function RetirementIncomeChart({
                 vs uniform rate
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: optimalPreRate > optimalRate ? '#4ade80' : '#94a3b8', fontFamily: "'JetBrains Mono', monospace" }}>
-                +{(optimalPreRate - optimalRate).toFixed(1)}% ({fmtFull(optimalPreMonthly - optimalMonthly)}/mo more)
+                {optimalPreRate >= optimalRate ? '+' : ''}{(optimalPreRate - optimalRate).toFixed(1)}% ({fmtFull(Math.abs(optimalPreMonthly - optimalMonthly))}/mo {optimalPreRate >= optimalRate ? 'more' : 'less'})
               </div>
             </div>
           </div>

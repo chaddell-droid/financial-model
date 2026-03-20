@@ -156,7 +156,9 @@ export default function RetirementIncomeChart({
       }
       const yearPools = runRetirementSim(monthlyReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
       allPools.push(yearPools);
-      if (yearPools[yearPools.length - 1] > poolFloor) survivedCount++;
+      const endOk = yearPools[yearPools.length - 1] > poolFloor;
+      const neverDepleted = !hasInheritance || yearPools.slice(0, inheritanceYear).every(p => p > poolFloor);
+      if (endOk && neverDepleted) survivedCount++;
     }
 
     // Compute percentile bands at each year
@@ -172,7 +174,7 @@ export default function RetirementIncomeChart({
     });
 
     return { bands, survivalRate: survivedCount / N, numSims: N };
-  }, [totalPool, retirementReturn, retirementVol, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, survivorMonthlySpend]);
+  }, [totalPool, retirementReturn, retirementVol, withdrawalRate, chadPassesAge, poolFloor, years, monthlyReturnRate, coupleMonthlySpend, survivorMonthlySpend, inheritanceAmount, inheritanceYear]);
 
   // Optimal withdrawal at 90% survival (MC-based)
   // When inheritance is set: finds the max PRE-inheritance rate while keeping
@@ -220,9 +222,9 @@ export default function RetirementIncomeChart({
     // Post-inheritance uses the user's withdrawalRate
     let preOptimal = baseOptimal;
     if (hasInheritance) {
-      const postCouple = coupleMonthlySpend; // user's chosen rate
+      const postCouple = coupleMonthlySpend;
       const postSurvivor = survivorMonthlySpend;
-      let loP = 0.1, hiP = 40;
+      let loP = 0.1, hiP = 25;
       for (let iter = 0; iter < 40; iter++) {
         const mid = (loP + hiP) / 2;
         const preCouple = Math.round(totalPool * (mid / 100) / 12);
@@ -231,7 +233,10 @@ export default function RetirementIncomeChart({
         for (let sim = 0; sim < N; sim++) {
           const yearPools = runRetirementSim(allReturns[sim], postCouple, postSurvivor, poolFloor,
             { preInhCouple: preCouple, preInhSurvivor: preSurvivor });
-          if (yearPools[yearPools.length - 1] > poolFloor) survived++;
+          // Must survive to end AND pool must never hit floor before inheritance arrives
+          const endOk = yearPools[yearPools.length - 1] > poolFloor;
+          const preOk = yearPools.slice(0, inheritanceYear).every(p => p > poolFloor);
+          if (endOk && preOk) survived++;
         }
         if (survived / N >= targetSurvival) loP = mid; else hiP = mid;
       }

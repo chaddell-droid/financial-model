@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { INCOME_SOURCES } from '../charts/chartUtils.js';
 
-export default function IncomeCompositionChart({ data, investmentReturn }) {
+export default function IncomeCompositionChart({ data, investmentReturn, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   const stackH = 300;
@@ -98,22 +98,74 @@ export default function IncomeCompositionChart({ data, investmentReturn }) {
           })}
 
           {/* Expense line — follows actual expenses at each quarter */}
-          <svg viewBox={`0 0 ${data.length * 100} ${stackH}`} preserveAspectRatio="none"
-            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
-            {(() => {
-              const n = data.length;
-              const colW = 100;
-              const pts = data.map((d, i) => {
-                const xPos = i * colW + colW / 2;
-                const yPos = stackH - (d.expenses / stackMax) * stackH;
-                return `${xPos},${yPos}`;
-              });
-              return (
-                <path d={`M ${pts.join(' L ')}`} fill="none" stroke="#f87171" strokeWidth="3"
-                  strokeLinejoin="round" strokeLinecap="round" />
-              );
-            })()}
-          </svg>
+          {(() => {
+            const n = data.length;
+
+            // Build expense events with their KNOWN savings amounts (not derived from data drops)
+            const expenseEvents = [];
+            if (vanSold) expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: data[0]?.expenses > 0 ? (vanMonthlySavings || 2597) : 0 });
+            if (bcsYearsLeft) {
+              // BCS family monthly contribution — approximate from expense difference or use known value
+              const bcsIdx = data.findIndex(d => d.month >= bcsYearsLeft * 12);
+              const bcsDrop = bcsIdx > 0 ? Math.max(0, data[bcsIdx - 1].expenses - data[bcsIdx].expenses) : 0;
+              // If milestones also fire at same quarter, we need to subtract milestone savings
+              const milestonesAtSameMonth = (milestones || []).filter(ms => ms.savings > 0 && ms.month === bcsYearsLeft * 12);
+              const milestoneSavings = milestonesAtSameMonth.reduce((s, ms) => s + ms.savings, 0);
+              const bcsSavings = Math.max(0, bcsDrop - milestoneSavings);
+              if (bcsSavings > 0) expenseEvents.push({ month: bcsYearsLeft * 12, label: 'BCS ends', savings: bcsSavings });
+            }
+            if (milestones) {
+              for (const ms of milestones) {
+                if (ms.savings > 0) expenseEvents.push({ month: ms.month, label: ms.name, savings: ms.savings });
+              }
+            }
+
+            const markers = expenseEvents.map(ev => {
+              if (ev.savings <= 0) return null;
+              const idx = data.findIndex(d => d.month >= ev.month);
+              if (idx < 0) return null;
+              const pctX = ((idx + 0.5) / n) * 100;
+              // Y position at the new expense level after this event
+              const expenseY = (1 - data[idx].expenses / stackMax) * stackH;
+              return { idx, ...ev, pctX, midY: expenseY - 10 };
+            }).filter(Boolean);
+
+            // Separate overlapping markers vertically
+            for (let i = 1; i < markers.length; i++) {
+              if (Math.abs(markers[i].pctX - markers[i - 1].pctX) < 5) {
+                markers[i].midY = markers[i - 1].midY + 28;
+              }
+            }
+
+            return (
+              <>
+                {/* Expense path */}
+                <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
+                  <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
+                    fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                </svg>
+                {/* Event callout pills — positioned at the expense drop point */}
+                {markers.map((m, i) => (
+                  <div key={i} style={{
+                    position: 'absolute',
+                    left: `calc(${m.pctX}% + 6px)`,
+                    top: m.midY - 10,
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: 4,
+                    padding: '2px 6px',
+                    pointerEvents: 'none',
+                    zIndex: 6,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    <div style={{ fontSize: 9, fontWeight: 600, color: '#f87171', lineHeight: 1.3 }}>{m.label}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.3 }}>-{fmtFull(m.savings)}/mo</div>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </div>
 
         {/* Tooltip */}

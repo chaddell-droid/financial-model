@@ -586,6 +586,8 @@ export default function FinancialModel() {
                   sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
                   sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
                   data={data} investmentReturn={investmentReturn}
+                  vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
+                  bcsYearsLeft={bcsYearsLeft} milestones={milestones}
                 />
               )}
 

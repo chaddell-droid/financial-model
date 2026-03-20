@@ -485,16 +485,21 @@ export default function RetirementIncomeChart({
             Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : ''}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool: {fmtFull(tooltip.pool)} (mean)
+            Pool: {fmtFull(tooltip.pool)}
           </div>
           <div style={{ fontSize: 10, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-            MC range: {fmtPool(tooltip.p10)} – {fmtPool(tooltip.p90)}
+            MC: {fmtPool(tooltip.p10)} – {fmtPool(tooltip.p50)} – {fmtPool(tooltip.p90)}
           </div>
           <div style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-            Median: {fmtPool(tooltip.p50)}
+            (10th / median / 90th)
           </div>
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-            Income: {fmtFull(tooltip.monthly)}/mo
+          <div style={{ borderTop: '1px solid #334155', marginTop: 4, paddingTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 600 }}>
+              Income: {fmtFull(tooltip.monthly)}/mo
+            </div>
+            <div style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(tooltip.monthly - tooltip.ssIncome - trustMonthly)} withdraw + {fmtFull(tooltip.ssIncome)} SS + {fmtFull(trustMonthly)} trust
+            </div>
           </div>
         </div>
       )}

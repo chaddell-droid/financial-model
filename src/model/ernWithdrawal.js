@@ -19,69 +19,18 @@
  */
 
 /**
- * Compute the safe withdrawal rate for one historical cohort.
- * @param {Float64Array} blended - full array of blended monthly real returns
- * @param {number} start - start index into blended for this cohort
- * @param {number} T - horizon in months
- * @param {Float64Array} flows - supplemental flows (inheritance)
- * @param {Float64Array} scaling - withdrawal scaling factors
- * @param {number} targetFV - target final pool value (floor)
- * @param {number} initialPool - starting pool
- * @returns {number} monthly withdrawal amount in dollars (the SWR)
- */
-export function computeSWR(blended, start, T, flows, scaling, targetFV, initialPool) {
-  // Build opportunity cost factors backwards
-  // G[t] = prod(1+r[i], i=t+1..T-1), with G[T-1] = 1
-  const G = new Float64Array(T);
-  G[T - 1] = 1;
-  for (let t = T - 2; t >= 0; t--) {
-    G[t] = G[t + 1] * (1 + blended[start + t + 1]);
-  }
-
-  // C = total cumulative growth = (1+r[0]) * G[0]
-  const C = (1 + blended[start]) * G[0];
-
-  let flowG = 0, scalingG = 0;
-  for (let t = 0; t < T; t++) {
-    flowG += flows[t] * G[t];
-    scalingG += scaling[t] * G[t];
-  }
-
-  if (scalingG <= 0) return 0;
-  return (initialPool * C - targetFV + flowG) / scalingG;
-}
-
-/**
- * Compute the maximum pre-inheritance withdrawal rate.
- * Post-inheritance withdrawal is fixed at postRate (monthly $).
- *
- * w_pre = [P*C - FV + sum(f_t*G_t) - postRate * sum_{t>=inh}(s_t*G_t)]
- *         / sum_{t<inh}(s_t*G_t)
- */
-export function computePreInhSWR(blended, start, T, flows, scaling, targetFV, initialPool, postRate, inhMonth) {
-  const G = new Float64Array(T);
-  G[T - 1] = 1;
-  for (let t = T - 2; t >= 0; t--) {
-    G[t] = G[t + 1] * (1 + blended[start + t + 1]);
-  }
-  const C = (1 + blended[start]) * G[0];
-
-  let flowG = 0, preDenom = 0, postDenom = 0;
-  for (let t = 0; t < T; t++) {
-    flowG += flows[t] * G[t];
-    if (t < inhMonth) preDenom += scaling[t] * G[t];
-    else postDenom += scaling[t] * G[t];
-  }
-
-  if (preDenom <= 0) return 0;
-  return (initialPool * C - targetFV + flowG - postRate * postDenom) / preDenom;
-}
-
-/**
  * Simulate pool trajectory at a given withdrawal rate for one cohort.
  * Returns yearly pool snapshots (start-of-year values).
+ *
+ * @param {Float64Array} flows - monthly cash inflows (SS + trust) added when pool is solvent
+ * @param {Float64Array} [rescueFlows] - lump sums (inheritance) that apply even when depleted
+ *
+ * Survivor scaling (0.6x) applies only to pool withdrawal, not SS/trust inflows.
+ * This diverges from ERN's blanket 60% survivor rule but is more accurate:
+ * each income stream has its own survivor transition (survivorSS replaces coupleSS,
+ * trust continues unchanged), so only the discretionary pool draw scales.
  */
-export function simulatePath(blended, start, T, monthlyW, flows, scaling, initialPool, floor) {
+export function simulatePath(blended, start, T, monthlyW, flows, scaling, initialPool, floor, rescueFlows) {
   let pool = initialPool;
   const numYears = Math.floor(T / 12);
   const yearlyPools = [];
@@ -92,11 +41,12 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
 
     for (let m = 0; m < 12; m++) {
       const t = y * 12 + m;
+      const rescue = rescueFlows ? rescueFlows[t] : 0;
       if (pool > floor) {
-        pool = pool * (1 + blended[start + t]) - monthlyW * scaling[t] + flows[t];
+        pool = pool * (1 + blended[start + t]) - monthlyW * scaling[t] + flows[t] + rescue;
         if (pool < floor) pool = floor;
-      } else if (flows[t] > 0) {
-        pool += flows[t]; // inheritance can rescue a depleted pool
+      } else if (rescue > 0) {
+        pool += rescue;
       }
     }
   }

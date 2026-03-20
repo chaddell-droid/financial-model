@@ -73,41 +73,24 @@ export default function RetirementIncomeChart({
     [equityAllocation]
   );
 
-  // Build flows, rescueFlows, and scaling arrays (shared by all cohorts)
-  // flows: monthly SS + trust income (only applied when pool is solvent)
-  // rescueFlows: inheritance lump sum (can rescue a depleted pool)
+  // Build flows and scaling arrays (shared by all cohorts)
+  // flows: only inheritance (one-time lump sum)
   // scaling: 1.0 for couple months, survivorRatio for survivor months
-  const { flows, rescueFlows, scaling } = useMemo(() => {
+  const { flows, scaling } = useMemo(() => {
     const flows = new Float64Array(horizonMonths);
-    const rescueFlows = new Float64Array(horizonMonths);
     const scaling = new Float64Array(horizonMonths);
     const survivorStartMonth = (chadPassesAge - 67) * 12;
 
     for (let t = 0; t < horizonMonths; t++) {
       scaling[t] = t < survivorStartMonth ? 1.0 : survivorSpendRatio;
-
-      // Monthly SS + trust income
-      const chadAge = 67 + Math.floor(t / 12);
-      const sarahAge = chadAge - ageDiff;
-      const chadAlive = t < survivorStartMonth;
-      let ss = 0;
-      if (chadAlive) {
-        ss = chadSS;
-        if (sarahAge >= 62) ss += Math.min(Math.round(ssFRA * 0.5), sarahOwnSS);
-      } else {
-        ss = sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS) :
-          sarahAge >= 60 ? Math.round(survivorSS * 0.715) : 0;
-      }
-      flows[t] = ss + trustMonthly;
     }
 
     if (hasInheritance && inheritanceMonth >= 0 && inheritanceMonth < horizonMonths) {
-      rescueFlows[inheritanceMonth] = inheritanceAmount;
+      flows[inheritanceMonth] = inheritanceAmount;
     }
 
-    return { flows, rescueFlows, scaling };
-  }, [horizonMonths, chadPassesAge, survivorSpendRatio, hasInheritance, inheritanceMonth, inheritanceAmount,
-    chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, ageDiff]);
+    return { flows, scaling };
+  }, [horizonMonths, chadPassesAge, survivorSpendRatio, hasInheritance, inheritanceMonth, inheritanceAmount]);
 
   // Optimal rates (independent of withdrawal slider — computed via binary search)
   const optimalRates = useMemo(() => {
@@ -122,13 +105,13 @@ export default function RetirementIncomeChart({
 
     // Binary search for optimal rate (90% survival, pool never depletes)
     const targetSurvival = 0.90;
-    let lo = 0.1, hi = 80;
+    let lo = 0.1, hi = 25;
     for (let iter = 0; iter < 30; iter++) {
       const mid = (lo + hi) / 2;
       const testW = Math.round(totalPool * (mid / 100) / 12);
       let survived = 0;
       for (let c = 0; c < numCohorts; c++) {
-        const sim = simulatePath(blendedReturns, c, horizonMonths, testW, flows, scaling, totalPool, poolFloor, rescueFlows);
+        const sim = simulatePath(blendedReturns, c, horizonMonths, testW, flows, scaling, totalPool, poolFloor);
         if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
       }
       if (survived / numCohorts >= targetSurvival) lo = mid; else hi = mid;
@@ -157,7 +140,7 @@ export default function RetirementIncomeChart({
         }
         let survived = 0;
         for (let c = 0; c < numCohorts; c++) {
-          const sim = simulatePath(blendedReturns, c, horizonMonths, preW, flows, preScaling, totalPool, poolFloor, rescueFlows);
+          const sim = simulatePath(blendedReturns, c, horizonMonths, preW, flows, preScaling, totalPool, poolFloor);
           const preInhOk = sim.yearlyPools.slice(0, inhYear + 1).every(p => p > poolFloor);
           if (preInhOk && sim.finalPool > poolFloor) survived++;
         }
@@ -171,7 +154,7 @@ export default function RetirementIncomeChart({
     let worstIdx = 0;
     let worstFinal = Infinity;
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, optimalW, flows, scaling, totalPool, poolFloor, rescueFlows);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, optimalW, flows, scaling, totalPool, poolFloor);
       if (sim.finalPool < worstFinal) { worstFinal = sim.finalPool; worstIdx = c; }
     }
     const worstLabel = getCohortLabel(worstIdx);
@@ -184,7 +167,7 @@ export default function RetirementIncomeChart({
       optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
       numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
     };
-  }, [blendedReturns, totalPool, poolFloor, flows, rescueFlows, scaling,
+  }, [blendedReturns, totalPool, poolFloor, flows, scaling,
     horizonMonths, hasInheritance, inheritanceMonth, chadPassesAge, survivorSpendRatio]);
 
   // Sync withdrawal slider to optimal rate whenever it changes
@@ -206,7 +189,7 @@ export default function RetirementIncomeChart({
     let survivedCount = 0;
 
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, monthlyWithdrawal, flows, scaling, totalPool, poolFloor, rescueFlows);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, monthlyWithdrawal, flows, scaling, totalPool, poolFloor);
       allYearlyPools[c] = sim.yearlyPools;
       if (sim.finalPool > poolFloor && !sim.everDepleted) survivedCount++;
     }
@@ -226,7 +209,7 @@ export default function RetirementIncomeChart({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { survivalRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, flows, rescueFlows, scaling, horizonMonths, years]);
+  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, flows, scaling, horizonMonths, years]);
 
   // Deterministic trajectory using average historical return
   // Uses CONSTANT dollar withdrawal (same model as simulatePath / binary search)
@@ -237,7 +220,7 @@ export default function RetirementIncomeChart({
     const avgMonthly = sum / blendedReturns.length;
     const avgAnnualReal = Math.round((Math.pow(1 + avgMonthly, 12) - 1) * 1000) / 10;
 
-    // Use the same model as simulatePath: constant withdrawal + scaling + flows + rescueFlows
+    // Use the same model as simulatePath: constant withdrawal + scaling + flows
     let pool = totalPool;
     const pools = [];
 
@@ -247,18 +230,17 @@ export default function RetirementIncomeChart({
 
       for (let m = 0; m < 12; m++) {
         const t = y * 12 + m;
-        const rescue = rescueFlows[t] || 0;
         if (pool > poolFloor) {
-          pool = pool * (1 + avgMonthly) - monthlyWithdrawal * scaling[t] + flows[t] + rescue;
+          pool = pool * (1 + avgMonthly) - monthlyWithdrawal * scaling[t] + flows[t];
           if (pool < poolFloor) pool = poolFloor;
-        } else if (rescue > 0) {
-          pool += rescue;
+        } else if (flows[t] > 0) {
+          pool += flows[t];
         }
       }
     }
 
     return { deterministicPools: pools, avgAnnualReal };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, scaling, flows, rescueFlows, years]);
+  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, scaling, flows, years]);
 
   // Constant-dollar withdrawal amounts for each phase
   const survivorWithdrawal = Math.round(monthlyWithdrawal * survivorSpendRatio);
@@ -347,8 +329,6 @@ export default function RetirementIncomeChart({
   const optMonthly = optimalRates.optimalMonthly;
   const optPreRate = optimalRates.optimalPreRate;
   const optPreMonthly = optimalRates.optimalPreMonthly;
-  const sliderMax = Math.max(30, Math.ceil(optRate / 5) * 5 + 5);
-
   return (
     <div style={{
       background: '#1e293b', borderRadius: 12, padding: '20px 16px',
@@ -657,11 +637,11 @@ export default function RetirementIncomeChart({
             </span>
           </div>
           <div style={{ position: 'relative' }}>
-            <input type="range" min={0} max={sliderMax} step={0.1} value={withdrawalRate}
+            <input type="range" min={0} max={30} step={0.1} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
               style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : '#f59e0b', height: 6 }} />
             {(() => {
-              const pct = Math.min(optRate, sliderMax) / sliderMax;
+              const pct = Math.min(optRate, 30) / 30;
               const thumbHalf = 8;
               return (
                 <div style={{

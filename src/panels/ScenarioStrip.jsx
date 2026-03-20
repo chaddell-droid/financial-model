@@ -37,50 +37,62 @@ const ScenarioStrip = ({
               const netLiving = baseExpenses - cutsSavings;
               return (
                 <div style={{ marginBottom: 10, padding: '8px 12px', background: '#0f172a', borderRadius: 8, border: '1px solid #1e293b' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>Total monthly spending</span>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: '#f87171', fontFamily: "'JetBrains Mono', monospace" }}>
-                      {fmtFull(currentExpenses)}/mo
-                    </span>
+                  <div style={{ marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>Monthly spending breakdown</span>
                   </div>
-                  <div style={{ marginBottom: 6 }}>
-                    {/* Base living with cuts subtracted first */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
-                      <span style={{ color: '#64748b' }}>Base living</span>
-                      <span style={{ color: '#f87171', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(baseExpenses)}</span>
-                    </div>
-                    {cutsSavings > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6, paddingLeft: 10 }}>
-                        <span style={{ color: '#4ade80' }}>Spending cuts</span>
-                        <span style={{ color: '#4ade80', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>-{fmtFull(cutsSavings)}</span>
-                      </div>
-                    )}
-                    {cutsSavings > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6, borderTop: '1px solid #1e293b', paddingTop: 2, marginBottom: 2 }}>
-                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>Net living</span>
-                        <span style={{ color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(netLiving)}</span>
-                      </div>
-                    )}
-                    {/* Additional costs */}
-                    {debtCost > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
-                        <span style={{ color: '#64748b' }}>Debt service</span>
-                        <span style={{ color: '#f87171', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(debtCost)}</span>
-                      </div>
-                    )}
-                    {vanCost > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
-                        <span style={{ color: '#64748b' }}>Van</span>
-                        <span style={{ color: '#f87171', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(vanCost)}</span>
-                      </div>
-                    )}
-                    {bcsFamilyMonthly > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, lineHeight: 1.6 }}>
-                        <span style={{ color: '#64748b' }}>BCS tuition</span>
-                        <span style={{ color: '#c084fc', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{fmtFull(bcsFamilyMonthly)}</span>
-                      </div>
-                    )}
-                  </div>
+                  <table style={{ width: '100%', marginBottom: 6, fontSize: 10, borderCollapse: 'collapse', fontFamily: "'JetBrains Mono', monospace" }}>
+                    <tbody>
+                      {cutsSavings > 0 ? (
+                        <>
+                          <tr>
+                            <td style={{ color: '#64748b', paddingLeft: 16, lineHeight: 1.8 }}>Base living</td>
+                            <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(baseExpenses)}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ color: '#4ade80', paddingLeft: 16, lineHeight: 1.8 }}>Spending cuts</td>
+                            <td style={{ color: '#4ade80', textAlign: 'right', lineHeight: 1.8 }}>-{fmtFull(cutsSavings)}</td>
+                          </tr>
+                          <tr>
+                            <td colSpan={2} style={{ borderBottom: '1px dashed #334155', paddingBottom: 2 }} />
+                          </tr>
+                          <tr>
+                            <td style={{ color: '#e2e8f0', fontWeight: 600, lineHeight: 1.8 }}>Net living</td>
+                            <td style={{ color: '#e2e8f0', fontWeight: 600, textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(netLiving)}</td>
+                          </tr>
+                        </>
+                      ) : (
+                        <tr>
+                          <td style={{ color: '#e2e8f0', fontWeight: 600, lineHeight: 1.8 }}>Living expenses</td>
+                          <td style={{ color: '#e2e8f0', fontWeight: 600, textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(netLiving)}</td>
+                        </tr>
+                      )}
+                      {debtCost > 0 && (
+                        <tr>
+                          <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>Debt service</td>
+                          <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(debtCost)}</td>
+                        </tr>
+                      )}
+                      {vanCost > 0 && (
+                        <tr>
+                          <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>Van</td>
+                          <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(vanCost)}</td>
+                        </tr>
+                      )}
+                      {bcsFamilyMonthly > 0 && (
+                        <tr>
+                          <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>BCS tuition</td>
+                          <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(bcsFamilyMonthly)}</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td colSpan={2} style={{ borderBottom: '1px solid #475569', paddingBottom: 2 }} />
+                      </tr>
+                      <tr>
+                        <td style={{ color: '#f87171', fontWeight: 700, lineHeight: 2, fontSize: 11 }}>Total</td>
+                        <td style={{ color: '#f87171', fontWeight: 700, textAlign: 'right', lineHeight: 2, fontSize: 11 }}>{fmtFull(currentExpenses)}/mo</td>
+                      </tr>
+                    </tbody>
+                  </table>
                   <Slider label="Base living expenses" value={baseExpenses} onChange={set('baseExpenses')}
                     min={25000} max={55000} step={500} color="#f87171"
                     format={(v) => fmtFull(v)} />

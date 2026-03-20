@@ -50,15 +50,19 @@ export default function RetirementIncomeChart({
   const coupleMonthlySpend = monthlyWithdrawal;
   const survivorMonthlySpend = Math.round(monthlyWithdrawal * survivorSpendRatio);
 
-  // Helper: compute SS income for a given year
-  function getSSIncome(chadAge, chadAlive) {
+  // Helper: compute SS income + label for a given year
+  function getSSInfo(chadAge, chadAlive) {
     const sarahAge = chadAge - ageDiff;
     if (chadAlive) {
       const sarahSpousal = sarahAge >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
-      return chadSS + sarahSpousal;
+      const amount = chadSS + sarahSpousal;
+      const label = sarahSpousal > 0 ? 'Chad + Sarah spousal' : 'Chad only';
+      return { amount, label };
     } else {
-      return sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS) :
+      const amount = sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS) :
         sarahAge >= 60 ? Math.round(survivorSS * 0.715) : 0;
+      const label = sarahAge >= 67 ? 'Sarah survivor' : sarahAge >= 60 ? 'Sarah survivor (reduced)' : 'none';
+      return { amount, label };
     }
   }
 
@@ -127,14 +131,15 @@ export default function RetirementIncomeChart({
     const chadAge = 67 + y;
     const sarahAge = chadAge - ageDiff;
     const chadAlive = chadAge < endChadAge;
-    const ssIncome = getSSIncome(chadAge, chadAlive);
+    const ssInfo = getSSInfo(chadAge, chadAlive);
     const phaseSpend = chadAlive ? coupleMonthlySpend : survivorMonthlySpend;
     const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     const isInheritanceYear = hasInheritance && y === inheritanceYear;
     return {
       age: chadAge, sarahAge, pool,
-      monthly: effectiveWithdrawal + ssIncome + trustMonthly,
-      ssIncome, phase: chadAlive ? 'chad' : 'survivor',
+      monthly: effectiveWithdrawal + ssInfo.amount + trustMonthly,
+      ssIncome: ssInfo.amount, ssLabel: ssInfo.label,
+      phase: chadAlive ? 'chad' : 'survivor',
       isInheritanceYear,
     };
   });
@@ -498,7 +503,7 @@ export default function RetirementIncomeChart({
               Income: {fmtFull(tooltip.monthly)}/mo
             </div>
             <div style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(tooltip.monthly - tooltip.ssIncome - trustMonthly)} withdraw + {fmtFull(tooltip.ssIncome)} SS + {fmtFull(trustMonthly)} trust
+              {fmtFull(tooltip.monthly - tooltip.ssIncome - trustMonthly)} withdraw + {fmtFull(tooltip.ssIncome)} SS ({tooltip.ssLabel}) + {fmtFull(trustMonthly)} trust
             </div>
           </div>
         </div>

@@ -66,12 +66,10 @@ const ScenarioStrip = ({
                           <td style={{ color: '#e2e8f0', fontWeight: 600, textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(netLiving)}</td>
                         </tr>
                       )}
-                      {debtCost > 0 && (
-                        <tr>
-                          <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>Debt service</td>
-                          <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(debtCost)}</td>
-                        </tr>
-                      )}
+                      <tr>
+                        <td style={{ color: retireDebt ? '#4ade80' : '#94a3b8', lineHeight: 1.8 }}>Debt service{retireDebt ? ' (retired)' : ''}</td>
+                        <td style={{ color: retireDebt ? '#4ade80' : '#94a3b8', textAlign: 'right', lineHeight: 1.8, textDecoration: retireDebt ? 'line-through' : 'none' }}>{retireDebt ? fmtFull(debtService) : fmtFull(debtCost)}</td>
+                      </tr>
                       {vanCost > 0 && (
                         <tr>
                           <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>Van</td>

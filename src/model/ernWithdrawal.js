@@ -19,6 +19,55 @@
  */
 
 /**
+ * Closed-form SWR for one cohort.
+ * Returns monthly consumption w in dollars (can be negative for bad cohorts).
+ */
+export function computeSWR(blended, start, T, supplementalFlows, scaling, targetFV, initialPool) {
+  const G = new Float64Array(T);
+  G[T - 1] = 1;
+  for (let t = T - 2; t >= 0; t--) {
+    G[t] = G[t + 1] * (1 + blended[start + t + 1]);
+  }
+  const C = (1 + blended[start]) * G[0];
+
+  let flowG = 0;
+  let scalingG = 0;
+  for (let t = 0; t < T; t++) {
+    flowG += supplementalFlows[t] * G[t];
+    scalingG += scaling[t] * G[t];
+  }
+
+  return (initialPool * C - targetFV + flowG) / scalingG;
+}
+
+/**
+ * Pre-inheritance SWR: solve for the withdrawal rate used before the
+ * inheritance arrives, given that post-inheritance uses postRate.
+ */
+export function computePreInhSWR(blended, start, T, supplementalFlows, scaling, targetFV, initialPool, postRate, inhMonth) {
+  const G = new Float64Array(T);
+  G[T - 1] = 1;
+  for (let t = T - 2; t >= 0; t--) {
+    G[t] = G[t + 1] * (1 + blended[start + t + 1]);
+  }
+  const C = (1 + blended[start]) * G[0];
+
+  let flowG = 0;
+  let preDenom = 0;
+  let postDenom = 0;
+  for (let t = 0; t < T; t++) {
+    flowG += supplementalFlows[t] * G[t];
+    if (t < inhMonth) {
+      preDenom += scaling[t] * G[t];
+    } else {
+      postDenom += scaling[t] * G[t];
+    }
+  }
+
+  return (initialPool * C - targetFV + flowG - postRate * postDenom) / preDenom;
+}
+
+/**
  * Simulate pool trajectory at a given withdrawal rate for one cohort.
  * Returns yearly pool snapshots (start-of-year values).
  */

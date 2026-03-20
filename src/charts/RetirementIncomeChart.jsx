@@ -198,7 +198,7 @@ export default function RetirementIncomeChart({
   // aggressively before the windfall arrives.
   const { optimalRate, optimalPreRate } = useMemo(() => {
     if (totalPool <= poolFloor) return { optimalRate: 0, optimalPreRate: 0 };
-    const N = 200;
+    const N = 500;
     const totalMonths = years * 12 + 12;
     const annualVol = retirementVol;
     const monthlyVol = annualVol / Math.sqrt(12) / 100;
@@ -211,7 +211,7 @@ export default function RetirementIncomeChart({
       return mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     };
     const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-    const rng = mulberry32(42);
+    const rng = mulberry32(123); // same seed as display MC for consistency
     const allReturns = [];
     for (let sim = 0; sim < N; sim++) {
       const seq = [];
@@ -578,19 +578,28 @@ export default function RetirementIncomeChart({
             <input type="range" min={0} max={30} step={0.1} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
               style={{ width: "100%", accentColor: withdrawalRate > optimalRate ? '#f87171' : '#f59e0b', height: 6 }} />
-            <div style={{
-              position: 'absolute',
-              left: `${(Math.min(optimalRate, 30) / 30) * 100}%`,
-              top: -6,
-              transform: 'translateX(-50%)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              pointerEvents: 'none',
-            }}>
-              <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {optimalRate}% @90%
-              </div>
-              <div style={{ width: 2, height: 8, background: '#4ade80', borderRadius: 1 }} />
-            </div>
+            {/* Marker aligned to slider track using the same math browsers use:
+                thumb center at pct% is offset by (0.5 - pct) * thumbWidth */}
+            {(() => {
+              const pct = Math.min(optimalRate, 30) / 30;
+              // Slider thumbs are ~16px wide; track is inset by ~8px on each side
+              const thumbHalf = 8;
+              return (
+                <div style={{
+                  position: 'absolute',
+                  left: `calc(${pct * 100}% + ${(0.5 - pct) * thumbHalf * 2}px)`,
+                  top: -6,
+                  transform: 'translateX(-50%)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  pointerEvents: 'none',
+                }}>
+                  <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {optimalRate}% @90%
+                  </div>
+                  <div style={{ width: 2, height: 8, background: '#4ade80', borderRadius: 1 }} />
+                </div>
+              );
+            })()}
           </div>
         </div>
 

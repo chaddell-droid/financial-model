@@ -428,7 +428,7 @@ export default function RetirementIncomeChart({
       {/* Sliders */}
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Slider label="Investment return" value={retirementReturn} onChange={setRetirementReturn}
-          min={0} max={30} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
+          min={0} max={12} step={0.5} format={(v) => v + '%'} color="#60a5fa" />
 
         {/* Withdrawal rate with optimal marker */}
         <div style={{ padding: "4px 0" }}>

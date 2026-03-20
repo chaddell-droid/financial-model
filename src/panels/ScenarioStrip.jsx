@@ -65,12 +65,10 @@ const ScenarioStrip = ({
                         <td style={{ color: retireDebt ? '#4ade80' : '#94a3b8', lineHeight: 1.8 }}>Debt service{retireDebt ? ' (retired)' : ''}</td>
                         <td style={{ color: retireDebt ? '#4ade80' : '#94a3b8', textAlign: 'right', lineHeight: 1.8, textDecoration: retireDebt ? 'line-through' : 'none' }}>{retireDebt ? fmtFull(debtService) : fmtFull(debtCost)}</td>
                       </tr>
-                      {vanCost > 0 && (
-                        <tr>
-                          <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>Van</td>
-                          <td style={{ color: '#94a3b8', textAlign: 'right', lineHeight: 1.8 }}>{fmtFull(vanCost)}</td>
-                        </tr>
-                      )}
+                      <tr>
+                        <td style={{ color: vanSold ? '#4ade80' : '#94a3b8', lineHeight: 1.8 }}>Van{vanSold ? ' (sold)' : ''}</td>
+                        <td style={{ color: vanSold ? '#4ade80' : '#94a3b8', textAlign: 'right', lineHeight: 1.8, textDecoration: vanSold ? 'line-through' : 'none' }}>{fmtFull(vanMonthlySavings)}</td>
+                      </tr>
                       {bcsFamilyMonthly > 0 && (
                         <tr>
                           <td style={{ color: '#94a3b8', lineHeight: 1.8 }}>BCS tuition</td>
@@ -112,6 +110,7 @@ const ScenarioStrip = ({
                 )}
               </div>
             )}
+            <Toggle label={`Sell the van (saves ${fmtFull(vanMonthlySavings)}/mo)`} checked={vanSold} onChange={set('vanSold')} color="#4ade80" />
             <div style={{ margin: "8px 0 2px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "#94a3b8" }}>BCS tuition — parents' contribution</span>

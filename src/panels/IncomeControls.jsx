@@ -256,7 +256,7 @@ const IncomeControls = ({
               <Slider label="Monthly cost (loan + insurance + fuel)" value={vanMonthlySavings} onChange={set('vanMonthlySavings')} min={1500} max={4000} step={50} color={vanSold ? "#4ade80" : "#f87171"} />
               {vanSold && (
                 <>
-                  <Slider label="Expected sale price" value={effectiveSalePrice} onChange={set('vanSalePrice')} min={0} max={75000} step={1000} color="#60a5fa" />
+                  <Slider label="Expected sale price" value={effectiveSalePrice} onChange={set('vanSalePrice')} min={0} max={effectiveLoanBalance} step={1000} color="#60a5fa" />
                   <Slider label="Loan balance owed" value={effectiveLoanBalance} onChange={set('vanLoanBalance')} min={100000} max={300000} step={5000} color="#f87171" />
                   <Slider label="Sell at month" value={vanSaleMonth ?? 6} onChange={set('vanSaleMonth')} min={1} max={24} format={(v) => v + " mo"} color="#94a3b8" />
                   <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #334155" }}>

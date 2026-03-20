@@ -8,6 +8,7 @@ import { evaluateGoalPass } from './goalEvaluation.js';
 export function runMonteCarlo(base, mcParams, goals = []) {
   const { mcNumSims: N, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline } = mcParams;
   const months = 72;
+  const clampGrowth = (value) => Math.max(-99.9, value);
 
   // Box-Muller normal random
   const randNorm = (mean, std) => {
@@ -26,9 +27,9 @@ export function runMonteCarlo(base, mcParams, goals = []) {
     const useSS = base.ssType === 'ss';
     const simParams = {
       ...base,
-      investmentReturn: Math.max(0, randNorm(base.investmentReturn, mcInvestVol)),
-      sarahClientGrowth: Math.max(0, randNorm(base.sarahClientGrowth, mcBizGrowthVol)),
-      sarahRateGrowth: Math.max(0, randNorm(base.sarahRateGrowth, mcBizGrowthVol * 0.5)),
+      investmentReturn: clampGrowth(randNorm(base.investmentReturn, mcInvestVol)),
+      sarahClientGrowth: clampGrowth(randNorm(base.sarahClientGrowth, mcBizGrowthVol)),
+      sarahRateGrowth: clampGrowth(randNorm(base.sarahRateGrowth, mcBizGrowthVol * 0.5)),
       msftGrowth: randNorm(base.msftGrowth, mcMsftVol),
       // SS retirement is guaranteed at age 62 — no delay or denial risk
       ssdiApprovalMonth: useSS ? base.ssdiApprovalMonth : base.ssdiApprovalMonth + Math.max(0, Math.round(Math.random() * mcSsdiDelay)),
@@ -105,6 +106,7 @@ export function runMonteCarlo(base, mcParams, goals = []) {
 export function runDadMonteCarlo(base) {
   const N = 200;
   const months = 72;
+  const clampGrowth = (value) => Math.max(-99.9, value);
 
   // Seeded PRNG (mulberry32) — same seed = same random paths
   const seed = 42;
@@ -124,9 +126,9 @@ export function runDadMonteCarlo(base) {
     // Pre-generate randomized params using seeded PRNG
     const simParams = {
       ...base,
-      investmentReturn: Math.max(0, randNorm(base.investmentReturn, 12)),
-      sarahClientGrowth: Math.max(0, randNorm(base.sarahClientGrowth, 5)),
-      sarahRateGrowth: Math.max(0, randNorm(base.sarahRateGrowth, 2.5)),
+      investmentReturn: clampGrowth(randNorm(base.investmentReturn, 12)),
+      sarahClientGrowth: clampGrowth(randNorm(base.sarahClientGrowth, 5)),
+      sarahRateGrowth: clampGrowth(randNorm(base.sarahRateGrowth, 2.5)),
       msftGrowth: randNorm(base.msftGrowth, 15),
       ssdiApprovalMonth: base.ssdiApprovalMonth + Math.max(0, Math.round(rng() * 6)),
       cutsDiscipline: Math.min(1, Math.max(0, randNorm(1, 0.25))),

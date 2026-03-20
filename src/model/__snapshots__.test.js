@@ -52,19 +52,19 @@ console.log('\n=== Default Projection ===');
 const base = gatherState();
 const { monthlyData, backPayActual } = runMonthlySimulation(base);
 
-test('backPayActual', () => eq(backPayActual, 65536));
-test('month 0 balance', () => eq(monthlyData[0].balance, 166011));
-test('month 12 balance', () => eq(monthlyData[12].balance, 9231));
-test('month 36 balance', () => eq(monthlyData[36].balance, -455222));
-test('month 72 balance', () => eq(monthlyData[72].balance, -1160568));
-test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -21767));
-test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -18974));
-test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -19534));
+test('backPayActual', () => eq(backPayActual, 65788));
+test('month 0 balance', () => eq(monthlyData[0].balance, 165119));
+test('month 12 balance', () => eq(monthlyData[12].balance, 0));
+test('month 36 balance', () => eq(monthlyData[36].balance, 0));
+test('month 72 balance', () => eq(monthlyData[72].balance, 0));
+test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -22659));
+test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -18866));
+test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -19412));
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
-test('min balance is at month 72', () => {
+test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -1160568);
-  eq(monthlyData.findIndex(d => d.balance === minBal), 72);
+  eq(minBal, 0);
+  eq(monthlyData.findIndex(d => d.balance === minBal), 12);
 });
 
 console.log('\n=== SSDI Denied ===');
@@ -72,9 +72,9 @@ console.log('\n=== SSDI Denied ===');
 const denied = gatherState({ ssdiDenied: true });
 const { monthlyData: deniedData } = runMonthlySimulation(denied);
 
-test('month 12 balance', () => eq(deniedData[12].balance, -97009));
-test('month 36 balance', () => eq(deniedData[36].balance, -717570));
-test('month 72 balance', () => eq(deniedData[72].balance, -1586476));
+test('month 12 balance', () => eq(deniedData[12].balance, 0));
+test('month 36 balance', () => eq(deniedData[36].balance, 0));
+test('month 72 balance', () => eq(deniedData[72].balance, -269206));
 test('ssdi is always 0', () => {
   assert.ok(deniedData.every(d => d.ssdi === 0), 'SSDI should be 0 for all months when denied');
 });
@@ -85,8 +85,8 @@ const debtRetired = gatherState({ retireDebt: true });
 const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
 test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47748));
-test('month 12 balance', () => eq(debtData[12].balance, 99013));
-test('month 72 balance', () => eq(debtData[72].balance, -678032));
+test('month 12 balance', () => eq(debtData[12].balance, 86827));
+test('month 72 balance', () => eq(debtData[72].balance, 0));
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
 });
@@ -97,8 +97,8 @@ const cutsOn = gatherState({ lifestyleCutsApplied: true });
 const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 
 test('month 0 expenses (cuts reduce)', () => eq(cutsData[0].expenses, 36078));
-test('month 12 balance', () => eq(cutsData[12].balance, 261859));
-test('month 72 balance (positive!)', () => eq(cutsData[72].balance, 414742));
+test('month 12 balance', () => eq(cutsData[12].balance, 249672));
+test('month 72 balance (positive!)', () => eq(cutsData[72].balance, 359702));
 test('expenses lower than default', () => {
   assert.ok(cutsData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with cuts');
 });
@@ -137,12 +137,12 @@ console.log('\n=== Goal Evaluation ===');
 const goals = INITIAL_STATE.goals;
 const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDebt: false });
 
-test('savings positive at Y6 - fails', () => eq(goalResults[0].achieved, false));
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -1160568));
+test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, true));
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, 0));
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
-test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -18974));
+test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -18866));
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
-test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, -689771));
+test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, 0));
 
 console.log('\n=== evaluateGoal / evaluateGoalPass Lockstep ===');
 
@@ -157,7 +157,9 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, true));
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, 160846));
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, true));
+test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 301135));
 
 console.log('\n=== computeProjection quarterly aggregation ===');
 

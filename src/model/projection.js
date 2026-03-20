@@ -205,3 +205,26 @@ export function computeHomeProjection(s) {
   }
   return { homeData };
 }
+
+export function computeWealthProjection(s) {
+  const months = 72;
+  const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;
+  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation || 4) / 100, 1/12) - 1;
+  const wealthData = [];
+  let bal401k = s.starting401k || 0;
+  let home = s.homeEquity || 0;
+
+  for (let m = 0; m <= months; m++) {
+    if (m > 0) {
+      bal401k *= (1 + monthly401kRate);
+      home *= (1 + monthlyHomeRate);
+    }
+    wealthData.push({
+      month: m,
+      balance401k: Math.round(bal401k),
+      homeEquity: Math.round(home),
+    });
+  }
+
+  return { wealthData };
+}

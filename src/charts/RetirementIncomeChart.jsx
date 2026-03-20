@@ -81,6 +81,7 @@ export default function RetirementIncomeChart({
     const { preInhCouple, preInhSurvivor } = opts;
     let pool = totalPool;
     const yearPools = [];
+    let preInheritanceMinPool = Infinity;
     let monthIdx = 0;
     for (let y = 0; y <= years; y++) {
       // Inject inheritance at the right year
@@ -103,16 +104,23 @@ export default function RetirementIncomeChart({
           pool -= spend;
           if (pool < floor) pool = floor;
         }
+        if (hasInheritance && y < inheritanceYear) {
+          preInheritanceMinPool = Math.min(preInheritanceMinPool, pool);
+        }
         monthIdx++;
       }
     }
-    return yearPools;
+    return {
+      yearPools,
+      finalPool: Math.round(pool),
+      preInheritanceMinPool: Number.isFinite(preInheritanceMinPool) ? Math.round(preInheritanceMinPool) : Math.round(totalPool),
+    };
   }
 
   // Deterministic baseline using real return rate
   const monthlyReturnRate = Math.pow(1 + realReturn / 100, 1/12) - 1;
   const deterministicReturns = Array(years * 12 + 12).fill(monthlyReturnRate);
-  const deterministicPools = runRetirementSim(deterministicReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
+  const deterministicPools = runRetirementSim(deterministicReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor).yearPools;
 
   // Build deterministic yearlyData (for tooltip + income display)
   const yearlyData = deterministicPools.map((pool, y) => {
@@ -157,10 +165,10 @@ export default function RetirementIncomeChart({
       for (let m = 0; m < totalMonths; m++) {
         monthlyReturns.push(randNorm(monthlyMean, monthlyVol));
       }
-      const yearPools = runRetirementSim(monthlyReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
-      allPools.push(yearPools);
-      const endOk = yearPools[yearPools.length - 1] > poolFloor;
-      const neverDepleted = !hasInheritance || yearPools.slice(0, inheritanceYear).every(p => p > poolFloor);
+      const simResult = runRetirementSim(monthlyReturns, coupleMonthlySpend, survivorMonthlySpend, poolFloor);
+      allPools.push(simResult.yearPools);
+      const endOk = simResult.finalPool >= poolFloor;
+      const neverDepleted = !hasInheritance || simResult.preInheritanceMinPool >= poolFloor;
       if (endOk && neverDepleted) survivedCount++;
     }
 
@@ -207,18 +215,18 @@ export default function RetirementIncomeChart({
     }
 
     // Standard optimal rate (uniform withdrawal)
-    let lo = 0.1, hi = 25;
-    for (let iter = 0; iter < 40; iter++) {
-      const mid = (lo + hi) / 2;
-      const testCouple = Math.round(totalPool * (mid / 100) / 12);
-      const testSurvivor = Math.round(testCouple * survivorSpendRatio);
-      let survived = 0;
-      for (let sim = 0; sim < N; sim++) {
-        const yearPools = runRetirementSim(allReturns[sim], testCouple, testSurvivor, poolFloor);
-        if (yearPools[yearPools.length - 1] > poolFloor) survived++;
+      let lo = 0.1, hi = 25;
+      for (let iter = 0; iter < 40; iter++) {
+        const mid = (lo + hi) / 2;
+        const testCouple = Math.round(totalPool * (mid / 100) / 12);
+        const testSurvivor = Math.round(testCouple * survivorSpendRatio);
+        let survived = 0;
+        for (let sim = 0; sim < N; sim++) {
+          const simResult = runRetirementSim(allReturns[sim], testCouple, testSurvivor, poolFloor);
+          if (simResult.finalPool >= poolFloor) survived++;
+        }
+        if (survived / N >= targetSurvival) lo = mid; else hi = mid;
       }
-      if (survived / N >= targetSurvival) lo = mid; else hi = mid;
-    }
     const baseOptimal = Math.round(lo * 10) / 10;
 
     // If inheritance is set, find the max pre-inheritance rate
@@ -234,11 +242,11 @@ export default function RetirementIncomeChart({
         const preSurvivor = Math.round(preCouple * survivorSpendRatio);
         let survived = 0;
         for (let sim = 0; sim < N; sim++) {
-          const yearPools = runRetirementSim(allReturns[sim], postCouple, postSurvivor, poolFloor,
+          const simResult = runRetirementSim(allReturns[sim], postCouple, postSurvivor, poolFloor,
             { preInhCouple: preCouple, preInhSurvivor: preSurvivor });
           // Must survive to end AND pool must never hit floor before inheritance arrives
-          const endOk = yearPools[yearPools.length - 1] > poolFloor;
-          const preOk = yearPools.slice(0, inheritanceYear).every(p => p > poolFloor);
+          const endOk = simResult.finalPool >= poolFloor;
+          const preOk = simResult.preInheritanceMinPool >= poolFloor;
           if (endOk && preOk) survived++;
         }
         if (survived / N >= targetSurvival) loP = mid; else hiP = mid;

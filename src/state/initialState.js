@@ -64,9 +64,9 @@ export const INITIAL_STATE = {
   // Van
   vanSold: false,
   vanMonthlySavings: 2597,
-  vanSalePrice: 25000,          // What we'd get for it
+  vanSalePrice: 150000,         // What we'd get for it
   vanLoanBalance: 200000,       // What we owe
-  vanSaleMonth: 6,              // When we sell (months from now)
+  vanSaleMonth: 12,             // When we sell (months from now)
 
   // Milestones
   milestones: [{ name: "Twins to college", month: 36, savings: 3000 }],

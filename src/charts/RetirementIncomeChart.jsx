@@ -195,22 +195,39 @@ export default function RetirementIncomeChart({
     const lastLabel = getCohortLabel(numCohorts - 1);
     const cohortRange = `${firstLabel.year}\u2013${lastLabel.year}`;
 
+    // "Safe" rate: pool never depletes (binary search + simulatePath + everDepleted)
+    // This is the conservative rate shown on the chart by default
+    let safeRateLo = 0.1, safeRateHi = 25;
+    for (let iter = 0; iter < 30; iter++) {
+      const mid = (safeRateLo + safeRateHi) / 2;
+      const testW = Math.round(totalPool * (mid / 100) / 12);
+      let survived = 0;
+      for (let c = 0; c < numCohorts; c++) {
+        const sim = simulatePath(blendedReturns, c, horizonMonths, testW, flows, scaling, totalPool, poolFloor);
+        if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
+      }
+      if (survived / numCohorts >= 0.90) safeRateLo = mid; else safeRateHi = mid;
+    }
+    const safeRate = Math.round(safeRateLo * 10) / 10;
+    const safeMonthly = Math.round(totalPool * (safeRate / 100) / 12);
+
     const sliderMax = Math.max(30, Math.ceil(optimalRate / 5) * 5 + 5);
 
     return {
       optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
+      safeRate, safeMonthly,
       numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
       optimalConsumption, initialIncome, sliderMax,
     };
   }, [cohortSWRs, totalPool, horizonMonths, chadSS, trustMonthly,
-    hasInheritance, inheritanceMonth, blendedReturns, supplementalFlows, scaling, poolFloor]);
+    hasInheritance, inheritanceMonth, blendedReturns, supplementalFlows, scaling, poolFloor, flows]);
 
-  // Sync withdrawal slider to optimal rate whenever it changes
+  // Sync withdrawal slider to SAFE rate (pool never depletes) — chart default
   useEffect(() => {
-    if (optimalRates.optimalRate > 0) {
-      setWithdrawalRate(optimalRates.optimalRate);
+    if (optimalRates.safeRate > 0) {
+      setWithdrawalRate(optimalRates.safeRate);
     }
-  }, [optimalRates.optimalRate]);
+  }, [optimalRates.safeRate]);
 
   // Bands and survival at the user's slider rate
   const bandResult = useMemo(() => {
@@ -628,7 +645,7 @@ export default function RetirementIncomeChart({
         ))}
       </div>
 
-      {/* Optimal withdrawal (ERN historical: 90% survival) */}
+      {/* Dual optimal rates: Safe (pool never depletes) + ERN max (pool ends at target) */}
       <div style={{
         marginTop: 12, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
         border: '1px solid #334155',
@@ -636,10 +653,13 @@ export default function RetirementIncomeChart({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-              Max withdrawal at 90% survival{poolFloor > 0 ? ` (keeping ${fmtFull(poolFloor)})` : ''}
+              Safe withdrawal (pool never depletes, 90% survival)
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
-              {optRate}% = {fmtFull(optMonthly)}/mo
+              {optimalRates.safeRate}% = {fmtFull(optimalRates.safeMonthly)}/mo
+            </div>
+            <div style={{ fontSize: 8, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+              Total: {fmtFull(optimalRates.safeMonthly + chadSS + trustMonthly)}/mo with SS + trust
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -652,11 +672,26 @@ export default function RetirementIncomeChart({
             </div>
           </div>
         </div>
+        {/* ERN max consumption */}
+        <div style={{ borderTop: '1px solid #334155', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
+              ERN max (pool ends at ${fmtPool(poolFloor)}, 90% survival)
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
+              {optRate}% = {fmtFull(optMonthly)}/mo from pool
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Total consumption</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(Math.round(optimalRates.optimalConsumption))}/mo
+            </div>
+          </div>
+        </div>
         {/* Rate vs history comparison */}
         <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, fontStyle: 'italic' }}>
-          Your {withdrawalRate}% rate: {withdrawalRate <= optRate
-            ? `survived in ${Math.round(sr * 100)}% of all historical cohorts`
-            : `exceeds safe rate \u2014 only ${Math.round(sr * 100)}% survival`}
+          Your {withdrawalRate}% rate: survived in {Math.round(sr * 100)}% of all historical cohorts
         </div>
       </div>
 
@@ -669,17 +704,19 @@ export default function RetirementIncomeChart({
         <div style={{ padding: "4px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontSize: 13, color: "#8b8fa3" }}>Withdrawal rate</span>
-            <span style={{ fontSize: 13, color: withdrawalRate > optRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+            <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
               {withdrawalRate}%
-              {withdrawalRate > optRate && <span style={{ fontSize: 10, color: '#f87171' }}> (over 90% survival limit)</span>}
+              {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 10, color: '#f59e0b' }}> (pool may deplete temporarily)</span>}
+              {withdrawalRate > optRate && <span style={{ fontSize: 10, color: '#f87171' }}> (exceeds ERN max)</span>}
             </span>
           </div>
           <div style={{ position: 'relative' }}>
             <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
-              style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : '#f59e0b', height: 6 }} />
+              style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
+            {/* Safe rate marker (green) */}
             {(() => {
-              const pct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+              const pct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
               const thumbHalf = 8;
               return (
                 <div style={{
@@ -691,9 +728,29 @@ export default function RetirementIncomeChart({
                   pointerEvents: 'none',
                 }}>
                   <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {optRate}% @90%
+                    {optimalRates.safeRate}% safe
                   </div>
                   <div style={{ width: 2, height: 8, background: '#4ade80', borderRadius: 1 }} />
+                </div>
+              );
+            })()}
+            {/* ERN max marker (blue) */}
+            {optRate > optimalRates.safeRate && (() => {
+              const pct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+              const thumbHalf = 8;
+              return (
+                <div style={{
+                  position: 'absolute',
+                  left: `calc(${pct * 100}% + ${(0.5 - pct) * thumbHalf * 2}px)`,
+                  top: -6,
+                  transform: 'translateX(-50%)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  pointerEvents: 'none',
+                }}>
+                  <div style={{ fontSize: 8, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {optRate}% ERN
+                  </div>
+                  <div style={{ width: 2, height: 8, background: '#60a5fa', borderRadius: 1 }} />
                 </div>
               );
             })()}

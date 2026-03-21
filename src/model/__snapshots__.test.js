@@ -22,7 +22,7 @@ import {
   getRetirementSSInfo,
   sliceRetirementContext,
 } from './retirementIncome.js';
-import { runDadMonteCarlo } from './monteCarlo.js';
+import { runDadMonteCarlo, runMonteCarlo } from './monteCarlo.js';
 import { fmt } from './formatters.js';
 import { exportModelData } from './exportData.js';
 import { buildPwaDistribution, getDistributionPercentile, getPwaSummary } from './pwaDistribution.js';
@@ -811,6 +811,35 @@ test('index.html points favicon requests at the existing SVG asset', () => {
 
 console.log('\n=== Monte Carlo Guards ===');
 
+const seededMcParams = {
+  mcNumSims: 120,
+  mcInvestVol: 10,
+  mcBizGrowthVol: 5,
+  mcMsftVol: 12,
+  mcSsdiDelay: 6,
+  mcSsdiDenialPct: 15,
+  mcCutsDiscipline: 25,
+};
+const seededMcA = runMonteCarlo(base, seededMcParams, [], { seed: 123 });
+const seededMcB = runMonteCarlo(base, seededMcParams, [], { seed: 123 });
+const seededMcC = runMonteCarlo(base, seededMcParams, [], { seed: 124 });
+
+test('runMonteCarlo is deterministic with an explicit seed', () => {
+  eq(seededMcA.solvencyRate, seededMcB.solvencyRate);
+  eq(seededMcA.medianFinal, seededMcB.medianFinal);
+  eq(seededMcA.p10Final, seededMcB.p10Final);
+  eq(seededMcA.p90Final, seededMcB.p90Final);
+  eq(seededMcA.bands[2].series[12], seededMcB.bands[2].series[12]);
+});
+test('runMonteCarlo changes when the seed changes', () => {
+  assert.ok(
+    seededMcA.solvencyRate !== seededMcC.solvencyRate
+      || seededMcA.medianFinal !== seededMcC.medianFinal
+      || seededMcA.p10Final !== seededMcC.p10Final
+      || seededMcA.p90Final !== seededMcC.p90Final,
+    'changing the seed should change at least one headline Monte Carlo output'
+  );
+});
 test('runDadMonteCarlo stays finite with extreme negative MSFT growth', () => {
   const result = runDadMonteCarlo({
     ...base,
@@ -819,6 +848,105 @@ test('runDadMonteCarlo stays finite with extreme negative MSFT growth', () => {
   assert.ok(Number.isFinite(result.solvency), 'solvency should be finite');
   assert.ok(Number.isFinite(result.medianFinal), 'medianFinal should be finite');
   assert.ok(Number.isFinite(result.p10), 'p10 should be finite');
+});
+
+console.log('\n=== UI Harness Guards ===');
+
+test('main installs the browser UI harness in development builds', () => {
+  const mainSource = fs.readFileSync(new URL('../main.jsx', import.meta.url), 'utf8');
+  const harnessSource = fs.readFileSync(new URL('../testing/uiHarness.js', import.meta.url), 'utf8');
+  assert.ok(mainSource.includes('installUiTestHarness'), 'main should install the UI test harness');
+  assert.ok(harnessSource.includes('__FIN_MODEL_TEST__'), 'UI harness should expose a browser test API');
+  assert.ok(harnessSource.includes('resetStorage'), 'UI harness should expose a storage reset hook');
+  assert.ok(harnessSource.includes('getMonteCarloSeed'), 'UI harness should expose Monte Carlo seed controls');
+});
+test('shared input primitives expose stable automation metadata', () => {
+  const sliderSource = fs.readFileSync(new URL('../components/Slider.jsx', import.meta.url), 'utf8');
+  const toggleSource = fs.readFileSync(new URL('../components/Toggle.jsx', import.meta.url), 'utf8');
+  assert.ok(sliderSource.includes('data-testid'), 'Slider should expose a data-testid hook');
+  assert.ok(sliderSource.includes('aria-label'), 'Slider should expose an aria-label hook');
+  assert.ok(toggleSource.includes('data-testid'), 'Toggle should expose a data-testid hook');
+  assert.ok(toggleSource.includes('role="switch"'), 'Toggle should behave like a switch for automation and accessibility');
+});
+test('shell controls expose Wave 0 selectors', () => {
+  const headerSource = fs.readFileSync(new URL('../components/Header.jsx', import.meta.url), 'utf8');
+  const saveLoadSource = fs.readFileSync(new URL('../components/SaveLoadPanel.jsx', import.meta.url), 'utf8');
+  const tabSource = fs.readFileSync(new URL('../components/TabBar.jsx', import.meta.url), 'utf8');
+  assert.ok(headerSource.includes('header-present-mode'), 'header should expose a presentation-mode selector');
+  assert.ok(headerSource.includes('header-export-json'), 'header should expose an export selector');
+  assert.ok(saveLoadSource.includes('save-load-panel'), 'save/load panel should expose a root selector');
+  assert.ok(saveLoadSource.includes('save-load-save-current'), 'save/load panel should expose a save selector');
+  assert.ok(tabSource.includes('data-testid={`tab-${tab.id}`}'), 'tab bar should expose tab selectors');
+});
+test('chart automation hooks disambiguate duplicate surfaces and hover targets', () => {
+  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  const savingsSource = fs.readFileSync(new URL('../charts/SavingsDrawdownChart.jsx', import.meta.url), 'utf8');
+  const netWorthSource = fs.readFileSync(new URL('../charts/NetWorthChart.jsx', import.meta.url), 'utf8');
+  const cashFlowSource = fs.readFileSync(new URL('../charts/MonthlyCashFlowChart.jsx', import.meta.url), 'utf8');
+  const incomeCompSource = fs.readFileSync(new URL('../charts/IncomeCompositionChart.jsx', import.meta.url), 'utf8');
+  assert.ok(appSource.includes("instanceId: 'risk-tab'"), 'FinancialModel should assign a risk-tab instance id to duplicate charts');
+  assert.ok(appSource.includes("instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}"), 'FinancialModel should assign a separate right-rail instance id');
+  assert.ok(savingsSource.includes('savings-drawdown-hover-surface'), 'savings chart should expose a stable hover surface');
+  assert.ok(netWorthSource.includes('net-worth-hover-surface'), 'net worth chart should expose a stable hover surface');
+  assert.ok(cashFlowSource.includes('monthly-cash-flow-hover-surface'), 'cash flow chart should expose a stable hover surface');
+  assert.ok(incomeCompSource.includes('income-composition-hover-surface'), 'income composition chart should expose a stable hover surface');
+});
+test('retirement and Monte Carlo surfaces expose test handles for Wave 0', () => {
+  const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  const pwaDistributionSource = fs.readFileSync(new URL('../charts/PwaDistributionChart.jsx', import.meta.url), 'utf8');
+  const monteCarloSource = fs.readFileSync(new URL('../charts/MonteCarloPanel.jsx', import.meta.url), 'utf8');
+  assert.ok(retirementSource.includes('data-testid={`retirement-mode-${mode.value}`}'), 'retirement surface should expose mode selectors');
+  assert.ok(retirementSource.includes('retirement-main-chart-hover-surface'), 'retirement surface should expose a stable hover surface');
+  assert.ok(retirementSource.includes('retirement-pool-draw-rate'), 'retirement surface should expose the pool draw slider selector');
+  assert.ok(pwaDistributionSource.includes("testIdPrefix = 'pwa-distribution'"), 'PWA distribution chart should support caller-provided selector prefixes');
+  assert.ok(monteCarloSource.includes('monte-carlo-fan-chart-hover-surface'), 'Monte Carlo should expose a stable hover surface');
+});
+test('retirement empty-state fallback keeps safe-rate fields numeric', () => {
+  const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(retirementSource.includes('safeRate: 0, safeMonthly: 0'), 'retirement empty fallback should define safeRate and safeMonthly');
+});
+
+console.log('\n=== UI Swarm Contract Guards ===');
+
+test('UI swarm operator guide and manifest exist', () => {
+  const readmeSource = fs.readFileSync(new URL('../../tests/ui/README.md', import.meta.url), 'utf8');
+  const manifestSource = fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8');
+  assert.ok(readmeSource.includes('UI Swarm Validation'), 'README should describe the UI swarm workflow');
+  assert.ok(manifestSource.length > 0, 'coverage manifest should not be empty');
+});
+test('UI swarm manifest is parseable and targets deterministic harness mode', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  eq(manifest.version, 1, 'manifest version');
+  eq(manifest.workers.length, 6, 'worker count');
+  assert.ok(manifest.appUrl.includes('ui_test=1'), 'manifest should run with ui_test enabled');
+  assert.ok(manifest.appUrl.includes('mc_seed=123'), 'manifest should pin a Monte Carlo seed');
+  assert.ok(manifest.appUrl.includes('reset_storage=1'), 'manifest should start from reset storage');
+});
+test('UI swarm manifest covers the highest-risk interactive surfaces', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const entryIds = new Set(manifest.entries.map((entry) => entry.id));
+  [
+    'shell.save_load.lifecycle',
+    'plan.income_controls.core',
+    'risk.monte_carlo.controls',
+    'risk.savings_drawdown.instances',
+    'retirement.mode_and_help',
+    'retirement.pwa_distribution.hover',
+    'sarah_mode.entry_exit_and_sliders',
+    'dad_mode.entry_exit_and_progression'
+  ].forEach((id) => {
+    assert.ok(entryIds.has(id), `manifest should include ${id}`);
+  });
+});
+test('UI swarm manifest retirement selectors match the current DOM contract', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const historical = manifest.entries.find((entry) => entry.id === 'retirement.historical_controls');
+  const distribution = manifest.entries.find((entry) => entry.id === 'retirement.pwa_distribution.hover');
+  const selectors = historical.elements.map((element) => element.selector);
+  assert.ok(selectors.includes('[aria-label=\"Pool floor reserve\"]'), 'manifest should target the pool floor reserve aria label');
+  assert.ok(selectors.includes('[aria-label=\"Chad passes at\"]'), 'manifest should target the Chad passes at aria label');
+  assert.ok(selectors.includes("[aria-label=\"Sarah's age at inheritance\"]"), 'manifest should target the Sarah age at inheritance aria label');
+  eq(distribution.elements[0].selector, '[data-testid=\"retirement-pwa-distribution-hover-surface\"]', 'retirement PWA distribution selector');
 });
 
 console.log('\n=== Formatter Guards ===');

@@ -18,7 +18,7 @@ const accentColors = {
 
 export default function TabBar({ activeTab, onChange }) {
   return (
-    <div style={{
+    <div data-testid="tab-bar" style={{
       display: "flex", gap: 4, marginBottom: 20, padding: "4px",
       background: "#0f172a", borderRadius: 12, border: "1px solid #1e293b",
       position: "sticky", top: 0, zIndex: 20,
@@ -30,6 +30,8 @@ export default function TabBar({ activeTab, onChange }) {
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
+            data-testid={`tab-${tab.id}`}
+            aria-label={`Open ${tab.label} tab`}
             style={{
               flex: 1, padding: "10px 8px", borderRadius: 10, cursor: "pointer",
               border: "none",

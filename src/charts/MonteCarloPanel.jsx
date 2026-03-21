@@ -62,7 +62,7 @@ export default function MonteCarloPanel({
   }, [mcResults, gatherState, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcCutsDiscipline]);
 
   return (
-        <div style={{
+        <div data-testid="monte-carlo-panel" style={{
           background: "#1e293b", borderRadius: 12, padding: "20px 16px",
           border: "1px solid #334155", marginBottom: 24
         }}>
@@ -73,7 +73,7 @@ export default function MonteCarloPanel({
                 {mcResults ? `${mcResults.numSims} scenarios with randomized outcomes` : "Stress-test the plan against uncertainty"}
               </p>
             </div>
-            <button onClick={onRun} disabled={mcRunning} style={{
+            <button onClick={onRun} disabled={mcRunning} data-testid="monte-carlo-run" aria-label={mcResults ? "Re-run Monte Carlo simulation" : "Run Monte Carlo simulation"} style={{
               background: mcRunning ? "#334155" : "#4ade80", color: "#0f172a",
               border: "none", borderRadius: 6, padding: "8px 16px",
               fontSize: 12, fontWeight: 700, cursor: mcRunning ? "wait" : "pointer"
@@ -195,8 +195,8 @@ export default function MonteCarloPanel({
                 </div>
 
                 {/* Fan chart with tooltip */}
-                <div style={{ position: "relative" }}>
-                  <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
+                <div data-testid="monte-carlo-fan-chart-hover-surface" style={{ position: "relative" }}>
+                  <svg data-testid="monte-carlo-fan-chart" viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
                     onMouseMove={handleMouseMove}
                     onMouseLeave={() => setMcTooltip(null)}
                   >

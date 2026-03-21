@@ -20,12 +20,12 @@ export default function MonthlyCashFlowChart({
   const yAxisPadding = 60;
 
   return (
-    <div style={{
+    <div data-testid="monthly-cash-flow-chart" style={{
       background: "#1e293b", borderRadius: 12, padding: "20px 16px",
       border: "1px solid #334155", marginBottom: 24
     }}>
       <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 16px", fontWeight: 600 }}>Monthly Cash Flow Over Time</h3>
-      <div style={{ position: "relative", height: chartH + 50, paddingLeft: yAxisPadding }}>
+      <div data-testid="monthly-cash-flow-hover-surface" style={{ position: "relative", height: chartH + 50, paddingLeft: yAxisPadding }}>
         {/* Y-axis labels and grid lines */}
         {(() => {
           const tickCount = 8;

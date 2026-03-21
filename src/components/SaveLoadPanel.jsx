@@ -17,7 +17,7 @@ export default function SaveLoadPanel({
   if (!showSaveLoad) return null;
 
   return (
-    <div style={{
+    <div data-testid="save-load-panel" style={{
       background: "#1e293b", borderRadius: 12, padding: "16px 20px",
       border: "1px solid #60a5fa33", marginBottom: 24
     }}>
@@ -27,6 +27,8 @@ export default function SaveLoadPanel({
           value={scenarioName}
           onChange={(e) => onScenarioNameChange(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onSave(scenarioName)}
+          data-testid="save-load-name"
+          aria-label="Scenario name"
           placeholder="Name this scenario..."
           style={{
             flex: 1, background: "#0f172a", border: "1px solid #334155", borderRadius: 6,
@@ -37,6 +39,8 @@ export default function SaveLoadPanel({
         <button
           onClick={() => onSave(scenarioName)}
           disabled={!scenarioName.trim()}
+          data-testid="save-load-save-current"
+          aria-label="Save current scenario"
           style={{
             background: scenarioName.trim() ? "#60a5fa" : "#334155", border: "none", borderRadius: 6,
             color: scenarioName.trim() ? "#0f172a" : "#64748b", fontSize: 12, padding: "8px 16px",
@@ -65,7 +69,7 @@ export default function SaveLoadPanel({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {savedScenarios.map((s, i) => (
-            <div key={i} style={{
+            <div key={i} data-testid={`save-load-row-${i}`} data-scenario-name={s.name} style={{
               padding: "8px 12px", background: "#0f172a", borderRadius: 6, border: "1px solid #334155"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -77,18 +81,26 @@ export default function SaveLoadPanel({
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   <button onClick={() => onLoad(s)}
+                    data-testid={`save-load-load-${i}`}
+                    aria-label={`Load scenario ${s.name}`}
                     style={{ background: "transparent", border: "1px solid #4ade80", borderRadius: 4, color: "#4ade80", fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
                     Load
                   </button>
                   <button onClick={() => onSave(s.name)}
+                    data-testid={`save-load-update-${i}`}
+                    aria-label={`Update scenario ${s.name}`}
                     style={{ background: "transparent", border: "1px solid #60a5fa", borderRadius: 4, color: "#60a5fa", fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
                     Update
                   </button>
                   <button onClick={() => onCompare(s.name, s.state)}
+                    data-testid={`save-load-compare-${i}`}
+                    aria-label={`${compareName === s.name ? 'Stop comparing' : 'Compare'} scenario ${s.name}`}
                     style={{ background: compareName === s.name ? "#fbbf2420" : "transparent", border: "1px solid #fbbf24", borderRadius: 4, color: "#fbbf24", fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
                     {compareName === s.name ? "Comparing" : "Compare"}
                   </button>
                   <button onClick={() => onDelete(s.name)}
+                    data-testid={`save-load-delete-${i}`}
+                    aria-label={`Delete scenario ${s.name}`}
                     style={{ background: "transparent", border: "1px solid #475569", borderRadius: 4, color: "#64748b", fontSize: 11, padding: "4px 8px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
                     {"\u2715"}
                   </button>

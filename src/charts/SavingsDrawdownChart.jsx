@@ -23,11 +23,12 @@ export default function SavingsDrawdownChart({
   presentMode,
   onFieldChange,
   baseExpenses,
+  instanceId = 'default',
 }) {
   const [savingsTooltip, setSavingsTooltip] = useState(null);
 
   return (
-        <div style={{
+        <div data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={{
           background: "#1e293b", borderRadius: 12, padding: "20px 16px",
           border: savingsZeroMonth ? "1px solid #f8717133" : "1px solid #334155", marginBottom: 24
         }}>
@@ -117,9 +118,9 @@ export default function SavingsDrawdownChart({
             }
 
             return (
-              <div style={{ position: "relative" }}
+              <div data-testid={`savings-drawdown-hover-surface-${instanceId}`} style={{ position: "relative" }}
                 onMouseLeave={() => setSavingsTooltip(null)}>
-              <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto", display: "block" }}
+              <svg data-testid={`savings-drawdown-svg-${instanceId}`} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto", display: "block" }}
                 onMouseMove={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const mouseX = (e.clientX - rect.left) / rect.width * svgW;

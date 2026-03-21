@@ -30,7 +30,7 @@ const IncomeControls = ({
   const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
 
   return (
-          <div style={{
+          <div data-testid="income-controls" style={{
             background: "#1e293b", borderRadius: 12, padding: 20,
             border: "1px solid #334155"
           }}>
@@ -79,6 +79,8 @@ const IncomeControls = ({
                   <button
                     key={opt.value}
                     onClick={() => set('ssType')(opt.value)}
+                    data-testid={`income-ss-type-${opt.value}`}
+                    aria-label={`Choose ${opt.label}`}
                     style={{
                       flex: 1, padding: "8px 12px", borderRadius: 6, cursor: "pointer",
                       fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif",
@@ -101,7 +103,7 @@ const IncomeControls = ({
             {/* Chad Gets a Job */}
             <div style={{ marginBottom: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: `1px solid ${chadJob ? "#22c55e33" : "#334155"}` }}>
               <h4 style={{ fontSize: 11, color: "#22c55e", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chad Gets a Job</h4>
-              <Toggle label="Chad employed (W-2 income)" checked={chadJob} onChange={set('chadJob')} color="#22c55e" />
+              <Toggle label="Chad employed (W-2 income)" checked={chadJob} onChange={set('chadJob')} color="#22c55e" testId="income-chad-job" />
               {chadJob && (
                 <>
                   <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} min={30000} max={150000} step={5000} color="#22c55e" format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
@@ -164,7 +166,7 @@ const IncomeControls = ({
             {ssType === 'ssdi' && !chadJob && (
               <>
                 <div style={{ marginBottom: 8 }}>
-                  <Toggle label="SSDI Denied (model worst case)" checked={ssdiDenied} onChange={set('ssdiDenied')} color="#f87171" />
+                  <Toggle label="SSDI Denied (model worst case)" checked={ssdiDenied} onChange={set('ssdiDenied')} color="#f87171" testId="income-ssdi-denied" />
                   {ssdiDenied && (
                     <div style={{ fontSize: 10, color: "#f87171", marginLeft: 54, marginTop: -2, marginBottom: 4, fontStyle: "italic" }}>
                       All SSDI income zeroed. Back pay zeroed. Consulting disabled.
@@ -252,7 +254,7 @@ const IncomeControls = ({
               return (
             <div style={{ marginTop: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: `1px solid ${vanSold ? "#4ade8033" : "#334155"}` }}>
               <h4 style={{ fontSize: 11, color: "#94a3b8", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Van Sale</h4>
-              <Toggle label="Sell the van" checked={vanSold} onChange={set('vanSold')} color="#4ade80" />
+              <Toggle label="Sell the van" checked={vanSold} onChange={set('vanSold')} color="#4ade80" testId="income-van-sold" />
               <Slider label="Monthly cost (loan + insurance + fuel)" value={vanMonthlySavings} onChange={set('vanMonthlySavings')} min={1500} max={4000} step={50} color={vanSold ? "#4ade80" : "#f87171"} />
               {vanSold && (
                 <>

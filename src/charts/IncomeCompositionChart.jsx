@@ -19,13 +19,13 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
   );
 
   return (
-    <div style={{
+    <div data-testid="income-composition-chart" style={{
       background: "#1e293b", borderRadius: 12, padding: "20px 16px",
       border: "1px solid #334155", marginBottom: 24
     }}>
       <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 4px", fontWeight: 600 }}>Income Composition vs Expenses</h3>
       <p style={{ fontSize: 10, color: "#475569", margin: "0 0 12px" }}>All values are monthly rates at each quarter — hover for breakdown</p>
-      <div style={{ position: "relative", height: stackH + 40, paddingLeft: stackYPad }}
+      <div data-testid="income-composition-hover-surface" style={{ position: "relative", height: stackH + 40, paddingLeft: stackYPad }}
         onMouseLeave={() => setIncomeTooltip(null)}>
         {/* Y-axis labels */}
         {(() => {

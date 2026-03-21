@@ -30,6 +30,7 @@ export default function PwaDistributionChart({
   lowerTolerancePercentile,
   upperTolerancePercentile,
   bequestTarget = 0,
+  testIdPrefix = 'pwa-distribution',
 }) {
   const [tooltip, setTooltip] = useState(null);
 
@@ -84,7 +85,7 @@ export default function PwaDistributionChart({
 
   if (chart.sortedValues.length === 0) {
     return (
-      <div style={{
+      <div data-testid={`${testIdPrefix}-empty`} style={{
         background: '#0f172a',
         borderRadius: 8,
         padding: '12px 14px',
@@ -142,6 +143,7 @@ export default function PwaDistributionChart({
 
   return (
     <div
+      data-testid={`${testIdPrefix}-container`}
       style={{
         background: '#0f172a',
         borderRadius: 8,
@@ -165,8 +167,8 @@ export default function PwaDistributionChart({
         </div>
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <div data-testid={`${testIdPrefix}-hover-surface`} style={{ position: 'relative' }}>
+        <svg data-testid={`${testIdPrefix}-svg`} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
           {[0, Math.ceil(chart.maxCount / 2), chart.maxCount].map((count, idx) => (
             <g key={idx}>
               <line

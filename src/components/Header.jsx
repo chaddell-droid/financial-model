@@ -2,7 +2,7 @@ import React from "react";
 
 export default function Header({ presentMode, onTogglePresentMode, onEnterDadMode, onEnterSarahMode, showSaveLoad, onToggleSaveLoad, savedScenarios, onReset, onExportJSON }) {
   return (
-    <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div data-testid="header-bar" style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <div>
         <h1 style={{ fontSize: presentMode ? 28 : 22, fontWeight: 700, color: "#f8fafc", margin: 0, letterSpacing: "-0.02em" }}>
           Financial Planning Model
@@ -14,6 +14,8 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button
           onClick={onTogglePresentMode}
+          data-testid="header-present-mode"
+          aria-label={presentMode ? "Exit presentation mode" : "Enter presentation mode"}
           style={{
             background: presentMode ? "#4ade80" : "transparent",
             border: `1px solid ${presentMode ? "#4ade80" : "#475569"}`, borderRadius: 8,
@@ -26,6 +28,8 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
         </button>
         {!presentMode && <button
           onClick={onEnterSarahMode}
+          data-testid="header-enter-sarah-mode"
+          aria-label="Open Sarah mode"
           style={{
             background: "transparent", border: "1px solid #2dd4bf", borderRadius: 8,
             color: "#2dd4bf", fontSize: 12, padding: "8px 14px", cursor: "pointer",
@@ -36,6 +40,8 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
         </button>}
         {!presentMode && <button
           onClick={onEnterDadMode}
+          data-testid="header-enter-dad-mode"
+          aria-label="Open Dad mode"
           style={{
             background: "transparent", border: "1px solid #c084fc", borderRadius: 8,
             color: "#c084fc", fontSize: 12, padding: "8px 14px", cursor: "pointer",
@@ -46,6 +52,8 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
         </button>}
         {!presentMode && <button
           onClick={onToggleSaveLoad}
+          data-testid="header-toggle-save-load"
+          aria-label={showSaveLoad ? "Hide saved scenarios" : "Show saved scenarios"}
           style={{
             background: showSaveLoad ? "#1e293b" : "transparent", border: "1px solid #475569", borderRadius: 8,
             color: showSaveLoad ? "#60a5fa" : "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",
@@ -58,6 +66,8 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
         </button>}
         {!presentMode && <button
           onClick={onReset}
+          data-testid="header-reset-all"
+          aria-label="Reset all assumptions"
           style={{
             background: "transparent", border: "1px solid #475569", borderRadius: 8,
             color: "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",
@@ -70,6 +80,8 @@ export default function Header({ presentMode, onTogglePresentMode, onEnterDadMod
         </button>}
         {!presentMode && onExportJSON && <button
           onClick={onExportJSON}
+          data-testid="header-export-json"
+          aria-label="Export model data as JSON"
           style={{
             background: "transparent", border: "1px solid #475569", borderRadius: 8,
             color: "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",

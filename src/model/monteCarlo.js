@@ -1,20 +1,36 @@
 import { runMonthlySimulation } from './projection.js';
 import { evaluateGoalPass } from './goalEvaluation.js';
 
+function createMulberry32(seed) {
+  let s = seed | 0;
+  return () => {
+    s |= 0;
+    s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function createRandomSource(seed) {
+  return Number.isFinite(seed) ? createMulberry32(Math.trunc(seed)) : Math.random;
+}
+
 /**
  * Full Monte Carlo simulation with randomized parameters.
  * Returns percentile bands, solvency rate, summary statistics, and goal success rates.
  */
-export function runMonteCarlo(base, mcParams, goals = []) {
+export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
   const { mcNumSims: N, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline } = mcParams;
   const months = 72;
   const clampGrowth = (value) => Math.max(-99.9, value);
-  const drawDelayMonths = (maxDelay) => Math.floor(Math.random() * (Math.max(0, maxDelay) + 1));
+  const rng = createRandomSource(options.seed);
+  const drawDelayMonths = (maxDelay) => Math.floor(rng() * (Math.max(0, maxDelay) + 1));
 
   // Box-Muller normal random
   const randNorm = (mean, std) => {
-    const u1 = Math.random();
-    const u2 = Math.random();
+    const u1 = Math.max(rng(), 1e-9);
+    const u2 = rng();
     return mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   };
 
@@ -38,7 +54,7 @@ export function runMonteCarlo(base, mcParams, goals = []) {
     };
 
     // Randomly deny SSDI based on denial probability (not applicable to SS retirement)
-    if (!useSS && mcSsdiDenialPct > 0 && Math.random() * 100 < mcSsdiDenialPct) {
+    if (!useSS && mcSsdiDenialPct > 0 && rng() * 100 < mcSsdiDenialPct) {
       simParams.ssdiDenied = true;
     }
 
@@ -106,17 +122,12 @@ export function runMonteCarlo(base, mcParams, goals = []) {
  */
 export function runDadMonteCarlo(base) {
   const N = 200;
-  const months = 72;
   const clampGrowth = (value) => Math.max(-99.9, value);
+  const rng = createRandomSource(42);
   const drawDelayMonths = (maxDelay) => Math.floor(rng() * (Math.max(0, maxDelay) + 1));
 
-  // Seeded PRNG (mulberry32) — same seed = same random paths
-  const seed = 42;
-  const mulberry32 = (s) => { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
-  const rng = mulberry32(seed);
-
   const randNorm = (mean, std) => {
-    const u1 = rng() || 0.001;
+    const u1 = Math.max(rng(), 1e-9);
     const u2 = rng();
     return mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   };

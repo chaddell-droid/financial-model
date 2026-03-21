@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "playwright:mcp:recover": "pwsh -NoProfile -File scripts/recover-playwright-mcp.ps1"
   },
   "dependencies": {
     "react": "^18.3.1",

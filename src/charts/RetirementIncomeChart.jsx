@@ -296,6 +296,7 @@ export default function RetirementIncomeChart({
   const optimalRates = useMemo(() => {
     const empty = {
       optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
+      safeRate: 0, safeMonthly: 0,
       numCohorts: 0, worstCohort: { year: 0 }, cohortRange: '',
       optimalConsumption: 0, sliderMax: 30,
     };
@@ -582,7 +583,7 @@ export default function RetirementIncomeChart({
   }
 
   return (
-    <div style={{
+    <div data-testid="retirement-income-chart" style={{
       background: '#1e293b', borderRadius: 12, padding: '20px 16px',
       border: '1px solid #334155', marginBottom: 24,
     }}>
@@ -602,6 +603,8 @@ export default function RetirementIncomeChart({
                 key={mode.value}
                 type="button"
                 onClick={() => setRetirementMode(mode.value)}
+                data-testid={`retirement-mode-${mode.value}`}
+                aria-label={`Switch retirement mode to ${mode.label}`}
                 style={{
                   background: retirementMode === mode.value ? '#0f172a' : '#1e293b',
                   color: retirementMode === mode.value ? retirementTextStrong : retirementTextMuted,
@@ -690,7 +693,7 @@ export default function RetirementIncomeChart({
       </HelpDrawer>
 
       {isPwaMode && pwaIntroReady && showPwaIntro && (
-        <div style={{
+        <div data-testid="retirement-adaptive-pwa-intro" style={{
           marginBottom: 12,
           padding: '12px 14px',
           background: '#0f172a',
@@ -713,6 +716,8 @@ export default function RetirementIncomeChart({
             <button
               type="button"
               onClick={dismissPwaIntro}
+              data-testid="retirement-adaptive-pwa-intro-dismiss"
+              aria-label="Dismiss Adaptive PWA introduction"
               style={{
                 background: '#1e293b',
                 color: retirementTextStrong,
@@ -878,6 +883,7 @@ export default function RetirementIncomeChart({
             lowerTolerancePercentile={normalizedPwaToleranceLow}
             upperTolerancePercentile={normalizedPwaToleranceHigh}
             bequestTarget={bequestTarget}
+            testIdPrefix="retirement-pwa-distribution"
           />
 
           <div style={{
@@ -964,8 +970,8 @@ export default function RetirementIncomeChart({
       {!isPwaMode && (
       <>
       {/* Chart */}
-      <div style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
+      <div data-testid="retirement-main-chart-hover-surface" style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
+      <svg data-testid="retirement-main-chart" viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const mouseX = (e.clientX - rect.left) / rect.width * svgW;
@@ -1229,13 +1235,17 @@ export default function RetirementIncomeChart({
       {isPwaMode ? (
         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
+            testId="retirement-equity-allocation"
             min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
           <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+            testId="retirement-chad-passes-age"
             min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
           <Slider label={<LabelWithHelp label="Bequest target" help={HELP.bequest_target} accent="#4ade80" />} value={bequestTarget} onChange={setBequestTarget}
+            testId="retirement-bequest-target"
+            ariaLabel="Bequest target"
             min={0} max={Math.max(totalPool, 1000000)} step={25000} color="#4ade80" />
 
-          <div style={{ padding: '4px 0' }}>
+          <div data-testid="retirement-pwa-strategy-container" style={{ padding: '4px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
                 <span>PWA strategy</span>
@@ -1248,6 +1258,8 @@ export default function RetirementIncomeChart({
             <select
               value={pwaStrategy}
               onChange={(e) => setPwaStrategy(e.target.value)}
+              data-testid="retirement-pwa-strategy"
+              aria-label="PWA strategy"
               style={{ width: '100%', background: '#0f172a', color: retirementTextStrong, border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', fontSize: 13 }}
             >
               {PWA_STRATEGY_OPTIONS.map(option => (
@@ -1258,14 +1270,20 @@ export default function RetirementIncomeChart({
 
           {pwaStrategy !== 'sticky_median' && (
             <Slider label={<LabelWithHelp label="Target percentile" help={HELP.pwa_target_percentile} accent="#4ade80" />} value={pwaPercentile} onChange={setPwaPercentile}
+              testId="retirement-pwa-target-percentile"
+              ariaLabel="Target percentile"
               min={5} max={95} step={5} format={(v) => `${v}th`} color="#4ade80" />
           )}
 
           {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
             <>
               <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
+                testId="retirement-pwa-tolerance-low"
+                ariaLabel="Tolerance low"
                 min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
               <Slider label={<LabelWithHelp label="Tolerance high" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
+                testId="retirement-pwa-tolerance-high"
+                ariaLabel="Tolerance high"
                 min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
             </>
           )}
@@ -1273,6 +1291,7 @@ export default function RetirementIncomeChart({
       ) : (
         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
+            testId="retirement-equity-allocation"
             min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
 
           {/* Withdrawal rate with optimal marker */}
@@ -1290,6 +1309,8 @@ export default function RetirementIncomeChart({
             </div>
             <div style={{ position: 'relative' }}>
               <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
+                data-testid="retirement-pool-draw-rate"
+                aria-label="Pool draw rate"
                 onChange={(e) => setWithdrawalRate(Number(e.target.value))}
                 style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
               {/* Rate markers below the slider — staggered vertically to avoid overlap */}
@@ -1336,14 +1357,21 @@ export default function RetirementIncomeChart({
           </div>
 
           <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+            testId="retirement-chad-passes-age"
             min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
           <Slider label={<LabelWithHelp label="Pool floor (reserve)" help={HELP.reserve_floor} accent="#f59e0b" />} value={poolFloor} onChange={setPoolFloor}
+            testId="retirement-pool-floor"
+            ariaLabel="Pool floor reserve"
             min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
           <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
+            testId="retirement-inheritance-amount"
             min={0} max={2000000} step={50000} color="#4ade80" />
           <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
+            testId="retirement-inheritance-sarah-age"
             min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
           <Slider label={<LabelWithHelp label="Max depletion gap" help={HELP.max_depletion_gap} accent="#94a3b8" />} value={maxDepletionMonths} onChange={setMaxDepletionMonths}
+            testId="retirement-max-depletion-gap"
+            ariaLabel="Max depletion gap"
             min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
         </div>
       )}

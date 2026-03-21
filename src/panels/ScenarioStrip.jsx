@@ -17,7 +17,7 @@ const ScenarioStrip = ({
   const set = onFieldChange;
 
   return (
-        <div style={{
+        <div data-testid="scenario-strip" style={{
           background: "#1e293b", borderRadius: 12, padding: "16px 20px",
           border: "1px solid #fbbf2433", marginBottom: 24,
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20
@@ -89,17 +89,19 @@ const ScenarioStrip = ({
                     </tbody>
                   </table>
                   <Slider label="Base living expenses" value={baseExpenses} onChange={set('baseExpenses')}
+                    testId="scenario-base-expenses"
                     min={25000} max={55000} step={500} color="#f87171"
                     format={(v) => fmtFull(v)} />
                 </div>
               );
             })()}
 
-            <Toggle label={`Retire all debt (${fmtFull(debtTotal)} → saves ${fmtFull(debtService)}/mo)`} checked={retireDebt} onChange={set('retireDebt')} color="#4ade80" />
-            <Toggle label="Lifestyle + spending cuts" checked={lifestyleCutsApplied} onChange={set('lifestyleCutsApplied')} color="#4ade80" />
+            <Toggle label={`Retire all debt (${fmtFull(debtTotal)} → saves ${fmtFull(debtService)}/mo)`} checked={retireDebt} onChange={set('retireDebt')} color="#4ade80" testId="scenario-retire-debt" />
+            <Toggle label="Lifestyle + spending cuts" checked={lifestyleCutsApplied} onChange={set('lifestyleCutsApplied')} color="#4ade80" testId="scenario-lifestyle-cuts" />
             {lifestyleCutsApplied && (
               <div style={{ marginLeft: 54, marginTop: -2, marginBottom: 6 }}>
                 <Slider label="Total cuts" value={cutsOverride != null ? cutsOverride : (lifestyleCuts + cutInHalf + extraCuts)}
+                  testId="scenario-total-cuts"
                   onChange={(v) => set('cutsOverride')(v)}
                   min={0} max={25000} step={500} color="#4ade80"
                   format={(v) => fmtFull(v) + '/mo'} />
@@ -107,6 +109,7 @@ const ScenarioStrip = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#64748b', marginTop: 2 }}>
                     <span>Detail total: {fmtFull(lifestyleCuts + cutInHalf + extraCuts)}/mo</span>
                     <span style={{ color: '#4ade80', cursor: 'pointer', textDecoration: 'underline' }}
+                      data-testid="scenario-reset-cuts-override"
                       onClick={() => set('cutsOverride')(null)}>
                       Reset to detail
                     </span>
@@ -114,7 +117,7 @@ const ScenarioStrip = ({
                 )}
               </div>
             )}
-            <Toggle label={`Sell the van (saves ${fmtFull(vanMonthlySavings)}/mo)`} checked={vanSold} onChange={set('vanSold')} color="#4ade80" />
+            <Toggle label={`Sell the van (saves ${fmtFull(vanMonthlySavings)}/mo)`} checked={vanSold} onChange={set('vanSold')} color="#4ade80" testId="scenario-van-sold" />
             <div style={{ margin: "8px 0 2px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "#94a3b8" }}>BCS tuition — parents' contribution</span>
@@ -124,6 +127,8 @@ const ScenarioStrip = ({
               </div>
               <div style={{ position: "relative", padding: "0 2px" }}>
                 <input type="range" min={0} max={bcsAnnualTotal} step={1000} value={bcsParentsAnnual}
+                  data-testid="scenario-bcs-parents-annual"
+                  aria-label="BCS tuition parents contribution"
                   onChange={(e) => set('bcsParentsAnnual')(Number(e.target.value))}
                   style={{ width: "100%", accentColor: "#c084fc", cursor: "pointer" }} />
                 {/* Tick marks */}

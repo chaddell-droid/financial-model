@@ -216,7 +216,10 @@ export default function FinancialModel() {
     setTimeout(() => {
       const base = gatherState();
       const mcParams = { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline };
-      const results = runMonteCarlo(base, mcParams, goals);
+      const mcSeed = typeof window !== 'undefined' && window.__FIN_MODEL_TEST__ && typeof window.__FIN_MODEL_TEST__.getMonteCarloSeed === 'function'
+        ? window.__FIN_MODEL_TEST__.getMonteCarloSeed()
+        : null;
+      const results = runMonteCarlo(base, mcParams, goals, { seed: mcSeed });
       set('mcResults')(results);
       set('mcRunning')(false);
     }, 50);
@@ -612,8 +615,8 @@ export default function FinancialModel() {
                 <RiskTab
                   monteCarloProps={monteCarloProps}
                   seqReturnsProps={seqReturnsProps}
-                  savingsDrawdownProps={savingsDrawdownProps}
-                  netWorthProps={netWorthProps}
+                  savingsDrawdownProps={{ ...savingsDrawdownProps, instanceId: 'risk-tab' }}
+                  netWorthProps={{ ...netWorthProps, instanceId: 'risk-tab' }}
                 />
               )}
 
@@ -628,8 +631,8 @@ export default function FinancialModel() {
 
             {/* Right column: Key charts — always visible, sticky */}
             <div style={{ position: "sticky", top: 16, alignSelf: "start" }}>
-              <SavingsDrawdownChart {...savingsDrawdownProps} />
-              <NetWorthChart {...netWorthProps} />
+              <SavingsDrawdownChart {...savingsDrawdownProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
+              <NetWorthChart {...netWorthProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
               <RetirementIncomeChart
                 savingsData={savingsData} wealthData={wealthData}
                 ssType={ssType} ssPersonal={ssPersonal}

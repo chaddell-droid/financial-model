@@ -37,7 +37,7 @@ const ExpenseControls = ({
   const cutValues = { cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems };
 
   return (
-          <div style={{
+          <div data-testid="expense-controls" style={{
             background: "#1e293b", borderRadius: 12, padding: 20,
             border: "1px solid #334155"
           }}>
@@ -99,6 +99,8 @@ const ExpenseControls = ({
                         <span style={{ color: lifestyleCutsApplied ? "#4ade80" : "#64748b" }}>Cut: {fmtFull(val)}</span>
                       </div>
                       <input type="range" min={0} max={item.was} step={50} value={val}
+                        data-testid={`expense-cut-${item.key}`}
+                        aria-label={`${item.label} cut amount`}
                         onChange={(e) => set(item.key)(Number(e.target.value))}
                         style={{ width: "100%", accentColor: lifestyleCutsApplied ? "#4ade80" : "#334155", height: 4 }} />
                       {item.sub && <div style={{ fontSize: 8, color: "#475569", marginTop: 1 }}>{item.sub}</div>}
@@ -131,15 +133,21 @@ const ExpenseControls = ({
                 <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
                   <input
                     type="text" value={ms.name}
+                    data-testid={`expense-milestone-name-${i}`}
+                    aria-label={`Milestone ${i + 1} name`}
                     onChange={(e) => { const u = [...milestones]; u[i] = {...u[i], name: e.target.value}; set('milestones')(u); }}
                     style={{ flex: 2, background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 11, fontFamily: "'Inter', sans-serif", outline: "none" }}
                   />
                   <div style={{ flex: 1 }}>
                     <Slider label="" value={ms.month} onChange={(v) => { const u = [...milestones]; u[i] = {...u[i], month: v}; set('milestones')(u); }}
+                      testId={`expense-milestone-month-${i}`}
+                      ariaLabel={`Milestone ${i + 1} month`}
                       min={3} max={60} format={(v) => v + "mo"} color="#94a3b8" />
                   </div>
                   <div style={{ flex: 1 }}>
                     <Slider label="" value={ms.savings} onChange={(v) => { const u = [...milestones]; u[i] = {...u[i], savings: v}; set('milestones')(u); }}
+                      testId={`expense-milestone-savings-${i}`}
+                      ariaLabel={`Milestone ${i + 1} savings`}
                       min={0} max={5000} step={100} color="#4ade80" />
                   </div>
                   <span style={{ fontSize: 10, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", minWidth: 55, textAlign: "right" }}>
@@ -147,12 +155,16 @@ const ExpenseControls = ({
                   </span>
                   <button
                     onClick={() => set('milestones')(milestones.filter((_, j) => j !== i))}
+                    data-testid={`expense-milestone-delete-${i}`}
+                    aria-label={`Delete milestone ${i + 1}`}
                     style={{ background: "transparent", border: "1px solid #334155", borderRadius: 4, color: "#64748b", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
                   >✕</button>
                 </div>
               ))}
               <button
                 onClick={() => set('milestones')([...milestones, { name: "New event", month: 24, savings: 500 }])}
+                data-testid="expense-add-milestone"
+                aria-label="Add milestone"
                 style={{ background: "transparent", border: "1px dashed #334155", borderRadius: 4, color: "#64748b", fontSize: 11, padding: "4px 10px", cursor: "pointer", width: "100%", marginTop: 4, fontFamily: "'Inter', sans-serif" }}
               >+ Add milestone</button>
               {milestones.length > 0 && (
@@ -166,19 +178,19 @@ const ExpenseControls = ({
             <div style={{ marginTop: 12 }}>
               <h4 style={{ fontSize: 12, color: "#fbbf24", margin: "0 0 8px", textTransform: "uppercase" }}>One-Time Capital Needs (Advance Items)</h4>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Toggle label="" checked={moldInclude} onChange={set('moldInclude')} color="#fbbf24" />
+                <Toggle label="" checked={moldInclude} onChange={set('moldInclude')} color="#fbbf24" testId="expense-mold-include" ariaLabel="Include mold remediation" />
                 <div style={{ flex: 1, opacity: moldInclude ? 1 : 0.4 }}>
                   <Slider label="Mold remediation" value={moldCost} onChange={set('moldCost')} min={20000} max={100000} step={5000} color={moldInclude ? "#fbbf24" : "#334155"} />
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Toggle label="" checked={roofInclude} onChange={set('roofInclude')} color="#fbbf24" />
+                <Toggle label="" checked={roofInclude} onChange={set('roofInclude')} color="#fbbf24" testId="expense-roof-include" ariaLabel="Include roof project" />
                 <div style={{ flex: 1, opacity: roofInclude ? 1 : 0.4 }}>
                   <Slider label="Roof" value={roofCost} onChange={set('roofCost')} min={20000} max={60000} step={5000} color={roofInclude ? "#fbbf24" : "#334155"} />
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Toggle label="" checked={otherInclude} onChange={set('otherInclude')} color="#fbbf24" />
+                <Toggle label="" checked={otherInclude} onChange={set('otherInclude')} color="#fbbf24" testId="expense-other-projects-include" ariaLabel="Include house projects and toilets" />
                 <div style={{ flex: 1, opacity: otherInclude ? 1 : 0.4 }}>
                   <Slider label="House projects + toilets" value={otherProjects} onChange={set('otherProjects')} min={10000} max={60000} step={5000} color={otherInclude ? "#fbbf24" : "#334155"} />
                 </div>

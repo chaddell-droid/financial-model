@@ -1,0 +1,457 @@
+{
+  "version": 1,
+  "generatedAt": "2026-03-21",
+  "appUrl": "http://127.0.0.1:5173/?ui_test=1&mc_seed=123&reset_storage=1",
+  "harness": {
+    "browserApi": "window.__FIN_MODEL_TEST__",
+    "storageReset": "resetStorage()",
+    "storageKeys": "listStorageKeys()",
+    "storageSnapshot": "getStorageSnapshot()",
+    "seedRead": "getMonteCarloSeed()",
+    "seedWrite": "setMonteCarloSeed(seed)"
+  },
+  "statuses": {
+    "ready": "Stable selector and strong expected behavior are both available.",
+    "partial": "Behavior is testable but still relies on text selectors or layout assumptions.",
+    "observe": "Read-only or primarily visual surface; validate rendering and integrity."
+  },
+  "workers": [
+    {
+      "id": "worker-1",
+      "name": "Shell And Persistence",
+      "surfaces": ["shell", "save_load", "goals", "scenario_strip"]
+    },
+    {
+      "id": "worker-2",
+      "name": "Overview And Plan Controls",
+      "surfaces": ["overview", "plan"]
+    },
+    {
+      "id": "worker-3",
+      "name": "Income Tab",
+      "surfaces": ["income"]
+    },
+    {
+      "id": "worker-4",
+      "name": "Risk Tab",
+      "surfaces": ["risk"]
+    },
+    {
+      "id": "worker-5",
+      "name": "Retirement",
+      "surfaces": ["retirement", "retirement_help"]
+    },
+    {
+      "id": "worker-6",
+      "name": "Details, Sarah, And Dad Modes",
+      "surfaces": ["details", "sarah_mode", "dad_mode"]
+    }
+  ],
+  "knownGaps": [
+    "GoalPanel and DadMode still depend partly on visible-text selectors instead of dedicated test ids.",
+    "BridgeChart, SarahPracticeChart, DataTable, and SummaryAsk are observation surfaces, not strong interaction surfaces.",
+    "Compare-state and help-dismissal checks must start from a reset storage baseline.",
+    "Hover checks should use explicit hover-surface selectors from Wave 0 rather than guessed coordinates."
+  ],
+  "entries": [
+    {
+      "id": "shell.header.primary_controls",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "shell",
+      "paths": ["src/components/Header.jsx"],
+      "preconditions": ["default app view", "presentMode=false"],
+      "elements": [
+        { "selector": "[data-testid=\"header-present-mode\"]", "expect": "toggles presentation mode and aria-label text" },
+        { "selector": "[data-testid=\"header-enter-sarah-mode\"]", "expect": "enters Sarah mode" },
+        { "selector": "[data-testid=\"header-enter-dad-mode\"]", "expect": "enters Dad mode" },
+        { "selector": "[data-testid=\"header-toggle-save-load\"]", "expect": "shows and hides the save/load panel" },
+        { "selector": "[data-testid=\"header-reset-all\"]", "expect": "restores baseline state after confirmation flow" },
+        { "selector": "[data-testid=\"header-export-json\"]", "expect": "produces an export without console errors" }
+      ],
+      "checks": ["render", "input", "mode", "persistence", "integrity"]
+    },
+    {
+      "id": "shell.tab_bar.navigation",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "shell",
+      "paths": ["src/components/TabBar.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"tab-overview\"]", "expect": "shows Overview content" },
+        { "selector": "[data-testid=\"tab-plan\"]", "expect": "shows Plan content" },
+        { "selector": "[data-testid=\"tab-income\"]", "expect": "shows Income content" },
+        { "selector": "[data-testid=\"tab-risk\"]", "expect": "shows Risk content" },
+        { "selector": "[data-testid=\"tab-details\"]", "expect": "shows Details content" }
+      ],
+      "checks": ["render", "input", "state", "mode"]
+    },
+    {
+      "id": "shell.save_load.lifecycle",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "save_load",
+      "paths": ["src/components/SaveLoadPanel.jsx"],
+      "preconditions": ["save/load panel open"],
+      "elements": [
+        { "selector": "[data-testid=\"save-load-name\"]", "expect": "accepts a scenario name" },
+        { "selector": "[data-testid=\"save-load-save-current\"]", "expect": "creates a saved scenario row" },
+        { "selector": "[data-testid^=\"save-load-load-\"]", "expect": "loads saved state back into the app" },
+        { "selector": "[data-testid^=\"save-load-update-\"]", "expect": "overwrites saved scenario with current state" },
+        { "selector": "[data-testid^=\"save-load-compare-\"]", "expect": "toggles compare state" },
+        { "selector": "[data-testid^=\"save-load-delete-\"]", "expect": "removes the saved scenario row" }
+      ],
+      "checks": ["render", "input", "state", "persistence", "integrity"]
+    },
+    {
+      "id": "shell.comparison_banner.clear",
+      "worker": "worker-1",
+      "status": "partial",
+      "surface": "save_load",
+      "paths": ["src/components/ComparisonBanner.jsx"],
+      "preconditions": ["compare state active"],
+      "elements": [
+        { "selector": "button:has-text(\"Clear comparison\")", "expect": "clears compare mode and hides banner" }
+      ],
+      "checks": ["render", "input", "state"]
+    },
+    {
+      "id": "shell.goal_panel.core",
+      "worker": "worker-1",
+      "status": "partial",
+      "surface": "goals",
+      "paths": ["src/panels/GoalPanel.jsx"],
+      "preconditions": ["presentMode=false"],
+      "elements": [
+        { "selector": "text=Goal Tracker", "expect": "collapses and expands the panel" },
+        { "selector": "button:has-text(\"+ Add Goal\")", "expect": "opens the add-goal form" },
+        { "selector": "input[placeholder=\"Goal name...\"]", "expect": "accepts goal name input" },
+        { "selector": "select", "expect": "changes goal type" },
+        { "selector": "input[type=\"number\"]", "expect": "updates target amount" },
+        { "selector": "input[type=\"range\"]", "expect": "updates target month" },
+        { "selector": "button:has-text(\"Add Goal\")", "expect": "adds a goal card" },
+        { "selector": "button[title=\"Remove goal\"]", "expect": "deletes the goal card" }
+      ],
+      "checks": ["render", "input", "state", "derived", "persistence"]
+    },
+    {
+      "id": "shell.scenario_strip.core",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "scenario_strip",
+      "paths": ["src/panels/ScenarioStrip.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"scenario-base-expenses\"]", "expect": "changes monthly spending breakdown totals" },
+        { "selector": "[data-testid=\"scenario-retire-debt\"]", "expect": "toggles debt-retirement scenario" },
+        { "selector": "[data-testid=\"scenario-lifestyle-cuts\"]", "expect": "toggles cuts and reveals total-cuts slider" },
+        { "selector": "[data-testid=\"scenario-total-cuts\"]", "expect": "overrides total cuts while cuts are enabled" },
+        { "selector": "[data-testid=\"scenario-reset-cuts-override\"]", "expect": "resets cuts override back to detail totals" },
+        { "selector": "[data-testid=\"scenario-van-sold\"]", "expect": "toggles van sale scenario" },
+        { "selector": "[data-testid=\"scenario-bcs-parents-annual\"]", "expect": "updates BCS family share and inheritance ask summary" }
+      ],
+      "checks": ["render", "input", "state", "derived"]
+    },
+    {
+      "id": "overview.bridge_chart.observe",
+      "worker": "worker-2",
+      "status": "observe",
+      "surface": "overview",
+      "paths": ["src/panels/tabs/OverviewTab.jsx", "src/charts/BridgeChart.jsx"],
+      "elements": [
+        { "selector": "text=Bridge", "expect": "chart renders without clipping or stale labels" }
+      ],
+      "checks": ["render", "visual", "integrity"]
+    },
+    {
+      "id": "plan.monthly_cash_flow.hover",
+      "worker": "worker-2",
+      "status": "ready",
+      "surface": "plan",
+      "paths": ["src/charts/MonthlyCashFlowChart.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"monthly-cash-flow-hover-surface\"]", "expect": "hover shows month-specific tooltip values" }
+      ],
+      "checks": ["render", "visual", "derived", "integrity"]
+    },
+    {
+      "id": "plan.income_controls.core",
+      "worker": "worker-2",
+      "status": "ready",
+      "surface": "plan",
+      "paths": ["src/panels/IncomeControls.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"income-controls\"]", "expect": "root panel renders" },
+        { "selector": "[aria-label=\"Current hourly rate\"]", "expect": "changes Sarah gross billings" },
+        { "selector": "[aria-label=\"Rate growth/yr\"]", "expect": "changes forward Sarah rate trajectory" },
+        { "selector": "[aria-label=\"Current clients/day\"]", "expect": "changes Sarah current revenue" },
+        { "selector": "[data-testid=\"income-ss-type-ssdi\"]", "expect": "switches to SSDI controls" },
+        { "selector": "[data-testid=\"income-ss-type-ss\"]", "expect": "switches to SS retirement controls" },
+        { "selector": "[data-testid=\"income-chad-job\"]", "expect": "enables W-2 path and disables SS/consulting path" },
+        { "selector": "[data-testid=\"income-ssdi-denied\"]", "expect": "zeroes SSDI path and disables related controls" },
+        { "selector": "[data-testid=\"income-van-sold\"]", "expect": "reveals van sale economics" }
+      ],
+      "checks": ["render", "input", "state", "derived", "mode"]
+    },
+    {
+      "id": "plan.expense_controls.core",
+      "worker": "worker-2",
+      "status": "ready",
+      "surface": "plan",
+      "paths": ["src/panels/ExpenseControls.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"expense-controls\"]", "expect": "root panel renders" },
+        { "selector": "[data-testid=\"expense-cut-cutOliver\"]", "expect": "updates spending cuts totals" },
+        { "selector": "[data-testid=\"expense-cut-cutMedical\"]", "expect": "updates spending cuts totals" },
+        { "selector": "[data-testid=\"expense-add-milestone\"]", "expect": "adds a milestone row" },
+        { "selector": "[data-testid^=\"expense-milestone-name-\"]", "expect": "renames milestone" },
+        { "selector": "[data-testid^=\"expense-milestone-month-\"]", "expect": "moves milestone timing" },
+        { "selector": "[data-testid^=\"expense-milestone-savings-\"]", "expect": "changes milestone savings" },
+        { "selector": "[data-testid^=\"expense-milestone-delete-\"]", "expect": "removes milestone row" },
+        { "selector": "[data-testid=\"expense-mold-include\"]", "expect": "toggles mold project inclusion" },
+        { "selector": "[data-testid=\"expense-roof-include\"]", "expect": "toggles roof project inclusion" },
+        { "selector": "[data-testid=\"expense-other-projects-include\"]", "expect": "toggles other projects inclusion" }
+      ],
+      "checks": ["render", "input", "state", "derived"]
+    },
+    {
+      "id": "income.msft_vesting.controls",
+      "worker": "worker-3",
+      "status": "partial",
+      "surface": "income",
+      "paths": ["src/charts/MsftVestingChart.jsx"],
+      "elements": [
+        { "selector": "[aria-label=\"MSFT annual price growth\"]", "expect": "changes future vest values and footer projection" }
+      ],
+      "checks": ["render", "input", "derived"]
+    },
+    {
+      "id": "income.sarah_practice.observe",
+      "worker": "worker-3",
+      "status": "observe",
+      "surface": "income",
+      "paths": ["src/charts/SarahPracticeChart.jsx"],
+      "elements": [
+        { "selector": "text=Sarah", "expect": "practice chart updates when shared Sarah sliders move" }
+      ],
+      "checks": ["render", "derived", "visual"]
+    },
+    {
+      "id": "income.composition.hover",
+      "worker": "worker-3",
+      "status": "ready",
+      "surface": "income",
+      "paths": ["src/charts/IncomeCompositionChart.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"income-composition-hover-surface\"]", "expect": "hover reveals quarterly income composition detail" }
+      ],
+      "checks": ["render", "visual", "derived", "integrity"]
+    },
+    {
+      "id": "risk.monte_carlo.controls",
+      "worker": "worker-4",
+      "status": "ready",
+      "surface": "risk",
+      "paths": ["src/charts/MonteCarloPanel.jsx"],
+      "elements": [
+        { "selector": "[aria-label=\"Investment volatility\"]", "expect": "changes MC parameter state" },
+        { "selector": "[aria-label=\"Business growth uncertainty\"]", "expect": "changes MC parameter state" },
+        { "selector": "[aria-label=\"MSFT price uncertainty\"]", "expect": "changes MC parameter state" },
+        { "selector": "[aria-label=\"SSDI max delay\"]", "expect": "changes MC parameter state" },
+        { "selector": "[aria-label=\"SSDI denial rate\"]", "expect": "changes MC parameter state" },
+        { "selector": "[aria-label=\"Spending discipline uncertainty\"]", "expect": "changes MC parameter state" },
+        { "selector": "[aria-label=\"Number of simulations\"]", "expect": "changes MC parameter state" },
+        { "selector": "[data-testid=\"monte-carlo-run\"]", "expect": "runs deterministic Monte Carlo and renders results" }
+      ],
+      "checks": ["render", "input", "state", "derived", "integrity"]
+    },
+    {
+      "id": "risk.monte_carlo.hover",
+      "worker": "worker-4",
+      "status": "ready",
+      "surface": "risk",
+      "paths": ["src/charts/MonteCarloPanel.jsx"],
+      "preconditions": ["Monte Carlo has been run"],
+      "elements": [
+        { "selector": "[data-testid=\"monte-carlo-fan-chart-hover-surface\"]", "expect": "hover reveals percentile tooltip for chosen month" }
+      ],
+      "checks": ["render", "visual", "derived"]
+    },
+    {
+      "id": "risk.sequence_of_returns.controls",
+      "worker": "worker-4",
+      "status": "partial",
+      "surface": "risk",
+      "paths": ["src/charts/SequenceOfReturnsChart.jsx"],
+      "elements": [
+        { "selector": "[aria-label=\"Bad year 1 return\"]", "expect": "changes early-loss scenario line" },
+        { "selector": "[aria-label=\"Bad year 2 return\"]", "expect": "changes early-loss scenario line" }
+      ],
+      "checks": ["render", "input", "derived"]
+    },
+    {
+      "id": "risk.savings_drawdown.instances",
+      "worker": "worker-4",
+      "status": "ready",
+      "surface": "risk",
+      "paths": ["src/charts/SavingsDrawdownChart.jsx", "src/FinancialModel.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"savings-drawdown-hover-surface-risk-tab\"]", "expect": "hover works on in-tab chart instance" },
+        { "selector": "[data-testid=\"savings-drawdown-hover-surface-right-rail\"]", "expect": "hover works on right-rail chart instance" }
+      ],
+      "checks": ["render", "visual", "integrity"]
+    },
+    {
+      "id": "risk.net_worth.instances",
+      "worker": "worker-4",
+      "status": "ready",
+      "surface": "risk",
+      "paths": ["src/charts/NetWorthChart.jsx", "src/FinancialModel.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"net-worth-hover-surface-risk-tab\"]", "expect": "hover works on in-tab chart instance" },
+        { "selector": "[data-testid=\"net-worth-hover-surface-right-rail\"]", "expect": "hover works on right-rail chart instance" }
+      ],
+      "checks": ["render", "visual", "integrity"]
+    },
+    {
+      "id": "retirement.mode_and_help",
+      "worker": "worker-5",
+      "status": "ready",
+      "surface": "retirement",
+      "paths": ["src/charts/RetirementIncomeChart.jsx", "src/components/help/HelpDrawer.jsx", "src/components/help/HelpTip.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"retirement-mode-historical_safe\"]", "expect": "shows Historical Safe controls" },
+        { "selector": "[data-testid=\"retirement-mode-adaptive_pwa\"]", "expect": "shows Adaptive PWA controls" },
+        { "selector": "[data-testid=\"retirement-adaptive-pwa-intro-dismiss\"]", "expect": "dismisses the intro and persists dismissal" },
+        { "selector": "[aria-label^=\"Explain \"]", "expect": "opens inline help popovers without layout breakage" }
+      ],
+      "checks": ["render", "input", "mode", "persistence", "visual"]
+    },
+    {
+      "id": "retirement.historical_controls",
+      "worker": "worker-5",
+      "status": "ready",
+      "surface": "retirement",
+      "paths": ["src/charts/RetirementIncomeChart.jsx"],
+      "preconditions": ["Historical Safe mode active"],
+      "elements": [
+        { "selector": "[aria-label=\"Pool draw rate\"]", "expect": "changes planned pool draw and cards" },
+        { "selector": "[aria-label=\"Equity allocation\"]", "expect": "changes historical return blend" },
+        { "selector": "[aria-label=\"Pool floor reserve\"]", "expect": "changes reserve boundary" },
+        { "selector": "[aria-label=\"Chad passes at\"]", "expect": "changes survivor transition timing" },
+        { "selector": "[aria-label=\"Inheritance amount\"]", "expect": "changes inheritance scenario" },
+        { "selector": "[aria-label=\"Sarah's age at inheritance\"]", "expect": "changes inheritance timing" },
+        { "selector": "[aria-label=\"Max depletion gap\"]", "expect": "changes looser ERN-style acceptance rule" }
+      ],
+      "checks": ["render", "input", "state", "derived"]
+    },
+    {
+      "id": "retirement.main_chart.hover",
+      "worker": "worker-5",
+      "status": "ready",
+      "surface": "retirement",
+      "paths": ["src/charts/RetirementIncomeChart.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"retirement-main-chart-hover-surface\"]", "expect": "hover reveals cohort/pool tooltip details" }
+      ],
+      "checks": ["render", "visual", "derived"]
+    },
+    {
+      "id": "retirement.pwa_controls",
+      "worker": "worker-5",
+      "status": "ready",
+      "surface": "retirement",
+      "paths": ["src/charts/RetirementIncomeChart.jsx"],
+      "preconditions": ["Adaptive PWA mode active"],
+      "elements": [
+        { "selector": "[aria-label=\"Bequest target\"]", "expect": "changes distribution and recommendation" },
+        { "selector": "[data-testid=\"retirement-pwa-strategy\"]", "expect": "switches strategy logic" },
+        { "selector": "[aria-label=\"Target percentile\"]", "expect": "changes recommended target when fixed percentile is active" },
+        { "selector": "[aria-label=\"Tolerance band low\"]", "expect": "changes sticky strategy lower band" },
+        { "selector": "[aria-label=\"Tolerance band high\"]", "expect": "changes sticky strategy upper band" }
+      ],
+      "checks": ["render", "input", "state", "derived", "mode"]
+    },
+    {
+      "id": "retirement.pwa_distribution.hover",
+      "worker": "worker-5",
+      "status": "ready",
+      "surface": "retirement",
+      "paths": ["src/charts/PwaDistributionChart.jsx"],
+      "preconditions": ["Adaptive PWA mode active", "positive retirement pool"],
+      "elements": [
+        { "selector": "[data-testid=\"retirement-pwa-distribution-hover-surface\"]", "expect": "hover on bins and markers reveals distribution tooltip" }
+      ],
+      "checks": ["render", "visual", "derived"]
+    },
+    {
+      "id": "retirement.decision_preview.observe",
+      "worker": "worker-5",
+      "status": "observe",
+      "surface": "retirement",
+      "paths": ["src/charts/RetirementIncomeChart.jsx"],
+      "preconditions": ["Adaptive PWA mode active"],
+      "elements": [
+        { "selector": "text=Annual decision preview", "expect": "table reflects yearly re-solving without stale values" }
+      ],
+      "checks": ["render", "derived", "integrity"]
+    },
+    {
+      "id": "details.summary_and_table.observe",
+      "worker": "worker-6",
+      "status": "observe",
+      "surface": "details",
+      "paths": ["src/panels/SummaryAsk.jsx", "src/panels/DataTable.jsx"],
+      "elements": [
+        { "selector": "text=The Ask", "expect": "summary narrative renders coherent financial claims" },
+        { "selector": "text=Detailed Projections", "expect": "data table renders the current projection rows" }
+      ],
+      "checks": ["render", "derived", "integrity"]
+    },
+    {
+      "id": "sarah_mode.entry_exit_and_sliders",
+      "worker": "worker-6",
+      "status": "partial",
+      "surface": "sarah_mode",
+      "paths": ["src/panels/SarahMode.jsx"],
+      "preconditions": ["enter from header"],
+      "elements": [
+        { "selector": "button:has-text(\"Back to Full View\")", "expect": "returns to the main app" },
+        { "selector": "[aria-label=\"Your hourly rate\"]", "expect": "changes Sarah-mode income framing" },
+        { "selector": "[aria-label=\"Max rate target\"]", "expect": "changes long-run ceiling framing" },
+        { "selector": "[aria-label=\"Current clients/day\"]", "expect": "changes current gross billings framing" },
+        { "selector": "[aria-label=\"Max clients target\"]", "expect": "changes long-run ceiling framing" },
+        { "selector": "[aria-label=\"Rate growth/year\"]", "expect": "changes practice growth framing" },
+        { "selector": "[aria-label=\"Client growth/year\"]", "expect": "changes practice growth framing" }
+      ],
+      "checks": ["render", "input", "mode", "derived"]
+    },
+    {
+      "id": "dad_mode.entry_exit_and_progression",
+      "worker": "worker-6",
+      "status": "partial",
+      "surface": "dad_mode",
+      "paths": ["src/panels/DadMode.jsx"],
+      "preconditions": ["enter from header"],
+      "elements": [
+        { "selector": "button:has-text(\"Back to full model\")", "expect": "returns to the main app" },
+        { "selector": "button:has-text(\"Here's what we're already doing\")", "expect": "advances Dad mode from act 1 to act 2" },
+        { "selector": "button:has-text(\"Here's where you can make the difference\")", "expect": "advances Dad mode from act 2 to act 3" }
+      ],
+      "checks": ["render", "input", "mode", "state"]
+    },
+    {
+      "id": "dad_mode.support_controls",
+      "worker": "worker-6",
+      "status": "partial",
+      "surface": "dad_mode",
+      "paths": ["src/panels/DadMode.jsx"],
+      "preconditions": ["Dad mode act 3 active"],
+      "elements": [
+        { "selector": "[aria-label=\"Pay off debt\"]", "expect": "changes debt-support scenario math" },
+        { "selector": "input[type=\"range\"][value]", "expect": "BCS contribution slider changes family share in Dad mode" },
+        { "selector": "[role=\"switch\"]", "expect": "house project toggles change one-time support math" }
+      ],
+      "checks": ["render", "input", "derived", "integrity"]
+    }
+  ]
+}

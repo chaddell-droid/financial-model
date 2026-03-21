@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import FinancialModel from './FinancialModel.jsx';
 import './index.css';
+import { installUiTestHarness } from './testing/uiHarness.js';
 
 // Polyfill window.storage — Claude artifacts provide this API,
 // but in a standard browser we use localStorage as the backing store
@@ -46,6 +47,8 @@ window.storage = {
     return { keys, shared: false };
   }
 };
+
+installUiTestHarness();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

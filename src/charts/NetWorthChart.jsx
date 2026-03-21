@@ -7,6 +7,7 @@ export default function NetWorthChart({
   savingsData, wealthData,
   starting401k, return401k, homeEquity, homeAppreciation,
   presentMode, onFieldChange,
+  instanceId = 'default',
 }) {
   const [tooltip, setTooltip] = useState(null);
 
@@ -61,7 +62,7 @@ export default function NetWorthChart({
   ];
 
   return (
-    <div style={{
+    <div data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={{
       background: '#1e293b', borderRadius: 12, padding: '20px 16px',
       border: '1px solid #334155', marginBottom: 24,
     }}>
@@ -89,8 +90,8 @@ export default function NetWorthChart({
       </div>
 
       {/* Chart */}
-      <div style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
-        <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
+      <div data-testid={`net-worth-hover-surface-${instanceId}`} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
+        <svg data-testid={`net-worth-svg-${instanceId}`} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const mouseX = (e.clientX - rect.left) / rect.width * svgW;

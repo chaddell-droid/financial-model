@@ -155,19 +155,45 @@ export default function RetirementIncomeChart({
     const numCohorts = getNumCohorts(horizonMonths);
     if (numCohorts <= 0 || cohortSWRs.length === 0) return empty;
 
-    // Sort cohort SWRs -> 10th percentile = 90% survival consumption
+    // Three-tier rate computation (formula_theoretical ≥ ern_max ≥ safe_rate)
+    const initialIncome = chadSS + trustMonthly;
+    const targetSurvival = 0.90;
+
+    // Helper: binary search for max pool draw rate at given survival constraint
+    function findMaxRate(hi, checkFn) {
+      let lo = 0.1;
+      for (let iter = 0; iter < 30; iter++) {
+        const mid = (lo + hi) / 2;
+        const testPoolDraw = Math.round(totalPool * (mid / 100) / 12);
+        const testConsumption = testPoolDraw + initialIncome;
+        let survived = 0;
+        for (let c = 0; c < numCohorts; c++) {
+          const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
+          if (checkFn(sim)) survived++;
+        }
+        if (survived / numCohorts >= targetSurvival) lo = mid; else hi = mid;
+      }
+      return Math.round(lo * 10) / 10;
+    }
+
+    // Tier 1: Formula theoretical rate (closed-form, no floor constraint — educational only)
     const sorted = Float64Array.from(cohortSWRs).sort();
     const p10idx = Math.floor(numCohorts * 0.10);
-    const optimalConsumption = Math.max(0, sorted[p10idx]);
+    const theoreticalConsumption = Math.max(0, sorted[p10idx]);
+    const theoreticalPoolDraw = Math.max(0, theoreticalConsumption - initialIncome);
+    const theoreticalHi = totalPool > 0
+      ? Math.ceil(theoreticalPoolDraw * 12 / totalPool * 100) + 5 : 50;
 
-    // Convert consumption -> pool withdrawal rate
-    const initialIncome = chadSS + trustMonthly; // SS at age 67 (Sarah 53, no spousal)
-    const optimalPoolDraw = Math.max(0, optimalConsumption - initialIncome);
-    const optimalRate = totalPool > 0
-      ? Math.round(optimalPoolDraw * 12 / totalPool * 1000) / 10 : 0;
-    const optimalMonthly = Math.round(optimalPoolDraw);
+    // Tier 2: ERN max rate (simulation-based, endpoint check only — pool can dip to $0 mid-path)
+    const optimalRate = findMaxRate(theoreticalHi, (sim) => sim.finalPool > poolFloor);
+    const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
+    const optimalConsumption = optimalMonthly + initialIncome;
 
-    // Pre-inheritance optimal rate
+    // Tier 3: Safe rate (simulation-based, pool never depletes)
+    const safeRate = findMaxRate(optimalRate + 1, (sim) => sim.finalPool > poolFloor && !sim.everDepleted);
+    const safeMonthly = Math.round(totalPool * (safeRate / 100) / 12);
+
+    // Pre-inheritance optimal rate (uses formula — informational)
     let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
     if (hasInheritance && inheritanceMonth > 0 && inheritanceMonth < horizonMonths) {
       const preSwrs = new Float64Array(numCohorts);
@@ -183,7 +209,7 @@ export default function RetirementIncomeChart({
       optimalPreMonthly = Math.round(prePoolDraw);
     }
 
-    // Worst historical cohort (lowest SWR)
+    // Worst historical cohort (lowest formula SWR)
     let worstIdx = 0;
     let worstSWR = Infinity;
     for (let c = 0; c < numCohorts; c++) {
@@ -194,23 +220,6 @@ export default function RetirementIncomeChart({
     const firstLabel = getCohortLabel(0);
     const lastLabel = getCohortLabel(numCohorts - 1);
     const cohortRange = `${firstLabel.year}\u2013${lastLabel.year}`;
-
-    // "Safe" rate: pool never depletes (binary search + simulatePath + everDepleted)
-    // Uses consumption + supplementalFlows (matching ERN formula)
-    let safeRateLo = 0.1, safeRateHi = 25;
-    for (let iter = 0; iter < 30; iter++) {
-      const mid = (safeRateLo + safeRateHi) / 2;
-      const testPoolDraw = Math.round(totalPool * (mid / 100) / 12);
-      const testConsumption = testPoolDraw + initialIncome;
-      let survived = 0;
-      for (let c = 0; c < numCohorts; c++) {
-        const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
-        if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
-      }
-      if (survived / numCohorts >= 0.90) safeRateLo = mid; else safeRateHi = mid;
-    }
-    const safeRate = Math.round(safeRateLo * 10) / 10;
-    const safeMonthly = Math.round(totalPool * (safeRate / 100) / 12);
 
     const sliderMax = Math.max(30, Math.ceil(optimalRate / 5) * 5 + 5);
 

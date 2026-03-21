@@ -91,8 +91,8 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
     }
   }
 
-  // Check if pool ever hit the floor (depleted at any point)
-  const everDepleted = yearlyPools.some(p => p <= floor);
+  // Check if pool ever went below the floor (strict: being AT the floor is OK)
+  const everDepleted = yearlyPools.some(p => p < floor);
 
   return { yearlyPools, finalPool: Math.round(pool), everDepleted };
 }

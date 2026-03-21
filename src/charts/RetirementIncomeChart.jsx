@@ -205,7 +205,7 @@ export default function RetirementIncomeChart({
       let survived = 0;
       for (let c = 0; c < numCohorts; c++) {
         const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
-        if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
+        if (sim.finalPool >= poolFloor && !sim.everDepleted) survived++;
       }
       if (survived / numCohorts >= 0.90) safeRateLo = mid; else safeRateHi = mid;
     }

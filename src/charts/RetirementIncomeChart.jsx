@@ -17,6 +17,7 @@ export default function RetirementIncomeChart({
   const [chadPassesAge, setChadPassesAge] = useState(82);
   const [inheritanceAmount, setInheritanceAmount] = useState(1000000);
   const [inheritanceSarahAge, setInheritanceSarahAge] = useState(60);
+  const [maxDepletionMonths, setMaxDepletionMonths] = useState(24);
   const [tooltip, setTooltip] = useState(null);
 
   // Chad is 60, Sarah is 46 (14 years younger)
@@ -180,10 +181,9 @@ export default function RetirementIncomeChart({
     const sorted = Float64Array.from(cohortSWRs).sort();
     const p10idx = Math.floor(numCohorts * 0.10);
     const theoreticalConsumption = Math.max(0, sorted[p10idx]);
-    // Tier 2: ERN max rate (simulation-based, endpoint check only — pool can dip to $0 mid-path)
-    // Upper bound must be high: simulation ERN max can EXCEED formula theoretical because
-    // stopped withdrawals during depletion preserve money the formula assumed would be spent.
-    const optimalRate = findMaxRate(80, (sim) => sim.finalPool > poolFloor);
+    // Tier 2: ERN max rate (simulation-based, pool can dip to $0 but not for too long)
+    // maxDepletionMonths constrains how long the pool can be empty (prevents degenerate strategies)
+    const optimalRate = findMaxRate(80, (sim) => sim.finalPool > poolFloor && sim.maxConsecutiveDepleted <= maxDepletionMonths);
     const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
     const optimalConsumption = optimalMonthly + initialIncome;
 
@@ -228,7 +228,7 @@ export default function RetirementIncomeChart({
       optimalConsumption, initialIncome, sliderMax,
     };
   }, [cohortSWRs, totalPool, horizonMonths, chadSS, trustMonthly,
-    hasInheritance, inheritanceMonth, blendedReturns, supplementalFlows, scaling, poolFloor, flows]);
+    hasInheritance, inheritanceMonth, blendedReturns, supplementalFlows, scaling, poolFloor, flows, maxDepletionMonths]);
 
   // Sync withdrawal slider to SAFE rate (pool never depletes) — chart default
   useEffect(() => {
@@ -715,7 +715,7 @@ export default function RetirementIncomeChart({
         <div style={{ borderTop: '1px solid #334155', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-              ERN max (pool ends at ${fmtPool(poolFloor)}, 90% survival)
+              ERN max (pool ends at ${fmtPool(poolFloor)}, {maxDepletionMonths > 0 ? `≤${maxDepletionMonths}mo gap` : 'no gap'}, 90% survival)
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
               {optRate}% = {fmtFull(optMonthly)}/mo from pool
@@ -804,6 +804,8 @@ export default function RetirementIncomeChart({
           min={0} max={2000000} step={50000} color="#4ade80" />
         <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
           min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
+        <Slider label="Max depletion gap" value={maxDepletionMonths} onChange={setMaxDepletionMonths}
+          min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
       </div>
 
       {/* Inheritance pre-withdrawal callout */}

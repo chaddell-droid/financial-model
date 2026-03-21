@@ -75,6 +75,8 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
   let pool = initialPool;
   const numYears = Math.floor(T / 12);
   const yearlyPools = [];
+  let consecutiveDepleted = 0;
+  let maxConsecutiveDepleted = 0;
 
   for (let y = 0; y <= numYears; y++) {
     yearlyPools.push(Math.round(pool));
@@ -85,14 +87,23 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
       if (pool > floor) {
         pool = pool * (1 + blended[start + t]) - monthlyW * scaling[t] + flows[t];
         if (pool < floor) pool = floor;
-      } else if (rescueFlows && rescueFlows[t] > 0) {
-        pool += rescueFlows[t]; // only inheritance rescues a depleted pool (not SS/trust)
+        if (pool > floor) {
+          consecutiveDepleted = 0;
+        } else {
+          consecutiveDepleted++;
+          if (consecutiveDepleted > maxConsecutiveDepleted) maxConsecutiveDepleted = consecutiveDepleted;
+        }
+      } else {
+        consecutiveDepleted++;
+        if (consecutiveDepleted > maxConsecutiveDepleted) maxConsecutiveDepleted = consecutiveDepleted;
+        if (rescueFlows && rescueFlows[t] > 0) {
+          pool += rescueFlows[t];
+        }
       }
     }
   }
 
-  // Check if pool ever hit the floor (depleted at any point)
   const everDepleted = yearlyPools.some(p => p <= floor);
 
-  return { yearlyPools, finalPool: Math.round(pool), everDepleted };
+  return { yearlyPools, finalPool: Math.round(pool), everDepleted, maxConsecutiveDepleted };
 }

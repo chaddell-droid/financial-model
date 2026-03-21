@@ -562,6 +562,23 @@ export default function RetirementIncomeChart({
           {fmtPool(totalPool)}
         </text>
 
+        {/* 10th percentile end label — shows where worst surviving cohort ends */}
+        {(() => {
+          const p10End = bandResult.bands[0].series[bandResult.bands[0].series.length - 1];
+          const endX = xScale(years);
+          const endY = yPool(p10End);
+          return (
+            <g>
+              <circle cx={endX} cy={endY} r="3" fill="#60a5fa" opacity="0.6" />
+              <text x={endX - 4} y={endY - 8} textAnchor="end"
+                fill="#60a5fa" fontSize="9" fontWeight="600" opacity="0.8"
+                fontFamily="'JetBrains Mono', monospace">
+                10th pctl: {fmtPool(p10End)}
+              </text>
+            </g>
+          );
+        })()}
+
         {/* Hover dot */}
         {tooltip && (
           <circle cx={xScale(tooltip.age - 67)} cy={yPool(tooltip.pool)} r="5"

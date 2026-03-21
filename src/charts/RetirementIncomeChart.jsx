@@ -180,12 +180,10 @@ export default function RetirementIncomeChart({
     const sorted = Float64Array.from(cohortSWRs).sort();
     const p10idx = Math.floor(numCohorts * 0.10);
     const theoreticalConsumption = Math.max(0, sorted[p10idx]);
-    const theoreticalPoolDraw = Math.max(0, theoreticalConsumption - initialIncome);
-    const theoreticalHi = totalPool > 0
-      ? Math.ceil(theoreticalPoolDraw * 12 / totalPool * 100) + 5 : 50;
-
     // Tier 2: ERN max rate (simulation-based, endpoint check only — pool can dip to $0 mid-path)
-    const optimalRate = findMaxRate(theoreticalHi, (sim) => sim.finalPool > poolFloor);
+    // Upper bound must be high: simulation ERN max can EXCEED formula theoretical because
+    // stopped withdrawals during depletion preserve money the formula assumed would be spent.
+    const optimalRate = findMaxRate(80, (sim) => sim.finalPool > poolFloor);
     const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
     const optimalConsumption = optimalMonthly + initialIncome;
 

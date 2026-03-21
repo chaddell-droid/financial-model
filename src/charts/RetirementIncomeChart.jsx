@@ -416,6 +416,11 @@ export default function RetirementIncomeChart({
           <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
             Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
           </div>
+          {chadPassesAge > 70 && bandResult.bands[0].series.length > (chadPassesAge - 67) && (
+            <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+              At {chadPassesAge}: {fmtPool(bandResult.bands[0].series[chadPassesAge - 67])} (worst) \u2013 {fmtPool(deterministicPools[chadPassesAge - 67])} (expected)
+            </div>
+          )}
         </div>
 
         {/* Pre-inheritance couple (or full couple if no inheritance during couple phase) */}
@@ -483,8 +488,8 @@ export default function RetirementIncomeChart({
           }
           const d = yearlyData[closestIdx];
           const pctX = (xScale(closestIdx) / svgW) * 100;
-          const pctY = (yPool(d.pool) / svgH) * 100;
           const histBands = bandResult.bands.map(b => b.series[closestIdx]);
+          const pctY = (yPool(histBands[0]) / svgH) * 100;
           setTooltip({ pctX, pctY, ...d, p10: histBands[0], p25: histBands[1], p50: histBands[2], p75: histBands[3], p90: histBands[4] });
         }}>
         {/* Grid */}
@@ -513,16 +518,16 @@ export default function RetirementIncomeChart({
           return <path key={bi} d={bandPath} fill={bp.color} opacity={bp.opacity} />;
         })}
 
-        {/* Historical median line (50th percentile) */}
-        {(() => {
-          const medianPts = bandResult.bands[2].series.map((v, i) => `${xScale(i)},${yPool(v)}`);
-          return <path d={`M ${medianPts.join(' L ')}`} fill="none" stroke="#60a5fa" strokeWidth="1.5"
-            strokeDasharray="4,3" opacity="0.5" />;
-        })()}
+        {/* Expected case line (average return — secondary, dashed) */}
+        <path d={poolLine} fill="none" stroke="#60a5fa" strokeWidth="1.5"
+          strokeDasharray="6,4" opacity="0.7" strokeLinejoin="round" strokeLinecap="round" />
 
-        {/* Deterministic line (expected return) */}
-        <path d={poolLine} fill="none" stroke="#60a5fa" strokeWidth="2.5"
-          strokeLinejoin="round" strokeLinecap="round" />
+        {/* SWR plan line (10th percentile — worst surviving case, primary) */}
+        {(() => {
+          const swrPts = bandResult.bands[0].series.map((v, i) => `${xScale(i)},${yPool(v)}`);
+          return <path d={`M ${swrPts.join(' L ')}`} fill="none" stroke="#f97316" strokeWidth="2.5"
+            strokeLinejoin="round" strokeLinecap="round" />;
+        })()}
 
         {/* Pool floor line */}
         {poolFloor > 0 && (
@@ -569,11 +574,11 @@ export default function RetirementIncomeChart({
           const endY = yPool(p10End);
           return (
             <g>
-              <circle cx={endX} cy={endY} r="3" fill="#60a5fa" opacity="0.6" />
+              <circle cx={endX} cy={endY} r="3" fill="#f97316" opacity="0.8" />
               <text x={endX - 4} y={endY - 8} textAnchor="end"
-                fill="#60a5fa" fontSize="9" fontWeight="600" opacity="0.8"
+                fill="#f97316" fontSize="9" fontWeight="600" opacity="0.9"
                 fontFamily="'JetBrains Mono', monospace">
-                10th pctl: {fmtPool(p10End)}
+                SWR: {fmtPool(p10End)}
               </text>
             </g>
           );
@@ -581,8 +586,8 @@ export default function RetirementIncomeChart({
 
         {/* Hover dot */}
         {tooltip && (
-          <circle cx={xScale(tooltip.age - 67)} cy={yPool(tooltip.pool)} r="5"
-            fill="#60a5fa" stroke="#f8fafc" strokeWidth="2" />
+          <circle cx={xScale(tooltip.age - 67)} cy={yPool(tooltip.p10)} r="5"
+            fill="#f97316" stroke="#f8fafc" strokeWidth="2" />
         )}
 
         {/* X-axis labels */}
@@ -619,14 +624,11 @@ export default function RetirementIncomeChart({
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
             Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : tooltip.phase === 'postInheritance' ? '(post-inheritance)' : ''}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool: {fmtFull(tooltip.pool)}
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#f97316', fontFamily: "'JetBrains Mono', monospace" }}>
+            Plan: {fmtFull(tooltip.p10)}
           </div>
-          <div style={{ fontSize: 10, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-            Historical: {fmtPool(tooltip.p10)} \u2013 {fmtPool(tooltip.p50)} \u2013 {fmtPool(tooltip.p90)}
-          </div>
-          <div style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-            (10th / median / 90th percentile)
+          <div style={{ fontSize: 11, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
+            Likely: {fmtFull(tooltip.pool)}
           </div>
           <div style={{ borderTop: '1px solid #334155', marginTop: 4, paddingTop: 4 }}>
             <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 600 }}>
@@ -643,10 +645,10 @@ export default function RetirementIncomeChart({
       {/* Legend */}
       <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11, flexWrap: 'wrap' }}>
         {[
-          { label: 'Expected return', color: '#60a5fa', solid: true },
-          { label: 'Historical median', color: '#60a5fa', dashed: true },
-          { label: '25-75th pctl', color: '#60a5fa', band: true, opacity: 0.25 },
-          { label: '10-90th pctl', color: '#60a5fa', band: true, opacity: 0.12 },
+          { label: 'Your plan (90% safe)', color: '#f97316', solid: true },
+          { label: "You'll probably see this", color: '#60a5fa', dashed: true },
+          { label: '25-75th pctl', color: '#60a5fa', band: true, opacity: 0.12 },
+          { label: '10-90th pctl', color: '#60a5fa', band: true, opacity: 0.08 },
           { label: 'Survivor phase', color: '#f59e0b', solid: true },
         ].map((item, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

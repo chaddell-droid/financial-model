@@ -254,7 +254,8 @@ export default function RetirementIncomeChart({
     for (let c = 0; c < numCohorts; c++) {
       const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
       allYearlyPools[c] = sim.yearlyPools;
-      if (cohortSWRs[c] >= userConsumption) survivedCount++;
+      // Simulation-based survival (matches the binary search that computed the rates)
+      if (sim.finalPool > poolFloor) survivedCount++;
     }
 
     const percentiles = [10, 25, 50, 75, 90];

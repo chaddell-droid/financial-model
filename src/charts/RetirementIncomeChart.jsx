@@ -767,7 +767,7 @@ export default function RetirementIncomeChart({
                     </div>
                   </div>
                   {/* ERN max marker (blue) — bottom row, staggered down */}
-                  {optRate > optimalRates.safeRate && (
+                  {optRate > 0 && (
                     <div style={{
                       position: 'absolute',
                       left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,

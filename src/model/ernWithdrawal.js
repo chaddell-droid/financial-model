@@ -71,7 +71,7 @@ export function computePreInhSWR(blended, start, T, supplementalFlows, scaling, 
  * Simulate pool trajectory at a given withdrawal rate for one cohort.
  * Returns yearly pool snapshots (start-of-year values).
  */
-export function simulatePath(blended, start, T, monthlyW, flows, scaling, initialPool, floor) {
+export function simulatePath(blended, start, T, monthlyW, flows, scaling, initialPool, floor, rescueFlows) {
   let pool = initialPool;
   const numYears = Math.floor(T / 12);
   const yearlyPools = [];
@@ -85,8 +85,8 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
       if (pool > floor) {
         pool = pool * (1 + blended[start + t]) - monthlyW * scaling[t] + flows[t];
         if (pool < floor) pool = floor;
-      } else if (flows[t] > 0) {
-        pool += flows[t]; // inheritance can rescue a depleted pool
+      } else if (rescueFlows && rescueFlows[t] > 0) {
+        pool += rescueFlows[t]; // only inheritance rescues a depleted pool (not SS/trust)
       }
     }
   }

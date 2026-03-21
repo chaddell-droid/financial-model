@@ -204,7 +204,7 @@ export default function RetirementIncomeChart({
       const testConsumption = testPoolDraw + initialIncome;
       let survived = 0;
       for (let c = 0; c < numCohorts; c++) {
-        const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor);
+        const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
         if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
       }
       if (survived / numCohorts >= 0.90) safeRateLo = mid; else safeRateHi = mid;
@@ -245,7 +245,7 @@ export default function RetirementIncomeChart({
     const userConsumption = monthlyWithdrawal + optimalRates.initialIncome;
 
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, supplementalFlows, scaling, totalPool, poolFloor);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
       allYearlyPools[c] = sim.yearlyPools;
       if (cohortSWRs[c] >= userConsumption) survivedCount++;
     }
@@ -289,14 +289,14 @@ export default function RetirementIncomeChart({
         if (pool > poolFloor) {
           pool = pool * (1 + avgMonthly) - monthlyConsumption * scaling[t] + supplementalFlows[t];
           if (pool < poolFloor) pool = poolFloor;
-        } else if (supplementalFlows[t] > 0) {
-          pool += supplementalFlows[t];
+        } else if (flows[t] > 0) {
+          pool += flows[t]; // only inheritance rescues depleted pool
         }
       }
     }
 
     return { deterministicPools: pools, avgAnnualReal };
-  }, [blendedReturns, totalPool, monthlyConsumption, poolFloor, scaling, supplementalFlows, years]);
+  }, [blendedReturns, totalPool, monthlyConsumption, poolFloor, scaling, supplementalFlows, flows, years]);
 
   // Constant-dollar withdrawal amounts for each phase
   const survivorWithdrawal = Math.round(monthlyWithdrawal * survivorSpendRatio);

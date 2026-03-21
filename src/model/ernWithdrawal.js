@@ -2,17 +2,17 @@
  * ERN (Early Retirement Now) closed-form Safe Withdrawal Rate engine.
  *
  * Pool dynamics per month t:
- *   pool_{t+1} = pool_t * (1 + r_t) - w * s_t + f_t
+ *   pool_{t+1} = (pool_t - w * s_t + f_t) * (1 + r_t)
  *
  * Closed-form SWR:
  *   w = [P * C - FV + sum(f_t * G_t)] / sum(s_t * G_t)
  *
  * where:
  *   C  = cumulative growth of initial principal over full horizon
- *   G_t = opportunity cost factor (growth from month t+1 to end)
+ *   G_t = opportunity cost factor (growth from month t to end)
  *   FV = target final value (pool floor)
  *   s_t = withdrawal scaling factor (1.0 couple, survivorRatio survivor)
- *   f_t = supplemental flow at month t (inheritance lump sum)
+ *   f_t = supplemental flow at month t
  *
  * All functions accept the full blended return array + start index
  * to avoid creating sliced copies per cohort.
@@ -24,11 +24,11 @@
  */
 export function computeSWR(blended, start, T, supplementalFlows, scaling, targetFV, initialPool) {
   const G = new Float64Array(T);
-  G[T - 1] = 1;
+  G[T - 1] = 1 + blended[start + T - 1];
   for (let t = T - 2; t >= 0; t--) {
-    G[t] = G[t + 1] * (1 + blended[start + t + 1]);
+    G[t] = G[t + 1] * (1 + blended[start + t]);
   }
-  const C = (1 + blended[start]) * G[0];
+  const C = G[0];
 
   let flowG = 0;
   let scalingG = 0;
@@ -46,11 +46,11 @@ export function computeSWR(blended, start, T, supplementalFlows, scaling, target
  */
 export function computePreInhSWR(blended, start, T, supplementalFlows, scaling, targetFV, initialPool, postRate, inhMonth) {
   const G = new Float64Array(T);
-  G[T - 1] = 1;
+  G[T - 1] = 1 + blended[start + T - 1];
   for (let t = T - 2; t >= 0; t--) {
-    G[t] = G[t + 1] * (1 + blended[start + t + 1]);
+    G[t] = G[t + 1] * (1 + blended[start + t]);
   }
-  const C = (1 + blended[start]) * G[0];
+  const C = G[0];
 
   let flowG = 0;
   let preDenom = 0;
@@ -71,12 +71,14 @@ export function computePreInhSWR(blended, start, T, supplementalFlows, scaling, 
  * Simulate pool trajectory at a given withdrawal rate for one cohort.
  * Returns yearly pool snapshots (start-of-year values).
  */
-export function simulatePath(blended, start, T, monthlyW, flows, scaling, initialPool, floor, rescueFlows) {
+export function simulatePath(blended, start, T, monthlyW, supplementalFlows, scaling, initialPool, floor, rescueFlows) {
   let pool = initialPool;
   const numYears = Math.floor(T / 12);
   const yearlyPools = [];
+  let everDepleted = pool <= floor;
   let consecutiveDepleted = 0;
   let maxConsecutiveDepleted = 0;
+  const hasWithdrawalSchedule = ArrayBuffer.isView(monthlyW) || Array.isArray(monthlyW);
 
   for (let y = 0; y <= numYears; y++) {
     yearlyPools.push(Math.round(pool));
@@ -84,9 +86,11 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
 
     for (let m = 0; m < 12; m++) {
       const t = y * 12 + m;
+      const scheduledWithdrawal = hasWithdrawalSchedule ? monthlyW[t] : monthlyW;
       if (pool > floor) {
-        pool = pool * (1 + blended[start + t]) - monthlyW * scaling[t] + flows[t];
+        pool = (pool - scheduledWithdrawal * scaling[t] + supplementalFlows[t]) * (1 + blended[start + t]);
         if (pool < floor) pool = floor;
+        if (pool <= floor) everDepleted = true;
         if (pool > floor) {
           consecutiveDepleted = 0;
         } else {
@@ -94,6 +98,7 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
           if (consecutiveDepleted > maxConsecutiveDepleted) maxConsecutiveDepleted = consecutiveDepleted;
         }
       } else {
+        everDepleted = true;
         consecutiveDepleted++;
         if (consecutiveDepleted > maxConsecutiveDepleted) maxConsecutiveDepleted = consecutiveDepleted;
         if (rescueFlows && rescueFlows[t] > 0) {
@@ -102,8 +107,6 @@ export function simulatePath(blended, start, T, monthlyW, flows, scaling, initia
       }
     }
   }
-
-  const everDepleted = yearlyPools.some(p => p <= floor);
 
   return { yearlyPools, finalPool: Math.round(pool), everDepleted, maxConsecutiveDepleted };
 }

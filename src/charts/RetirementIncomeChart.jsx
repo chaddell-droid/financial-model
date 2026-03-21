@@ -2,14 +2,19 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
-import { simulatePath, computeSWR, computePreInhSWR } from '../model/ernWithdrawal.js';
+import { simulatePath, computeSWR } from '../model/ernWithdrawal.js';
+import {
+  buildScalingAndRescueFlows,
+  buildSupplementalFlows,
+  getRetirementIncomePlan,
+  getRetirementPhaseSummary,
+} from '../model/retirementIncome.js';
 
 export default function RetirementIncomeChart({
   savingsData, wealthData,
-  ssType, ssPersonal, ssdiPersonal,
+  ssType, ssPersonal,
   chadJob,
   trustIncomeFuture,
-  investmentReturn,
 }) {
   const [equityAllocation, setEquityAllocation] = useState(60);
   const [withdrawalRate, setWithdrawalRate] = useState(4);
@@ -44,6 +49,8 @@ export default function RetirementIncomeChart({
   const sarahOwnSS = 1900;
   const survivorSS = 4186;
   const trustMonthly = trustIncomeFuture || 0;
+  const startingCoupleIncome = chadSS + trustMonthly;
+  const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
 
   // Inheritance
   const inheritanceChadAge = inheritanceSarahAge + ageDiff;
@@ -52,20 +59,9 @@ export default function RetirementIncomeChart({
   const hasInheritance = inheritanceAmount > 0;
   const inhDuringCouple = hasInheritance && inheritanceChadAge < chadPassesAge;
 
-  // Helper: compute SS income + label for a given year
-  function getSSInfo(chadAge, chadAlive) {
-    const sarahAge = chadAge - ageDiff;
-    if (chadAlive) {
-      const sarahSpousal = sarahAge >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
-      const amount = chadSS + sarahSpousal;
-      const label = sarahSpousal > 0 ? 'Chad + Sarah spousal' : 'Chad only';
-      return { amount, label };
-    } else {
-      const amount = sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS) :
-        sarahAge >= 60 ? Math.round(survivorSS * 0.715) : 0;
-      const label = sarahAge >= 67 ? 'Sarah survivor' : sarahAge >= 60 ? 'Sarah survivor (reduced)' : 'none';
-      return { amount, label };
-    }
+  function formatRange(startValue, endValue, suffix = '') {
+    if (startValue === endValue) return `${fmtFull(startValue)}${suffix}`;
+    return `${fmtFull(startValue)} -> ${fmtFull(endValue)}${suffix}`;
   }
 
   // Blended historical returns (memoized on equity allocation)
@@ -74,63 +70,56 @@ export default function RetirementIncomeChart({
     [equityAllocation]
   );
 
-  // Build flows and scaling arrays (shared by all cohorts)
-  // flows: only inheritance (one-time lump sum)
+  // Build rescue flows and scaling arrays (shared by all cohorts)
+  // rescueFlows: only inheritance (one-time lump sum once the pool is empty)
   // scaling: 1.0 for couple months, survivorRatio for survivor months
-  const { flows, scaling } = useMemo(() => {
-    const flows = new Float64Array(horizonMonths);
-    const scaling = new Float64Array(horizonMonths);
-    const survivorStartMonth = (chadPassesAge - 67) * 12;
-
-    for (let t = 0; t < horizonMonths; t++) {
-      scaling[t] = t < survivorStartMonth ? 1.0 : survivorSpendRatio;
-    }
-
-    if (hasInheritance && inheritanceMonth >= 0 && inheritanceMonth < horizonMonths) {
-      flows[inheritanceMonth] = inheritanceAmount;
-    }
-
-    return { flows, scaling };
+  const { rescueFlows, scaling } = useMemo(() => {
+    return buildScalingAndRescueFlows({
+      horizonMonths,
+      chadPassesAge,
+      survivorSpendRatio,
+      hasInheritance,
+      inheritanceMonth,
+      inheritanceAmount,
+    });
   }, [horizonMonths, chadPassesAge, survivorSpendRatio, hasInheritance, inheritanceMonth, inheritanceAmount]);
 
-  // Supplemental flows for closed-form SWR: SS + trust + inheritance per month
-  // This is SEPARATE from `flows` (used by simulatePath for chart bands)
-  const supplementalFlows = useMemo(() => {
-    const sf = new Float64Array(horizonMonths);
-    const survivorStartMonth = (chadPassesAge - 67) * 12;
-
-    for (let t = 0; t < horizonMonths; t++) {
-      const chadAge = 67 + t / 12;
-      const sarahAge = chadAge - ageDiff;
-      const chadAlive = t < survivorStartMonth;
-
-      // Trust income every month
-      let monthFlow = trustMonthly;
-
-      // SS income
-      if (chadAlive) {
-        monthFlow += chadSS;
-        if (sarahAge >= 62) {
-          monthFlow += Math.min(Math.round(ssFRA * 0.5), sarahOwnSS);
-        }
-      } else {
-        if (sarahAge >= 67) {
-          monthFlow += Math.max(survivorSS, sarahOwnSS);
-        } else if (sarahAge >= 60) {
-          monthFlow += Math.round(survivorSS * 0.715);
-        }
-      }
-
-      sf[t] = monthFlow;
-    }
-
-    // Inheritance (one-time lump sum)
-    if (hasInheritance && inheritanceMonth >= 0 && inheritanceMonth < horizonMonths) {
-      sf[inheritanceMonth] += inheritanceAmount;
-    }
-
-    return sf;
+  // Supplemental flows used by the simulator while the pool is active.
+  const simulationSupplementalFlows = useMemo(() => {
+    return buildSupplementalFlows({
+      horizonMonths,
+      chadPassesAge,
+      ageDiff,
+      chadSS,
+      ssFRA,
+      sarahOwnSS,
+      survivorSS,
+      trustMonthly,
+      hasInheritance,
+      inheritanceMonth,
+      inheritanceAmount,
+    });
   }, [horizonMonths, chadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, inheritanceAmount]);
+
+  // Closed-form cohort math excludes inheritance. Inheritance is state-dependent in the
+  // simulator: it can arrive as ordinary capital while solvent or rescue the pool once it
+  // has already hit the reserve. Excluding it from the closed form is conservative and
+  // avoids overstating cohort SWRs.
+  const formulaSupplementalFlows = useMemo(() => {
+    return buildSupplementalFlows({
+      horizonMonths,
+      chadPassesAge,
+      ageDiff,
+      chadSS,
+      ssFRA,
+      sarahOwnSS,
+      survivorSS,
+      trustMonthly,
+      hasInheritance: false,
+      inheritanceMonth,
+      inheritanceAmount,
+    });
+  }, [horizonMonths, chadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, inheritanceMonth, inheritanceAmount]);
 
   // Closed-form SWR for each historical cohort (independent of withdrawal slider)
   const cohortSWRs = useMemo(() => {
@@ -139,37 +128,37 @@ export default function RetirementIncomeChart({
     const swrs = new Float64Array(numCohorts);
     for (let c = 0; c < numCohorts; c++) {
       swrs[c] = computeSWR(blendedReturns, c, horizonMonths,
-        supplementalFlows, scaling, poolFloor, totalPool);
+        formulaSupplementalFlows, scaling, poolFloor, totalPool);
     }
     return swrs;
-  }, [blendedReturns, horizonMonths, supplementalFlows, scaling, poolFloor, totalPool]);
+  }, [blendedReturns, horizonMonths, formulaSupplementalFlows, scaling, poolFloor, totalPool]);
 
   // Optimal rates (independent of withdrawal slider — closed-form from cohortSWRs)
   const optimalRates = useMemo(() => {
     const empty = {
       optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
       numCohorts: 0, worstCohort: { year: 0 }, cohortRange: '',
-      optimalConsumption: 0, initialIncome: 0, sliderMax: 30,
+      optimalConsumption: 0, sliderMax: 30,
     };
     if (totalPool <= 0) return empty;
 
     const numCohorts = getNumCohorts(horizonMonths);
     if (numCohorts <= 0 || cohortSWRs.length === 0) return empty;
 
-    // Three-tier rate computation (formula_theoretical ≥ ern_max ≥ safe_rate)
-    const initialIncome = chadSS + trustMonthly;
+    // Two-tier rate computation: ERN max >= safe rate.
+    const initialIncome = startingCoupleIncome;
     const targetSurvival = 0.90;
 
     // Helper: binary search for max pool draw rate at given survival constraint
     function findMaxRate(hi, checkFn) {
-      let lo = 0.1;
+      let lo = 0;
       for (let iter = 0; iter < 30; iter++) {
         const mid = (lo + hi) / 2;
         const testPoolDraw = Math.round(totalPool * (mid / 100) / 12);
         const testConsumption = testPoolDraw + initialIncome;
         let survived = 0;
         for (let c = 0; c < numCohorts; c++) {
-          const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
+          const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, simulationSupplementalFlows, scaling, totalPool, poolFloor, rescueFlows);
           if (checkFn(sim)) survived++;
         }
         if (survived / numCohorts >= targetSurvival) lo = mid; else hi = mid;
@@ -177,34 +166,63 @@ export default function RetirementIncomeChart({
       return Math.round(lo * 10) / 10;
     }
 
-    // Tier 1: Formula theoretical rate (closed-form, no floor constraint — educational only)
-    const sorted = Float64Array.from(cohortSWRs).sort();
-    const p10idx = Math.floor(numCohorts * 0.10);
-    const theoreticalConsumption = Math.max(0, sorted[p10idx]);
-    // Tier 2: ERN max rate (simulation-based, pool can dip to $0 but not for too long)
-    // maxDepletionMonths constrains how long the pool can be empty (prevents degenerate strategies)
-    const optimalRate = findMaxRate(80, (sim) => sim.finalPool > poolFloor && sim.maxConsecutiveDepleted <= maxDepletionMonths);
+    function findMaxPreInheritanceRate(postConsumption) {
+      if (!hasInheritance || inheritanceMonth <= 0 || inheritanceMonth >= horizonMonths) {
+        return { rate: optimalRate, monthly: optimalMonthly };
+      }
+
+      const hi = Math.max(80, optimalRate + 10);
+      let lo = 0;
+      let hiRate = hi;
+      for (let iter = 0; iter < 30; iter++) {
+        const mid = (lo + hiRate) / 2;
+        const prePoolDraw = Math.round(totalPool * (mid / 100) / 12);
+        const preConsumption = prePoolDraw + initialIncome;
+        const scheduledConsumption = new Float64Array(horizonMonths);
+        for (let t = 0; t < horizonMonths; t++) {
+          scheduledConsumption[t] = t < inheritanceMonth ? preConsumption : postConsumption;
+        }
+
+        let survived = 0;
+        for (let c = 0; c < numCohorts; c++) {
+          const sim = simulatePath(
+            blendedReturns,
+            c,
+            horizonMonths,
+            scheduledConsumption,
+            simulationSupplementalFlows,
+            scaling,
+            totalPool,
+            poolFloor,
+            rescueFlows
+          );
+          if (sim.finalPool >= poolFloor && sim.maxConsecutiveDepleted <= maxDepletionMonths) survived++;
+        }
+
+        if (survived / numCohorts >= targetSurvival) lo = mid; else hiRate = mid;
+      }
+
+      return {
+        rate: Math.round(lo * 10) / 10,
+        monthly: Math.round(totalPool * (lo / 100) / 12),
+      };
+    }
+
+    // ERN max rate: the pool can reach the reserve, but not stay there too long.
+    const optimalRate = findMaxRate(80, (sim) => sim.finalPool >= poolFloor && sim.maxConsecutiveDepleted <= maxDepletionMonths);
     const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
     const optimalConsumption = optimalMonthly + initialIncome;
 
-    // Tier 3: Safe rate (simulation-based, pool never depletes)
-    const safeRate = findMaxRate(optimalRate + 1, (sim) => sim.finalPool > poolFloor && !sim.everDepleted);
+    // Safe rate: the reserve is never touched.
+    const safeRate = findMaxRate(optimalRate + 1, (sim) => sim.finalPool >= poolFloor && !sim.everDepleted);
     const safeMonthly = Math.round(totalPool * (safeRate / 100) / 12);
 
-    // Pre-inheritance optimal rate (uses formula — informational)
+    // Pre-inheritance optimal rate (simulation-based to match rescue semantics)
     let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
     if (hasInheritance && inheritanceMonth > 0 && inheritanceMonth < horizonMonths) {
-      const preSwrs = new Float64Array(numCohorts);
-      for (let c = 0; c < numCohorts; c++) {
-        preSwrs[c] = computePreInhSWR(blendedReturns, c, horizonMonths,
-          supplementalFlows, scaling, poolFloor, totalPool, optimalConsumption, inheritanceMonth);
-      }
-      const preSorted = Float64Array.from(preSwrs).sort();
-      const preOptConsumption = Math.max(0, preSorted[p10idx]);
-      const prePoolDraw = Math.max(0, preOptConsumption - initialIncome);
-      optimalPreRate = totalPool > 0
-        ? Math.round(prePoolDraw * 12 / totalPool * 1000) / 10 : 0;
-      optimalPreMonthly = Math.round(prePoolDraw);
+      const preInheritance = findMaxPreInheritanceRate(optimalConsumption);
+      optimalPreRate = preInheritance.rate;
+      optimalPreMonthly = preInheritance.monthly;
     }
 
     // Worst historical cohort (lowest formula SWR)
@@ -225,10 +243,10 @@ export default function RetirementIncomeChart({
       optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
       safeRate, safeMonthly,
       numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
-      optimalConsumption, initialIncome, sliderMax,
+      optimalConsumption, sliderMax,
     };
-  }, [cohortSWRs, totalPool, horizonMonths, chadSS, trustMonthly,
-    hasInheritance, inheritanceMonth, blendedReturns, supplementalFlows, scaling, poolFloor, flows, maxDepletionMonths]);
+  }, [cohortSWRs, totalPool, horizonMonths, startingCoupleIncome,
+    hasInheritance, inheritanceMonth, blendedReturns, simulationSupplementalFlows, scaling, poolFloor, rescueFlows, maxDepletionMonths]);
 
   // Sync withdrawal slider to SAFE rate (pool never depletes) — chart default
   useEffect(() => {
@@ -237,25 +255,23 @@ export default function RetirementIncomeChart({
     }
   }, [optimalRates.safeRate]);
 
-  // Bands and survival at the user's slider rate
+  // Bands and finish-above-reserve rate at the user's slider rate
   const bandResult = useMemo(() => {
     const emptyBands = [10, 25, 50, 75, 90].map(p => ({ pct: p, series: Array(years + 1).fill(0) }));
-    if (totalPool <= 0) return { survivalRate: 0, bands: emptyBands };
+    if (totalPool <= 0) return { finishAboveReserveRate: 0, bands: emptyBands };
 
     const numCohorts = getNumCohorts(horizonMonths);
-    if (numCohorts <= 0) return { survivalRate: 0, bands: emptyBands };
+    if (numCohorts <= 0) return { finishAboveReserveRate: 0, bands: emptyBands };
 
     const allYearlyPools = new Array(numCohorts);
     let survivedCount = 0;
 
-    // Use consumption + supplementalFlows for simulation (matching ERN formula)
-    const userConsumption = monthlyWithdrawal + optimalRates.initialIncome;
+    const userConsumption = baseMonthlyConsumption;
 
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, supplementalFlows, scaling, totalPool, poolFloor, flows);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, simulationSupplementalFlows, scaling, totalPool, poolFloor, rescueFlows);
       allYearlyPools[c] = sim.yearlyPools;
-      // Simulation-based survival (matches the binary search that computed the rates)
-      if (sim.finalPool > poolFloor) survivedCount++;
+      if (sim.finalPool >= poolFloor) survivedCount++;
     }
 
     const percentiles = [10, 25, 50, 75, 90];
@@ -272,19 +288,17 @@ export default function RetirementIncomeChart({
     }
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
-    return { survivalRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, supplementalFlows, scaling, horizonMonths, years, cohortSWRs, optimalRates.initialIncome]);
+    return { finishAboveReserveRate: survivedCount / numCohorts, bands };
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, poolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows]);
 
-  // Deterministic trajectory using average historical return
-  // Uses consumption + supplementalFlows (matching ERN formula and simulatePath)
-  const monthlyConsumption = monthlyWithdrawal + chadSS + trustMonthly;
+  // Deterministic trajectory using average historical return.
+  // Uses the same begin-of-month cash-flow ordering as simulatePath().
   const { deterministicPools, avgAnnualReal } = useMemo(() => {
     let sum = 0;
     for (let i = 0; i < blendedReturns.length; i++) sum += blendedReturns[i];
     const avgMonthly = sum / blendedReturns.length;
     const avgAnnualReal = Math.round((Math.pow(1 + avgMonthly, 12) - 1) * 1000) / 10;
 
-    // Use consumption + supplementalFlows (matching ERN formula)
     let pool = totalPool;
     const pools = [];
 
@@ -295,36 +309,41 @@ export default function RetirementIncomeChart({
       for (let m = 0; m < 12; m++) {
         const t = y * 12 + m;
         if (pool > poolFloor) {
-          pool = pool * (1 + avgMonthly) - monthlyConsumption * scaling[t] + supplementalFlows[t];
+          pool = (pool - baseMonthlyConsumption * scaling[t] + simulationSupplementalFlows[t]) * (1 + avgMonthly);
           if (pool < poolFloor) pool = poolFloor;
-        } else if (flows[t] > 0) {
-          pool += flows[t]; // only inheritance rescues depleted pool
+        } else if (rescueFlows[t] > 0) {
+          pool += rescueFlows[t]; // only inheritance rescues depleted pool
         }
       }
     }
 
     return { deterministicPools: pools, avgAnnualReal };
-  }, [blendedReturns, totalPool, monthlyConsumption, poolFloor, scaling, supplementalFlows, flows, years]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, poolFloor, scaling, simulationSupplementalFlows, rescueFlows, years]);
 
-  // Constant-dollar withdrawal amounts for each phase
-  const survivorWithdrawal = Math.round(monthlyWithdrawal * survivorSpendRatio);
+  const incomePlanConfig = {
+    chadPassesAge,
+    ageDiff,
+    baseMonthlyConsumption,
+    survivorSpendRatio,
+    trustMonthly,
+    chadSS,
+    ssFRA,
+    sarahOwnSS,
+    survivorSS,
+  };
 
   // Build yearlyData for tooltip and income display
   const yearlyData = deterministicPools.map((pool, y) => {
     const chadAge = 67 + y;
-    const sarahAge = chadAge - ageDiff;
-    const chadAlive = chadAge < chadPassesAge;
-    const ssInfo = getSSInfo(chadAge, chadAlive);
+    const incomePlan = getRetirementIncomePlan(chadAge, pool > poolFloor, incomePlanConfig);
     const isPostInh = hasInheritance && y >= inheritanceYear;
-    const phaseSpend = chadAlive ? monthlyWithdrawal : survivorWithdrawal;
-    const effectiveWithdrawal = pool > poolFloor ? phaseSpend : 0;
     const isInheritanceYear = hasInheritance && y === inheritanceYear;
-    const phase = !chadAlive ? 'survivor' : (isPostInh ? 'postInheritance' : 'chad');
+    const phase = !incomePlan.chadAlive ? 'survivor' : (isPostInh ? 'postInheritance' : 'chad');
     return {
-      age: chadAge, sarahAge, pool,
-      monthly: effectiveWithdrawal + ssInfo.amount + trustMonthly,
-      ssIncome: ssInfo.amount, ssLabel: ssInfo.label,
+      age: chadAge,
+      pool,
       phase, isInheritanceYear,
+      ...incomePlan,
     };
   });
 
@@ -357,27 +376,9 @@ export default function RetirementIncomeChart({
     if (v <= poolRange) yTicks.push(v);
   }
 
-  // Income phase calculations (constant-dollar withdrawal model)
-  // Couple: same withdrawal before and after inheritance
-  // Survivor: withdrawal * survivorRatio
-  const phase1SS = chadSS;
-  const phase1Total = monthlyWithdrawal + phase1SS + trustMonthly;
-  // Post-inheritance SS: compute at start and end of period (spousal may kick in mid-period)
-  const postInhSSStart = (() => {
-    if (!inhDuringCouple) return 0;
-    return getSSInfo(inheritanceChadAge, true).amount;
-  })();
-  const postInhSSEnd = (() => {
-    if (!inhDuringCouple) return 0;
-    return getSSInfo(chadPassesAge - 1, true).amount;
-  })();
-  const postInhSSChanges = postInhSSStart !== postInhSSEnd;
-  const spousalKicksInAge = 62 + ageDiff;
-  const postInhTotalStart = inhDuringCouple ? (monthlyWithdrawal + postInhSSStart + trustMonthly) : 0;
-  const postInhTotalEnd = inhDuringCouple ? (monthlyWithdrawal + postInhSSEnd + trustMonthly) : 0;
-  const phase2SS = survivorSS;
-  const phase2Spend = survivorWithdrawal;
-  const phase2Total = phase2Spend + phase2SS + trustMonthly;
+  const coupleSummary = getRetirementPhaseSummary(67, inhDuringCouple ? inheritanceChadAge : chadPassesAge, incomePlanConfig);
+  const postInheritanceSummary = inhDuringCouple ? getRetirementPhaseSummary(inheritanceChadAge, chadPassesAge, incomePlanConfig) : null;
+  const survivorSummary = getRetirementPhaseSummary(chadPassesAge, endAge + 1, incomePlanConfig);
 
   // Band paths for chart
   const bandPairs = [
@@ -388,11 +389,15 @@ export default function RetirementIncomeChart({
   const fmtPool = (v) => v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}`;
 
   // Shorthand for cohort results
-  const sr = bandResult.survivalRate;
+  const endAboveReserveRate = bandResult.finishAboveReserveRate;
   const optRate = optimalRates.optimalRate;
   const optMonthly = optimalRates.optimalMonthly;
   const optPreRate = optimalRates.optimalPreRate;
   const optPreMonthly = optimalRates.optimalPreMonthly;
+  const retirementTextStrong = '#e2e8f0';
+  const retirementTextBody = '#cbd5e1';
+  const retirementTextMuted = '#94a3b8';
+
   return (
     <div style={{
       background: '#1e293b', borderRadius: 12, padding: '20px 16px',
@@ -400,17 +405,17 @@ export default function RetirementIncomeChart({
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <h3 style={{ fontSize: 14, color: '#e2e8f0', margin: 0, fontWeight: 600 }}>
+        <h3 style={{ fontSize: 15, color: retirementTextStrong, margin: 0, fontWeight: 600 }}>
           Retirement + Survivor Income (today's dollars)
         </h3>
-        <span style={{ fontSize: 11, color: sr >= 0.9 ? '#4ade80' : sr >= 0.7 ? '#f59e0b' : '#f87171', fontWeight: 600 }}>
-          {Math.round(sr * 100)}% survival to Sarah {sarahTargetAge} ({optimalRates.numCohorts.toLocaleString()} cohorts, {optimalRates.cohortRange})
+        <span style={{ fontSize: 12, color: endAboveReserveRate >= 0.9 ? '#4ade80' : endAboveReserveRate >= 0.7 ? '#f59e0b' : '#f87171', fontWeight: 600 }}>
+          {Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah {sarahTargetAge} ({optimalRates.numCohorts.toLocaleString()} cohorts, {optimalRates.cohortRange})
         </span>
       </div>
 
       {/* Subtitle */}
-      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12, fontStyle: 'italic' }}>
-        House sold at 67 · {withdrawalRate}% withdrawal · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
+      <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 12, fontStyle: 'italic', lineHeight: 1.45 }}>
+        House sold at 67 · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
         {optimalRates.worstCohort.year > 0 && ` · Worst start: ${optimalRates.worstCohort.year}`}
       </div>
 
@@ -418,15 +423,15 @@ export default function RetirementIncomeChart({
       <div style={{ display: 'grid', gridTemplateColumns: inhDuringCouple ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
         {/* Pool card */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
-          <div style={{ fontSize: 9, color: '#64748b', marginBottom: 4 }}>Investment Pool (age 67)</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(totalPool)}
           </div>
-          <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
             Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
           </div>
           {chadPassesAge > 70 && bandResult.bands[0].series.length > (chadPassesAge - 67) && (
-            <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
               At {chadPassesAge}: {fmtPool(bandResult.bands[0].series[chadPassesAge - 67])} (worst) \u2013 {fmtPool(deterministicPools[chadPassesAge - 67])} (expected)
             </div>
           )}
@@ -434,52 +439,54 @@ export default function RetirementIncomeChart({
 
         {/* Pre-inheritance couple (or full couple if no inheritance during couple phase) */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
-          <div style={{ fontSize: 9, color: '#60a5fa', marginBottom: 4 }}>
-            {inhDuringCouple ? `Pre-Inheritance (67\u2013${inheritanceChadAge})` : `Retirement Income (67\u2013${chadPassesAge})`}
+          <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 4, fontWeight: 600 }}>
+            {inhDuringCouple ? `Pre-Inheritance Spending Target (67\u2013${inheritanceChadAge})` : `Couple Spending Target (67\u2013${chadPassesAge})`}
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(phase1Total)}/mo
+            {fmtFull(coupleSummary.totalTarget)}/mo
           </div>
-          <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(monthlyWithdrawal)} withdraw + {fmtFull(phase1SS)} SS + {fmtFull(trustMonthly)} trust
+          <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+            Pool draw {formatRange(coupleSummary.start.poolDraw, coupleSummary.end.poolDraw, '/mo')} + SS {formatRange(coupleSummary.start.ssIncome, coupleSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
           </div>
+          {(coupleSummary.start.savedToPool > 0 || coupleSummary.end.savedToPool > 0) && (
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Outside income reinvested: {formatRange(coupleSummary.start.savedToPool, coupleSummary.end.savedToPool, '/mo')}
+            </div>
+          )}
         </div>
 
         {/* Post-inheritance couple (only when inheritance during couple phase) */}
         {inhDuringCouple && (
           <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #4ade8033' }}>
-            <div style={{ fontSize: 9, color: '#4ade80', marginBottom: 4 }}>Post-Inheritance ({inheritanceChadAge}\u2013{chadPassesAge})</div>
-            {postInhSSChanges ? (
-              <>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtFull(postInhTotalStart)}/mo {'\u2192'} {fmtFull(postInhTotalEnd)}/mo
-                </div>
-                <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-                  +{fmtFull(postInhSSEnd - postInhSSStart)} spousal SS at Sarah 62 (Chad {spousalKicksInAge})
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtFull(postInhTotalEnd)}/mo
-                </div>
-                <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtFull(monthlyWithdrawal)} withdraw + {fmtFull(postInhSSEnd)} SS + {fmtFull(trustMonthly)} trust
-                </div>
-              </>
+            <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>Post-Inheritance Spending Target ({inheritanceChadAge}\u2013{chadPassesAge})</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(postInheritanceSummary.totalTarget)}/mo
+            </div>
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Pool draw {formatRange(postInheritanceSummary.start.poolDraw, postInheritanceSummary.end.poolDraw, '/mo')} + SS {formatRange(postInheritanceSummary.start.ssIncome, postInheritanceSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
+            </div>
+            {(postInheritanceSummary.start.savedToPool > 0 || postInheritanceSummary.end.savedToPool > 0) && (
+              <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+                Outside income reinvested: {formatRange(postInheritanceSummary.start.savedToPool, postInheritanceSummary.end.savedToPool, '/mo')}
+              </div>
             )}
           </div>
         )}
 
         {/* Survivor */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #f59e0b33' }}>
-          <div style={{ fontSize: 9, color: '#f59e0b', marginBottom: 4 }}>Sarah Survivor (after {chadPassesAge})</div>
+          <div style={{ fontSize: 10, color: '#f59e0b', marginBottom: 4, fontWeight: 600 }}>Sarah Survivor Spending Target (after {chadPassesAge})</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(phase2Total)}/mo
+            {fmtFull(survivorSummary.totalTarget)}/mo
           </div>
-          <div style={{ fontSize: 8, color: '#475569', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(phase2Spend)} withdraw + {fmtFull(phase2SS)} SS + {fmtFull(trustMonthly)} trust
+          <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+            Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
           </div>
+          {(survivorSummary.start.savedToPool > 0 || survivorSummary.end.savedToPool > 0) && (
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Outside income reinvested: {formatRange(survivorSummary.start.savedToPool, survivorSummary.end.savedToPool, '/mo')}
+            </div>
+          )}
         </div>
       </div>
 
@@ -551,7 +558,7 @@ export default function RetirementIncomeChart({
               y1={padT} y2={padT + plotH}
               stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3" />
             <text x={xScale(survivorStartIdx)} y={padT - 4} textAnchor="middle"
-              fill="#f59e0b" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              fill="#f59e0b" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
               Chad {chadPassesAge} / Sarah {chadPassesAge - ageDiff}
             </text>
           </g>
@@ -564,7 +571,7 @@ export default function RetirementIncomeChart({
               y1={padT} y2={padT + plotH}
               stroke="#4ade80" strokeWidth="1.5" strokeDasharray="4,3" />
             <text x={xScale(inheritanceYear)} y={padT + plotH + 12} textAnchor="middle"
-              fill="#4ade80" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              fill="#4ade80" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
               +{fmtPool(inheritanceAmount)} inheritance
             </text>
           </g>
@@ -585,9 +592,9 @@ export default function RetirementIncomeChart({
             <g>
               <circle cx={endX} cy={endY} r="3" fill="#f97316" opacity="0.8" />
               <text x={endX - 4} y={endY - 8} textAnchor="end"
-                fill="#f97316" fontSize="9" fontWeight="600" opacity="0.9"
+                fill="#f97316" fontSize="10" fontWeight="600" opacity="0.95"
                 fontFamily="'JetBrains Mono', monospace">
-                SWR: {fmtPool(p10End)}
+                Plan: {fmtPool(p10End)}
               </text>
             </g>
           );
@@ -616,7 +623,7 @@ export default function RetirementIncomeChart({
 
       {/* Hover tooltip */}
       {tooltip && (
-        <div style={{
+          <div style={{
           position: 'absolute',
           left: `${tooltip.pctX}%`,
           top: `${Math.min(tooltip.pctY, 55)}%`,
@@ -630,45 +637,50 @@ export default function RetirementIncomeChart({
           whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
         }}>
-          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: retirementTextBody, marginBottom: 4 }}>
             Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : tooltip.phase === 'postInheritance' ? '(post-inheritance)' : ''}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#f97316', fontFamily: "'JetBrains Mono', monospace" }}>
-            Plan: {fmtFull(tooltip.p10)}
+            Plan pool: {fmtFull(tooltip.p10)}
           </div>
           <div style={{ fontSize: 11, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
-            Likely: {fmtFull(tooltip.pool)}
+            Average path pool: {fmtFull(tooltip.pool)}
           </div>
           <div style={{ borderTop: '1px solid #334155', marginTop: 4, paddingTop: 4 }}>
             {tooltip.p10 <= poolFloor ? (
               <>
                 <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>
-                  Plan: pool depleted — {fmtFull(tooltip.ssIncome + trustMonthly)}/mo (SS + trust only)
+                  Plan income after reserve hit: {fmtFull(tooltip.guaranteedIncome)}/mo
                 </div>
                 <div style={{ fontSize: 11, color: '#60a5fa' }}>
-                  Likely: {fmtFull(tooltip.monthly)}/mo
+                  Average path income: {fmtFull(tooltip.monthly)}/mo
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 600 }}>
-                Income: {fmtFull(tooltip.monthly)}/mo
+              <div style={{ fontSize: 11, color: retirementTextStrong, fontWeight: 600 }}>
+                Spending target: {fmtFull(tooltip.monthly)}/mo
               </div>
             )}
-            <div style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(tooltip.monthly - tooltip.ssIncome - trustMonthly)} withdraw + {fmtFull(tooltip.ssIncome)} SS + {fmtFull(trustMonthly)} trust
+            <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Pool draw {fmtFull(tooltip.poolDraw)} + SS {fmtFull(tooltip.ssIncome)} + trust {fmtFull(trustMonthly)}
             </div>
+            {tooltip.savedToPool > 0 && (
+              <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+                Outside income reinvested: {fmtFull(tooltip.savedToPool)}/mo
+              </div>
+            )}
           </div>
         </div>
       )}
       </div>
 
       {/* Legend */}
-      <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 11, flexWrap: 'wrap' }}>
+      <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
         {[
-          { label: 'Your plan (90% safe)', color: '#f97316', solid: true },
-          { label: "You'll probably see this", color: '#60a5fa', dashed: true },
-          { label: '25-75th pctl', color: '#60a5fa', band: true, opacity: 0.12 },
-          { label: '10-90th pctl', color: '#60a5fa', band: true, opacity: 0.08 },
+          { label: '10th pct pool path', color: '#f97316', solid: true },
+          { label: 'Average-return path', color: '#60a5fa', dashed: true },
+          { label: '25-75th pct band', color: '#60a5fa', band: true, opacity: 0.12 },
+          { label: '10-90th pct band', color: '#60a5fa', band: true, opacity: 0.08 },
           { label: 'Survivor phase', color: '#f59e0b', solid: true },
         ].map((item, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -679,7 +691,7 @@ export default function RetirementIncomeChart({
             ) : (
               <div style={{ width: 12, height: 3, background: item.color, borderRadius: 1 }} />
             )}
-            <span style={{ color: '#94a3b8' }}>{item.label}</span>
+            <span style={{ color: retirementTextBody }}>{item.label}</span>
           </div>
         ))}
       </div>
@@ -691,46 +703,46 @@ export default function RetirementIncomeChart({
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-              Safe withdrawal (pool never depletes, 90% survival)
+            <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
+              Safe pool draw (reserve never touched in 90% of cohorts)
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
               {optimalRates.safeRate}% = {fmtFull(optimalRates.safeMonthly)}/mo
             </div>
-            <div style={{ fontSize: 8, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
-              Total: {fmtFull(optimalRates.safeMonthly + chadSS + trustMonthly)}/mo with SS + trust
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 2, lineHeight: 1.35, fontFamily: "'JetBrains Mono', monospace" }}>
+              Starting spend: {fmtFull(optimalRates.safeMonthly + startingCoupleIncome)}/mo with SS + trust
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Sarah's income after Chad ({chadPassesAge})</div>
+            <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>Sarah's target after Chad ({chadPassesAge})</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(survivorWithdrawal + survivorSS + trustMonthly)}/mo
+              {fmtFull(survivorSummary.totalTarget)}/mo
             </div>
-            <div style={{ fontSize: 9, color: '#475569', marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(survivorWithdrawal)} withdraw + {fmtFull(survivorSS)} SS + {fmtFull(trustMonthly)} trust
+            <div style={{ fontSize: 10, color: retirementTextBody, marginTop: 2, lineHeight: 1.35, fontFamily: "'JetBrains Mono', monospace" }}>
+              Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
             </div>
           </div>
         </div>
         {/* ERN max consumption */}
         <div style={{ borderTop: '1px solid #334155', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-              ERN max (pool ends at ${fmtPool(poolFloor)}, {maxDepletionMonths > 0 ? `≤${maxDepletionMonths}mo gap` : 'no gap'}, 90% survival)
+            <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
+              ERN max pool draw (finish above reserve in 90% of cohorts, {maxDepletionMonths > 0 ? `≤${maxDepletionMonths}mo reserve gap` : 'no reserve gap'})
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
               {optRate}% = {fmtFull(optMonthly)}/mo from pool
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Total consumption</div>
+            <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>Total consumption</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(Math.round(optimalRates.optimalConsumption))}/mo
             </div>
           </div>
         </div>
         {/* Rate vs history comparison */}
-        <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, fontStyle: 'italic' }}>
-          Your {withdrawalRate}% rate: survived in {Math.round(sr * 100)}% of all historical cohorts
+        <div style={{ fontSize: 11, color: retirementTextMuted, marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+          Your {withdrawalRate}% pool draw finished above the reserve in {Math.round(endAboveReserveRate * 100)}% of historical cohorts
         </div>
       </div>
 
@@ -742,11 +754,11 @@ export default function RetirementIncomeChart({
         {/* Withdrawal rate with optimal marker */}
         <div style={{ padding: "4px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 13, color: "#8b8fa3" }}>Withdrawal rate</span>
+            <span style={{ fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>Pool draw rate</span>
             <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
               {withdrawalRate}%
-              {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 10, color: '#f59e0b' }}> (pool may deplete temporarily)</span>}
-              {withdrawalRate > optRate && <span style={{ fontSize: 10, color: '#f87171' }}> (exceeds ERN max)</span>}
+              {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
+              {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above ERN max)</span>}
             </span>
           </div>
           <div style={{ position: 'relative' }}>
@@ -770,7 +782,7 @@ export default function RetirementIncomeChart({
                     pointerEvents: 'none',
                   }}>
                     <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
-                    <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {optimalRates.safeRate}% safe
                     </div>
                   </div>
@@ -785,8 +797,8 @@ export default function RetirementIncomeChart({
                       pointerEvents: 'none',
                     }}>
                       <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
-                      <div style={{ fontSize: 8, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {optRate}% ERN
+                      <div style={{ fontSize: 9, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {optRate}% ERN max
                       </div>
                     </div>
                   )}
@@ -814,20 +826,20 @@ export default function RetirementIncomeChart({
           marginTop: 8, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
           border: '1px solid #4ade8033',
         }}>
-          <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>
-            PRE-INHERITANCE STRATEGY (before {fmtPool(inheritanceAmount)} at Sarah {inheritanceSarahAge})
+          <div style={{ fontSize: 11, color: '#4ade80', marginBottom: 4, fontWeight: 700 }}>
+            Pre-Inheritance Pool Draw (before {fmtPool(inheritanceAmount)} at Sarah {inheritanceSarahAge})
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-                Max pre-inheritance rate (90% survival)
+              <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
+                Max pre-inheritance pool draw (90% finish above reserve)
               </div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
                 {optPreRate}% = {fmtFull(optPreMonthly)}/mo
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
+              <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
                 vs uniform rate
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: optPreRate > optRate ? '#4ade80' : '#94a3b8', fontFamily: "'JetBrains Mono', monospace" }}>
@@ -835,8 +847,8 @@ export default function RetirementIncomeChart({
               </div>
             </div>
           </div>
-          <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>
-            Withdraw {fmtFull(optPreMonthly)}/mo before inheritance, then {optRate}% (sustainable) after. Compared to {fmtFull(optMonthly)}/mo uniform.
+          <div style={{ fontSize: 11, color: retirementTextMuted, marginTop: 4, fontStyle: 'italic', lineHeight: 1.45 }}>
+            Draw {fmtFull(optPreMonthly)}/mo from the pool before inheritance, then {optRate}% after. Compared with {fmtFull(optMonthly)}/mo from the pool throughout.
           </div>
         </div>
       )}
@@ -845,10 +857,10 @@ export default function RetirementIncomeChart({
       {withdrawalRate > optRate && !hasInheritance && (
         <div style={{
           marginTop: 8, padding: '8px 12px', background: '#1e293b', borderRadius: 6,
-          border: '1px solid #f8717133', fontSize: 11, color: '#f87171', lineHeight: 1.5,
+          border: '1px solid #f8717133', fontSize: 12, color: '#f87171', lineHeight: 1.5,
         }}>
-          At {withdrawalRate}% withdrawal, fewer than 90% of historical cohorts sustain the pool to Sarah age {sarahTargetAge}.
-          The max rate with 90% confidence is <span style={{ fontWeight: 700, color: '#4ade80' }}>{optRate}%</span> ({fmtFull(optMonthly)}/mo).
+          At {withdrawalRate}% pool draw, fewer than 90% of historical cohorts finish above the reserve by Sarah age {sarahTargetAge}.
+          The 90%-finish-above-reserve cap is <span style={{ fontWeight: 700, color: '#4ade80' }}>{optRate}%</span> ({fmtFull(optMonthly)}/mo from the pool).
         </div>
       )}
     </div>

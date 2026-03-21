@@ -19,7 +19,7 @@ export function getBlendedReturns(equityWeight) {
  * Number of valid starting cohorts for the given horizon.
  */
 export function getNumCohorts(horizonMonths) {
-  return Math.max(0, MONTHLY_REAL_RETURNS.length - horizonMonths);
+  return Math.max(0, MONTHLY_REAL_RETURNS.length - horizonMonths + 1);
 }
 
 /**

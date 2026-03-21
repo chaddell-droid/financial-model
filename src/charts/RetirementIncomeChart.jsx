@@ -745,14 +745,14 @@ export default function RetirementIncomeChart({
             <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
               style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
-            {/* Rate markers below the slider */}
+            {/* Rate markers below the slider — staggered vertically to avoid overlap */}
             {(() => {
               const thumbHalf = 8;
               const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
               const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
               return (
-                <div style={{ position: 'relative', height: 16, marginTop: 2 }}>
-                  {/* Safe rate marker (green) */}
+                <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
+                  {/* Safe rate marker (green) — top row */}
                   <div style={{
                     position: 'absolute',
                     left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
@@ -766,12 +766,12 @@ export default function RetirementIncomeChart({
                       {optimalRates.safeRate}% safe
                     </div>
                   </div>
-                  {/* ERN max marker (blue) */}
+                  {/* ERN max marker (blue) — bottom row, staggered down */}
                   {optRate > optimalRates.safeRate && (
                     <div style={{
                       position: 'absolute',
                       left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
-                      top: 0,
+                      top: 14,
                       transform: 'translateX(-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       pointerEvents: 'none',

@@ -1,5 +1,6 @@
 // Home equity now tracked in main projection monthlyData
 import { INITIAL_STATE } from '../state/initialState.js';
+import { findOperationalBreakevenIndex } from './projection.js';
 
 export function exportModelData(state, projection, vestEvents, totalRemainingVesting, extras) {
   const { rawMonthlyGap, sarahCurrentNet, advanceNeeded, ssdiDenied, lifestyleCutsApplied,
@@ -24,7 +25,7 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       nowWithPlan: data[0]?.netMonthly,
       steadyStateMonth: 36,
       steadyStateNet: data[data.findIndex(d => d.month >= 36)]?.netMonthly,
-      cashFlowBreakevenMonth: md.findIndex(d => d.netMonthly >= 0),
+      cashFlowBreakevenMonth: findOperationalBreakevenIndex(md),
       savingsRunway: md.every(d => d.balance >= 0) ? "6+ years" : `${md.findIndex(d => d.balance < 0)} months`,
       advanceAsk: advanceNeeded,
     },
@@ -93,9 +94,20 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       const d = md[m];
       return {
         month: m, label: `Y${Math.floor(m/12)}M${m%12}`,
-        sarahIncome: d.sarahIncome, msftIncome: d.msftSmoothed, trustLLCIncome: d.trustLLC,
-        ssdi: d.ssdi, investReturn: d.investReturn, totalCashIncome: d.cashIncome,
-        expenses: d.expenses, netMonthly: d.netMonthly, savingsBalance: d.balance,
+        sarahIncome: d.sarahIncome,
+        msftIncome: d.msftLump,
+        msftIncomeSmoothed: d.msftSmoothed,
+        trustLLCIncome: d.trustLLC,
+        ssdi: d.ssdi,
+        investReturn: d.investReturn,
+        totalCashIncome: d.cashIncome,
+        totalCashIncomeSmoothed: d.cashIncomeSmoothed,
+        expenses: d.expenses,
+        netCashFlow: d.netCashFlow,
+        netCashFlowSmoothed: d.netCashFlowSmoothed,
+        netMonthly: d.netMonthly,
+        netMonthlySmoothed: d.netMonthlySmoothed,
+        savingsBalance: d.balance,
       };
     }),
     msftVesting: vestEvents.map(v => ({

@@ -227,7 +227,7 @@ export default function SavingsDrawdownChart({
                 {savingsData.filter(d => d.month % 12 === 0).map((d, i) => (
                   <text key={i} x={x(d.month)} y={svgH - 5} textAnchor="middle"
                     fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-                    {d.month === 0 ? "Now" : `Y${d.month / 12}`}
+                    {d.month === 0 ? "M0" : `Y${d.month / 12}`}
                   </text>
                 ))}
 
@@ -257,7 +257,7 @@ export default function SavingsDrawdownChart({
                       y1={padT} y2={padT + plotH}
                       stroke="#4ade80" strokeWidth="1" strokeDasharray="4,3" />
                     <text x={x(ssdiApprovalMonth + 2)} y={padT + plotH + 14} textAnchor="middle"
-                      fill="#4ade80" fontSize="9" fontWeight="700"
+                      fill="#4ade80" fontSize="10" fontWeight="700"
                       fontFamily="'JetBrains Mono', monospace">
                       Back pay +{fmtFull(ssdiBackPayActual)}
                     </text>

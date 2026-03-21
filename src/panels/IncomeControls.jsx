@@ -51,15 +51,15 @@ const IncomeControls = ({
             </div>
             <div style={{ padding: "8px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155", marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ color: "#64748b" }}>Current net/mo:</span>
+                <span style={{ color: "#64748b" }}>Current gross/mo:</span>
                 <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: "#64748b" }}>Ceiling:</span>
+                <span style={{ color: "#64748b" }}>Gross ceiling:</span>
                 <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeiling)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: "#64748b" }}>Capacity used:</span>
+                <span style={{ color: "#64748b" }}>Gross capacity used:</span>
                 <span style={{ color: sarahCurrentNet / sarahCeiling > 0.8 ? "#fbbf24" : "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentNet / sarahCeiling * 100)}%</span>
               </div>
             </div>
@@ -112,7 +112,7 @@ const IncomeControls = ({
                     const familyRate = isSSPath ? (ssFamilyTotal || 7099) : (ssdiFamilyTotal || 6500);
                     const personalRate = isSSPath ? (ssPersonal || 2933) : (ssdiPersonal || 4152);
                     const familyMonths = isSSPath ? (ssKidsAgeOutMonths || 18) : (kidsAgeOutMonths || 36);
-                    const lostBackPayMonthly = !isSSPath && !ssdiDenied ? Math.round(((ssdiBackPayMonths || 18) * (ssdiPersonal || 4152) * 0.75) / 72) : 0;
+                    const lostBackPayMonthly = !isSSPath && !ssdiDenied ? Math.round((ssdiBackPayActual || 0) / 72) : 0;
                     // Net impact uses personal (long-term) rate since family rate is temporary
                     const netImpactSteady = chadJobMonthlyNet + effectiveHealthSavings - personalRate;
                     const netColorSteady = netImpactSteady >= 0 ? "#22c55e" : "#f59e0b";
@@ -139,7 +139,7 @@ const IncomeControls = ({
                       </div>
                       {lostBackPayMonthly > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                          <span style={{ color: "#64748b" }}>Lost SSDI back pay (amortized over 6yr):</span>
+                          <span style={{ color: "#64748b" }}>Lost SSDI back pay (net of fee, amortized over 6yr):</span>
                           <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(lostBackPayMonthly)}</span>
                         </div>
                       )}

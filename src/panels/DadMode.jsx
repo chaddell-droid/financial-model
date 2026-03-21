@@ -361,7 +361,7 @@ export default function DadMode({
               {/* Year labels */}
               {[0, 12, 24, 36, 48, 60, 72].map(m => (
                 <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
-                  {m === 0 ? "Now" : `Y${m/12}`}
+                  {m === 0 ? "M0" : `Y${m/12}`}
                 </text>
               ))}
 

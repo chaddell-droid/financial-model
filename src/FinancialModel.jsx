@@ -2,7 +2,7 @@ import { useReducer, useMemo, useEffect } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
-import { computeProjection } from './model/projection.js';
+import { computeProjection, findOperationalBreakevenIndex } from './model/projection.js';
 import { runMonteCarlo, runDadMonteCarlo } from './model/monteCarlo.js';
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
@@ -310,7 +310,7 @@ export default function FinancialModel() {
   const chartH = 380;
   const netRange = Math.max(Math.abs(minNet), Math.abs(maxNet)) || 1;
 
-  const breakevenIdx = data.findIndex(d => d.netMonthly >= 0);
+  const breakevenIdx = findOperationalBreakevenIndex(data);
   const bestIdx = data.reduce((bestI, d, i) => d.netMonthly > data[bestI].netMonthly ? i : bestI, 0);
   const highlightIdx = breakevenIdx >= 0 ? breakevenIdx : bestIdx;
   const highlightLabel = breakevenIdx >= 0 ? "BREAKEVEN" : "BEST";
@@ -503,6 +503,7 @@ export default function FinancialModel() {
             cutMedical={cutMedical} cutGym={cutGym} cutAmazon={cutAmazon} cutSaaS={cutSaaS}
             cutEntertainment={cutEntertainment} cutGroceries={cutGroceries} cutPersonalCare={cutPersonalCare} cutSmallItems={cutSmallItems}
             mcResults={mcResults} goalResults={goalResults} goals={goals}
+            startingSavings={startingSavings} starting401k={starting401k} homeEquity={homeEquity}
             monthlyDetail={monthlyDetail} savingsData={savingsData} wealthData={wealthData}
             onFieldChange={set}
             onExit={() => set('sarahMode')(false)}
@@ -631,10 +632,9 @@ export default function FinancialModel() {
               <NetWorthChart {...netWorthProps} />
               <RetirementIncomeChart
                 savingsData={savingsData} wealthData={wealthData}
-                ssType={ssType} ssPersonal={ssPersonal} ssdiPersonal={ssdiPersonal}
+                ssType={ssType} ssPersonal={ssPersonal}
                 chadJob={chadJob}
                 trustIncomeFuture={trustIncomeFuture}
-                investmentReturn={investmentReturn}
               />
             </div>
           </div>

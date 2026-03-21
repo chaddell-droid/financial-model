@@ -1,6 +1,15 @@
 import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT } from './constants.js';
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
+export function findOperationalBreakevenIndex(rows) {
+  if (!Array.isArray(rows)) return -1;
+  return rows.findIndex((row) => (
+    row?.netCashFlowSmoothed
+    ?? row?.netCashFlow
+    ?? Number.NEGATIVE_INFINITY
+  ) >= 0);
+}
+
 /**
  * Core monthly simulation loop — single source of truth for all projections.
  * Tracks both savings balance AND 401k balance. When savings would go negative,
@@ -94,14 +103,13 @@ export function runMonthlySimulation(s) {
     if (chadJob && m >= chadJobStartMonth) expenses -= chadJobHealthSavings;
     expenses = Math.max(expenses, 0);
 
-    // cashIncome uses smoothed MSFT for display (avoids jarring quarter-to-quarter jumps).
-    // cashIncomeLump uses actual quarterly lumps for the balance calculation.
-    // netCashFlow/netMonthly won't exactly reconcile to balance changes in vest quarters.
-    const cashIncome = sarahIncome + msftSmoothed + trustLLC + ssdi + consulting + chadJobIncome;
-    const cashIncomeLump = sarahIncome + msftLump + trustLLC + ssdi + consulting + chadJobIncome;
+    // Canonical monthly cash-flow rows use actual vest timing so they reconcile to
+    // savings balance changes. Keep smoothed MSFT as an explicit secondary series.
+    const cashIncome = sarahIncome + msftLump + trustLLC + ssdi + consulting + chadJobIncome;
+    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssdi + consulting + chadJobIncome;
 
     balance += investReturn;
-    balance += (cashIncomeLump - expenses);
+    balance += (cashIncome - expenses);
     if (m === effectiveSsdiApproval + 2) balance += backPayActual;
     // Van sale shortfall: one-time cost at sale month (loan balance - sale price)
     if (s.vanSold && m === vanSaleMonth) {
@@ -134,9 +142,11 @@ export function runMonthlySimulation(s) {
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssdi, consulting, chadJobIncome,
-      investReturn, cashIncome, expenses, homeEquity,
+      investReturn, cashIncome, cashIncomeSmoothed, expenses, homeEquity,
       netCashFlow: cashIncome - expenses,
+      netCashFlowSmoothed: cashIncomeSmoothed - expenses,
       netMonthly: cashIncome + investReturn - expenses,
+      netMonthlySmoothed: cashIncomeSmoothed + investReturn - expenses,
       balance: Math.round(balance),
       balance401k: bal401k,
       withdrawal401k,
@@ -165,7 +175,7 @@ export function computeProjection(s) {
     return {
       label: MONTHS[i], month: m,
       sarahIncome: Math.round(months.reduce((sum, d) => sum + d.sarahIncome, 0) / months.length),
-      msftVesting: Math.round(months.reduce((sum, d) => sum + d.msftSmoothed, 0) / months.length),
+      msftVesting: Math.round(months.reduce((sum, d) => sum + d.msftLump, 0) / months.length),
       trustLLC: Math.round(months.reduce((sum, d) => sum + d.trustLLC, 0) / months.length),
       ssdi: Math.round(months.reduce((sum, d) => sum + d.ssdi, 0) / months.length),
       consulting: Math.round(months.reduce((sum, d) => sum + d.consulting, 0) / months.length),
@@ -183,7 +193,8 @@ export function computeProjection(s) {
   const savingsData = monthlyData.map(d => {
     const yr = Math.floor(d.month / 12);
     const mo = d.month % 12;
-    const label = d.month === 0 ? "Now" : d.month < 12 ? `M${d.month}` : mo === 0 ? `Y${yr}` : `Y${yr}.${Math.round(mo/12*10)/10}`;
+    // Month 0 is the first simulated snapshot, not an opening balance.
+    const label = d.month === 0 ? "M0" : d.month < 12 ? `M${d.month}` : mo === 0 ? `Y${yr}` : `Y${yr}.${Math.round(mo/12*10)/10}`;
     return { month: d.month, balance: d.balance, label };
   });
 

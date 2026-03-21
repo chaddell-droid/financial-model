@@ -51,7 +51,7 @@ export function evaluateGoal(goal, monthlyData, options = {}) {
     case 'income_target': {
       // Net cash flow at targetMonth >= targetAmount
       const row = monthlyData[clampedMonth];
-      const netFlow = row?.netCashFlow || 0;
+      const netFlow = row?.netCashFlowSmoothed ?? row?.netCashFlow ?? 0;
       currentValue = netFlow;
       if (targetAmount === 0) {
         achieved = netFlow >= 0;
@@ -73,7 +73,9 @@ export function evaluateGoal(goal, monthlyData, options = {}) {
       const netWorth = balance + (w?.balance401k || 0) + (w?.homeEquity || 0);
       currentValue = netWorth;
       achieved = netWorth >= targetAmount;
-      progress = targetAmount > 0 ? Math.max(0, Math.min(1, netWorth / targetAmount)) : 1;
+      progress = targetAmount > 0
+        ? Math.max(0, Math.min(1, netWorth / targetAmount))
+        : (netWorth >= 0 ? 1 : 0);
       description = achieved
         ? `Net worth ${fmt(netWorth)} meets ${fmt(targetAmount)} target`
         : `Net worth ${fmt(netWorth)} short of ${fmt(targetAmount)}`;
@@ -119,7 +121,7 @@ export function evaluateGoalPass(goal, monthlyData, options = {}) {
     case 'savings_target':
       return (monthlyData[clampedMonth]?.balance || 0) >= targetAmount;
     case 'income_target':
-      return (monthlyData[clampedMonth]?.netCashFlow || 0) >= targetAmount;
+      return ((monthlyData[clampedMonth]?.netCashFlowSmoothed ?? monthlyData[clampedMonth]?.netCashFlow) || 0) >= targetAmount;
     case 'net_worth_target': {
       const balance = monthlyData[clampedMonth]?.balance || 0;
       const w = wealthData?.[clampedMonth];

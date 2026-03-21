@@ -10,6 +10,7 @@ const SummaryAsk = ({
   bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   advanceNeeded, breakevenIdx,
 }) => {
+  const breakevenRow = breakevenIdx >= 0 ? data[breakevenIdx] : null;
   return (
         <div style={{
           background: "linear-gradient(135deg, #1e293b, #0f172a)", borderRadius: 12, padding: 20,
@@ -56,7 +57,15 @@ const SummaryAsk = ({
               </span>
             </p>
             <p style={{ margin: 0, color: "#94a3b8", fontSize: 12, fontStyle: "italic" }}>
-              With debt retired and SSDI active, monthly cash flow moves from {fmtFull(data[0].netMonthly)} to approximately {fmtFull(data[breakevenIdx >= 0 ? breakevenIdx : 4]?.netMonthly || 0)}/month {"\u2014"} achieving sustainability before vesting ends.
+              {breakevenRow ? (
+                <>
+                  With debt retired and SSDI active, monthly cash flow moves from {fmtFull(data[0].netMonthly)} to approximately {fmtFull(breakevenRow.netMonthly)}/month {"\u2014"} reaching sustainability before vesting ends.
+                </>
+              ) : (
+                <>
+                  With debt retired and SSDI active, monthly cash flow moves from {fmtFull(data[0].netMonthly)} to the best projected level of {fmtFull(data[data.length - 1]?.netMonthly || 0)}/month, but it still does not reach sustainability before vesting ends.
+                </>
+              )}
             </p>
           </div>
         </div>

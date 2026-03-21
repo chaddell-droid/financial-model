@@ -30,6 +30,8 @@ export default function MonteCarloPanel({
     const base = gatherState();
     const baseProj = computeProjection(base);
     const baseFinalBal = baseProj.savingsData.find(d => d.month === 72)?.balance || 0;
+    const disciplineSigma = (mcCutsDiscipline || 0) / 100;
+    const baseDiscipline = base.cutsDiscipline ?? 1;
 
     const sensVars = [
       { name: "Investment return", upState: { ...base, investmentReturn: base.investmentReturn + mcInvestVol }, downState: { ...base, investmentReturn: Math.max(0, base.investmentReturn - mcInvestVol) } },
@@ -42,11 +44,8 @@ export default function MonteCarloPanel({
       ] : []),
       ...(base.lifestyleCutsApplied ? [{
         name: "Spending discipline",
-        upState: { ...base },
-        downState: (() => {
-          const tc = (base.lifestyleCuts || 0) + (base.cutInHalf || 0) + (base.extraCuts || 0);
-          return { ...base, baseExpenses: base.baseExpenses + Math.round(tc * 0.25) };
-        })()
+        upState: { ...base, cutsDiscipline: Math.min(1, baseDiscipline + disciplineSigma) },
+        downState: { ...base, cutsDiscipline: Math.max(0, baseDiscipline - disciplineSigma) }
       }] : []),
     ];
 
@@ -60,7 +59,7 @@ export default function MonteCarloPanel({
         spread: Math.abs(upFinal - downFinal),
       };
     }).sort((a, b) => b.spread - a.spread);
-  }, [mcResults, gatherState, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay]);
+  }, [mcResults, gatherState, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcCutsDiscipline]);
 
   return (
         <div style={{
@@ -175,8 +174,8 @@ export default function MonteCarloPanel({
                 {/* Stats row */}
                 <div style={{ display: "flex", gap: 2, marginBottom: 12, flexWrap: "wrap" }}>
                   {[
-                    { label: "Solvency Rate", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} scenarios stay positive`, color: solvColor },
-                    { label: "Median Trough", value: fmtFull(medianTrough), sub: "Worst point in median path", color: medianTrough >= 0 ? "#4ade80" : "#f87171" },
+                    { label: "Solvency Rate", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} scenarios never dip below zero`, color: solvColor },
+                    { label: "Median Trough", value: fmtFull(medianTrough), sub: "Median of scenario minimum balances", color: medianTrough >= 0 ? "#4ade80" : "#f87171" },
                     { label: "Median Final (Y6)", value: fmtFull(medianFinal), color: medianFinal >= 0 ? "#4ade80" : "#f87171" },
                     { label: "10th Percentile Final", value: fmtFull(p10Final), sub: "Bad luck scenario", color: p10Final >= 0 ? "#fbbf24" : "#f87171" },
                     { label: "90th Percentile Final", value: fmtFull(p90Final), sub: "Good luck scenario", color: "#4ade80" },
@@ -226,7 +225,7 @@ export default function MonteCarloPanel({
                     {/* X-axis labels */}
                     {[0, 12, 24, 36, 48, 60, 72].map(m => (
                       <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
-                        {m === 0 ? "Now" : `Y${m/12}`}
+                        {m === 0 ? "M0" : `Y${m/12}`}
                       </text>
                     ))}
 

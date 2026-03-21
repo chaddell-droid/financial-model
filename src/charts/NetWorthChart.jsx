@@ -138,11 +138,11 @@ export default function NetWorthChart({
                 <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
                   stroke="#4ade80" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
                 <text x={xOf(m) + 4} y={padT + 12}
-                  fill="#4ade80" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill="#4ade80" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   Savings depleted
                 </text>
                 <text x={xOf(m) + 4} y={padT + 22}
-                  fill="#4ade80" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill="#4ade80" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   → 401k drawdown
                 </text>
               </g>
@@ -159,11 +159,11 @@ export default function NetWorthChart({
                 <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
                   stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
                 <text x={xOf(m) + 4} y={padT + 36}
-                  fill="#f87171" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill="#f87171" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   401k depleted
                 </text>
                 <text x={xOf(m) + 4} y={padT + 46}
-                  fill="#f87171" fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill="#f87171" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   → home equity (HELOC)
                 </text>
               </g>
@@ -180,8 +180,8 @@ export default function NetWorthChart({
                 <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
                   stroke="#f87171" strokeWidth="1.5" strokeDasharray="4,3" />
                 <text x={xOf(m) + 4} y={padT + 60}
-                  fill="#f87171" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
-                  All assets depleted
+                  fill="#f87171" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+                  Home equity depleted
                 </text>
               </g>
             );
@@ -206,7 +206,7 @@ export default function NetWorthChart({
           {savingsData.filter(d => d.month % 12 === 0).map((d, i) => (
             <text key={i} x={xOf(d.month)} y={svgH - 5} textAnchor="middle"
               fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-              {d.month === 0 ? 'Now' : `Y${d.month / 12}`}
+              {d.month === 0 ? 'M0' : `Y${d.month / 12}`}
             </text>
           ))}
         </svg>

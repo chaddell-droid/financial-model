@@ -1,6 +1,7 @@
 import React from "react";
 import { fmtFull } from "../model/formatters.js";
 import { DAYS_PER_MONTH } from "../model/constants.js";
+import { findOperationalBreakevenIndex } from "../model/projection.js";
 import Slider from "../components/Slider.jsx";
 import SarahPracticeChart from "../charts/SarahPracticeChart.jsx";
 
@@ -32,6 +33,7 @@ export default function SarahMode({
   cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
   cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
   mcResults, goalResults, goals,
+  startingSavings, starting401k, homeEquity,
   monthlyDetail, savingsData, wealthData,
   onFieldChange, onExit,
 }) {
@@ -50,9 +52,9 @@ export default function SarahMode({
   const perClientImpact = Math.round(sarahRate * DAYS_PER_MONTH);
 
   // Net worth computations
-  const nowSavings = savingsData?.[0]?.balance || 0;
-  const now401k = wealthData?.[0]?.balance401k || 0;
-  const nowHome = wealthData?.[0]?.homeEquity || 0;
+  const nowSavings = startingSavings || 0;
+  const now401k = starting401k || 0;
+  const nowHome = homeEquity || 0;
   const nowNetWorth = nowSavings + now401k + nowHome;
   const y6Savings = savingsData?.[72]?.balance || 0;
   const y6_401k = wealthData?.[72]?.balance401k || 0;
@@ -62,7 +64,7 @@ export default function SarahMode({
   const nwGrowing = nwChange >= 0;
 
   // Breakeven month from projection
-  const breakevenMonth = monthlyDetail?.findIndex(d => d.netCashFlow >= 0);
+  const breakevenMonth = findOperationalBreakevenIndex(monthlyDetail);
   const breakevenText = breakevenMonth > 0
     ? `${Math.floor(breakevenMonth / 12)} years ${breakevenMonth % 12} months`
     : breakevenMonth === 0 ? "already there" : null;
@@ -118,7 +120,7 @@ export default function SarahMode({
           Everything we've built together — savings, retirement, and our home.
         </p>
 
-        {/* Big numbers: Now → Year 6 */}
+        {/* Big numbers: Today → Year 6 */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, margin: "8px 0 20px" }}>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 11, color: "#6b8db5", marginBottom: 4 }}>Today</div>
@@ -193,9 +195,9 @@ export default function SarahMode({
       <div style={cardStyle}>
         <h3 style={headingStyle(TEAL)}>Your Income Impact</h3>
         <p style={subtextStyle}>
-          Your practice is the engine of our plan. You're earning{" "}
+          Your practice is the engine of our plan. You're generating{" "}
           <span style={metricStyle(TEAL)}>{fmtFull(currentMonthly)}</span>
-          <span style={{ color: "#8ba4c4" }}>/mo today, growing to </span>
+          <span style={{ color: "#8ba4c4" }}>/mo in gross billings today, growing to </span>
           <span style={metricStyle(WARM_GREEN)}>{fmtFull(year3Monthly)}</span>
           <span style={{ color: "#8ba4c4" }}>/mo by Year 3.</span>
         </p>
@@ -207,7 +209,7 @@ export default function SarahMode({
 
         <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "14px 16px", marginTop: 12, border: `1px solid ${CARD_BORDER}` }}>
           <p style={{ fontSize: 13, color: "#8ba4c4", margin: 0, lineHeight: 1.6 }}>
-            Every new client adds <span style={{ color: TEAL, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(perClientImpact)}/mo</span> to our income.
+            Every new client adds <span style={{ color: TEAL, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(perClientImpact)}/mo</span> to gross billings.
             {breakevenText && <> At this pace, we reach cash flow breakeven in <span style={{ color: WARM_GREEN, fontWeight: 700 }}>{breakevenText}</span>.</>}
           </p>
         </div>
@@ -357,7 +359,7 @@ export default function SarahMode({
           <div style={{ display: "flex", alignItems: "center", gap: 0, position: "relative", height: 32 }}>
             <div style={{ position: "absolute", top: 14, left: 0, right: 0, height: 2, background: "#1e3a5f", borderRadius: 1 }} />
             {[
-              { label: "Now", month: 0, color: TEAL },
+              { label: "M0", month: 0, color: TEAL },
               { label: ssType === 'ss' ? "SS at 62" : "SSDI", month: ssType === 'ss' ? 18 : 7, color: "#fbbf24" },
               { label: "BCS ends", month: 36, color: "#f0abfc" },
               { label: "Year 6", month: 72, color: WARM_GREEN },

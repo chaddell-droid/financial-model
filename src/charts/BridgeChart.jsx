@@ -28,8 +28,9 @@ const BridgeChart = ({
   const plotH = svgH - padT - padB;
 
   const pts = monthlyDetail.filter(d => d.month <= months);
+  const trendNet = (row) => Math.round(row.netMonthlySmoothed ?? row.netMonthly);
 
-  const allNet = pts.map(p => Math.round(p.netMonthly));
+  const allNet = pts.map(trendNet);
   const maxNet = Math.max(...allNet, 1000) * 1.15;
   const minNet = Math.min(...allNet, -1000) * 1.15;
   const range = (maxNet - minNet) || 1;
@@ -40,7 +41,7 @@ const BridgeChart = ({
 
   const steppedPath = pts.map((p, i) => {
     const x = xOf(p.month);
-    const y = yOf(Math.round(p.netMonthly));
+    const y = yOf(trendNet(p));
     if (i === 0) return `M ${x},${y}`;
     return `H ${x} V ${y}`;
   }).join(" ");
@@ -83,8 +84,8 @@ const BridgeChart = ({
   }
   events.forEach((ev, i) => { ev.above = i % 2 === 0; });
 
-  const crossMonth = pts.find(p => Math.round(p.netMonthly) >= 0);
-  const finalNet = Math.round(pts[pts.length - 1]?.netMonthly || 0);
+  const crossMonth = pts.find(p => trendNet(p) >= 0);
+  const finalNet = trendNet(pts[pts.length - 1] || { netMonthly: 0 });
 
   // === MINI WATERFALL DATA ===
   // "Today" bar uses RAW values — no toggles
@@ -106,6 +107,7 @@ const BridgeChart = ({
     ...(retireDebt ? [{ name: "Retire debt", value: debtService, color: "#4ade80" }] : []),
     ...(vanSold ? [{ name: "Van sold", value: vanMonthlySavings, color: "#4ade80" }] : []),
     ...(lifestyleCutsApplied ? [{ name: "Spending cuts", value: lifestyleCuts + cutInHalf + extraCuts, color: "#4ade80" }] : []),
+    ...(bcsYearsLeft * 12 <= months && bcsFamilyMonthly > 0 ? [{ name: "BCS ends", value: bcsFamilyMonthly, color: "#4ade80" }] : []),
     // Chad's Job levers (mutually exclusive with SS/SSDI)
     ...(chadJob && !jobImmediate ? [{ name: "Chad's Job", value: chadJobMonthlyNet, color: "#22c55e" }] : []),
     ...(chadJob && !jobImmediate && chadJobHealthVal > 0 ? [{ name: "Health ins.", value: chadJobHealthVal, color: "#22c55e" }] : []),
@@ -152,7 +154,7 @@ const BridgeChart = ({
     }}>
       <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 2px", fontWeight: 600 }}>Bridge to Sustainability</h3>
       <p style={{ fontSize: 11, color: "#475569", margin: "0 0 12px" }}>
-        Monthly cash flow over time — does the plan reach breakeven before MSFT vesting ends?
+        Smoothed monthly cash flow over time — does the plan reach breakeven before MSFT vesting ends?
         {crossMonth && <span style={{ color: "#4ade80", fontWeight: 600 }}> → Breakeven at month {crossMonth.month}</span>}
         {!crossMonth && <span style={{ color: "#f87171", fontWeight: 600 }}> → Not yet breakeven by month {months}</span>}
       </p>
@@ -169,7 +171,7 @@ const BridgeChart = ({
           return ticks.map(v => (
             <g key={v}>
               <line x1={padL} x2={svgW - padR} y1={yOf(v)} y2={yOf(v)} stroke="#1e293b" strokeWidth="1" />
-              <text x={padL - 6} y={yOf(v) + 3} textAnchor="end" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+              <text x={padL - 6} y={yOf(v) + 3} textAnchor="end" fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
                 {v >= 1000 || v <= -1000 ? `$${Math.round(v/1000)}K` : `$${v}`}
               </text>
             </g>
@@ -178,12 +180,12 @@ const BridgeChart = ({
 
         {/* Zero line */}
         <line x1={padL} x2={svgW - padR} y1={zeroY} y2={zeroY} stroke="#475569" strokeWidth="1.5" />
-        <text x={padL - 6} y={zeroY + 3} textAnchor="end" fill="#64748b" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">$0</text>
+        <text x={padL - 6} y={zeroY + 3} textAnchor="end" fill="#64748b" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">$0</text>
 
         {/* X-axis labels */}
         {[0, 12, 24, 36, 48, 60].map(m => (
-          <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
-            {m === 0 ? "Now" : `Y${m/12}`}
+          <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
+            {m === 0 ? "M0" : `Y${m/12}`}
           </text>
         ))}
 
@@ -208,14 +210,14 @@ const BridgeChart = ({
         {events.map((ev, i) => {
           const x = xOf(ev.m);
           const pt = pts.find(p => p.month >= ev.m) || pts[0];
-          const lineY = yOf(Math.round(pt.netMonthly));
+          const lineY = yOf(trendNet(pt));
           const labelAbove = ev.above;
           const labelY = labelAbove ? Math.min(lineY - 8, zeroY - 20) : Math.max(lineY + 14, zeroY + 16);
           return (
             <g key={i}>
               <line x1={x} x2={x} y1={padT} y2={padT + plotH} stroke={ev.color} strokeWidth="1" strokeDasharray="3,3" opacity="0.3" />
               <circle cx={x} cy={lineY} r="3" fill={ev.color} stroke="#0f172a" strokeWidth="1" />
-              <text x={x} y={labelY} textAnchor="middle" fill={ev.color} fontSize="8" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+              <text x={x} y={labelY} textAnchor="middle" fill={ev.color} fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                 {ev.label}
               </text>
             </g>
@@ -226,7 +228,7 @@ const BridgeChart = ({
         {crossMonth && (
           <g>
             <circle cx={xOf(crossMonth.month)} cy={zeroY} r="5" fill="none" stroke="#4ade80" strokeWidth="2" />
-            <text x={xOf(crossMonth.month)} y={zeroY - 10} textAnchor="middle" fill="#4ade80" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+            <text x={xOf(crossMonth.month)} y={zeroY - 10} textAnchor="middle" fill="#4ade80" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
               Breakeven
             </text>
           </g>
@@ -293,7 +295,7 @@ const BridgeChart = ({
           <div style={{ display: "flex", gap: 2, height: wfLabelH, alignItems: "flex-start", paddingTop: 4 }}>
             {wfSteps.map((s, i) => (
               <div key={i} style={{
-                flex: 1, textAlign: "center", fontSize: 9,
+                flex: 1, textAlign: "center", fontSize: 10,
                 color: (s.isStart || s.isEnd) ? "#e2e8f0" : (s.value < 0 ? s.color : "#94a3b8"),
                 fontWeight: (s.isStart || s.isEnd) ? 700 : 400,
                 lineHeight: 1.3, whiteSpace: "pre-line"

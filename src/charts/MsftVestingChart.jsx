@@ -21,13 +21,13 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsf
         return (
           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
             <div style={{
-              fontSize: 9, color: isLow ? "#f87171" : "#f59e0b",
+              fontSize: 10, color: isLow ? "#f87171" : "#f59e0b",
               fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", fontWeight: 600
             }}>
               {fmtFull(v.net)}
             </div>
             <div style={{
-              fontSize: 7, color: "#475569",
+              fontSize: 9, color: "#475569",
               fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", marginBottom: 1
             }}>
               {v.shares}sh
@@ -42,20 +42,20 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsf
         );
       })}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-        <div style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>$0</div>
+        <div style={{ fontSize: 10, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>$0</div>
         <div style={{ width: "85%", height: 2, background: "#334155", borderRadius: 1 }} />
       </div>
     </div>
     <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
       {vestEvents.map((v, i) => (
         <div key={i} style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "#64748b" }}>{v.label}</div>
-          <div style={{ fontSize: 7, color: v.price < MSFT_FLOOR_PRICE - 0.5 ? "#f87171" : v.price > MSFT_FLOOR_PRICE + 0.5 ? "#4ade80" : "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: 10, color: "#64748b" }}>{v.label}</div>
+          <div style={{ fontSize: 9, color: v.price < MSFT_FLOOR_PRICE - 0.5 ? "#f87171" : v.price > MSFT_FLOOR_PRICE + 0.5 ? "#4ade80" : "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
             ${Math.round(v.price)}
           </div>
         </div>
       ))}
-      <div style={{ flex: 1, textAlign: "center", fontSize: 9, color: "#ef4444", fontWeight: 700 }}>Done</div>
+      <div style={{ flex: 1, textAlign: "center", fontSize: 10, color: "#ef4444", fontWeight: 700 }}>Done</div>
     </div>
     <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
       Each bar = one quarterly vest (net after 20% tax). Nothing arrives between vests.

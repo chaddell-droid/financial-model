@@ -1,5 +1,5 @@
 import React from 'react';
-import { fmtFull } from '../model/formatters.js';
+import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 
 export default function SequenceOfReturnsChart({
@@ -36,12 +36,12 @@ export default function SequenceOfReturnsChart({
   const months = 30;
   const scenarioData = scenarios.map(sc => {
     let bal = startingSavings;
-    const pts = [bal];
-    for (let m = 1; m <= months; m++) {
+    const pts = [];
+    for (let m = 0; m <= months; m++) {
       const yr = Math.min(Math.floor(m / 12), 5);
       const mRate = Math.pow(1 + sc.schedule[yr] / 100, 1/12) - 1;
       const md = monthlyDetail[m];
-      if (!md) { pts.push(bal); continue; }
+      if (!md) { pts.push(Math.round(bal)); continue; }
       const investRet = bal > 0 ? bal * mRate : 0;
       const cashFlow = md.cashIncome - md.expenses;
       bal += investRet + cashFlow;
@@ -100,11 +100,11 @@ export default function SequenceOfReturnsChart({
           <Slider label="Bad year 2 return" value={seqBadY2} onChange={set('seqBadY2')} min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
         </div>
         <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Recovery years (auto)</div>
+          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Recovery years (auto)</div>
           <div style={{ fontSize: 11, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
             {spread.slice(2).map(v => (v >= 0 ? "+" : "") + v + "%").join(", ")}
           </div>
-          <div style={{ fontSize: 8, color: "#475569", marginTop: 2 }}>
+          <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>
             6yr avg: {Math.round(spread.reduce((a, b) => a + b, 0) / 6 * 10) / 10}% = base {annualReturn}%
           </div>
         </div>
@@ -114,21 +114,21 @@ export default function SequenceOfReturnsChart({
       <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
         {scenarios.map((sc, i) => (
           <div key={i} style={{ flex: 1, minWidth: 130, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
-            <div style={{ fontSize: 8, color: "#475569" }}>Balance at MSFT cliff (M18)</div>
+            <div style={{ fontSize: 9, color: "#475569" }}>Balance at MSFT cliff (M18)</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: sc.color, fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(balAtCliff[i])}
             </div>
-            <div style={{ fontSize: 8, color: "#475569" }}>
+            <div style={{ fontSize: 9, color: "#475569" }}>
               At MSFT end (M30): {fmtFull(balAtEnd[i])}
             </div>
           </div>
         ))}
         <div style={{ flex: 1, minWidth: 130, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #fbbf2433" }}>
-          <div style={{ fontSize: 8, color: "#475569" }}>Gap at cliff (good vs bad)</div>
+          <div style={{ fontSize: 9, color: "#475569" }}>Gap at cliff (good vs bad)</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#fbbf24", fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(cliffGap)}
           </div>
-          <div style={{ fontSize: 8, color: "#475569" }}>
+          <div style={{ fontSize: 9, color: "#475569" }}>
             Same avg return, {fmtFull(cliffGap)} different outcome
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function SequenceOfReturnsChart({
           return (
             <>
               <rect x={seqX(0)} y={spt} width={seqX(deficitEnd) - seqX(0)} height={sph} fill="#f8717108" />
-              <text x={seqX(deficitEnd / 2)} y={spt + 10} textAnchor="middle" fill="#f87171" fontSize="7" opacity="0.5">
+              <text x={seqX(deficitEnd / 2)} y={spt + 10} textAnchor="middle" fill="#f87171" fontSize="9" opacity="0.75">
                 {deficitLabel}
               </text>
             </>
@@ -152,11 +152,11 @@ export default function SequenceOfReturnsChart({
 
         {/* MSFT cliff marker */}
         <line x1={seqX(cliffMonth)} x2={seqX(cliffMonth)} y1={spt} y2={spt + sph} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
-        <text x={seqX(cliffMonth)} y={spt + sph + 10} textAnchor="middle" fill="#f59e0b" fontSize="7">MSFT cliff</text>
+        <text x={seqX(cliffMonth)} y={spt + sph + 10} textAnchor="middle" fill="#f59e0b" fontSize="9">MSFT cliff</text>
 
         {/* MSFT end marker */}
         <line x1={seqX(msftEndMonth)} x2={seqX(msftEndMonth)} y1={spt} y2={spt + sph} stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
-        <text x={seqX(msftEndMonth)} y={spt + sph + 10} textAnchor="middle" fill="#f87171" fontSize="7">MSFT ends</text>
+        <text x={seqX(msftEndMonth)} y={spt + sph + 10} textAnchor="middle" fill="#f87171" fontSize="9">MSFT ends</text>
 
         {seqMin < 0 && <line x1={spl} x2={seqW - spr} y1={seqZeroY} y2={seqZeroY} stroke="#f8717133" strokeWidth="1" />}
 
@@ -164,16 +164,16 @@ export default function SequenceOfReturnsChart({
         {yTicks.map(v => (
           <g key={v}>
             <line x1={spl} x2={seqW - spr} y1={seqY(v)} y2={seqY(v)} stroke="#1e293b" strokeWidth="0.5" />
-            <text x={spl - 5} y={seqY(v) + 3} textAnchor="end" fill="#475569" fontSize="8" fontFamily="'JetBrains Mono', monospace">
-              {v >= 1000000 || v <= -1000000 ? `$${(v/1000000).toFixed(1)}M` : `$${Math.round(v/1000)}K`}
-            </text>
-          </g>
-        ))}
+            <text x={spl - 5} y={seqY(v) + 3} textAnchor="end" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+            {fmt(v)}
+          </text>
+        </g>
+      ))}
 
         {/* X-axis labels */}
         {[0, 6, 12, 18, 24, 30].map(m => (
-          <text key={m} x={seqX(m)} y={seqH - 4} textAnchor="middle" fill="#475569" fontSize="8" fontFamily="'JetBrains Mono', monospace">
-            {m === 0 ? "Now" : `M${m}`}
+          <text key={m} x={seqX(m)} y={seqH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+            {m === 0 ? "M0" : `M${m}`}
           </text>
         ))}
 
@@ -195,7 +195,7 @@ export default function SequenceOfReturnsChart({
               <line x1={cx + 3} x2={cx + 3} y1={goodY} y2={badY} stroke="#fbbf24" strokeWidth="2" />
               <line x1={cx + 1} x2={cx + 5} y1={goodY} y2={goodY} stroke="#fbbf24" strokeWidth="1.5" />
               <line x1={cx + 1} x2={cx + 5} y1={badY} y2={badY} stroke="#fbbf24" strokeWidth="1.5" />
-              <text x={cx + 8} y={midY + 4} fill="#fbbf24" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              <text x={cx + 8} y={midY + 4} fill="#fbbf24" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
                 {fmtFull(cliffGap)} gap
               </text>
             </g>
@@ -206,7 +206,7 @@ export default function SequenceOfReturnsChart({
         {zeroMonths.map((zm, i) => zm !== null ? (
           <g key={`z${i}`}>
             <circle cx={seqX(zm)} cy={seqZeroY} r="4" fill="none" stroke={scenarioData[i].color} strokeWidth="2" />
-            <text x={seqX(zm)} y={seqZeroY + 14} textAnchor="middle" fill={scenarioData[i].color} fontSize="8" fontWeight="600">
+            <text x={seqX(zm)} y={seqZeroY + 14} textAnchor="middle" fill={scenarioData[i].color} fontSize="9" fontWeight="600">
               M{zm}
             </text>
           </g>
@@ -217,7 +217,7 @@ export default function SequenceOfReturnsChart({
           const final = s.pts[months];
           return (
             <text key={`e${i}`} x={seqX(months) + 4} y={seqY(final) + (i * 13 - 13)}
-              fill={s.color} fontSize="9" fontWeight="600"
+              fill={s.color} fontSize="10" fontWeight="600"
               fontFamily="'JetBrains Mono', monospace" dominantBaseline="middle">
               {fmtFull(final)}
             </text>
@@ -232,7 +232,7 @@ export default function SequenceOfReturnsChart({
           return (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 16, height: i === 0 ? 0 : 3, borderTop: i === 0 ? `2px dashed ${s.color}` : `3px solid ${s.color}` }} />
-              <span style={{ fontSize: 9, color: s.color }}>{s.name} (avg {avg}%)</span>
+              <span style={{ fontSize: 10, color: s.color }}>{s.name} (avg {avg}%)</span>
             </div>
           );
         })}

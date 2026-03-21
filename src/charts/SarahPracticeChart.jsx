@@ -83,7 +83,7 @@ export default function SarahPracticeChart({
             <line x1={padL} x2={chartW - padR} y1={yOf(v)} y2={yOf(v)}
               stroke="#1e293b" strokeWidth="1" />
             <text x={padL - 6} y={yOf(v) + 3} textAnchor="end"
-              fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+              fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
               {v >= 1000 ? `$${Math.round(v/1000)}K` : `$${v}`}
             </text>
           </g>
@@ -92,7 +92,7 @@ export default function SarahPracticeChart({
         {/* Year markers on X axis */}
         {[0, 12, 24, 36, 48, 60].map(m => (
           <text key={m} x={xOf(m)} y={chartH - 4} textAnchor="middle"
-            fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+            fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
             {m === 0 ? "Now" : m === 60 ? "'31" : `'${26 + Math.floor((2+m)/12)}`}
           </text>
         ))}
@@ -101,7 +101,7 @@ export default function SarahPracticeChart({
         <line x1={padL} x2={chartW - padR} y1={targetY} y2={targetY}
           stroke="#4ade80" strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
         <text x={chartW - padR - 2} y={targetY - 5} textAnchor="end"
-          fill="#4ade80" fontSize="9" opacity="0.7" fontFamily="'JetBrains Mono', monospace">
+          fill="#4ade80" fontSize="10" opacity="0.8" fontFamily="'JetBrains Mono', monospace">
           Target: {fmtFull(targetGross)}
         </text>
 
@@ -109,7 +109,7 @@ export default function SarahPracticeChart({
         <line x1={padL} x2={chartW - padR} y1={currentY} y2={currentY}
           stroke="#64748b" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
         <text x={padL + 4} y={currentY - 5}
-          fill="#64748b" fontSize="9" fontFamily="'JetBrains Mono', monospace">
+          fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
           Today: {fmtFull(currentGross)}
         </text>
 
@@ -136,7 +136,7 @@ export default function SarahPracticeChart({
             <circle cx={xOf(targetMonth)} cy={yOf(pts[targetMonth].gross)}
               r="4" fill="#4ade80" stroke="#0f172a" strokeWidth="1.5" />
             <text x={xOf(targetMonth) + 6} y={yOf(pts[targetMonth].gross) - 6}
-              fill="#4ade80" fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              fill="#4ade80" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
               Target hit ~{Math.floor(targetMonth / 12)}y{targetMonth % 12}m
             </text>
           </g>
@@ -150,7 +150,7 @@ export default function SarahPracticeChart({
               <circle cx={xOf(m)} cy={yOf(p.gross)} r="3" fill="#60a5fa" stroke="#0f172a" strokeWidth="1" />
               {m > 0 && (
                 <text x={xOf(m)} y={yOf(p.gross) + 14} textAnchor="middle"
-                  fill="#94a3b8" fontSize="8" fontFamily="'JetBrains Mono', monospace">
+                  fill="#94a3b8" fontSize="9" fontFamily="'JetBrains Mono', monospace">
                   ${p.rate} × {p.clients}
                 </text>
               )}
@@ -171,11 +171,11 @@ export default function SarahPracticeChart({
             flex: 1, minWidth: 100, background: "#0f172a", borderRadius: 6, padding: "6px 8px",
             border: i === 0 ? "1px solid #60a5fa33" : "1px solid #1e293b"
           }}>
-            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>{s.label}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(s.gross)}
             </div>
-            <div style={{ fontSize: 9, color: "#475569" }}>
+            <div style={{ fontSize: 10, color: "#475569" }}>
               ${s.rate}/hr × {s.clients}/day
             </div>
           </div>

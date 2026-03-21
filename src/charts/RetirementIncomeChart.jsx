@@ -1,14 +1,35 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
+import PwaDistributionChart from './PwaDistributionChart.jsx';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
 import { simulatePath, computeSWR } from '../model/ernWithdrawal.js';
 import {
+  buildRetirementContext,
   buildScalingAndRescueFlows,
   buildSupplementalFlows,
+  deriveCurrentWithdrawalView,
   getRetirementIncomePlan,
   getRetirementPhaseSummary,
+  sliceRetirementContext,
 } from '../model/retirementIncome.js';
+import { buildPwaDistribution } from '../model/pwaDistribution.js';
+import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from '../model/pwaStrategies.js';
+
+const PWA_STRATEGY_OPTIONS = [
+  { value: 'fixed_percentile', label: 'Fixed Percentile' },
+  { value: 'sticky_median', label: 'Sticky Median' },
+  { value: 'sticky_quartile_nudge', label: 'Sticky Quartile Nudge' },
+];
+
+function getPwaStrategyLabel(strategy) {
+  return PWA_STRATEGY_OPTIONS.find(option => option.value === strategy)?.label || 'Adaptive PWA';
+}
+
+function formatCohortLabel({ year, month }) {
+  if (!year || !month) return 'n/a';
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
 
 export default function RetirementIncomeChart({
   savingsData, wealthData,
@@ -16,6 +37,12 @@ export default function RetirementIncomeChart({
   chadJob,
   trustIncomeFuture,
 }) {
+  const [retirementMode, setRetirementMode] = useState('historical_safe');
+  const [pwaStrategy, setPwaStrategy] = useState('sticky_median');
+  const [pwaPercentile, setPwaPercentile] = useState(50);
+  const [pwaToleranceLow, setPwaToleranceLow] = useState(25);
+  const [pwaToleranceHigh, setPwaToleranceHigh] = useState(75);
+  const [bequestTarget, setBequestTarget] = useState(0);
   const [equityAllocation, setEquityAllocation] = useState(60);
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [poolFloor, setPoolFloor] = useState(0);
@@ -24,6 +51,7 @@ export default function RetirementIncomeChart({
   const [inheritanceSarahAge, setInheritanceSarahAge] = useState(60);
   const [maxDepletionMonths, setMaxDepletionMonths] = useState(24);
   const [tooltip, setTooltip] = useState(null);
+  const isPwaMode = retirementMode === 'adaptive_pwa';
 
   // Chad is 60, Sarah is 46 (14 years younger)
   const ageDiff = 14;
@@ -51,6 +79,8 @@ export default function RetirementIncomeChart({
   const trustMonthly = trustIncomeFuture || 0;
   const startingCoupleIncome = chadSS + trustMonthly;
   const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
+  const normalizedPwaToleranceLow = Math.min(pwaToleranceLow, pwaToleranceHigh);
+  const normalizedPwaToleranceHigh = Math.max(pwaToleranceLow, pwaToleranceHigh);
 
   // Inheritance
   const inheritanceChadAge = inheritanceSarahAge + ageDiff;
@@ -69,6 +99,20 @@ export default function RetirementIncomeChart({
     () => getBlendedReturns(equityAllocation / 100),
     [equityAllocation]
   );
+
+  const retirementContext = useMemo(() => {
+    return buildRetirementContext({
+      horizonMonths,
+      chadPassesAge,
+      ageDiff,
+      survivorSpendRatio,
+      chadSS,
+      ssFRA,
+      sarahOwnSS,
+      survivorSS,
+      trustMonthly,
+    });
+  }, [horizonMonths, chadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly]);
 
   // Build rescue flows and scaling arrays (shared by all cohorts)
   // rescueFlows: only inheritance (one-time lump sum once the pool is empty)
@@ -120,6 +164,87 @@ export default function RetirementIncomeChart({
       inheritanceAmount,
     });
   }, [horizonMonths, chadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, inheritanceMonth, inheritanceAmount]);
+
+  const pwaStartContext = useMemo(
+    () => sliceRetirementContext(retirementContext, 0),
+    [retirementContext]
+  );
+
+  const pwaCurrentDistribution = useMemo(() => {
+    if (totalPool <= 0) return { sampleCount: 0, samples: [], sortedSampleValues: new Float64Array(0) };
+    return buildPwaDistribution({
+      blendedReturns,
+      decisionMonth: 0,
+      horizonMonths,
+      totalPool,
+      bequestTarget,
+      supplementalFlows: retirementContext.supplementalFlows,
+      scaling: retirementContext.scaling,
+    });
+  }, [blendedReturns, horizonMonths, totalPool, bequestTarget, retirementContext]);
+
+  const pwaCurrentSelection = useMemo(() => {
+    return selectPwaWithdrawal(pwaCurrentDistribution, {
+      strategy: pwaStrategy,
+      basePercentile: pwaPercentile,
+      lowerTolerancePercentile: normalizedPwaToleranceLow,
+      upperTolerancePercentile: normalizedPwaToleranceHigh,
+    });
+  }, [pwaCurrentDistribution, pwaStrategy, pwaPercentile, normalizedPwaToleranceLow, normalizedPwaToleranceHigh]);
+
+  const pwaCurrentView = useMemo(() => {
+    return deriveCurrentWithdrawalView(
+      Math.round(pwaCurrentSelection.selectedWithdrawal || 0),
+      Math.round(pwaStartContext.currentGuaranteedIncome || 0),
+    );
+  }, [pwaCurrentSelection, pwaStartContext]);
+
+  const pwaReferenceSimulation = useMemo(() => {
+    if (totalPool <= 0 || pwaCurrentDistribution.sampleCount <= 0) return null;
+
+    const referenceIndex = Math.max(
+      0,
+      Math.min(
+        pwaCurrentDistribution.samples.length - 1,
+        Math.round((pwaCurrentDistribution.samples.length - 1) * (pwaCurrentSelection.selectedPercentile || 0) / 100)
+      )
+    );
+    const referenceSample = pwaCurrentDistribution.samples[referenceIndex];
+    const simulation = simulateAdaptivePwaStrategy({
+      blendedReturns,
+      cohortStart: referenceSample.cohortStart,
+      horizonMonths,
+      totalPool,
+      bequestTarget,
+      supplementalFlows: retirementContext.supplementalFlows,
+      scaling: retirementContext.scaling,
+      retirementContext,
+      strategyConfig: {
+        strategy: pwaStrategy,
+        basePercentile: pwaPercentile,
+        lowerTolerancePercentile: normalizedPwaToleranceLow,
+        upperTolerancePercentile: normalizedPwaToleranceHigh,
+      },
+    });
+
+    return {
+      ...simulation,
+      referenceSample,
+      decisionPreview: simulation.yearlyDecisions.slice(0, 8),
+    };
+  }, [
+    blendedReturns,
+    horizonMonths,
+    totalPool,
+    bequestTarget,
+    retirementContext,
+    pwaCurrentDistribution,
+    pwaCurrentSelection,
+    pwaStrategy,
+    pwaPercentile,
+    normalizedPwaToleranceLow,
+    normalizedPwaToleranceHigh,
+  ]);
 
   // Closed-form SWR for each historical cohort (independent of withdrawal slider)
   const cohortSWRs = useMemo(() => {
@@ -250,10 +375,10 @@ export default function RetirementIncomeChart({
 
   // Sync withdrawal slider to SAFE rate (pool never depletes) — chart default
   useEffect(() => {
-    if (optimalRates.safeRate > 0) {
+    if (!isPwaMode && optimalRates.safeRate > 0) {
       setWithdrawalRate(optimalRates.safeRate);
     }
-  }, [optimalRates.safeRate]);
+  }, [isPwaMode, optimalRates.safeRate]);
 
   // Bands and finish-above-reserve rate at the user's slider rate
   const bandResult = useMemo(() => {
@@ -394,6 +519,8 @@ export default function RetirementIncomeChart({
   const optMonthly = optimalRates.optimalMonthly;
   const optPreRate = optimalRates.optimalPreRate;
   const optPreMonthly = optimalRates.optimalPreMonthly;
+  const pwaConfidencePct = Math.round((pwaCurrentSelection.probabilityNoCut || 0) * 100);
+  const pwaReferenceBequestMet = (pwaReferenceSimulation?.finalPool || 0) >= bequestTarget;
   const retirementTextStrong = '#e2e8f0';
   const retirementTextBody = '#cbd5e1';
   const retirementTextMuted = '#94a3b8';
@@ -404,22 +531,113 @@ export default function RetirementIncomeChart({
       border: '1px solid #334155', marginBottom: 24,
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <h3 style={{ fontSize: 15, color: retirementTextStrong, margin: 0, fontWeight: 600 }}>
-          Retirement + Survivor Income (today's dollars)
-        </h3>
-        <span style={{ fontSize: 12, color: endAboveReserveRate >= 0.9 ? '#4ade80' : endAboveReserveRate >= 0.7 ? '#f59e0b' : '#f87171', fontWeight: 600 }}>
-          {Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah {sarahTargetAge} ({optimalRates.numCohorts.toLocaleString()} cohorts, {optimalRates.cohortRange})
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ fontSize: 15, color: retirementTextStrong, margin: 0, fontWeight: 600 }}>
+            Retirement + Survivor Income (today's dollars)
+          </h3>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {[
+              { value: 'historical_safe', label: 'Historical Safe' },
+              { value: 'adaptive_pwa', label: 'Adaptive PWA' },
+            ].map(mode => (
+              <button
+                key={mode.value}
+                type="button"
+                onClick={() => setRetirementMode(mode.value)}
+                style={{
+                  background: retirementMode === mode.value ? '#0f172a' : '#1e293b',
+                  color: retirementMode === mode.value ? retirementTextStrong : retirementTextMuted,
+                  border: `1px solid ${retirementMode === mode.value ? '#60a5fa' : '#334155'}`,
+                  borderRadius: 999,
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <span style={{
+          fontSize: 12,
+          color: isPwaMode
+            ? (pwaConfidencePct >= 70 ? '#4ade80' : pwaConfidencePct >= 50 ? '#f59e0b' : '#f87171')
+            : (endAboveReserveRate >= 0.9 ? '#4ade80' : endAboveReserveRate >= 0.7 ? '#f59e0b' : '#f87171'),
+          fontWeight: 600,
+          textAlign: 'right',
+        }}>
+          {isPwaMode
+            ? `${pwaConfidencePct}% won't need to cut later (${pwaCurrentDistribution.sampleCount.toLocaleString()} cohorts)`
+            : `${Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah ${sarahTargetAge} (${optimalRates.numCohorts.toLocaleString()} cohorts, ${optimalRates.cohortRange})`}
         </span>
       </div>
 
       {/* Subtitle */}
       <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 12, fontStyle: 'italic', lineHeight: 1.45 }}>
-        House sold at 67 · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
-        {optimalRates.worstCohort.year > 0 && ` · Worst start: ${optimalRates.worstCohort.year}`}
+        {isPwaMode ? (
+          <>
+            Adaptive PWA · {getPwaStrategyLabel(pwaStrategy)} · {equityAllocation}/{100 - equityAllocation} portfolio · Chad passes at {chadPassesAge} · Bequest target {fmtFull(bequestTarget)}
+            {pwaStrategy !== 'sticky_median' && ` · ${pwaPercentile}th pct target`}
+            {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && ` · ${normalizedPwaToleranceLow}–${normalizedPwaToleranceHigh} tolerance`}
+          </>
+        ) : (
+          <>
+            House sold at 67 · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
+            {optimalRates.worstCohort.year > 0 && ` · Worst start: ${optimalRates.worstCohort.year}`}
+          </>
+        )}
       </div>
 
       {/* Income phase summary */}
+      {isPwaMode ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
+            <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(totalPool)}
+            </div>
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
+            </div>
+            {pwaReferenceSimulation && (
+              <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+                Reference realized cohort: {formatCohortLabel(pwaReferenceSimulation.referenceSample)}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #4ade8033' }}>
+            <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>Current PWA Spending Target</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(Math.round(pwaCurrentView.totalSpendingTarget))}/mo
+            </div>
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Pool draw {fmtFull(Math.round(pwaCurrentView.currentPortfolioDraw))}/mo + SS {fmtFull(Math.round(pwaStartContext.currentSSIncome))}/mo + {fmtFull(trustMonthly)}/mo trust
+            </div>
+            {pwaCurrentView.outsideIncomeReinvested > 0 && (
+              <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+                Outside income reinvested: {fmtFull(Math.round(pwaCurrentView.outsideIncomeReinvested))}/mo
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
+            <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 4, fontWeight: 600 }}>Adaptive Confidence</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
+              {pwaConfidencePct}%
+            </div>
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Chance this starting target won't need to cut later while still ending at {fmtFull(bequestTarget)}
+            </div>
+            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
+              Tolerance band {fmtFull(Math.round(pwaCurrentSelection.lowerToleranceWithdrawal || 0))} – {fmtFull(Math.round(pwaCurrentSelection.upperToleranceWithdrawal || 0))}/mo
+            </div>
+          </div>
+        </div>
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: inhDuringCouple ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
         {/* Pool card */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
@@ -489,7 +707,102 @@ export default function RetirementIncomeChart({
           )}
         </div>
       </div>
+      )}
 
+      {isPwaMode && (
+        <>
+          <PwaDistributionChart
+            samples={pwaCurrentDistribution.samples}
+            selectedWithdrawal={pwaCurrentSelection.selectedWithdrawal}
+            basePercentile={pwaCurrentSelection.selectedPercentile}
+            lowerTolerancePercentile={normalizedPwaToleranceLow}
+            upperTolerancePercentile={normalizedPwaToleranceHigh}
+            bequestTarget={bequestTarget}
+          />
+
+          <div style={{
+            background: '#0f172a',
+            borderRadius: 8,
+            padding: '12px 14px',
+            border: '1px solid #334155',
+            marginBottom: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 11, color: retirementTextStrong, fontWeight: 700 }}>
+                  Adaptive decision preview
+                </div>
+                <div style={{ fontSize: 10, color: retirementTextMuted, marginTop: 2, lineHeight: 1.45 }}>
+                  One realized historical path, re-solving the full PWA distribution each year from the updated balance.
+                </div>
+              </div>
+              {pwaReferenceSimulation && (
+                <div style={{ fontSize: 10, color: retirementTextBody, lineHeight: 1.45, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace" }}>
+                  Reference cohort {formatCohortLabel(pwaReferenceSimulation.referenceSample)} · final pool {fmtFull(pwaReferenceSimulation.finalPool)} {pwaReferenceBequestMet ? '>= ' : '< '}{fmtFull(bequestTarget)}
+                </div>
+              )}
+            </div>
+
+            {pwaReferenceSimulation ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      {['Year', 'Ages', 'Start Pool', 'Spend Target', 'Pool Draw', 'Reason'].map(header => (
+                        <th key={header} style={{
+                          textAlign: header === 'Reason' ? 'left' : 'right',
+                          color: retirementTextMuted,
+                          fontWeight: 700,
+                          padding: '0 0 6px',
+                          borderBottom: '1px solid #334155',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}>
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pwaReferenceSimulation.decisionPreview.map((decision, idx) => {
+                      const chadAge = 67 + idx;
+                      const sarahAge = chadAge - ageDiff;
+                      return (
+                        <tr key={decision.decisionMonth}>
+                          <td style={{ padding: '7px 0', color: retirementTextBody, borderBottom: '1px solid #1e293b', fontFamily: "'JetBrains Mono', monospace" }}>
+                            Y{idx}
+                          </td>
+                          <td style={{ padding: '7px 0', textAlign: 'right', color: retirementTextBody, borderBottom: '1px solid #1e293b', fontFamily: "'JetBrains Mono', monospace" }}>
+                            {chadAge}/{sarahAge}
+                          </td>
+                          <td style={{ padding: '7px 0', textAlign: 'right', color: retirementTextStrong, borderBottom: '1px solid #1e293b', fontFamily: "'JetBrains Mono', monospace" }}>
+                            {fmtFull(decision.beginningBalance)}
+                          </td>
+                          <td style={{ padding: '7px 0', textAlign: 'right', color: '#4ade80', borderBottom: '1px solid #1e293b', fontFamily: "'JetBrains Mono', monospace" }}>
+                            {fmtFull(Math.round(decision.selectedTotalSpendingTarget))}
+                          </td>
+                          <td style={{ padding: '7px 0', textAlign: 'right', color: '#60a5fa', borderBottom: '1px solid #1e293b', fontFamily: "'JetBrains Mono', monospace" }}>
+                            {fmtFull(Math.round(decision.currentPortfolioDraw))}
+                          </td>
+                          <td style={{ padding: '7px 0', color: decision.cutOccurred ? '#f59e0b' : retirementTextBody, borderBottom: '1px solid #1e293b', fontFamily: "'JetBrains Mono', monospace" }}>
+                            {decision.reason.replaceAll('_', ' ')}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: retirementTextMuted, lineHeight: 1.45 }}>
+                No adaptive preview available until the retirement pool is positive.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {!isPwaMode && (
+      <>
       {/* Chart */}
       <div style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
       <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
@@ -741,87 +1054,132 @@ export default function RetirementIncomeChart({
           </div>
         </div>
         {/* Rate vs history comparison */}
-        <div style={{ fontSize: 11, color: retirementTextMuted, marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+      <div style={{ fontSize: 11, color: retirementTextMuted, marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
           Your {withdrawalRate}% pool draw finished above the reserve in {Math.round(endAboveReserveRate * 100)}% of historical cohorts
         </div>
       </div>
+      </>
+      )}
 
       {/* Sliders */}
-      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
-          min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
+      {isPwaMode ? (
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
+            min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
+          <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+            min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
+          <Slider label="Bequest target" value={bequestTarget} onChange={setBequestTarget}
+            min={0} max={Math.max(totalPool, 1000000)} step={25000} color="#4ade80" />
 
-        {/* Withdrawal rate with optimal marker */}
-        <div style={{ padding: "4px 0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>Pool draw rate</span>
-            <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
-              {withdrawalRate}%
-              {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
-              {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above ERN max)</span>}
-            </span>
+          <div style={{ padding: '4px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>PWA strategy</span>
+              <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 700 }}>
+                {getPwaStrategyLabel(pwaStrategy)}
+              </span>
+            </div>
+            <select
+              value={pwaStrategy}
+              onChange={(e) => setPwaStrategy(e.target.value)}
+              style={{ width: '100%', background: '#0f172a', color: retirementTextStrong, border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', fontSize: 13 }}
+            >
+              {PWA_STRATEGY_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
-          <div style={{ position: 'relative' }}>
-            <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
-              onChange={(e) => setWithdrawalRate(Number(e.target.value))}
-              style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
-            {/* Rate markers below the slider — staggered vertically to avoid overlap */}
-            {(() => {
-              const thumbHalf = 8;
-              const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
-              const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
-              return (
-                <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
-                  {/* Safe rate marker (green) — top row */}
-                  <div style={{
-                    position: 'absolute',
-                    left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
-                    top: 0,
-                    transform: 'translateX(-50%)',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    pointerEvents: 'none',
-                  }}>
-                    <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
-                    <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {optimalRates.safeRate}% safe
-                    </div>
-                  </div>
-                  {/* ERN max marker (blue) — bottom row, staggered down */}
-                  {optRate > 0 && (
+
+          {pwaStrategy !== 'sticky_median' && (
+            <Slider label="Target percentile" value={pwaPercentile} onChange={setPwaPercentile}
+              min={5} max={95} step={5} format={(v) => `${v}th`} color="#4ade80" />
+          )}
+
+          {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
+            <>
+              <Slider label="Tolerance low" value={pwaToleranceLow} onChange={setPwaToleranceLow}
+                min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
+              <Slider label="Tolerance high" value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
+                min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
+            </>
+          )}
+        </div>
+      ) : (
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
+            min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
+
+          {/* Withdrawal rate with optimal marker */}
+          <div style={{ padding: "4px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>Pool draw rate</span>
+              <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+                {withdrawalRate}%
+                {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
+                {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above ERN max)</span>}
+              </span>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
+                onChange={(e) => setWithdrawalRate(Number(e.target.value))}
+                style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
+              {/* Rate markers below the slider — staggered vertically to avoid overlap */}
+              {(() => {
+                const thumbHalf = 8;
+                const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+                const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+                return (
+                  <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
+                    {/* Safe rate marker (green) — top row */}
                     <div style={{
                       position: 'absolute',
-                      left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
-                      top: 14,
+                      left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
+                      top: 0,
                       transform: 'translateX(-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       pointerEvents: 'none',
                     }}>
-                      <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
-                      <div style={{ fontSize: 9, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {optRate}% ERN max
+                      <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
+                      <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {optimalRates.safeRate}% safe
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })()}
+                    {/* ERN max marker (blue) — bottom row, staggered down */}
+                    {optRate > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
+                        top: 14,
+                        transform: 'translateX(-50%)',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        pointerEvents: 'none',
+                      }}>
+                        <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
+                        <div style={{ fontSize: 9, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {optRate}% ERN max
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-        </div>
 
-        <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
-          min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
-        <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
-          min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
-        <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
-          min={0} max={2000000} step={50000} color="#4ade80" />
-        <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
-          min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
-        <Slider label="Max depletion gap" value={maxDepletionMonths} onChange={setMaxDepletionMonths}
-          min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
-      </div>
+          <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+            min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
+          <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
+            min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
+          <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
+            min={0} max={2000000} step={50000} color="#4ade80" />
+          <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
+            min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
+          <Slider label="Max depletion gap" value={maxDepletionMonths} onChange={setMaxDepletionMonths}
+            min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
+        </div>
+      )}
 
       {/* Inheritance pre-withdrawal callout */}
-      {hasInheritance && (optPreRate - optRate >= 0.5) && (
+      {!isPwaMode && hasInheritance && (optPreRate - optRate >= 0.5) && (
         <div style={{
           marginTop: 8, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
           border: '1px solid #4ade8033',
@@ -854,7 +1212,7 @@ export default function RetirementIncomeChart({
       )}
 
       {/* Over-withdrawal warning */}
-      {withdrawalRate > optRate && !hasInheritance && (
+      {!isPwaMode && withdrawalRate > optRate && !hasInheritance && (
         <div style={{
           marginTop: 8, padding: '8px 12px', background: '#1e293b', borderRadius: 6,
           border: '1px solid #f8717133', fontSize: 12, color: '#f87171', lineHeight: 1.5,

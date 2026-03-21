@@ -9,6 +9,7 @@ export function runMonteCarlo(base, mcParams, goals = []) {
   const { mcNumSims: N, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline } = mcParams;
   const months = 72;
   const clampGrowth = (value) => Math.max(-99.9, value);
+  const drawDelayMonths = (maxDelay) => Math.floor(Math.random() * (Math.max(0, maxDelay) + 1));
 
   // Box-Muller normal random
   const randNorm = (mean, std) => {
@@ -30,9 +31,9 @@ export function runMonteCarlo(base, mcParams, goals = []) {
       investmentReturn: clampGrowth(randNorm(base.investmentReturn, mcInvestVol)),
       sarahClientGrowth: clampGrowth(randNorm(base.sarahClientGrowth, mcBizGrowthVol)),
       sarahRateGrowth: clampGrowth(randNorm(base.sarahRateGrowth, mcBizGrowthVol * 0.5)),
-      msftGrowth: randNorm(base.msftGrowth, mcMsftVol),
+      msftGrowth: clampGrowth(randNorm(base.msftGrowth, mcMsftVol)),
       // SS retirement is guaranteed at age 62 — no delay or denial risk
-      ssdiApprovalMonth: useSS ? base.ssdiApprovalMonth : base.ssdiApprovalMonth + Math.max(0, Math.round(Math.random() * mcSsdiDelay)),
+      ssdiApprovalMonth: useSS ? base.ssdiApprovalMonth : base.ssdiApprovalMonth + drawDelayMonths(mcSsdiDelay),
       cutsDiscipline: Math.min(1, Math.max(0, randNorm(1, mcCutsDiscipline / 100))),
     };
 
@@ -107,6 +108,7 @@ export function runDadMonteCarlo(base) {
   const N = 200;
   const months = 72;
   const clampGrowth = (value) => Math.max(-99.9, value);
+  const drawDelayMonths = (maxDelay) => Math.floor(rng() * (Math.max(0, maxDelay) + 1));
 
   // Seeded PRNG (mulberry32) — same seed = same random paths
   const seed = 42;
@@ -129,8 +131,8 @@ export function runDadMonteCarlo(base) {
       investmentReturn: clampGrowth(randNorm(base.investmentReturn, 12)),
       sarahClientGrowth: clampGrowth(randNorm(base.sarahClientGrowth, 5)),
       sarahRateGrowth: clampGrowth(randNorm(base.sarahRateGrowth, 2.5)),
-      msftGrowth: randNorm(base.msftGrowth, 15),
-      ssdiApprovalMonth: base.ssdiApprovalMonth + Math.max(0, Math.round(rng() * 6)),
+      msftGrowth: clampGrowth(randNorm(base.msftGrowth, 15)),
+      ssdiApprovalMonth: base.ssdiApprovalMonth + drawDelayMonths(6),
       cutsDiscipline: Math.min(1, Math.max(0, randNorm(1, 0.25))),
     };
 

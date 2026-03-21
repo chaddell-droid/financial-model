@@ -196,14 +196,15 @@ export default function RetirementIncomeChart({
     const cohortRange = `${firstLabel.year}\u2013${lastLabel.year}`;
 
     // "Safe" rate: pool never depletes (binary search + simulatePath + everDepleted)
-    // This is the conservative rate shown on the chart by default
+    // Uses consumption + supplementalFlows (matching ERN formula)
     let safeRateLo = 0.1, safeRateHi = 25;
     for (let iter = 0; iter < 30; iter++) {
       const mid = (safeRateLo + safeRateHi) / 2;
-      const testW = Math.round(totalPool * (mid / 100) / 12);
+      const testPoolDraw = Math.round(totalPool * (mid / 100) / 12);
+      const testConsumption = testPoolDraw + initialIncome;
       let survived = 0;
       for (let c = 0; c < numCohorts; c++) {
-        const sim = simulatePath(blendedReturns, c, horizonMonths, testW, flows, scaling, totalPool, poolFloor);
+        const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, supplementalFlows, scaling, totalPool, poolFloor);
         if (sim.finalPool > poolFloor && !sim.everDepleted) survived++;
       }
       if (survived / numCohorts >= 0.90) safeRateLo = mid; else safeRateHi = mid;
@@ -240,11 +241,11 @@ export default function RetirementIncomeChart({
     const allYearlyPools = new Array(numCohorts);
     let survivedCount = 0;
 
-    // Formula-based survival: cohort survives if its max consumption >= user's consumption
+    // Use consumption + supplementalFlows for simulation (matching ERN formula)
     const userConsumption = monthlyWithdrawal + optimalRates.initialIncome;
 
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, monthlyWithdrawal, flows, scaling, totalPool, poolFloor);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, supplementalFlows, scaling, totalPool, poolFloor);
       allYearlyPools[c] = sim.yearlyPools;
       if (cohortSWRs[c] >= userConsumption) survivedCount++;
     }
@@ -264,18 +265,18 @@ export default function RetirementIncomeChart({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { survivalRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, flows, scaling, horizonMonths, years, cohortSWRs, optimalRates.initialIncome]);
+  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, supplementalFlows, scaling, horizonMonths, years, cohortSWRs, optimalRates.initialIncome]);
 
   // Deterministic trajectory using average historical return
-  // Uses CONSTANT dollar withdrawal (same model as simulatePath / binary search)
-  // Withdrawal stays at monthlyWithdrawal throughout couple phase, monthlyWithdrawal * survivorRatio in survivor
+  // Uses consumption + supplementalFlows (matching ERN formula and simulatePath)
+  const monthlyConsumption = monthlyWithdrawal + chadSS + trustMonthly;
   const { deterministicPools, avgAnnualReal } = useMemo(() => {
     let sum = 0;
     for (let i = 0; i < blendedReturns.length; i++) sum += blendedReturns[i];
     const avgMonthly = sum / blendedReturns.length;
     const avgAnnualReal = Math.round((Math.pow(1 + avgMonthly, 12) - 1) * 1000) / 10;
 
-    // Use the same model as simulatePath: constant withdrawal + scaling + flows
+    // Use consumption + supplementalFlows (matching ERN formula)
     let pool = totalPool;
     const pools = [];
 
@@ -286,16 +287,16 @@ export default function RetirementIncomeChart({
       for (let m = 0; m < 12; m++) {
         const t = y * 12 + m;
         if (pool > poolFloor) {
-          pool = pool * (1 + avgMonthly) - monthlyWithdrawal * scaling[t] + flows[t];
+          pool = pool * (1 + avgMonthly) - monthlyConsumption * scaling[t] + supplementalFlows[t];
           if (pool < poolFloor) pool = poolFloor;
-        } else if (flows[t] > 0) {
-          pool += flows[t];
+        } else if (supplementalFlows[t] > 0) {
+          pool += supplementalFlows[t];
         }
       }
     }
 
     return { deterministicPools: pools, avgAnnualReal };
-  }, [blendedReturns, totalPool, monthlyWithdrawal, poolFloor, scaling, flows, years]);
+  }, [blendedReturns, totalPool, monthlyConsumption, poolFloor, scaling, supplementalFlows, years]);
 
   // Constant-dollar withdrawal amounts for each phase
   const survivorWithdrawal = Math.round(monthlyWithdrawal * survivorSpendRatio);

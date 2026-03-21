@@ -1,6 +1,6 @@
 # Family Financial Planning Model — Documentation Index
 
-**Generated:** 2026-03-15 | **Scan Level:** Deep Scan
+**Generated:** 2026-03-15 | **Updated:** 2026-03-21 | **Scan Level:** Deep Scan
 
 ---
 
@@ -27,6 +27,7 @@
 - [Source Tree Analysis](./source-tree-analysis.md) — Annotated directory structure, critical folders
 - [Component Inventory](./component-inventory.md) — All 35 source files categorized with props/exports
 - [Development Guide](./development-guide.md) — Setup, build, deploy, conventions, common tasks
+- [Adaptive PWA Guide](./adaptive-pwa-guide.md) — Retirement-mode semantics, model APIs, strategy usage, and common pitfalls
 
 ## Existing Documentation
 

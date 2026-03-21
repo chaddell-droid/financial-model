@@ -771,6 +771,43 @@ test('PWA distribution chart is wired into the retirement surface', () => {
   assert.ok(chartSource.includes('Current PWA Distribution'), 'distribution chart headline should exist');
   assert.ok(chartSource.includes('Bequest target'), 'distribution tooltip should mention the bequest target');
 });
+test('Retirement help registry preserves core help keys for both modes', () => {
+  const registrySource = fs.readFileSync(new URL('../content/help/registry.js', import.meta.url), 'utf8');
+  [
+    'retirement_mode',
+    'retirement_overview_historical',
+    'retirement_overview_pwa',
+    'reserve_never_touched',
+    'finish_above_reserve',
+    'probability_no_cut',
+    'bequest_target',
+    'pwa_strategy',
+    'pwa_target_percentile',
+    'pwa_tolerance_band',
+    'max_depletion_gap',
+    'adaptive_pwa_intro',
+  ].forEach((key) => {
+    assert.ok(registrySource.includes(`${key}:`), `help registry should include ${key}`);
+  });
+});
+test('Retirement surface wires inline help primitives into the section', () => {
+  const source = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('<HelpDrawer'), 'retirement chart should expose a section help drawer');
+  assert.ok(source.includes('<HelpTip'), 'retirement chart should expose inline help tips');
+  assert.ok(source.includes('adaptive_pwa_intro'), 'retirement chart should wire the Adaptive PWA intro help');
+  assert.ok(source.includes('pwa_tolerance_band'), 'retirement chart should explain tolerance controls');
+});
+test('Retirement help layout keeps the overview rail wider and uses responsive retirement grids', () => {
+  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(appSource.includes('minmax(580px, 660px)'), 'overview rail should reserve more width for retirement content');
+  assert.ok(retirementSource.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'retirement controls should use responsive auto-fit grids');
+  assert.ok(retirementSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
+});
+test('index.html points favicon requests at the existing SVG asset', () => {
+  const htmlSource = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  assert.ok(htmlSource.includes('href="/favicon.svg"'), 'index.html should link the SVG favicon');
+});
 
 console.log('\n=== Monte Carlo Guards ===');
 

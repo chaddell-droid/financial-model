@@ -579,7 +579,7 @@ export default function FinancialModel() {
             onGoalsChange={(newGoals) => set('goals')(newGoals)}
           />
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 520px", gap: 24, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(580px, 660px)", gap: 24, alignItems: "start" }}>
             {/* Left column: Tab content */}
             <div style={{ minWidth: 0 }}>
               {effectiveTab === "overview" && (

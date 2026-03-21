@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
+import HelpDrawer from '../components/help/HelpDrawer.jsx';
+import HelpTip from '../components/help/HelpTip.jsx';
 import PwaDistributionChart from './PwaDistributionChart.jsx';
+import { HELP } from '../content/help/registry.js';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
 import { simulatePath, computeSWR } from '../model/ernWithdrawal.js';
 import {
@@ -31,6 +34,35 @@ function formatCohortLabel({ year, month }) {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
+function LabelWithHelp({ label, help, accent = '#60a5fa', align = 'left' }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <span>{label}</span>
+      <HelpTip help={help} accent={accent} align={align} />
+    </span>
+  );
+}
+
+function HelpChip({ label, help, accent = '#60a5fa' }) {
+  return (
+    <div
+      style={{
+        background: '#02061766',
+        border: `1px solid ${accent}33`,
+        borderRadius: 8,
+        padding: '8px 10px',
+      }}
+    >
+      <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 600, lineHeight: 1.35 }}>
+        <LabelWithHelp label={label} help={help} accent={accent} />
+      </div>
+      <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.45, marginTop: 4 }}>
+        {help.short}
+      </div>
+    </div>
+  );
+}
+
 export default function RetirementIncomeChart({
   savingsData, wealthData,
   ssType, ssPersonal,
@@ -51,6 +83,8 @@ export default function RetirementIncomeChart({
   const [inheritanceSarahAge, setInheritanceSarahAge] = useState(60);
   const [maxDepletionMonths, setMaxDepletionMonths] = useState(24);
   const [tooltip, setTooltip] = useState(null);
+  const [showPwaIntro, setShowPwaIntro] = useState(false);
+  const [pwaIntroReady, setPwaIntroReady] = useState(false);
   const isPwaMode = retirementMode === 'adaptive_pwa';
 
   // Chad is 60, Sarah is 46 (14 years younger)
@@ -380,6 +414,18 @@ export default function RetirementIncomeChart({
     }
   }, [isPwaMode, optimalRates.safeRate]);
 
+  useEffect(() => {
+    if (!isPwaMode) return;
+
+    try {
+      const seenIntro = window.localStorage.getItem('fs_help_seen_adaptive_pwa_intro') === '1';
+      setShowPwaIntro(!seenIntro);
+    } catch (error) {
+      setShowPwaIntro(false);
+    }
+    setPwaIntroReady(true);
+  }, [isPwaMode]);
+
   // Bands and finish-above-reserve rate at the user's slider rate
   const bandResult = useMemo(() => {
     const emptyBands = [10, 25, 50, 75, 90].map(p => ({ pct: p, series: Array(years + 1).fill(0) }));
@@ -524,6 +570,16 @@ export default function RetirementIncomeChart({
   const retirementTextStrong = '#e2e8f0';
   const retirementTextBody = '#cbd5e1';
   const retirementTextMuted = '#94a3b8';
+  const sectionOverviewHelp = isPwaMode ? HELP.retirement_overview_pwa : HELP.retirement_overview_historical;
+
+  function dismissPwaIntro() {
+    setShowPwaIntro(false);
+    try {
+      window.localStorage.setItem('fs_help_seen_adaptive_pwa_intro', '1');
+    } catch (error) {
+      // Ignore storage failures; the intro will simply reappear next session.
+    }
+  }
 
   return (
     <div style={{
@@ -533,8 +589,9 @@ export default function RetirementIncomeChart({
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ fontSize: 15, color: retirementTextStrong, margin: 0, fontWeight: 600 }}>
-            Retirement + Survivor Income (today's dollars)
+          <h3 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15, color: retirementTextStrong, margin: 0, fontWeight: 600 }}>
+            <span>Retirement + Survivor Income (today&apos;s dollars)</span>
+            <HelpTip help={HELP.retirement_mode} accent="#60a5fa" />
           </h3>
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {[
@@ -561,18 +618,33 @@ export default function RetirementIncomeChart({
             ))}
           </div>
         </div>
-        <span style={{
-          fontSize: 12,
-          color: isPwaMode
-            ? (pwaConfidencePct >= 70 ? '#4ade80' : pwaConfidencePct >= 50 ? '#f59e0b' : '#f87171')
-            : (endAboveReserveRate >= 0.9 ? '#4ade80' : endAboveReserveRate >= 0.7 ? '#f59e0b' : '#f87171'),
-          fontWeight: 600,
-          textAlign: 'right',
-        }}>
-          {isPwaMode
-            ? `${pwaConfidencePct}% won't need to cut later (${pwaCurrentDistribution.sampleCount.toLocaleString()} cohorts)`
-            : `${Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah ${sarahTargetAge} (${optimalRates.numCohorts.toLocaleString()} cohorts, ${optimalRates.cohortRange})`}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              fontSize: 12,
+              color: isPwaMode
+                ? (pwaConfidencePct >= 70 ? '#4ade80' : pwaConfidencePct >= 50 ? '#f59e0b' : '#f87171')
+                : (endAboveReserveRate >= 0.9 ? '#4ade80' : endAboveReserveRate >= 0.7 ? '#f59e0b' : '#f87171'),
+              fontWeight: 600,
+              textAlign: 'right',
+            }}>
+              {isPwaMode
+                ? `${pwaConfidencePct}% won't need to cut later (${pwaCurrentDistribution.sampleCount.toLocaleString()} cohorts)`
+                : `${Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah ${sarahTargetAge} (${optimalRates.numCohorts.toLocaleString()} cohorts, ${optimalRates.cohortRange})`}
+            </span>
+            <HelpTip
+              help={isPwaMode ? HELP.probability_no_cut : HELP.finish_above_reserve}
+              accent={isPwaMode ? '#60a5fa' : '#4ade80'}
+              align="right"
+            />
+          </div>
+          {!isPwaMode && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: retirementTextMuted }}>
+              <span>90% safe uses reserve-never-touched</span>
+              <HelpTip help={HELP.reserve_never_touched} accent="#4ade80" align="right" />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Subtitle */}
@@ -591,9 +663,77 @@ export default function RetirementIncomeChart({
         )}
       </div>
 
+      <HelpDrawer
+        key={retirementMode}
+        help={sectionOverviewHelp}
+        title={isPwaMode ? 'How To Read Adaptive PWA' : 'How To Read Historical Safe'}
+        accent={isPwaMode ? '#60a5fa' : '#4ade80'}
+        defaultOpen={isPwaMode}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+          {isPwaMode ? (
+            <>
+              <HelpChip label="Spending target" help={HELP.spending_target} accent="#4ade80" />
+              <HelpChip label="Pool draw" help={HELP.pool_draw} accent="#60a5fa" />
+              <HelpChip label="Won't need to cut later" help={HELP.probability_no_cut} accent="#60a5fa" />
+              <HelpChip label="Bequest target" help={HELP.bequest_target} accent="#4ade80" />
+            </>
+          ) : (
+            <>
+              <HelpChip label="Finish above reserve" help={HELP.finish_above_reserve} accent="#60a5fa" />
+              <HelpChip label="Reserve never touched" help={HELP.reserve_never_touched} accent="#4ade80" />
+              <HelpChip label="Pool draw" help={HELP.pool_draw} accent="#f59e0b" />
+              <HelpChip label="Pool floor" help={HELP.reserve_floor} accent="#f59e0b" />
+            </>
+          )}
+        </div>
+      </HelpDrawer>
+
+      {isPwaMode && pwaIntroReady && showPwaIntro && (
+        <div style={{
+          marginBottom: 12,
+          padding: '12px 14px',
+          background: '#0f172a',
+          border: '1px solid #60a5fa55',
+          borderRadius: 10,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#60a5fa', fontWeight: 700, marginBottom: 4 }}>
+                <span>{HELP.adaptive_pwa_intro.title}</span>
+                <HelpTip help={HELP.adaptive_pwa_intro} accent="#60a5fa" />
+              </div>
+              <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.5 }}>
+                {HELP.adaptive_pwa_intro.body[0]}
+              </div>
+              <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.5, marginTop: 4 }}>
+                {HELP.adaptive_pwa_intro.body[1]}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissPwaIntro}
+              style={{
+                background: '#1e293b',
+                color: retirementTextStrong,
+                border: '1px solid #334155',
+                borderRadius: 999,
+                padding: '6px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Income phase summary */}
       {isPwaMode ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
           <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
             <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -610,7 +750,9 @@ export default function RetirementIncomeChart({
           </div>
 
           <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #4ade8033' }}>
-            <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>Current PWA Spending Target</div>
+            <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>
+              <LabelWithHelp label="Current PWA Spending Target" help={HELP.spending_target} accent="#4ade80" />
+            </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(Math.round(pwaCurrentView.totalSpendingTarget))}/mo
             </div>
@@ -625,7 +767,9 @@ export default function RetirementIncomeChart({
           </div>
 
           <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
-            <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 4, fontWeight: 600 }}>Adaptive Confidence</div>
+            <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 4, fontWeight: 600 }}>
+              <LabelWithHelp label="Adaptive Confidence" help={HELP.probability_no_cut} accent="#60a5fa" />
+            </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
               {pwaConfidencePct}%
             </div>
@@ -638,7 +782,7 @@ export default function RetirementIncomeChart({
           </div>
         </div>
       ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: inhDuringCouple ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
         {/* Pool card */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
           <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
@@ -656,9 +800,13 @@ export default function RetirementIncomeChart({
         </div>
 
         {/* Pre-inheritance couple (or full couple if no inheritance during couple phase) */}
-        <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #60a5fa33' }}>
           <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 4, fontWeight: 600 }}>
-            {inhDuringCouple ? `Pre-Inheritance Spending Target (67\u2013${inheritanceChadAge})` : `Couple Spending Target (67\u2013${chadPassesAge})`}
+            <LabelWithHelp
+              label={inhDuringCouple ? `Pre-Inheritance Spending Target (67-${inheritanceChadAge})` : `Couple Spending Target (67-${chadPassesAge})`}
+              help={HELP.spending_target}
+              accent="#60a5fa"
+            />
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(coupleSummary.totalTarget)}/mo
@@ -676,7 +824,13 @@ export default function RetirementIncomeChart({
         {/* Post-inheritance couple (only when inheritance during couple phase) */}
         {inhDuringCouple && (
           <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #4ade8033' }}>
-            <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>Post-Inheritance Spending Target ({inheritanceChadAge}\u2013{chadPassesAge})</div>
+            <div style={{ fontSize: 10, color: '#4ade80', marginBottom: 4, fontWeight: 600 }}>
+              <LabelWithHelp
+                label={`Post-Inheritance Spending Target (${inheritanceChadAge}-${chadPassesAge})`}
+                help={HELP.spending_target}
+                accent="#4ade80"
+              />
+            </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(postInheritanceSummary.totalTarget)}/mo
             </div>
@@ -693,7 +847,13 @@ export default function RetirementIncomeChart({
 
         {/* Survivor */}
         <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #f59e0b33' }}>
-          <div style={{ fontSize: 10, color: '#f59e0b', marginBottom: 4, fontWeight: 600 }}>Sarah Survivor Spending Target (after {chadPassesAge})</div>
+          <div style={{ fontSize: 10, color: '#f59e0b', marginBottom: 4, fontWeight: 600 }}>
+            <LabelWithHelp
+              label={`Sarah Survivor Spending Target (after ${chadPassesAge})`}
+              help={HELP.spending_target}
+              accent="#f59e0b"
+            />
+          </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(survivorSummary.totalTarget)}/mo
           </div>
@@ -730,7 +890,7 @@ export default function RetirementIncomeChart({
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
               <div>
                 <div style={{ fontSize: 11, color: retirementTextStrong, fontWeight: 700 }}>
-                  Adaptive decision preview
+                  <LabelWithHelp label="Adaptive decision preview" help={HELP.annual_decision_preview} accent="#60a5fa" />
                 </div>
                 <div style={{ fontSize: 10, color: retirementTextMuted, marginTop: 2, lineHeight: 1.45 }}>
                   One realized historical path, re-solving the full PWA distribution each year from the updated balance.
@@ -1017,7 +1177,7 @@ export default function RetirementIncomeChart({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
-              Safe pool draw (reserve never touched in 90% of cohorts)
+              <LabelWithHelp label="Safe pool draw (reserve never touched in 90% of cohorts)" help={HELP.reserve_never_touched} accent="#4ade80" />
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
               {optimalRates.safeRate}% = {fmtFull(optimalRates.safeMonthly)}/mo
@@ -1040,7 +1200,11 @@ export default function RetirementIncomeChart({
         <div style={{ borderTop: '1px solid #334155', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
-              ERN max pool draw (finish above reserve in 90% of cohorts, {maxDepletionMonths > 0 ? `≤${maxDepletionMonths}mo reserve gap` : 'no reserve gap'})
+              <LabelWithHelp
+                label={`ERN max pool draw (finish above reserve in 90% of cohorts, ${maxDepletionMonths > 0 ? `<=${maxDepletionMonths}mo reserve gap` : 'no reserve gap'})`}
+                help={HELP.finish_above_reserve}
+                accent="#60a5fa"
+              />
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
               {optRate}% = {fmtFull(optMonthly)}/mo from pool
@@ -1063,17 +1227,20 @@ export default function RetirementIncomeChart({
 
       {/* Sliders */}
       {isPwaMode ? (
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
             min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
           <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
             min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
-          <Slider label="Bequest target" value={bequestTarget} onChange={setBequestTarget}
+          <Slider label={<LabelWithHelp label="Bequest target" help={HELP.bequest_target} accent="#4ade80" />} value={bequestTarget} onChange={setBequestTarget}
             min={0} max={Math.max(totalPool, 1000000)} step={25000} color="#4ade80" />
 
           <div style={{ padding: '4px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>PWA strategy</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
+                <span>PWA strategy</span>
+                <HelpTip help={HELP.pwa_strategy} accent="#60a5fa" />
+              </span>
               <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 700 }}>
                 {getPwaStrategyLabel(pwaStrategy)}
               </span>
@@ -1090,28 +1257,31 @@ export default function RetirementIncomeChart({
           </div>
 
           {pwaStrategy !== 'sticky_median' && (
-            <Slider label="Target percentile" value={pwaPercentile} onChange={setPwaPercentile}
+            <Slider label={<LabelWithHelp label="Target percentile" help={HELP.pwa_target_percentile} accent="#4ade80" />} value={pwaPercentile} onChange={setPwaPercentile}
               min={5} max={95} step={5} format={(v) => `${v}th`} color="#4ade80" />
           )}
 
           {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
             <>
-              <Slider label="Tolerance low" value={pwaToleranceLow} onChange={setPwaToleranceLow}
+              <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
                 min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
-              <Slider label="Tolerance high" value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
+              <Slider label={<LabelWithHelp label="Tolerance high" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
                 min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
             </>
           )}
         </div>
       ) : (
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
             min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
 
           {/* Withdrawal rate with optimal marker */}
           <div style={{ padding: "4px 0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>Pool draw rate</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
+                <span>Pool draw rate</span>
+                <HelpTip help={HELP.pool_draw_rate} accent="#f59e0b" />
+              </span>
               <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
                 {withdrawalRate}%
                 {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
@@ -1167,13 +1337,13 @@ export default function RetirementIncomeChart({
 
           <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
             min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
-          <Slider label="Pool floor (reserve)" value={poolFloor} onChange={setPoolFloor}
+          <Slider label={<LabelWithHelp label="Pool floor (reserve)" help={HELP.reserve_floor} accent="#f59e0b" />} value={poolFloor} onChange={setPoolFloor}
             min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
           <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
             min={0} max={2000000} step={50000} color="#4ade80" />
           <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
             min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
-          <Slider label="Max depletion gap" value={maxDepletionMonths} onChange={setMaxDepletionMonths}
+          <Slider label={<LabelWithHelp label="Max depletion gap" help={HELP.max_depletion_gap} accent="#94a3b8" />} value={maxDepletionMonths} onChange={setMaxDepletionMonths}
             min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
         </div>
       )}

@@ -745,43 +745,43 @@ export default function RetirementIncomeChart({
             <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
               onChange={(e) => setWithdrawalRate(Number(e.target.value))}
               style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
-            {/* Safe rate marker (green) */}
+            {/* Rate markers below the slider */}
             {(() => {
-              const pct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
               const thumbHalf = 8;
+              const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+              const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
               return (
-                <div style={{
-                  position: 'absolute',
-                  left: `calc(${pct * 100}% + ${(0.5 - pct) * thumbHalf * 2}px)`,
-                  top: -6,
-                  transform: 'translateX(-50%)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  pointerEvents: 'none',
-                }}>
-                  <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {optimalRates.safeRate}% safe
+                <div style={{ position: 'relative', height: 16, marginTop: 2 }}>
+                  {/* Safe rate marker (green) */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
+                    top: 0,
+                    transform: 'translateX(-50%)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    pointerEvents: 'none',
+                  }}>
+                    <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
+                    <div style={{ fontSize: 8, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {optimalRates.safeRate}% safe
+                    </div>
                   </div>
-                  <div style={{ width: 2, height: 8, background: '#4ade80', borderRadius: 1 }} />
-                </div>
-              );
-            })()}
-            {/* ERN max marker (blue) */}
-            {optRate > optimalRates.safeRate && (() => {
-              const pct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
-              const thumbHalf = 8;
-              return (
-                <div style={{
-                  position: 'absolute',
-                  left: `calc(${pct * 100}% + ${(0.5 - pct) * thumbHalf * 2}px)`,
-                  top: -6,
-                  transform: 'translateX(-50%)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  pointerEvents: 'none',
-                }}>
-                  <div style={{ fontSize: 8, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {optRate}% ERN
-                  </div>
-                  <div style={{ width: 2, height: 8, background: '#60a5fa', borderRadius: 1 }} />
+                  {/* ERN max marker (blue) */}
+                  {optRate > optimalRates.safeRate && (
+                    <div style={{
+                      position: 'absolute',
+                      left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
+                      top: 0,
+                      transform: 'translateX(-50%)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      pointerEvents: 'none',
+                    }}>
+                      <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
+                      <div style={{ fontSize: 8, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {optRate}% ERN
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}

@@ -632,12 +632,20 @@ export default function RetirementIncomeChart({
             Likely: {fmtFull(tooltip.pool)}
           </div>
           <div style={{ borderTop: '1px solid #334155', marginTop: 4, paddingTop: 4 }}>
-            <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>
-              Plan income: {fmtFull(tooltip.p10 > poolFloor ? tooltip.monthly : tooltip.ssIncome + trustMonthly)}/mo
-            </div>
-            <div style={{ fontSize: 11, color: '#60a5fa' }}>
-              Likely income: {fmtFull(tooltip.monthly)}/mo
-            </div>
+            {tooltip.p10 <= poolFloor ? (
+              <>
+                <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>
+                  Plan: pool depleted — {fmtFull(tooltip.ssIncome + trustMonthly)}/mo (SS + trust only)
+                </div>
+                <div style={{ fontSize: 11, color: '#60a5fa' }}>
+                  Likely: {fmtFull(tooltip.monthly)}/mo
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 600 }}>
+                Income: {fmtFull(tooltip.monthly)}/mo
+              </div>
+            )}
             <div style={{ fontSize: 10, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(tooltip.monthly - tooltip.ssIncome - trustMonthly)} withdraw + {fmtFull(tooltip.ssIncome)} SS + {fmtFull(trustMonthly)} trust
             </div>

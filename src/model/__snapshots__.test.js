@@ -804,6 +804,10 @@ test('Retirement help layout keeps the overview rail wider and uses responsive r
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'retirement controls should use responsive auto-fit grids');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
 });
+test('Help drawer does not clip inline help popovers', () => {
+  const source = fs.readFileSync(new URL('../components/help/HelpDrawer.jsx', import.meta.url), 'utf8');
+  assert.ok(!source.includes("overflow: 'hidden'"), 'help drawer should not clip inline help popovers');
+});
 test('index.html points favicon requests at the existing SVG asset', () => {
   const htmlSource = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   assert.ok(htmlSource.includes('href="/favicon.svg"'), 'index.html should link the SVG favicon');

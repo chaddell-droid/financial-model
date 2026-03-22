@@ -19,7 +19,6 @@ export default function HelpDrawer({
         background: '#0f172a',
         border: `1px solid ${open ? `${accent}55` : '#334155'}`,
         borderRadius: 10,
-        overflow: 'hidden',
       }}
     >
       <button

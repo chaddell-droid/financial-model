@@ -103,6 +103,7 @@ export default function SarahMode({
         </div>
         <button
           onClick={onExit}
+          data-testid="sarah-mode-exit"
           style={{
             background: "transparent", border: `1px solid ${TEAL}`, borderRadius: 8,
             color: TEAL, fontSize: 12, padding: "8px 16px", cursor: "pointer",

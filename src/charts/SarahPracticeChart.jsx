@@ -58,20 +58,20 @@ export default function SarahPracticeChart({
   }
 
   return (
-    <div style={{
+    <div data-testid="sarah-practice-chart" style={{
       background: "#1e293b", borderRadius: 12, padding: "20px 16px",
       border: "1px solid #334155", marginBottom: 24
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
         <h3 style={{ fontSize: 14, color: "#60a5fa", margin: 0, fontWeight: 600 }}>Sarah's Practice Growth</h3>
-        <div style={{ fontSize: 11, color: "#64748b" }}>
+        <div data-testid="sarah-practice-summary" style={{ fontSize: 11, color: "#64748b" }}>
           <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(currentGross)}</span>
           <span> → </span>
           <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(targetGross)}</span>
           <span>/mo</span>
         </div>
       </div>
-      <p style={{ fontSize: 11, color: "#475569", margin: "0 0 12px" }}>
+      <p data-testid="sarah-practice-subtitle" style={{ fontSize: 11, color: "#475569", margin: "0 0 12px" }}>
         ${sarahRate}/hr × {sarahCurrentClients.toFixed(1)} clients → ${sarahMaxRate}/hr × {sarahMaxClients.toFixed(1)} clients
         {" "}| Rate +{sarahRateGrowth}%/yr, Clients +{sarahClientGrowth}%/yr
       </p>
@@ -167,7 +167,7 @@ export default function SarahPracticeChart({
           { label: "Year 2", rate: pts[24]?.rate, clients: pts[24]?.clients, gross: pts[24]?.gross },
           { label: "Year 3", rate: pts[36]?.rate, clients: pts[36]?.clients, gross: pts[36]?.gross },
         ].map((s, i) => (
-          <div key={i} style={{
+          <div key={i} data-testid={`sarah-practice-stat-${s.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} style={{
             flex: 1, minWidth: 100, background: "#0f172a", borderRadius: 6, padding: "6px 8px",
             border: i === 0 ? "1px solid #60a5fa33" : "1px solid #1e293b"
           }}>

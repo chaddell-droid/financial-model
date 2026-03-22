@@ -12,11 +12,15 @@ const Slider = ({
   color = '#60a5fa',
   testId,
   ariaLabel,
+  disabled = false,
 }) => {
   const resolvedAriaLabel = ariaLabel || (typeof label === 'string' && label.trim() ? label : undefined);
 
   return (
-    <div data-testid={testId ? `${testId}-container` : undefined} style={{ padding: '4px 0' }}>
+    <div
+      data-testid={testId ? `${testId}-container` : undefined}
+      style={{ padding: '4px 0', opacity: disabled ? 0.45 : 1 }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#cbd5e1', fontWeight: 600, lineHeight: 1.25 }}>
           {label}
@@ -31,8 +35,9 @@ const Slider = ({
         value={value}
         data-testid={testId}
         aria-label={resolvedAriaLabel}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: '100%', accentColor: color, height: 6 }}
+        style={{ width: '100%', accentColor: color, height: 6, cursor: disabled ? 'not-allowed' : 'pointer' }}
       />
     </div>
   );

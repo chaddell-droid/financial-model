@@ -78,7 +78,7 @@ export default function DadMode({
     <div style={{ maxWidth: 800, margin: "0 auto" }}>
       {/* Exit */}
       <div style={{ textAlign: "right", marginBottom: 16 }}>
-        <button onClick={() => set('dadMode')(false)} style={{
+        <button data-testid="dad-mode-exit" onClick={() => set('dadMode')(false)} style={{
           background: "transparent", border: "1px solid #475569", borderRadius: 6,
           color: "#94a3b8", fontSize: 11, padding: "6px 12px", cursor: "pointer"
         }}>← Back to full model</button>
@@ -282,7 +282,7 @@ export default function DadMode({
             {/* Debt */}
             <div style={{ background: "#0f172a", borderRadius: 8, padding: "14px 14px", border: "1px solid #1e293b" }}>
               <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Debt Freedom</div>
-              <Slider label="Pay off debt" value={dadDebtPct} onChange={set('dadDebtPct')} min={0} max={100} step={5} format={(v) => v === 0 ? "None" : v === 100 ? `All (${fmtFull(debtTotal)})` : `${v}% (${fmtFull(Math.round(debtTotal * v / 100))})`} color="#4ade80" />
+              <Slider label="Pay off debt" value={dadDebtPct} onChange={set('dadDebtPct')} min={0} max={100} step={5} format={(v) => v === 0 ? "None" : v === 100 ? `All (${fmtFull(debtTotal)})` : `${v}% (${fmtFull(Math.round(debtTotal * v / 100))})`} color="#4ade80" testId="dad-pay-off-debt" />
               {dadDebtPct > 0 && (
                 <div style={{ fontSize: 11, marginTop: 6 }}>
                   <div style={{ color: "#4ade80" }}>Frees {fmtFull(dadDebtMonthly)}/month</div>
@@ -301,6 +301,8 @@ export default function DadMode({
               <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>School Tuition</div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>BCS — {bcsYearsLeft} years remaining</div>
               <input type="range" min={0} max={bcsAnnualTotal} step={1000} value={dadBcsParents}
+                data-testid="dad-bcs-parents"
+                aria-label="Dad BCS contribution"
                 onChange={(e) => set('dadBcsParents')(Number(e.target.value))}
                 style={{ width: "100%", accentColor: "#c084fc", height: 6 }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#475569", marginTop: 4 }}>

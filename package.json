@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "ui:swarm": "node tests/ui/run-swarm.js",
     "playwright:mcp:recover": "pwsh -NoProfile -File scripts/recover-playwright-mcp.ps1"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "playwright-core": "^1.58.2",
     "vite": "^6.0.0"
   }
 }

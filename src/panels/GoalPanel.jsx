@@ -52,10 +52,11 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
   };
 
   return (
-    <div style={{ marginBottom: 24 }}>
+    <div data-testid="goal-panel" style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed ? 0 : 12 }}>
         <h3
           onClick={() => setCollapsed(!collapsed)}
+          data-testid="goal-panel-toggle"
           style={{ margin: 0, fontSize: 16, color: '#94a3b8', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <span style={{ fontSize: 12, color: '#64748b', transition: 'transform 0.15s', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>{'\u25BC'}</span>
@@ -69,6 +70,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
         {!presentMode && !collapsed && (
           <button
             onClick={() => setShowForm(!showForm)}
+            data-testid="goal-panel-add-toggle"
             style={{
               background: showForm ? '#475569' : '#334155',
               color: '#e2e8f0',
@@ -87,11 +89,12 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
       {collapsed ? null : <>
       {/* Add Goal Form */}
       {showForm && !presentMode && (
-        <div style={{ background: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div data-testid="goal-panel-form" style={{ background: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1 / -1' }}>
             <input
               type="text"
               placeholder="Goal name..."
+              data-testid="goal-form-name"
               value={newGoal.name}
               onChange={e => setNewGoal({ ...newGoal, name: e.target.value })}
               style={{ width: '100%', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }}
@@ -101,6 +104,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
             <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Type</label>
             <select
               value={newGoal.type}
+              data-testid="goal-form-type"
               onChange={e => setNewGoal({ ...newGoal, type: e.target.value })}
               style={{ width: '100%', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}
             >
@@ -111,6 +115,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
             <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Target Amount ($)</label>
             <input
               type="number"
+              data-testid="goal-form-target-amount"
               value={newGoal.targetAmount}
               onChange={e => setNewGoal({ ...newGoal, targetAmount: Number(e.target.value) })}
               disabled={newGoal.type === 'debt_free'}
@@ -123,6 +128,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
             </label>
             <input
               type="range" min={0} max={72} value={newGoal.targetMonth}
+              data-testid="goal-form-target-month"
               onChange={e => setNewGoal({ ...newGoal, targetMonth: Number(e.target.value) })}
               disabled={newGoal.type === 'debt_free'}
               style={{ width: '100%' }}
@@ -148,7 +154,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
             <button onClick={() => setShowForm(false)} style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 13 }}>
               Cancel
             </button>
-            <button onClick={handleAdd} disabled={!newGoal.name.trim()} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 13, opacity: newGoal.name.trim() ? 1 : 0.5 }}>
+            <button data-testid="goal-form-submit" onClick={handleAdd} disabled={!newGoal.name.trim()} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 13, opacity: newGoal.name.trim() ? 1 : 0.5 }}>
               Add Goal
             </button>
           </div>
@@ -168,6 +174,7 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
               {!presentMode && (
                 <button
                   onClick={() => handleDelete(goal.id)}
+                  data-testid={`goal-delete-${goal.id}`}
                   style={{
                     position: 'absolute', top: 8, right: 8,
                     background: 'transparent', border: 'none', color: '#475569',

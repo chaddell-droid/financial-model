@@ -239,7 +239,7 @@ export default function SequenceOfReturnsChart({
       </div>
 
       {/* Narrative */}
-      <div style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+      <div data-testid="sequence-returns-narrative" style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
         With {seqBadY1}% and {seqBadY2}% returns in years 1–2, <strong style={{ color: "#f87171" }}>bad early returns</strong> drain
         the savings buffer faster — arriving at the MSFT cliff with {fmtFull(cliffGap)} less than
         <strong style={{ color: "#4ade80" }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1–2), despite identical average performance.

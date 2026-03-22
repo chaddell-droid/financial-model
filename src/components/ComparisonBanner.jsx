@@ -5,7 +5,7 @@ export default function ComparisonBanner({ compareState, compareName, onClearCom
   if (!compareState) return null;
 
   return (
-    <div style={{
+    <div data-testid="comparison-banner" style={{
       background: "#fbbf2410", borderRadius: 12, padding: "12px 20px",
       border: "1px solid #fbbf2433", marginBottom: 16,
       display: "flex", justifyContent: "space-between", alignItems: "center"
@@ -21,6 +21,7 @@ export default function ComparisonBanner({ compareState, compareName, onClearCom
       </div>
       <button
         onClick={onClearCompare}
+        data-testid="comparison-banner-clear"
         style={{
           background: "transparent", border: "1px solid #fbbf24", borderRadius: 4,
           color: "#fbbf24", fontSize: 11, padding: "4px 10px", cursor: "pointer",

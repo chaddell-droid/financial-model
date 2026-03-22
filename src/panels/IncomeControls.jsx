@@ -181,7 +181,16 @@ const IncomeControls = ({
 
                 <div style={{ marginTop: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
                   <h4 style={{ fontSize: 11, color: "#38bdf8", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chad Consulting (Post-SSDI)</h4>
-                  <Slider label="Monthly consulting income" value={chadConsulting} onChange={set('chadConsulting')} min={0} max={sgaLimit} step={100} color="#38bdf8" />
+                  <Slider
+                    label="Monthly consulting income"
+                    value={chadConsulting}
+                    onChange={set('chadConsulting')}
+                    min={0}
+                    max={sgaLimit}
+                    step={100}
+                    color="#38bdf8"
+                    disabled={ssdiDenied}
+                  />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4 }}>
                     <span style={{ color: "#64748b" }}>SGA limit (2026):</span>
                     <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sgaLimit)}/mo</span>
@@ -190,6 +199,11 @@ const IncomeControls = ({
                     <span style={{ color: "#64748b" }}>Annual:</span>
                     <span style={{ color: "#38bdf8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(chadConsulting * 12)}/yr</span>
                   </div>
+                  {ssdiDenied && (
+                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, fontStyle: "italic" }}>
+                      Disabled while SSDI is denied.
+                    </div>
+                  )}
                   {chadConsulting > 0 && (
                     <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontStyle: "italic" }}>
                       Starts after SSDI approval. Stay under SGA to protect benefits.

@@ -865,17 +865,23 @@ test('shared input primitives expose stable automation metadata', () => {
   const toggleSource = fs.readFileSync(new URL('../components/Toggle.jsx', import.meta.url), 'utf8');
   assert.ok(sliderSource.includes('data-testid'), 'Slider should expose a data-testid hook');
   assert.ok(sliderSource.includes('aria-label'), 'Slider should expose an aria-label hook');
+  assert.ok(sliderSource.includes('disabled={disabled}'), 'Slider should support disabled state for non-interactive controls');
   assert.ok(toggleSource.includes('data-testid'), 'Toggle should expose a data-testid hook');
   assert.ok(toggleSource.includes('role="switch"'), 'Toggle should behave like a switch for automation and accessibility');
 });
 test('shell controls expose Wave 0 selectors', () => {
   const headerSource = fs.readFileSync(new URL('../components/Header.jsx', import.meta.url), 'utf8');
   const saveLoadSource = fs.readFileSync(new URL('../components/SaveLoadPanel.jsx', import.meta.url), 'utf8');
+  const compareBannerSource = fs.readFileSync(new URL('../components/ComparisonBanner.jsx', import.meta.url), 'utf8');
+  const goalPanelSource = fs.readFileSync(new URL('../panels/GoalPanel.jsx', import.meta.url), 'utf8');
   const tabSource = fs.readFileSync(new URL('../components/TabBar.jsx', import.meta.url), 'utf8');
   assert.ok(headerSource.includes('header-present-mode'), 'header should expose a presentation-mode selector');
   assert.ok(headerSource.includes('header-export-json'), 'header should expose an export selector');
   assert.ok(saveLoadSource.includes('save-load-panel'), 'save/load panel should expose a root selector');
   assert.ok(saveLoadSource.includes('save-load-save-current'), 'save/load panel should expose a save selector');
+  assert.ok(compareBannerSource.includes('comparison-banner-clear'), 'comparison banner should expose a clear selector');
+  assert.ok(goalPanelSource.includes('goal-panel-toggle'), 'goal panel should expose a collapse toggle selector');
+  assert.ok(goalPanelSource.includes('goal-form-submit'), 'goal panel should expose a stable add-goal submit selector');
   assert.ok(tabSource.includes('data-testid={`tab-${tab.id}`}'), 'tab bar should expose tab selectors');
 });
 test('chart automation hooks disambiguate duplicate surfaces and hover targets', () => {
@@ -895,15 +901,36 @@ test('retirement and Monte Carlo surfaces expose test handles for Wave 0', () =>
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
   const pwaDistributionSource = fs.readFileSync(new URL('../charts/PwaDistributionChart.jsx', import.meta.url), 'utf8');
   const monteCarloSource = fs.readFileSync(new URL('../charts/MonteCarloPanel.jsx', import.meta.url), 'utf8');
+  const msftSource = fs.readFileSync(new URL('../charts/MsftVestingChart.jsx', import.meta.url), 'utf8');
+  const sarahPracticeSource = fs.readFileSync(new URL('../charts/SarahPracticeChart.jsx', import.meta.url), 'utf8');
+  const sequenceSource = fs.readFileSync(new URL('../charts/SequenceOfReturnsChart.jsx', import.meta.url), 'utf8');
   assert.ok(retirementSource.includes('data-testid={`retirement-mode-${mode.value}`}'), 'retirement surface should expose mode selectors');
   assert.ok(retirementSource.includes('retirement-main-chart-hover-surface'), 'retirement surface should expose a stable hover surface');
   assert.ok(retirementSource.includes('retirement-pool-draw-rate'), 'retirement surface should expose the pool draw slider selector');
+  assert.ok(retirementSource.includes('retirement-decision-preview'), 'retirement surface should expose a decision preview selector');
   assert.ok(pwaDistributionSource.includes("testIdPrefix = 'pwa-distribution'"), 'PWA distribution chart should support caller-provided selector prefixes');
   assert.ok(monteCarloSource.includes('monte-carlo-fan-chart-hover-surface'), 'Monte Carlo should expose a stable hover surface');
+  assert.ok(msftSource.includes('msft-vesting-total-remaining'), 'MSFT vesting chart should expose derived output selectors');
+  assert.ok(sarahPracticeSource.includes('sarah-practice-summary'), 'Sarah practice chart should expose derived summary selectors');
+  assert.ok(sequenceSource.includes('sequence-returns-narrative'), 'sequence-of-returns chart should expose its narrative selector');
 });
 test('retirement empty-state fallback keeps safe-rate fields numeric', () => {
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
   assert.ok(retirementSource.includes('safeRate: 0, safeMonthly: 0'), 'retirement empty fallback should define safeRate and safeMonthly');
+});
+test('reset all uses an explicit confirmation before resetting state', () => {
+  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(appSource.includes("window.confirm('Reset all assumptions back to the baseline model?')"), 'reset all should confirm before dispatching RESET_ALL');
+});
+test('SSDI denied disables the SSDI-path consulting slider', () => {
+  const incomeControlsSource = fs.readFileSync(new URL('../panels/IncomeControls.jsx', import.meta.url), 'utf8');
+  assert.ok(incomeControlsSource.includes('disabled={ssdiDenied}'), 'SSDI consulting slider should be disabled while SSDI is denied');
+  assert.ok(incomeControlsSource.includes('Disabled while SSDI is denied.'), 'SSDI consulting section should explain the disabled state');
+});
+test('bridge chart endpoint label stays inside the plot area', () => {
+  const bridgeSource = fs.readFileSync(new URL('../charts/BridgeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(bridgeSource.includes('x={svgW - padR - 4}'), 'bridge endpoint label should anchor inside the right edge');
+  assert.ok(bridgeSource.includes('textAnchor="end"'), 'bridge endpoint label should anchor inward to avoid clipping');
 });
 
 console.log('\n=== UI Swarm Contract Guards ===');
@@ -911,8 +938,11 @@ console.log('\n=== UI Swarm Contract Guards ===');
 test('UI swarm operator guide and manifest exist', () => {
   const readmeSource = fs.readFileSync(new URL('../../tests/ui/README.md', import.meta.url), 'utf8');
   const manifestSource = fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8');
+  const runnerSource = fs.readFileSync(new URL('../../tests/ui/run-swarm.js', import.meta.url), 'utf8');
   assert.ok(readmeSource.includes('UI Swarm Validation'), 'README should describe the UI swarm workflow');
+  assert.ok(readmeSource.includes('npm run ui:swarm'), 'README should document the one-command swarm runner');
   assert.ok(manifestSource.length > 0, 'coverage manifest should not be empty');
+  assert.ok(runnerSource.includes('UI swarm complete:'), 'UI swarm runner should emit a final summary');
 });
 test('UI swarm manifest is parseable and targets deterministic harness mode', () => {
   const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
@@ -941,12 +971,39 @@ test('UI swarm manifest covers the highest-risk interactive surfaces', () => {
 test('UI swarm manifest retirement selectors match the current DOM contract', () => {
   const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
   const historical = manifest.entries.find((entry) => entry.id === 'retirement.historical_controls');
+  const pwaControls = manifest.entries.find((entry) => entry.id === 'retirement.pwa_controls');
   const distribution = manifest.entries.find((entry) => entry.id === 'retirement.pwa_distribution.hover');
+  const decisionPreview = manifest.entries.find((entry) => entry.id === 'retirement.decision_preview.observe');
   const selectors = historical.elements.map((element) => element.selector);
+  const pwaSelectors = pwaControls.elements.map((element) => element.selector);
   assert.ok(selectors.includes('[aria-label=\"Pool floor reserve\"]'), 'manifest should target the pool floor reserve aria label');
   assert.ok(selectors.includes('[aria-label=\"Chad passes at\"]'), 'manifest should target the Chad passes at aria label');
   assert.ok(selectors.includes("[aria-label=\"Sarah's age at inheritance\"]"), 'manifest should target the Sarah age at inheritance aria label');
+  assert.ok(pwaSelectors.includes('[aria-label=\"Tolerance low\"]'), 'manifest should target the tolerance low aria label');
+  assert.ok(pwaSelectors.includes('[aria-label=\"Tolerance high\"]'), 'manifest should target the tolerance high aria label');
   eq(distribution.elements[0].selector, '[data-testid=\"retirement-pwa-distribution-hover-surface\"]', 'retirement PWA distribution selector');
+  eq(decisionPreview.elements[0].selector, '[data-testid=\"retirement-decision-preview\"]', 'retirement decision preview selector');
+});
+test('UI swarm manifest uses stable selectors for previously partial surfaces', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const comparison = manifest.entries.find((entry) => entry.id === 'shell.comparison_banner.clear');
+  const goals = manifest.entries.find((entry) => entry.id === 'shell.goal_panel.core');
+  const msft = manifest.entries.find((entry) => entry.id === 'income.msft_vesting.controls');
+  const sarahPractice = manifest.entries.find((entry) => entry.id === 'income.sarah_practice.observe');
+  const sequence = manifest.entries.find((entry) => entry.id === 'risk.sequence_of_returns.controls');
+  eq(comparison.status, 'ready', 'comparison banner status');
+  eq(goals.status, 'ready', 'goal panel status');
+  eq(msft.status, 'ready', 'MSFT vesting status');
+  eq(sequence.status, 'ready', 'sequence-of-returns status');
+  assert.ok(comparison.elements.some((element) => element.selector === '[data-testid=\"comparison-banner-clear\"]'), 'comparison banner should use stable selector');
+  assert.ok(goals.elements.some((element) => element.selector === '[data-testid=\"goal-form-name\"]'), 'goal panel should use stable form selectors');
+  assert.ok(msft.elements.some((element) => element.selector === '[data-testid=\"msft-vesting-total-remaining\"]'), 'MSFT vesting should use stable derived selectors');
+  assert.ok(sarahPractice.elements.some((element) => element.selector === '[data-testid=\"sarah-practice-summary\"]'), 'Sarah practice should use stable derived selectors');
+  assert.ok(sequence.elements.some((element) => element.selector === '[data-testid=\"sequence-returns-narrative\"]'), 'sequence-of-returns should use stable narrative selector');
+});
+test('package.json exposes the one-command UI swarm runner', () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  eq(pkg.scripts['ui:swarm'], 'node tests/ui/run-swarm.js', 'ui:swarm script');
 });
 
 console.log('\n=== Formatter Guards ===');

@@ -103,37 +103,37 @@
       ],
       "checks": ["render", "input", "state", "persistence", "integrity"]
     },
-    {
-      "id": "shell.comparison_banner.clear",
-      "worker": "worker-1",
-      "status": "partial",
-      "surface": "save_load",
-      "paths": ["src/components/ComparisonBanner.jsx"],
-      "preconditions": ["compare state active"],
-      "elements": [
-        { "selector": "button:has-text(\"Clear comparison\")", "expect": "clears compare mode and hides banner" }
-      ],
-      "checks": ["render", "input", "state"]
-    },
-    {
-      "id": "shell.goal_panel.core",
-      "worker": "worker-1",
-      "status": "partial",
-      "surface": "goals",
-      "paths": ["src/panels/GoalPanel.jsx"],
-      "preconditions": ["presentMode=false"],
-      "elements": [
-        { "selector": "text=Goal Tracker", "expect": "collapses and expands the panel" },
-        { "selector": "button:has-text(\"+ Add Goal\")", "expect": "opens the add-goal form" },
-        { "selector": "input[placeholder=\"Goal name...\"]", "expect": "accepts goal name input" },
-        { "selector": "select", "expect": "changes goal type" },
-        { "selector": "input[type=\"number\"]", "expect": "updates target amount" },
-        { "selector": "input[type=\"range\"]", "expect": "updates target month" },
-        { "selector": "button:has-text(\"Add Goal\")", "expect": "adds a goal card" },
-        { "selector": "button[title=\"Remove goal\"]", "expect": "deletes the goal card" }
-      ],
-      "checks": ["render", "input", "state", "derived", "persistence"]
-    },
+      {
+        "id": "shell.comparison_banner.clear",
+        "worker": "worker-1",
+        "status": "ready",
+        "surface": "save_load",
+        "paths": ["src/components/ComparisonBanner.jsx"],
+        "preconditions": ["compare state active"],
+        "elements": [
+          { "selector": "[data-testid=\"comparison-banner-clear\"]", "expect": "clears compare mode and hides banner" }
+        ],
+        "checks": ["render", "input", "state"]
+      },
+      {
+        "id": "shell.goal_panel.core",
+        "worker": "worker-1",
+        "status": "ready",
+        "surface": "goals",
+        "paths": ["src/panels/GoalPanel.jsx"],
+        "preconditions": ["presentMode=false"],
+        "elements": [
+          { "selector": "[data-testid=\"goal-panel-toggle\"]", "expect": "collapses and expands the panel" },
+          { "selector": "[data-testid=\"goal-panel-add-toggle\"]", "expect": "opens the add-goal form" },
+          { "selector": "[data-testid=\"goal-form-name\"]", "expect": "accepts goal name input" },
+          { "selector": "[data-testid=\"goal-form-type\"]", "expect": "changes goal type" },
+          { "selector": "[data-testid=\"goal-form-target-amount\"]", "expect": "updates target amount" },
+          { "selector": "[data-testid=\"goal-form-target-month\"]", "expect": "updates target month" },
+          { "selector": "[data-testid=\"goal-form-submit\"]", "expect": "adds a goal card" },
+          { "selector": "[data-testid^=\"goal-delete-\"]", "expect": "deletes the goal card" }
+        ],
+        "checks": ["render", "input", "state", "derived", "persistence"]
+      },
     {
       "id": "shell.scenario_strip.core",
       "worker": "worker-1",
@@ -213,28 +213,31 @@
       ],
       "checks": ["render", "input", "state", "derived"]
     },
-    {
-      "id": "income.msft_vesting.controls",
-      "worker": "worker-3",
-      "status": "partial",
-      "surface": "income",
-      "paths": ["src/charts/MsftVestingChart.jsx"],
-      "elements": [
-        { "selector": "[aria-label=\"MSFT annual price growth\"]", "expect": "changes future vest values and footer projection" }
-      ],
-      "checks": ["render", "input", "derived"]
-    },
-    {
-      "id": "income.sarah_practice.observe",
-      "worker": "worker-3",
-      "status": "observe",
-      "surface": "income",
-      "paths": ["src/charts/SarahPracticeChart.jsx"],
-      "elements": [
-        { "selector": "text=Sarah", "expect": "practice chart updates when shared Sarah sliders move" }
-      ],
-      "checks": ["render", "derived", "visual"]
-    },
+      {
+        "id": "income.msft_vesting.controls",
+        "worker": "worker-3",
+        "status": "ready",
+        "surface": "income",
+        "paths": ["src/charts/MsftVestingChart.jsx"],
+        "elements": [
+          { "selector": "[aria-label=\"MSFT annual price growth\"]", "expect": "changes future vest values and footer projection" },
+          { "selector": "[data-testid=\"msft-vesting-total-remaining\"]", "expect": "shows the current total remaining vesting value" },
+          { "selector": "[data-testid=\"msft-vesting-footer\"]", "expect": "shows the floor and Y5 projection footer" }
+        ],
+        "checks": ["render", "input", "derived"]
+      },
+      {
+        "id": "income.sarah_practice.observe",
+        "worker": "worker-3",
+        "status": "observe",
+        "surface": "income",
+        "paths": ["src/charts/SarahPracticeChart.jsx"],
+        "elements": [
+          { "selector": "[data-testid=\"sarah-practice-summary\"]", "expect": "practice chart summary updates when shared Sarah sliders move" },
+          { "selector": "[data-testid=\"sarah-practice-subtitle\"]", "expect": "practice chart subtitle reflects the current growth assumptions" }
+        ],
+        "checks": ["render", "derived", "visual"]
+      },
     {
       "id": "income.composition.hover",
       "worker": "worker-3",
@@ -276,18 +279,19 @@
       ],
       "checks": ["render", "visual", "derived"]
     },
-    {
-      "id": "risk.sequence_of_returns.controls",
-      "worker": "worker-4",
-      "status": "partial",
-      "surface": "risk",
-      "paths": ["src/charts/SequenceOfReturnsChart.jsx"],
-      "elements": [
-        { "selector": "[aria-label=\"Bad year 1 return\"]", "expect": "changes early-loss scenario line" },
-        { "selector": "[aria-label=\"Bad year 2 return\"]", "expect": "changes early-loss scenario line" }
-      ],
-      "checks": ["render", "input", "derived"]
-    },
+      {
+        "id": "risk.sequence_of_returns.controls",
+        "worker": "worker-4",
+        "status": "ready",
+        "surface": "risk",
+        "paths": ["src/charts/SequenceOfReturnsChart.jsx"],
+        "elements": [
+          { "selector": "[aria-label=\"Bad year 1 return\"]", "expect": "changes early-loss scenario line" },
+          { "selector": "[aria-label=\"Bad year 2 return\"]", "expect": "changes early-loss scenario line" },
+          { "selector": "[data-testid=\"sequence-returns-narrative\"]", "expect": "narrative updates to reflect the current early-loss path" }
+        ],
+        "checks": ["render", "input", "derived"]
+      },
     {
       "id": "risk.savings_drawdown.instances",
       "worker": "worker-4",
@@ -363,14 +367,14 @@
       "paths": ["src/charts/RetirementIncomeChart.jsx"],
       "preconditions": ["Adaptive PWA mode active"],
       "elements": [
-        { "selector": "[aria-label=\"Bequest target\"]", "expect": "changes distribution and recommendation" },
-        { "selector": "[data-testid=\"retirement-pwa-strategy\"]", "expect": "switches strategy logic" },
-        { "selector": "[aria-label=\"Target percentile\"]", "expect": "changes recommended target when fixed percentile is active" },
-        { "selector": "[aria-label=\"Tolerance band low\"]", "expect": "changes sticky strategy lower band" },
-        { "selector": "[aria-label=\"Tolerance band high\"]", "expect": "changes sticky strategy upper band" }
-      ],
-      "checks": ["render", "input", "state", "derived", "mode"]
-    },
+          { "selector": "[aria-label=\"Bequest target\"]", "expect": "changes distribution and recommendation" },
+          { "selector": "[data-testid=\"retirement-pwa-strategy\"]", "expect": "switches strategy logic" },
+          { "selector": "[aria-label=\"Target percentile\"]", "expect": "changes recommended target when fixed percentile is active" },
+          { "selector": "[aria-label=\"Tolerance low\"]", "expect": "changes sticky strategy lower band" },
+          { "selector": "[aria-label=\"Tolerance high\"]", "expect": "changes sticky strategy upper band" }
+        ],
+        "checks": ["render", "input", "state", "derived", "mode"]
+      },
     {
       "id": "retirement.pwa_distribution.hover",
       "worker": "worker-5",
@@ -387,14 +391,15 @@
       "id": "retirement.decision_preview.observe",
       "worker": "worker-5",
       "status": "observe",
-      "surface": "retirement",
-      "paths": ["src/charts/RetirementIncomeChart.jsx"],
-      "preconditions": ["Adaptive PWA mode active"],
-      "elements": [
-        { "selector": "text=Annual decision preview", "expect": "table reflects yearly re-solving without stale values" }
-      ],
-      "checks": ["render", "derived", "integrity"]
-    },
+        "surface": "retirement",
+        "paths": ["src/charts/RetirementIncomeChart.jsx"],
+        "preconditions": ["Adaptive PWA mode active"],
+        "elements": [
+          { "selector": "[data-testid=\"retirement-decision-preview\"]", "expect": "table reflects yearly re-solving without stale values" },
+          { "selector": "[data-testid=\"retirement-decision-preview-title\"]", "expect": "preview heading renders the adaptive decision label" }
+        ],
+        "checks": ["render", "derived", "integrity"]
+      },
     {
       "id": "details.summary_and_table.observe",
       "worker": "worker-6",

@@ -15,6 +15,29 @@ Use the app in deterministic validation mode:
 http://127.0.0.1:5173/?ui_test=1&mc_seed=123&reset_storage=1
 ```
 
+## One-Command Swarm
+
+With the app running locally, execute the full UI swarm with:
+
+```bash
+npm run ui:swarm
+```
+
+Optional:
+
+- override the target URL with `UI_SWARM_URL`
+
+```bash
+UI_SWARM_URL="http://127.0.0.1:4173/?ui_test=1&mc_seed=123&reset_storage=1" npm run ui:swarm
+```
+
+The runner:
+
+- launches isolated headless Chromium sessions per worker
+- executes the current 6-worker, 28-entry coverage set
+- prints a per-worker pass/fail summary
+- exits nonzero on any failure
+
 Wave 0 added a dev-only browser harness at `window.__FIN_MODEL_TEST__`.
 
 Available helpers:

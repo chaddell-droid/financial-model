@@ -5,13 +5,13 @@ import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 
 const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsftGrowthChange }) => (
-  <div style={{
+  <div data-testid="msft-vesting-chart" style={{
     background: "#1e293b", borderRadius: 12, padding: "16px 20px",
     border: "1px solid #f59e0b33", marginBottom: 24
   }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
       <h3 style={{ fontSize: 14, color: "#f59e0b", margin: 0, fontWeight: 700 }}>MSFT Vesting Runway — Actual Quarterly Payouts</h3>
-      <span style={{ fontSize: 12, color: "#94a3b8" }}>Total remaining: <span style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(totalRemainingVesting)}</span></span>
+      <span data-testid="msft-vesting-total-remaining" style={{ fontSize: 12, color: "#94a3b8" }}>Total remaining: <span style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(totalRemainingVesting)}</span></span>
     </div>
     <div style={{ display: "flex", gap: 3, height: 80, alignItems: "flex-end" }}>
       {vestEvents.map((v, i) => {
@@ -65,10 +65,10 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsf
         <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange}
           min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color="#f59e0b" />
       </div>
-      <div style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap", textAlign: "right" }}>
+      <div data-testid="msft-vesting-footer" style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap", textAlign: "right" }}>
         Floor: <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>${MSFT_FLOOR_PRICE}</span>
         {msftGrowth !== 0 && (
-          <> → Y5: <span style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(getMsftPrice(60, msftGrowth))}</span></>
+          <> → Y5: <span data-testid="msft-vesting-y5-price" style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(getMsftPrice(60, msftGrowth))}</span></>
         )}
       </div>
     </div>

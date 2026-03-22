@@ -235,7 +235,16 @@ const BridgeChart = ({
         )}
 
         {/* Endpoint label */}
-        <text x={xOf(months) + 4} y={yOf(finalNet)} fill={finalNet >= 0 ? "#4ade80" : "#f87171"} fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace" dominantBaseline="middle">
+        <text
+          x={svgW - padR - 4}
+          y={yOf(finalNet)}
+          textAnchor="end"
+          fill={finalNet >= 0 ? "#4ade80" : "#f87171"}
+          fontSize="10"
+          fontWeight="700"
+          fontFamily="'JetBrains Mono', monospace"
+          dominantBaseline="middle"
+        >
           {fmtFull(finalNet)}/mo
         </text>
       </svg>

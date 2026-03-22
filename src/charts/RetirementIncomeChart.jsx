@@ -886,7 +886,7 @@ export default function RetirementIncomeChart({
             testIdPrefix="retirement-pwa-distribution"
           />
 
-          <div style={{
+          <div data-testid="retirement-decision-preview" style={{
             background: '#0f172a',
             borderRadius: 8,
             padding: '12px 14px',
@@ -895,7 +895,7 @@ export default function RetirementIncomeChart({
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
               <div>
-                <div style={{ fontSize: 11, color: retirementTextStrong, fontWeight: 700 }}>
+                <div data-testid="retirement-decision-preview-title" style={{ fontSize: 11, color: retirementTextStrong, fontWeight: 700 }}>
                   <LabelWithHelp label="Adaptive decision preview" help={HELP.annual_decision_preview} accent="#60a5fa" />
                 </div>
                 <div style={{ fontSize: 10, color: retirementTextMuted, marginTop: 2, lineHeight: 1.45 }}>

@@ -30,6 +30,14 @@ import DetailsTab from './panels/tabs/DetailsTab.jsx';
 
 export default function FinancialModel() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const handleResetAll = () => {
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm('Reset all assumptions back to the baseline model?');
+    if (!confirmed) return;
+    dispatch({ type: 'RESET_ALL' });
+  };
+
   const set = (field) => (value) => {
     dispatch({ type: 'SET_FIELD', field, value });
     // If an individual cut changes, clear the macro override so detail takes over
@@ -472,7 +480,7 @@ export default function FinancialModel() {
           showSaveLoad={showSaveLoad}
           onToggleSaveLoad={() => set('showSaveLoad')(!showSaveLoad)}
           savedScenarios={savedScenarios}
-          onReset={() => dispatch({ type: 'RESET_ALL' })}
+          onReset={handleResetAll}
           onExportJSON={handleExportJSON}
         />
 

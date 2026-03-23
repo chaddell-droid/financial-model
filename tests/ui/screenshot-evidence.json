@@ -8,6 +8,11 @@
       "1180x1000": "wave4-shell-save-load-1180x1000.png",
       "900x1000": "wave5-shell-900x1000.png"
     },
+    "primary_levers": {
+      "1440x1200": "primary-levers-1440x1200.png",
+      "1180x1000": "primary-levers-1180x1000.png",
+      "900x1000": "primary-levers-900x1000.png"
+    },
     "retirement": {
       "1440x1200": "wave5-retirement-1440x1200.png",
       "1180x1000": "wave5-retirement-1180x1000.png",

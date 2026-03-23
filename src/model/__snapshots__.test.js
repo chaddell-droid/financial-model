@@ -25,6 +25,7 @@ import {
 import { runDadMonteCarlo, runMonteCarlo } from './monteCarlo.js';
 import { fmt } from './formatters.js';
 import { exportModelData } from './exportData.js';
+import { PRIMARY_LEVERS_BCS_STATUS_QUO, buildPrimaryLeversModel } from './scenarioLevers.js';
 import { buildPwaDistribution, getDistributionPercentile, getPwaSummary } from './pwaDistribution.js';
 import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from './pwaStrategies.js';
 import { buildLegendItems, CHART_PRESENTATION, formatModelTimeLabel, getSummaryTimeframeLabel } from '../charts/chartContract.js';
@@ -42,6 +43,54 @@ function gatherState(overrides = {}) {
   s.cutInHalf = state.cutMedical + state.cutShopping + state.cutSaaS;
   s.extraCuts = state.cutAmazon + state.cutEntertainment + state.cutGroceries + state.cutPersonalCare + state.cutSmallItems;
   return s;
+}
+
+function buildPrimaryLeversInput(overrides = {}) {
+  const state = { ...INITIAL_STATE, ...overrides };
+  const lifestyleCuts = state.cutOliver + state.cutVacation + state.cutGym;
+  const cutInHalf = state.cutMedical + state.cutShopping + state.cutSaaS;
+  const extraCuts = state.cutAmazon + state.cutEntertainment + state.cutGroceries + state.cutPersonalCare + state.cutSmallItems;
+  const effectiveCuts = state.cutsOverride != null ? state.cutsOverride : (lifestyleCuts + cutInHalf + extraCuts);
+  const activeCuts = state.lifestyleCutsApplied ? effectiveCuts : 0;
+  const bcsFamilyMonthly = Math.round(Math.max(0, state.bcsAnnualTotal - state.bcsParentsAnnual) / 12);
+  const debtTotal = state.debtCC + state.debtPersonal + state.debtIRS + state.debtFirstmark;
+  const currentExpenses =
+    state.baseExpenses
+    - activeCuts
+    + (state.retireDebt ? 0 : state.debtService)
+    + (state.vanSold ? 0 : state.vanMonthlySavings)
+    + bcsFamilyMonthly;
+  const oneTimeTotal =
+    (state.moldInclude ? state.moldCost : 0)
+    + (state.roofInclude ? state.roofCost : 0)
+    + (state.otherInclude ? state.otherProjects : 0);
+  const advanceNeeded = (state.retireDebt ? debtTotal : 0) + oneTimeTotal;
+
+  return {
+    retireDebt: state.retireDebt,
+    lifestyleCutsApplied: state.lifestyleCutsApplied,
+    cutsOverride: state.cutsOverride,
+    lifestyleCuts,
+    cutInHalf,
+    extraCuts,
+    debtTotal,
+    debtService: state.debtService,
+    baseExpenses: state.baseExpenses,
+    currentExpenses,
+    vanSold: state.vanSold,
+    vanMonthlySavings: state.vanMonthlySavings,
+    bcsAnnualTotal: state.bcsAnnualTotal,
+    bcsParentsAnnual: state.bcsParentsAnnual,
+    bcsYearsLeft: state.bcsYearsLeft,
+    bcsFamilyMonthly,
+    moldCost: state.moldCost,
+    moldInclude: state.moldInclude,
+    roofCost: state.roofCost,
+    roofInclude: state.roofInclude,
+    otherProjects: state.otherProjects,
+    otherInclude: state.otherInclude,
+    advanceNeeded,
+  };
 }
 
 let passed = 0;
@@ -473,6 +522,142 @@ test('deriveCurrentWithdrawalView converts total target into current draw and re
   eq(surplusView.currentPortfolioDraw, 0);
   eq(surplusView.currentTotalIncome, 6500);
   eq(surplusView.outsideIncomeReinvested, 1500);
+});
+
+console.log('\n=== Primary Levers Model Guards ===');
+
+test('buildPrimaryLeversModel ranks recurring levers by descending monthly impact', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true,
+    lifestyleCutsApplied: true,
+    cutsOverride: 7000,
+    vanSold: true,
+    bcsParentsAnnual: 41000,
+  }));
+  eq(model.recurringLevers[0].id, 'spending_cuts');
+  eq(model.recurringLevers[1].id, 'retire_debt');
+  eq(model.recurringLevers[2].id, 'sell_van');
+  eq(model.recurringLevers[3].id, 'bcs_support');
+});
+
+test('buildPrimaryLeversModel computes numeric summary totals at baseline', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput());
+  assert.ok(Number.isFinite(model.summary.monthlyOutflow), 'monthlyOutflow should be finite');
+  assert.ok(Number.isFinite(model.summary.monthlySavings), 'monthlySavings should be finite');
+  assert.ok(Number.isFinite(model.summary.oneTimeAsk), 'oneTimeAsk should be finite');
+  eq(model.summary.monthlyOutflow, 54182);
+  eq(model.summary.monthlySavings, 0);
+  eq(model.summary.oneTimeAsk, 0);
+  eq(model.summary.topLeverId, '');
+  eq(model.summary.availableLeverId, 'spending_cuts');
+  eq(model.summary.availableLeverSavings, 18104);
+});
+
+test('buildPrimaryLeversModel keeps BCS delta outputs numeric at baseline and full-support edges', () => {
+  const baseline = buildPrimaryLeversModel(buildPrimaryLeversInput());
+  const fullSupport = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    bcsParentsAnnual: INITIAL_STATE.bcsAnnualTotal,
+  }));
+
+  eq(baseline.bcs.monthlyDeltaFromStatusQuo, 0);
+  eq(baseline.bcs.totalDeltaOverRemainingYears, 0);
+  eq(fullSupport.bcs.monthlyFamilyShare, 0);
+  eq(fullSupport.bcs.monthlyDeltaFromStatusQuo, 1333);
+  eq(fullSupport.bcs.totalDeltaOverRemainingYears, 48000);
+});
+
+test('buildPrimaryLeversModel uses the fixed $25K BCS status quo baseline for ranking math', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    bcsParentsAnnual: 30000,
+  }));
+  eq(PRIMARY_LEVERS_BCS_STATUS_QUO, 25000);
+  eq(model.bcs.statusQuoAnnualContribution, 25000);
+  eq(model.bcs.monthlyDeltaFromStatusQuo, 416);
+  eq(model.recurringLevers.find((lever) => lever.id === 'bcs_support').monthlyImpact, 416);
+});
+
+test('buildPrimaryLeversModel separates changed-here and other-assumption consequence groups', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true,
+    moldInclude: true,
+    otherInclude: true,
+    bcsParentsAnnual: 30000,
+  }));
+  const changedHere = model.consequenceItems.filter((item) => item.group === 'changed_here').map((item) => item.id);
+  const otherAssumptions = model.consequenceItems.filter((item) => item.group === 'other_assumptions').map((item) => item.id);
+
+  assert.ok(changedHere.includes('debt_retirement'), 'changed-here group should include debt retirement');
+  assert.ok(changedHere.includes('bcs_support_delta'), 'changed-here group should include the BCS delta');
+  assert.ok(otherAssumptions.includes('mold_remediation'), 'other assumptions should include mold remediation');
+  assert.ok(otherAssumptions.includes('house_projects'), 'other assumptions should include house projects');
+});
+
+console.log('\n=== Primary Levers UI Contract Guards ===');
+
+test('ScenarioStrip uses Primary Levers title and no longer leads with Scenarios', () => {
+  const source = fs.readFileSync(new URL('../panels/ScenarioStrip.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('Primary Levers'), 'scenario strip should use the Primary Levers title');
+  assert.ok(!source.includes('>Scenarios<'), 'scenario strip should not render the old Scenarios title');
+});
+
+test('ScenarioStrip preserves existing scenario control test ids', () => {
+  const source = fs.readFileSync(new URL('../panels/ScenarioStrip.jsx', import.meta.url), 'utf8');
+  for (const selector of [
+    'scenario-base-expenses',
+    'scenario-retire-debt',
+    'scenario-lifestyle-cuts',
+    'scenario-total-cuts',
+    'scenario-reset-cuts-override',
+    'scenario-van-sold',
+    'scenario-bcs-parents-annual',
+  ]) {
+    assert.ok(source.includes(selector), `scenario strip should preserve ${selector}`);
+  }
+});
+
+test('ScenarioStrip exposes summary, ranked-lever, consequence-rail, and layout hooks', () => {
+  const source = fs.readFileSync(new URL('../panels/ScenarioStrip.jsx', import.meta.url), 'utf8');
+  for (const selector of [
+    'primary-levers-summary',
+    'primary-levers-monthly-outflow',
+    'primary-levers-monthly-savings',
+    'primary-levers-one-time-ask',
+    'primary-levers-controls',
+    'primary-levers-ranked-levers',
+    'primary-levers-consequence-rail',
+    'primary-levers-consequence-changed-here',
+    'primary-levers-consequence-other-assumptions',
+    'primary-levers-breakdown-toggle',
+    'primary-levers-breakdown',
+    'primary-levers-controls-section',
+    'primary-levers-bcs-section',
+  ]) {
+    assert.ok(source.includes(selector), `scenario strip should expose ${selector}`);
+  }
+  assert.ok(source.includes("data-layout={rootLayout}"), 'scenario strip should expose a root data-layout hook');
+  assert.ok(source.includes("data-order='controls-first'"), 'scenario strip should expose a root ordering hook');
+});
+
+test('ScenarioStrip uses layoutBucket plumbing instead of a fixed 1fr/1fr split', () => {
+  const source = fs.readFileSync(new URL('../panels/ScenarioStrip.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('layoutBucket = \'desktop\''), 'scenario strip should accept layoutBucket');
+  assert.ok(source.includes('gridTemplateColumns: desktop ?'), 'scenario strip should switch layout by bucket');
+  assert.ok(!source.includes('gridTemplateColumns: "1fr 1fr"'), 'scenario strip should not depend on the old fixed 50/50 split');
+});
+
+test('FinancialModel passes the shell layout bucket into ScenarioStrip', () => {
+  const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('layoutBucket: shellWidthBucket'), 'FinancialModel should pass shellWidthBucket into ScenarioStrip');
+});
+
+test('UI swarm manifest tracks Primary Levers summary, ranking, and consequence selectors', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const scenario = manifest.entries.find((entry) => entry.id === 'shell.scenario_strip.core');
+  eq(scenario.status, 'ready', 'scenario strip manifest status');
+  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-summary"]'), 'scenario strip manifest should track the summary root');
+  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-ranked-levers"]'), 'scenario strip manifest should track ranked levers');
+  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-consequence-changed-here"]'), 'scenario strip manifest should track changed-here consequences');
+  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-breakdown-toggle"]'), 'scenario strip manifest should track the breakdown disclosure');
 });
 
 console.log('\n=== PWA Distribution Guards ===');
@@ -1247,11 +1432,11 @@ test('shell performance guardrails stay event-driven without polling or observer
   assert.ok(!shellSource.includes('ResizeObserver'), 'AppShell should not introduce resize observers for layout');
 });
 
-test('screenshot evidence manifest covers shell, retirement, risk, Sarah, and Dad at required breakpoints', () => {
+test('screenshot evidence manifest covers shell, Primary Levers, retirement, risk, Sarah, and Dad at required breakpoints', () => {
   const evidence = JSON.parse(fs.readFileSync(new URL('../../tests/ui/screenshot-evidence.json', import.meta.url), 'utf8'));
   const required = ['1440x1200', '1180x1000', '900x1000'];
   eq(evidence.requiredViewports.length, required.length, 'required screenshot viewport count');
-  for (const surface of ['shell', 'retirement', 'risk', 'sarah', 'dad']) {
+  for (const surface of ['shell', 'primary_levers', 'retirement', 'risk', 'sarah', 'dad']) {
     assert.ok(evidence.surfaces[surface], `${surface} screenshot surface should exist`);
     for (const viewport of required) {
       assert.ok(typeof evidence.surfaces[surface][viewport] === 'string', `${surface} should define screenshot evidence for ${viewport}`);

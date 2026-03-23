@@ -431,6 +431,7 @@ export default function FinancialModel() {
     roofCost, roofInclude,
     otherProjects, otherInclude,
     advanceNeeded,
+    layoutBucket: shellWidthBucket,
     onFieldChange: set,
   };
 

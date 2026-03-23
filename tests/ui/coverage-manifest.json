@@ -157,15 +157,20 @@
       "surface": "scenario_strip",
       "paths": ["src/panels/ScenarioStrip.jsx"],
       "elements": [
-        { "selector": "[data-testid=\"scenario-base-expenses\"]", "expect": "changes monthly spending breakdown totals" },
+        { "selector": "[data-testid=\"primary-levers-summary\"]", "expect": "renders the summary-first Primary Levers shell" },
+        { "selector": "[data-testid=\"scenario-base-expenses\"]", "expect": "changes the monthly baseline" },
         { "selector": "[data-testid=\"scenario-retire-debt\"]", "expect": "toggles debt-retirement scenario" },
         { "selector": "[data-testid=\"scenario-lifestyle-cuts\"]", "expect": "toggles cuts and reveals total-cuts slider" },
         { "selector": "[data-testid=\"scenario-total-cuts\"]", "expect": "overrides total cuts while cuts are enabled" },
         { "selector": "[data-testid=\"scenario-reset-cuts-override\"]", "expect": "resets cuts override back to detail totals" },
         { "selector": "[data-testid=\"scenario-van-sold\"]", "expect": "toggles van sale scenario" },
-        { "selector": "[data-testid=\"scenario-bcs-parents-annual\"]", "expect": "updates BCS family share and inheritance ask summary" }
+        { "selector": "[data-testid=\"scenario-bcs-parents-annual\"]", "expect": "updates BCS family share and consequence summaries" },
+        { "selector": "[data-testid=\"primary-levers-ranked-levers\"]", "expect": "shows ranked recurring levers with data-rank and data-impact" },
+        { "selector": "[data-testid=\"primary-levers-breakdown-toggle\"]", "expect": "opens the advanced monthly breakdown disclosure" },
+        { "selector": "[data-testid=\"primary-levers-consequence-changed-here\"]", "expect": "groups one-time changes made in this card" },
+        { "selector": "[data-testid=\"primary-levers-consequence-other-assumptions\"]", "expect": "groups one-time assumptions controlled elsewhere" }
       ],
-      "checks": ["render", "input", "state", "derived"]
+      "checks": ["render", "input", "state", "derived", "ranking", "disclosure"]
     },
     {
       "id": "shell.compact_layout",

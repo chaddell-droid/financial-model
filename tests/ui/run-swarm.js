@@ -221,6 +221,12 @@ async function worker1() {
     }));
 
     results.push(await runEntry('shell.scenario_strip.core', async () => {
+      await gotoApp(page);
+      eq(await page.getByTestId('scenario-strip').getAttribute('data-layout'), 'desktop', 'scenario strip desktop layout flag');
+      eq(await page.getByTestId('scenario-strip').getAttribute('data-order'), 'controls-first', 'scenario strip order flag');
+      await expectVisibleText(page, 'Primary Levers');
+      ok(await page.getByTestId('primary-levers-summary').count() === 1, 'primary levers summary did not render');
+
       await page.getByTestId('scenario-base-expenses').fill('45000');
       await page.getByTestId('scenario-retire-debt').click();
       await page.getByTestId('scenario-lifestyle-cuts').click();
@@ -228,8 +234,23 @@ async function worker1() {
       await page.getByTestId('scenario-van-sold').click();
       await page.getByTestId('scenario-bcs-parents-annual').fill('41000');
       await expectVisibleText(page, 'We owe $0/mo');
+      ok((await page.getByTestId('primary-levers-monthly-outflow').textContent()).includes('$31,097/mo'), 'primary levers outflow summary did not update');
+      ok((await page.getByTestId('primary-levers-monthly-savings').textContent()).includes('$26,864/mo'), 'primary levers savings summary did not update');
+      ok((await page.getByTestId('primary-levers-one-time-ask').textContent()).includes('$189,778'), 'primary levers one-time ask summary did not update');
+
+      eq(await page.getByTestId('primary-levers-lever-spending_cuts').getAttribute('data-rank'), '1', 'spending cuts rank');
+      eq(await page.getByTestId('primary-levers-lever-spending_cuts').getAttribute('data-impact'), '16500', 'spending cuts impact');
+      eq(await page.getByTestId('primary-levers-lever-retire_debt').getAttribute('data-rank'), '2', 'retire debt rank');
+      eq(await page.getByTestId('primary-levers-lever-sell_van').getAttribute('data-rank'), '3', 'sell van rank');
+      eq(await page.getByTestId('primary-levers-lever-bcs_support').getAttribute('data-rank'), '4', 'BCS support rank');
+
+      await page.getByTestId('primary-levers-breakdown-toggle').click();
+      ok(await page.getByTestId('primary-levers-breakdown').count() === 1, 'primary levers breakdown did not open');
+      await expectVisibleText(page, 'Debt retirement');
+      await expectVisibleText(page, 'BCS support change');
+      await expectVisibleText(page, 'No other one-time assumptions are active right now.');
       await page.getByTestId('scenario-reset-cuts-override').click();
-      return 'scenario strip sliders and toggles updated derived summaries';
+      return 'primary levers summary, ranking, disclosure, and grouped consequences updated correctly';
     }));
 
     results.push(await runEntry('shell.compact_layout', async () => {
@@ -238,6 +259,9 @@ async function worker1() {
       const appShell = page.getByTestId('app-shell');
       eq(await appShell.getAttribute('data-compact'), 'true', 'compact shell data flag');
       eq(await appShell.getAttribute('data-rail-placement'), 'below', 'compact rail placement');
+      const primaryLevers = page.getByTestId('scenario-strip');
+      eq(await primaryLevers.getAttribute('data-layout'), 'compact', 'primary levers compact layout flag');
+      eq(await primaryLevers.getAttribute('data-order'), 'controls-first', 'primary levers compact order flag');
       const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(noOverflow, 'compact shell introduced horizontal overflow');
       const orderOk = await page.evaluate(() => {
@@ -248,6 +272,14 @@ async function worker1() {
         return Boolean(workspace.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING);
       });
       ok(orderOk, 'compact shell rail should follow the workspace in DOM order');
+      const scenarioOrderOk = await page.evaluate(() => {
+        const root = document.querySelector('[data-testid="scenario-strip"]');
+        const controls = root?.querySelector('[data-testid="primary-levers-controls-section"]');
+        const rail = root?.querySelector('[data-testid="primary-levers-consequence-rail"]');
+        if (!root || !controls || !rail) return false;
+        return Boolean(controls.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      ok(scenarioOrderOk, 'primary levers consequence rail should stack below the controls in compact mode');
       await page.setViewportSize(VIEWPORTS.desktop);
       await gotoApp(page);
       return 'compact shell stacked correctly without overflow';

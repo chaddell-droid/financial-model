@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useEffect } from "react";
+import { useReducer, useMemo, useEffect, useState } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
@@ -14,6 +14,7 @@ import KeyMetrics from './components/KeyMetrics.jsx';
 import ComparisonBanner from './components/ComparisonBanner.jsx';
 import TabBar from './components/TabBar.jsx';
 import ActiveTogglePills from './components/ActiveTogglePills.jsx';
+import AppShell from './components/layout/AppShell.jsx';
 import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
 import NetWorthChart from './charts/NetWorthChart.jsx';
 import RetirementIncomeChart from './charts/RetirementIncomeChart.jsx';
@@ -26,16 +27,26 @@ import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
 import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
+import { getShellWidthBucket } from './ui/tokens.js';
 
+function getInitialShellWidthBucket() {
+  if (typeof window === 'undefined') return 'desktop';
+  return getShellWidthBucket(window.innerWidth);
+}
 
 export default function FinancialModel() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const [shellWidthBucket, setShellWidthBucket] = useState(getInitialShellWidthBucket);
   const handleResetAll = () => {
     const confirmed = typeof window === 'undefined'
       ? true
       : window.confirm('Reset all assumptions back to the baseline model?');
     if (!confirmed) return;
     dispatch({ type: 'RESET_ALL' });
+  };
+
+  const patchUiState = (patch) => {
+    dispatch({ type: 'RESTORE_STATE', state: patch });
   };
 
   const set = (field) => (value) => {
@@ -188,6 +199,35 @@ export default function FinancialModel() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    let frameId = null;
+    const syncShellBucket = () => {
+      const nextBucket = getShellWidthBucket(window.innerWidth);
+      setShellWidthBucket((current) => current === nextBucket ? current : nextBucket);
+    };
+
+    const handleResize = () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        syncShellBucket();
+      });
+    };
+
+    syncShellBucket();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   const saveScenario = async (name) => {
     if (!name.trim()) return;
     const st = gatherState();
@@ -254,7 +294,30 @@ export default function FinancialModel() {
       dadDebtPct: 0, dadBcsParents: 25000,
       dadMold: false, dadRoof: false, dadProjects: false,
       dadStep: 1, dadMcResult: null, dadMode: true,
+      sarahMode: false, presentMode: false, showSaveLoad: false,
     }});
+  };
+
+  const handleTogglePresentMode = () => {
+    if (presentMode) {
+      patchUiState({ presentMode: false });
+      return;
+    }
+    patchUiState({
+      presentMode: true,
+      sarahMode: false,
+      dadMode: false,
+      showSaveLoad: false,
+    });
+  };
+
+  const handleEnterSarahMode = () => {
+    patchUiState({
+      sarahMode: true,
+      dadMode: false,
+      presentMode: false,
+      showSaveLoad: false,
+    });
   };
 
   const dadSupportState = useMemo(() => {
@@ -460,8 +523,138 @@ export default function FinancialModel() {
     advanceNeeded, breakevenIdx,
   };
 
-  // Present mode locks to overview, hides tab bar
+  const activeExperience = dadMode
+    ? 'dad'
+    : sarahMode
+      ? 'sarah'
+      : presentMode
+        ? 'present'
+        : 'planner';
+  const showTopSummary = activeExperience === 'planner' || activeExperience === 'present';
+  const showTabs = activeExperience === 'planner';
+  const showRail = activeExperience === 'planner';
+  const showWorkflowPanels = activeExperience === 'planner';
+  const railPlacement = !showRail
+    ? 'hidden'
+    : shellWidthBucket === 'desktop'
+      ? 'side'
+      : 'below';
+  const compactShell = shellWidthBucket === 'compact';
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
+
+  const plannerSummary = showTopSummary ? (
+    <>
+      <KeyMetrics
+        netMonthly={data[0].netMonthly}
+        breakevenLabel={breakevenLabel}
+        breakevenIdx={breakevenIdx}
+        savingsZeroLabel={savingsZeroLabel}
+        savingsZeroMonth={savingsZeroMonth}
+        advanceNeeded={advanceNeeded}
+        mcResults={mcResults}
+        rawMonthlyGap={rawMonthlyGap}
+        steadyStateNet={steadyStateNet}
+        steadyLabel={data[steadyIdx]?.label}
+      />
+
+      <ActiveTogglePills
+        retireDebt={retireDebt}
+        lifestyleCutsApplied={lifestyleCutsApplied}
+        vanSold={vanSold}
+        debtService={debtService}
+        totalCuts={lifestyleCuts + cutInHalf + extraCuts}
+      />
+
+      {showWorkflowPanels ? (
+        <ComparisonBanner
+          compareState={compareState}
+          compareName={compareName}
+          onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
+        />
+      ) : null}
+    </>
+  ) : null;
+
+  const plannerTabs = showWorkflowPanels || showTabs ? (
+    <>
+      {showWorkflowPanels ? (
+        <ScenarioStrip {...scenarioStripProps} />
+      ) : null}
+
+      {showTabs ? (
+        <TabBar activeTab={effectiveTab} onChange={set('activeTab')} compact={compactShell} />
+      ) : null}
+
+      {showWorkflowPanels ? (
+        <GoalPanel
+          goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
+          mcRunning={mcRunning} presentMode={presentMode}
+          onGoalsChange={(newGoals) => set('goals')(newGoals)}
+        />
+      ) : null}
+    </>
+  ) : null;
+
+  const plannerWorkspace = (
+    <>
+      {effectiveTab === "overview" && (
+        <OverviewTab bridgeProps={bridgeProps} />
+      )}
+
+      {effectiveTab === "plan" && (
+        <PlanTab
+          bridgeProps={bridgeProps}
+          cashFlowProps={cashFlowProps}
+          incomeControlsProps={incomeControlsProps}
+          expenseControlsProps={expenseControlsProps}
+          presentMode={presentMode}
+        />
+      )}
+
+      {effectiveTab === "income" && (
+        <IncomeTab
+          vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
+          msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
+          sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
+          sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
+          data={data} investmentReturn={investmentReturn}
+          vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
+          bcsYearsLeft={bcsYearsLeft} milestones={milestones}
+        />
+      )}
+
+      {effectiveTab === "risk" && (
+        <RiskTab
+          monteCarloProps={monteCarloProps}
+          seqReturnsProps={seqReturnsProps}
+          savingsDrawdownProps={{ ...savingsDrawdownProps, instanceId: 'risk-tab' }}
+          netWorthProps={{ ...netWorthProps, instanceId: 'risk-tab' }}
+          showEmbeddedBalanceCharts={!showRail}
+        />
+      )}
+
+      {effectiveTab === "details" && (
+        <DetailsTab
+          dataTableProps={dataTableProps}
+          summaryAskProps={summaryAskProps}
+          presentMode={presentMode}
+        />
+      )}
+    </>
+  );
+
+  const plannerRail = (
+    <>
+      <SavingsDrawdownChart {...savingsDrawdownProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
+      <NetWorthChart {...netWorthProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
+      <RetirementIncomeChart
+        savingsData={savingsData} wealthData={wealthData}
+        ssType={ssType} ssPersonal={ssPersonal}
+        chadJob={chadJob}
+        trustIncomeFuture={trustIncomeFuture}
+      />
+    </>
+  );
 
   return (
     <div style={{
@@ -473,10 +666,11 @@ export default function FinancialModel() {
     }}>
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         <Header
+          activeExperience={activeExperience}
           presentMode={presentMode}
-          onTogglePresentMode={() => set('presentMode')(!presentMode)}
+          onTogglePresentMode={handleTogglePresentMode}
           onEnterDadMode={enterDadMode}
-          onEnterSarahMode={() => set('sarahMode')(true)}
+          onEnterSarahMode={handleEnterSarahMode}
           showSaveLoad={showSaveLoad}
           onToggleSaveLoad={() => set('showSaveLoad')(!showSaveLoad)}
           savedScenarios={savedScenarios}
@@ -484,7 +678,7 @@ export default function FinancialModel() {
           onExportJSON={handleExportJSON}
         />
 
-        {!presentMode && (
+        {activeExperience === 'planner' && (
           <SaveLoadPanel
             showSaveLoad={showSaveLoad}
             savedScenarios={savedScenarios}
@@ -504,7 +698,7 @@ export default function FinancialModel() {
           />
         )}
 
-        {sarahMode && !dadMode && (
+        {activeExperience === 'sarah' && (
           <SarahMode
             ssType={ssType}
             sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
@@ -517,11 +711,11 @@ export default function FinancialModel() {
             startingSavings={startingSavings} starting401k={starting401k} homeEquity={homeEquity}
             monthlyDetail={monthlyDetail} savingsData={savingsData} wealthData={wealthData}
             onFieldChange={set}
-            onExit={() => set('sarahMode')(false)}
+            onExit={() => patchUiState({ sarahMode: false })}
           />
         )}
 
-        {dadMode && (
+        {activeExperience === 'dad' && (
           <DadMode
             dadMode={dadMode} dadStep={dadStep} dadDebtPct={dadDebtPct}
             dadBcsParents={dadBcsParents} dadMold={dadMold} dadRoof={dadRoof}
@@ -548,108 +742,17 @@ export default function FinancialModel() {
           />
         )}
 
-        {!dadMode && !sarahMode && <>
-          <KeyMetrics
-            netMonthly={data[0].netMonthly}
-            breakevenLabel={breakevenLabel}
-            breakevenIdx={breakevenIdx}
-            savingsZeroLabel={savingsZeroLabel}
-            savingsZeroMonth={savingsZeroMonth}
-            advanceNeeded={advanceNeeded}
-            mcResults={mcResults}
-            rawMonthlyGap={rawMonthlyGap}
-            steadyStateNet={steadyStateNet}
-            steadyLabel={data[steadyIdx]?.label}
+        {(activeExperience === 'planner' || activeExperience === 'present') && (
+          <AppShell
+            summary={plannerSummary}
+            tabs={plannerTabs}
+            workspace={plannerWorkspace}
+            rail={plannerRail}
+            showRail={showRail}
+            compact={compactShell}
+            railPlacement={railPlacement}
           />
-
-          <ActiveTogglePills
-            retireDebt={retireDebt}
-            lifestyleCutsApplied={lifestyleCutsApplied}
-            vanSold={vanSold}
-            debtService={debtService}
-            totalCuts={lifestyleCuts + cutInHalf + extraCuts}
-          />
-
-          {!presentMode && (
-            <ScenarioStrip {...scenarioStripProps} />
-          )}
-
-          <ComparisonBanner
-            compareState={compareState}
-            compareName={compareName}
-            onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
-          />
-
-          {!presentMode && (
-            <TabBar activeTab={effectiveTab} onChange={set('activeTab')} />
-          )}
-
-          <GoalPanel
-            goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
-            mcRunning={mcRunning} presentMode={presentMode}
-            onGoalsChange={(newGoals) => set('goals')(newGoals)}
-          />
-
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(580px, 660px)", gap: 24, alignItems: "start" }}>
-            {/* Left column: Tab content */}
-            <div style={{ minWidth: 0 }}>
-              {effectiveTab === "overview" && (
-                <OverviewTab bridgeProps={bridgeProps} />
-              )}
-
-              {effectiveTab === "plan" && (
-                <PlanTab
-                  bridgeProps={bridgeProps}
-                  cashFlowProps={cashFlowProps}
-                  incomeControlsProps={incomeControlsProps}
-                  expenseControlsProps={expenseControlsProps}
-                  presentMode={presentMode}
-                />
-              )}
-
-              {effectiveTab === "income" && (
-                <IncomeTab
-                  vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
-                  msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
-                  sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
-                  sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-                  data={data} investmentReturn={investmentReturn}
-                  vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
-                  bcsYearsLeft={bcsYearsLeft} milestones={milestones}
-                />
-              )}
-
-              {effectiveTab === "risk" && (
-                <RiskTab
-                  monteCarloProps={monteCarloProps}
-                  seqReturnsProps={seqReturnsProps}
-                  savingsDrawdownProps={{ ...savingsDrawdownProps, instanceId: 'risk-tab' }}
-                  netWorthProps={{ ...netWorthProps, instanceId: 'risk-tab' }}
-                />
-              )}
-
-              {effectiveTab === "details" && (
-                <DetailsTab
-                  dataTableProps={dataTableProps}
-                  summaryAskProps={summaryAskProps}
-                  presentMode={presentMode}
-                />
-              )}
-            </div>
-
-            {/* Right column: Key charts — always visible, sticky */}
-            <div style={{ position: "sticky", top: 16, alignSelf: "start" }}>
-              <SavingsDrawdownChart {...savingsDrawdownProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
-              <NetWorthChart {...netWorthProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
-              <RetirementIncomeChart
-                savingsData={savingsData} wealthData={wealthData}
-                ssType={ssType} ssPersonal={ssPersonal}
-                chadJob={chadJob}
-                trustIncomeFuture={trustIncomeFuture}
-              />
-            </div>
-          </div>
-        </>}
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
+import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 
 export default function MonthlyCashFlowChart({
   data,
@@ -18,13 +19,33 @@ export default function MonthlyCashFlowChart({
   const [msftTooltip, setMsftTooltip] = useState(null);
 
   const yAxisPadding = 60;
+  const currentQuarter = data[0];
+  const highlightQuarter = data[highlightIdx] || currentQuarter;
+  const legendItems = buildLegendItems([
+    { label: 'Surplus', color: '#4ade80' },
+    { label: 'Deficit', color: '#f87171' },
+    { label: 'MSFT vesting income', color: '#f59e0b', line: true, dash: true },
+    { label: ssType === 'ss' ? 'SS starts' : 'SSDI starts', color: '#4ade80', line: true, dash: true },
+  ]);
 
   return (
     <div data-testid="monthly-cash-flow-chart" style={{
       background: "#1e293b", borderRadius: 12, padding: "20px 16px",
       border: "1px solid #334155", marginBottom: 24
     }}>
-      <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 16px", fontWeight: 600 }}>Monthly Cash Flow Over Time</h3>
+      <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 6px", fontWeight: 600 }}>Monthly Cash Flow Over Time</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 16 }}>
+        {[
+          { label: getSummaryTimeframeLabel('current'), value: fmtFull(currentQuarter.netMonthly), color: currentQuarter.netMonthly >= 0 ? '#4ade80' : '#f87171' },
+          { label: `${highlightLabel} quarter`, value: highlightQuarter.label, color: '#fbbf24' },
+          { label: 'Quarterly vesting peak', value: fmtFull(maxVesting), color: '#f59e0b' },
+        ].map((item) => (
+          <div key={item.label} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 10px', border: '1px solid #334155' }}>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
       <div data-testid="monthly-cash-flow-hover-surface" style={{ position: "relative", height: chartH + 50, paddingLeft: yAxisPadding }}>
         {/* Y-axis labels and grid lines */}
         {(() => {
@@ -224,22 +245,12 @@ export default function MonthlyCashFlowChart({
 
       {/* Legend */}
       <div style={{ display: "flex", gap: 16, marginTop: 32, justifyContent: "center", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: "#4ade80" }} />
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>Surplus</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: "#f87171" }} />
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>Deficit</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 16, height: 2, background: "#f59e0b", borderTop: "2px dashed #f59e0b" }} />
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>MSFT vesting income</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 16, height: 2, background: "#4ade80", borderTop: "2px dashed #4ade80" }} />
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>{ssType === 'ss' ? 'SS starts' : 'SSDI starts'}</span>
-        </div>
+        {legendItems.map((item) => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: item.line ? 16 : 12, height: item.line ? 2 : 12, borderRadius: item.line ? 0 : 2, background: item.line ? undefined : item.color, borderTop: item.line ? `2px ${item.dash ? 'dashed' : 'solid'} ${item.color}` : undefined }} />
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{item.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { createScales, generateYTicks, autoTickStep } from './chartUtils.js';
 import Slider from '../components/Slider.jsx';
+import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 
 export default function NetWorthChart({
   savingsData, wealthData,
@@ -60,6 +61,12 @@ export default function NetWorthChart({
     { label: '401k Growth', value: (k401Change >= 0 ? '+' : '') + fmtFull(k401Change), color: k401Change >= 0 ? '#60a5fa' : '#f87171' },
     { label: 'Home Appreciation', value: (homeChange >= 0 ? '+' : '') + fmtFull(homeChange), color: '#f59e0b' },
   ];
+  const legendItems = buildLegendItems([
+    { id: 'savings', label: 'Liquid Savings', color: '#4ade80' },
+    { id: '401k', label: '401k', color: '#60a5fa' },
+    { id: 'home', label: 'Home Equity', color: '#f59e0b' },
+    { id: 'total', label: 'Total Net Worth', color: '#e2e8f0', line: true, dash: true },
+  ]);
 
   return (
     <div data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={{
@@ -207,7 +214,7 @@ export default function NetWorthChart({
           {savingsData.filter(d => d.month % 12 === 0).map((d, i) => (
             <text key={i} x={xOf(d.month)} y={svgH - 5} textAnchor="middle"
               fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-              {d.month === 0 ? 'M0' : `Y${d.month / 12}`}
+              {formatModelTimeLabel(d.month)}
             </text>
           ))}
         </svg>
@@ -229,7 +236,7 @@ export default function NetWorthChart({
             boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           }}>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
-              Month {tooltip.month} ({tooltip.month < 12 ? `${tooltip.month}mo` : `Y${(tooltip.month / 12).toFixed(1)}`})
+              {formatModelTimeLabel(tooltip.month)}
             </div>
             {[
               { label: 'Savings', value: tooltip.savings, color: '#4ade80' },
@@ -250,17 +257,12 @@ export default function NetWorthChart({
 
       {/* Legend */}
       <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 11 }}>
-        {[
-          { label: 'Liquid Savings', color: '#4ade80' },
-          { label: '401k', color: '#60a5fa' },
-          { label: 'Home Equity', color: '#f59e0b' },
-          { label: 'Total Net Worth', color: '#e2e8f0', dashed: true },
-        ].map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {legendItems.map((item) => (
+          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{
-              width: 20, height: item.dashed ? 0 : 3,
-              background: item.dashed ? undefined : item.color,
-              borderTop: item.dashed ? `2px dashed ${item.color}` : undefined,
+              width: 20, height: item.line ? 0 : 3,
+              background: item.line ? undefined : item.color,
+              borderTop: item.line ? `2px dashed ${item.color}` : undefined,
               borderRadius: 1,
             }} />
             <span style={{ color: '#94a3b8' }}>{item.label}</span>

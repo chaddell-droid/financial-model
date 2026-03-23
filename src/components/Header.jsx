@@ -1,97 +1,152 @@
-import React from "react";
+import React from 'react';
+import ActionButton from './ui/ActionButton.jsx';
+import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
-export default function Header({ presentMode, onTogglePresentMode, onEnterDadMode, onEnterSarahMode, showSaveLoad, onToggleSaveLoad, savedScenarios, onReset, onExportJSON }) {
+const EXPERIENCE_COPY = {
+  planner: {
+    title: 'Family Financial Plan',
+    subtitle: 'Adjust assumptions, compare scenarios, and evaluate the current plan.',
+  },
+  present: {
+    title: 'Family Financial Plan',
+    subtitle: 'Presentation mode keeps the focus on the core summary and overview story.',
+  },
+  sarah: {
+    title: "Sarah's View",
+    subtitle: 'Business-first view of the shared family plan.',
+  },
+  dad: {
+    title: 'Dad Mode',
+    subtitle: 'Support-focused view of the plan and what would help most.',
+  },
+};
+
+export default function Header({
+  activeExperience = 'planner',
+  presentMode,
+  onTogglePresentMode,
+  onEnterDadMode,
+  onEnterSarahMode,
+  showSaveLoad,
+  onToggleSaveLoad,
+  savedScenarios,
+  onReset,
+  onExportJSON,
+}) {
+  const copy = EXPERIENCE_COPY[activeExperience] || EXPERIENCE_COPY.planner;
+  const isPlanner = activeExperience === 'planner';
+  const isPresent = activeExperience === 'present';
+  const isSarah = activeExperience === 'sarah';
+  const isDad = activeExperience === 'dad';
+
   return (
-    <div data-testid="header-bar" style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div>
-        <h1 style={{ fontSize: presentMode ? 28 : 22, fontWeight: 700, color: "#f8fafc", margin: 0, letterSpacing: "-0.02em" }}>
-          Financial Planning Model
+    <div
+      data-testid='header-bar'
+      style={{
+        marginBottom: 28,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: UI_SPACE.xl,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <h1
+          style={{
+            fontSize: activeExperience === 'present' ? 28 : UI_TEXT.hero,
+            fontWeight: 700,
+            color: UI_COLORS.textStrong,
+            margin: 0,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {copy.title}
         </h1>
-        <p style={{ fontSize: presentMode ? 15 : 13, color: "#64748b", margin: "4px 0 0" }}>
-          {presentMode ? "Family financial sustainability plan — 5-year projection" : "Interactive scenario planner — adjust assumptions below"}
+        <p
+          style={{
+            fontSize: UI_TEXT.body,
+            color: UI_COLORS.textMuted,
+            margin: '6px 0 0',
+            maxWidth: 720,
+          }}
+        >
+          {copy.subtitle}
         </p>
       </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <button
+
+      <div style={{ display: 'flex', gap: UI_SPACE.sm, alignItems: 'center', flexWrap: 'wrap' }}>
+        <ActionButton
           onClick={onTogglePresentMode}
-          data-testid="header-present-mode"
-          aria-label={presentMode ? "Exit presentation mode" : "Enter presentation mode"}
-          style={{
-            background: presentMode ? "#4ade80" : "transparent",
-            border: `1px solid ${presentMode ? "#4ade80" : "#475569"}`, borderRadius: 8,
-            color: presentMode ? "#0f172a" : "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",
-            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
-            fontWeight: presentMode ? 700 : 400
-          }}
+          data-testid='header-present-mode'
+          aria-label={presentMode ? 'Exit presentation mode' : 'Enter presentation mode'}
+          variant={UI_ACTION_VARIANTS.chip}
+          accent={UI_COLORS.positive}
+          active={isPresent}
         >
-          {presentMode ? "\u2715 Exit Presentation" : "\u25B6 Present"}
-        </button>
-        {!presentMode && <button
-          onClick={onEnterSarahMode}
-          data-testid="header-enter-sarah-mode"
-          aria-label="Open Sarah mode"
-          style={{
-            background: "transparent", border: "1px solid #2dd4bf", borderRadius: 8,
-            color: "#2dd4bf", fontSize: 12, padding: "8px 14px", cursor: "pointer",
-            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap"
-          }}
-        >
-          {"\uD83C\uDF1F"} Sarah's View
-        </button>}
-        {!presentMode && <button
-          onClick={onEnterDadMode}
-          data-testid="header-enter-dad-mode"
-          aria-label="Open Dad mode"
-          style={{
-            background: "transparent", border: "1px solid #c084fc", borderRadius: 8,
-            color: "#c084fc", fontSize: 12, padding: "8px 14px", cursor: "pointer",
-            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap"
-          }}
-        >
-          {"\uD83D\uDC68\u200D\uD83D\uDC67"} Dad Mode
-        </button>}
-        {!presentMode && <button
-          onClick={onToggleSaveLoad}
-          data-testid="header-toggle-save-load"
-          aria-label={showSaveLoad ? "Hide saved scenarios" : "Show saved scenarios"}
-          style={{
-            background: showSaveLoad ? "#1e293b" : "transparent", border: "1px solid #475569", borderRadius: 8,
-            color: showSaveLoad ? "#60a5fa" : "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",
-            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap"
-          }}
-          onMouseEnter={(e) => { e.target.style.borderColor = "#60a5fa"; e.target.style.color = "#60a5fa"; }}
-          onMouseLeave={(e) => { e.target.style.borderColor = "#475569"; e.target.style.color = showSaveLoad ? "#60a5fa" : "#94a3b8"; }}
-        >
-          {showSaveLoad ? "Hide Scenarios" : `Saved (${savedScenarios.length})`}
-        </button>}
-        {!presentMode && <button
-          onClick={onReset}
-          data-testid="header-reset-all"
-          aria-label="Reset all assumptions"
-          style={{
-            background: "transparent", border: "1px solid #475569", borderRadius: 8,
-            color: "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",
-            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap"
-          }}
-          onMouseEnter={(e) => { e.target.style.borderColor = "#f87171"; e.target.style.color = "#f87171"; }}
-          onMouseLeave={(e) => { e.target.style.borderColor = "#475569"; e.target.style.color = "#94a3b8"; }}
-        >
-          {"\u21BA"} Reset All
-        </button>}
-        {!presentMode && onExportJSON && <button
-          onClick={onExportJSON}
-          data-testid="header-export-json"
-          aria-label="Export model data as JSON"
-          style={{
-            background: "transparent", border: "1px solid #475569", borderRadius: 8,
-            color: "#94a3b8", fontSize: 12, padding: "8px 14px", cursor: "pointer",
-            transition: "all 0.2s", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap"
-          }}
-          onMouseEnter={(e) => { e.target.style.borderColor = "#60a5fa"; e.target.style.color = "#60a5fa"; }}
-          onMouseLeave={(e) => { e.target.style.borderColor = "#475569"; e.target.style.color = "#94a3b8"; }}
-        >
-          {"\u2193"} Export JSON
-        </button>}
+          {presentMode ? 'Exit Presentation' : 'Present'}
+        </ActionButton>
+
+        {!isPresent ? (
+          <ActionButton
+            onClick={onEnterSarahMode}
+            data-testid='header-enter-sarah-mode'
+            aria-label='Open Sarah mode'
+            variant={UI_ACTION_VARIANTS.chip}
+            accent={UI_COLORS.modeSarah}
+            active={isSarah}
+          >
+            Sarah&apos;s View
+          </ActionButton>
+        ) : null}
+
+        {!isPresent ? (
+          <ActionButton
+            onClick={onEnterDadMode}
+            data-testid='header-enter-dad-mode'
+            aria-label='Open Dad mode'
+            variant={UI_ACTION_VARIANTS.chip}
+            accent={UI_COLORS.modeDad}
+            active={isDad}
+          >
+            Dad Mode
+          </ActionButton>
+        ) : null}
+
+        {isPlanner ? (
+          <ActionButton
+            onClick={onToggleSaveLoad}
+            data-testid='header-toggle-save-load'
+            aria-label={showSaveLoad ? 'Hide saved scenarios' : 'Show saved scenarios'}
+            variant={UI_ACTION_VARIANTS.secondary}
+            active={showSaveLoad}
+          >
+            {showSaveLoad ? 'Hide Scenarios' : `Saved (${savedScenarios.length})`}
+          </ActionButton>
+        ) : null}
+
+        {isPlanner ? (
+          <ActionButton
+            onClick={onReset}
+            data-testid='header-reset-all'
+            aria-label='Reset all assumptions'
+            variant={UI_ACTION_VARIANTS.destructive}
+          >
+            Reset All
+          </ActionButton>
+        ) : null}
+
+        {isPlanner && onExportJSON ? (
+          <ActionButton
+            onClick={onExportJSON}
+            data-testid='header-export-json'
+            aria-label='Export model data as JSON'
+            variant={UI_ACTION_VARIANTS.secondary}
+            accent={UI_COLORS.primary}
+          >
+            Export JSON
+          </ActionButton>
+        ) : null}
       </div>
     </div>
   );

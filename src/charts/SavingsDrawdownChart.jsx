@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
+import { buildLegendItems, formatModelTimeLabel, getSummaryTimeframeLabel } from './chartContract.js';
 
 export default function SavingsDrawdownChart({
   savingsData,
@@ -26,6 +27,10 @@ export default function SavingsDrawdownChart({
   instanceId = 'default',
 }) {
   const [savingsTooltip, setSavingsTooltip] = useState(null);
+  const comparisonLegend = buildLegendItems(compareProjection ? [
+    { id: 'current', label: 'Current settings', color: '#4ade80' },
+    { id: 'compare', label: `"${compareName}"`, color: '#fbbf24', line: true, dash: true },
+  ] : []);
 
   return (
         <div data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={{
@@ -55,9 +60,9 @@ export default function SavingsDrawdownChart({
               const steadyLabel = steady.label || "Y6";
               return [
                 { label: "Starting Savings", value: fmtFull(startingSavings), color: "#e2e8f0" },
-                { label: `Monthly Income (${steadyLabel})`, value: fmtFull(steady.totalIncome), color: "#4ade80" },
-                { label: "Monthly Expenses (now)", value: fmtFull(current.expenses), color: "#f87171" },
-                { label: `Monthly Net (${steadyLabel})`, value: (steady.netMonthly >= 0 ? "+" : "") + fmtFull(steady.netMonthly), color: steady.netMonthly >= 0 ? "#4ade80" : "#f87171" },
+                { label: `${getSummaryTimeframeLabel('steady')} income`, value: fmtFull(steady.totalIncome), color: "#4ade80" },
+                { label: `${getSummaryTimeframeLabel('current')} expenses`, value: fmtFull(current.expenses), color: "#f87171" },
+                { label: `${getSummaryTimeframeLabel('steady')} net`, value: (steady.netMonthly >= 0 ? "+" : "") + fmtFull(steady.netMonthly), color: steady.netMonthly >= 0 ? "#4ade80" : "#f87171" },
                 { label: `Annual Return (${investmentReturn}% on savings)`, value: fmtFull(annualReturn) + "/yr", sub: `${fmtFull(data[0].investReturnQtr)}/qtr · ${fmtFull(data[0].investReturn)}/mo`, color: "#22d3ee" },
               ];
             })().map((item, i) => (
@@ -228,7 +233,7 @@ export default function SavingsDrawdownChart({
                 {savingsData.filter(d => d.month % 12 === 0).map((d, i) => (
                   <text key={i} x={x(d.month)} y={svgH - 5} textAnchor="middle"
                     fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-                    {d.month === 0 ? "M0" : `Y${d.month / 12}`}
+                    {formatModelTimeLabel(d.month)}
                   </text>
                 ))}
 
@@ -269,10 +274,12 @@ export default function SavingsDrawdownChart({
 
               {/* Tooltip */}
               {savingsTooltip && (
-                <div style={{
-                  position: "absolute",
-                  left: `${savingsTooltip.pctX}%`,
-                  top: `${savingsTooltip.pctY}%`,
+                  <div
+                    data-testid={`savings-drawdown-tooltip-${instanceId}`}
+                    style={{
+                    position: "absolute",
+                    left: `${savingsTooltip.pctX}%`,
+                    top: `${savingsTooltip.pctY}%`,
                   transform: "translate(-50%, -120%)",
                   background: "#0f172a",
                   border: `1px solid ${savingsTooltip.balance >= 0 ? "#4ade80" : "#f87171"}`,
@@ -281,10 +288,10 @@ export default function SavingsDrawdownChart({
                   pointerEvents: "none",
                   zIndex: 10,
                   whiteSpace: "nowrap",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-                }}>
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+                  }}>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 2 }}>
-                    Month {savingsTooltip.month} ({savingsTooltip.month < 12 ? `${savingsTooltip.month}mo` : `Y${(savingsTooltip.month / 12).toFixed(1)}`})
+                    {formatModelTimeLabel(savingsTooltip.month)}
                   </div>
                   <div style={{
                     fontSize: 14, fontWeight: 700,
@@ -293,8 +300,8 @@ export default function SavingsDrawdownChart({
                   }}>
                     {fmtFull(savingsTooltip.balance)}
                   </div>
-                </div>
-              )}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -323,14 +330,12 @@ export default function SavingsDrawdownChart({
           </>}
           {compareProjection && (
             <div style={{ marginTop: 6, display: "flex", gap: 16, fontSize: 11, alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 20, height: 3, background: "#4ade80", borderRadius: 1 }} />
-                <span style={{ color: "#94a3b8" }}>Current settings</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 20, height: 0, borderTop: "2px dashed #fbbf24" }} />
-                <span style={{ color: "#fbbf24" }}>"{compareName}"</span>
-              </div>
+              {comparisonLegend.map((item) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: item.line ? 20 : 20, height: item.line ? 0 : 3, background: item.line ? undefined : item.color, borderRadius: item.line ? 0 : 1, borderTop: item.line ? `2px dashed ${item.color}` : undefined }} />
+                  <span style={{ color: item.id === 'compare' ? item.color : "#94a3b8" }}>{item.label}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>

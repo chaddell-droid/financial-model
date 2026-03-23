@@ -1,5 +1,24 @@
-import React from "react";
-import { fmt, fmtFull } from "../model/formatters.js";
+import React from 'react';
+import { fmtFull } from '../model/formatters.js';
+import SurfaceCard from './ui/SurfaceCard.jsx';
+import { getSummaryTimeframeLabel } from '../charts/chartContract.js';
+import { METRIC_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
+import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+
+function MetricValue({ value, color, small }) {
+  return (
+    <div
+      style={{
+        fontSize: small ? 16 : 22,
+        fontWeight: 700,
+        color,
+        fontFamily: "'JetBrains Mono', monospace",
+      }}
+    >
+      {value}
+    </div>
+  );
+}
 
 export default function KeyMetrics({
   netMonthly,
@@ -13,68 +32,117 @@ export default function KeyMetrics({
   steadyStateNet,
   steadyLabel,
 }) {
-  // Gap Journey — 4-card progression
-  const journeyCards = [
-    { label: "Today (raw)", value: rawMonthlyGap, color: "#f87171", sublabel: "No toggles, no plan" },
-    { label: "Now (with plan)", value: netMonthly, color: netMonthly >= 0 ? "#4ade80" : "#94a3b8", sublabel: "Current assumptions" },
-    { label: `Steady state (${steadyLabel || "Y3"})`, value: steadyStateNet, color: steadyStateNet >= 0 ? "#4ade80" : "#94a3b8", sublabel: "Post-ramp target" },
-    { label: "Total swing", value: steadyStateNet - rawMonthlyGap, color: (steadyStateNet - rawMonthlyGap) > 0 ? "#4ade80" : "#f87171", sublabel: "Raw → steady" },
+  const summaryCards = [
+    {
+      label: TIMEFRAME_LABELS.today,
+      value: rawMonthlyGap,
+      color: UI_COLORS.destructive,
+      sublabel: 'No plan toggles applied',
+    },
+    {
+      label: TIMEFRAME_LABELS.currentAssumptions,
+      value: netMonthly,
+      color: netMonthly >= 0 ? UI_COLORS.positive : UI_COLORS.textMuted,
+      sublabel: getSummaryTimeframeLabel('current'),
+    },
+    {
+      label: `${TIMEFRAME_LABELS.steadyState} (${steadyLabel || 'Y3'})`,
+      value: steadyStateNet,
+      color: steadyStateNet >= 0 ? UI_COLORS.positive : UI_COLORS.textMuted,
+      sublabel: getSummaryTimeframeLabel('steady'),
+    },
+    {
+      label: METRIC_LABELS.totalSwing,
+      value: steadyStateNet - rawMonthlyGap,
+      color: steadyStateNet - rawMonthlyGap >= 0 ? UI_COLORS.positive : UI_COLORS.destructive,
+      sublabel: `${TIMEFRAME_LABELS.today} → ${TIMEFRAME_LABELS.steadyState}`,
+    },
   ];
 
   const metrics = [
-    { label: "Current Monthly Gap", value: netMonthly, color: netMonthly >= 0 ? "#4ade80" : "#f87171" },
-    { label: "Cash Flow Breakeven", value: breakevenLabel, isText: true, color: breakevenIdx >= 0 ? "#4ade80" : "#fbbf24", sublabel: "When income \u2265 expenses", smallText: breakevenIdx < 0 },
-    { label: "Savings Runway", value: savingsZeroLabel, isText: true, color: savingsZeroMonth ? "#f87171" : "#4ade80", sublabel: savingsZeroMonth ? "Until savings depleted" : "Savings survive 6+ yrs" },
-    { label: "Advance Ask", value: advanceNeeded, color: "#fbbf24", isPositive: true },
-    ...(mcResults ? [{ label: "MC Solvency", value: `${(mcResults.solvencyRate * 100).toFixed(1)}%`, isText: true, color: mcResults.solvencyRate >= 0.95 ? "#4ade80" : mcResults.solvencyRate >= 0.80 ? "#fbbf24" : "#f87171", sublabel: `${mcResults.numSims} simulations` }] : []),
+    {
+      label: METRIC_LABELS.currentMonthlyGap,
+      value: fmtFull(netMonthly),
+      color: netMonthly >= 0 ? UI_COLORS.positive : UI_COLORS.destructive,
+    },
+    {
+      label: METRIC_LABELS.cashFlowBreakeven,
+      value: breakevenLabel,
+      isText: true,
+      color: breakevenIdx >= 0 ? UI_COLORS.positive : UI_COLORS.caution,
+      sublabel: 'When income covers expenses',
+      smallText: breakevenIdx < 0,
+    },
+    {
+      label: METRIC_LABELS.savingsRunway,
+      value: savingsZeroLabel,
+      isText: true,
+      color: savingsZeroMonth ? UI_COLORS.destructive : UI_COLORS.positive,
+      sublabel: savingsZeroMonth ? 'Until savings are depleted' : 'Savings stay positive through the horizon',
+      smallText: true,
+    },
+    {
+      label: METRIC_LABELS.advanceNeeded,
+      value: fmtFull(advanceNeeded),
+      color: UI_COLORS.caution,
+    },
+    ...(mcResults ? [{
+      label: METRIC_LABELS.monteCarloSolvency,
+      value: `${(mcResults.solvencyRate * 100).toFixed(1)}%`,
+      isText: true,
+      color: mcResults.solvencyRate >= 0.95
+        ? UI_COLORS.positive
+        : mcResults.solvencyRate >= 0.80
+          ? UI_COLORS.caution
+          : UI_COLORS.destructive,
+      sublabel: `${mcResults.numSims} simulations`,
+    }] : []),
   ];
 
   return (
-    <>
-      {/* Gap Journey — financial trajectory */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "stretch" }}>
-        {journeyCards.map((card, i) => (
-          <React.Fragment key={i}>
-            <div style={{
-              flex: 1, background: "#1e293b", borderRadius: 10, padding: "12px 14px",
-              border: "1px solid #334155", textAlign: "center"
-            }}>
-              <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{card.label}</div>
-              <div style={{
-                fontSize: 20, fontWeight: 700, color: card.color,
-                fontFamily: "'JetBrains Mono', monospace"
-              }}>
-                {fmtFull(card.value)}
-              </div>
-              <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>{card.sublabel}</div>
+    <div data-testid='key-metrics' style={{ display: 'grid', gap: UI_SPACE.lg, marginBottom: UI_SPACE.xl }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: UI_SPACE.sm,
+          alignItems: 'stretch',
+        }}
+      >
+        {summaryCards.map((card) => (
+          <SurfaceCard key={card.label} tone='featured' padding='md'>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+              {card.label}
             </div>
-            {i < journeyCards.length - 1 && (
-              <div style={{ display: "flex", alignItems: "center", color: "#475569", fontSize: 18 }}>{"\u2192"}</div>
-            )}
-          </React.Fragment>
+            <MetricValue value={fmtFull(card.value)} color={card.color} />
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
+              {card.sublabel}
+            </div>
+          </SurfaceCard>
         ))}
       </div>
 
-      {/* Core metrics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
-        {metrics.map((m, i) => (
-          <div key={i} style={{
-            background: "#1e293b", borderRadius: 10, padding: "14px 16px",
-            border: "1px solid #334155"
-          }}>
-            <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{m.label}</div>
-            <div style={{
-              fontSize: m.smallText ? 15 : 22, fontWeight: 700, color: m.color,
-              fontFamily: "'JetBrains Mono', monospace"
-            }}>
-              {m.isText ? m.value : (m.isPositive ? fmtFull(m.value) : fmtFull(m.value))}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: UI_SPACE.sm,
+        }}
+      >
+        {metrics.map((metric) => (
+          <SurfaceCard key={metric.label} tone='default' padding='md'>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+              {metric.label}
             </div>
-            {m.sublabel && (
-              <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>{m.sublabel}</div>
-            )}
-          </div>
+            <MetricValue value={metric.value} color={metric.color} small={metric.smallText} />
+            {metric.sublabel ? (
+              <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
+                {metric.sublabel}
+              </div>
+            ) : null}
+          </SurfaceCard>
         ))}
       </div>
-    </>
+    </div>
   );
 }

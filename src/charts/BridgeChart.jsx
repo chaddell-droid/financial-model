@@ -2,6 +2,7 @@ import React from "react";
 import { DAYS_PER_MONTH, SGA_LIMIT } from '../model/constants.js';
 import { getVestingMonthly } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
+import { formatModelTimeLabel } from './chartContract.js';
 
 const BridgeChart = ({
   monthlyDetail, data,
@@ -158,6 +159,18 @@ const BridgeChart = ({
         {crossMonth && <span style={{ color: "#4ade80", fontWeight: 600 }}> → Breakeven at month {crossMonth.month}</span>}
         {!crossMonth && <span style={{ color: "#f87171", fontWeight: 600 }}> → Not yet breakeven by month {months}</span>}
       </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 12 }}>
+        {[
+          { label: 'Current assumptions', value: fmtFull(todayGap), color: todayGap >= 0 ? '#4ade80' : '#f87171' },
+          { label: crossMonth ? `Breakeven ${formatModelTimeLabel(crossMonth.month)}` : 'Breakeven', value: crossMonth ? 'Reached' : 'Not reached', color: crossMonth ? '#4ade80' : '#fbbf24' },
+          { label: 'Steady state', value: fmtFull(finalNet), color: finalNet >= 0 ? '#4ade80' : '#f87171' },
+        ].map((item) => (
+          <div key={item.label} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 10px', border: '1px solid #334155' }}>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 13, color: item.color, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
 
       {/* STEPPED LINE CHART */}
       <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
@@ -185,7 +198,7 @@ const BridgeChart = ({
         {/* X-axis labels */}
         {[0, 12, 24, 36, 48, 60].map(m => (
           <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-            {m === 0 ? "M0" : `Y${m/12}`}
+            {formatModelTimeLabel(m)}
           </text>
         ))}
 

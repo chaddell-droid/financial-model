@@ -1,4 +1,5 @@
 import React from 'react';
+import { UI_COLORS, UI_RADII, UI_SPACE, UI_TEXT } from '../../ui/tokens.js';
 
 export default function HelpPopover({ help, width = 320 }) {
   if (!help) return null;
@@ -10,34 +11,34 @@ export default function HelpPopover({ help, width = 320 }) {
       style={{
         width: resolvedWidth,
         maxWidth: '92vw',
-        background: '#0f172a',
-        border: '1px solid #334155',
-        borderRadius: 10,
-        padding: '10px 12px',
+        background: UI_COLORS.surfaceMuted,
+        border: `1px solid ${UI_COLORS.border}`,
+        borderRadius: UI_RADII.md,
+        padding: `${UI_SPACE.md}px ${UI_SPACE.lg}px`,
         boxShadow: '0 10px 28px rgba(2, 6, 23, 0.45)',
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+      <div style={{ fontSize: UI_TEXT.caption, fontWeight: 700, color: UI_COLORS.textStrong, marginBottom: 6 }}>
         {help.title}
       </div>
-      {help.short && (
-        <div style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.45, marginBottom: help.body?.length ? 6 : 0 }}>
+      {help.short ? (
+        <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textBody, lineHeight: 1.5, marginBottom: help.body?.length ? 8 : 0 }}>
           {help.short}
         </div>
-      )}
+      ) : null}
       {help.body?.map((paragraph, index) => (
         <div
           key={index}
-          style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.45, marginTop: index === 0 ? 0 : 6 }}
+          style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textBody, lineHeight: 1.5, marginTop: index === 0 ? 0 : 8 }}
         >
           {paragraph}
         </div>
       ))}
-      {help.footer && (
-        <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.4, marginTop: 8, borderTop: '1px solid #1e293b', paddingTop: 8 }}>
+      {help.footer ? (
+        <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, lineHeight: 1.45, marginTop: 10, borderTop: `1px solid ${UI_COLORS.border}`, paddingTop: 10 }}>
           {help.footer}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

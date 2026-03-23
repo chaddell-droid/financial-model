@@ -1,31 +1,44 @@
-import React from "react";
+import React from 'react';
+import { UI_COLORS, UI_RADII, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: "\u{1F4CA}" },
-  { id: "plan", label: "Plan", icon: "\u{1F4DD}" },
-  { id: "income", label: "Income", icon: "\u{1F4B0}" },
-  { id: "risk", label: "Risk", icon: "\u{1F6E1}\uFE0F" },
-  { id: "details", label: "Details", icon: "\u{1F50D}" },
+  { id: 'overview', label: 'Overview', icon: '📊' },
+  { id: 'plan', label: 'Plan', icon: '📝' },
+  { id: 'income', label: 'Income', icon: '💰' },
+  { id: 'risk', label: 'Risk', icon: '🛡️' },
+  { id: 'details', label: 'Details', icon: '🔍' },
 ];
 
-const accentColors = {
-  overview: "#60a5fa",
-  plan: "#4ade80",
-  income: "#c084fc",
-  risk: "#f59e0b",
-  details: "#94a3b8",
+const ACCENT_COLORS = {
+  overview: UI_COLORS.primary,
+  plan: UI_COLORS.positive,
+  income: UI_COLORS.modeDad,
+  risk: UI_COLORS.caution,
+  details: UI_COLORS.textMuted,
 };
 
-export default function TabBar({ activeTab, onChange }) {
+export default function TabBar({ activeTab, onChange, compact = false }) {
   return (
-    <div data-testid="tab-bar" style={{
-      display: "flex", gap: 4, marginBottom: 20, padding: "4px",
-      background: "#0f172a", borderRadius: 12, border: "1px solid #1e293b",
-      position: "sticky", top: 0, zIndex: 20,
-    }}>
-      {TABS.map(tab => {
+    <div
+      data-testid='tab-bar'
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+        gap: UI_SPACE.xs,
+        marginBottom: 20,
+        padding: UI_SPACE.xs,
+        background: UI_COLORS.surfaceMuted,
+        borderRadius: UI_RADII.md,
+        border: `1px solid ${UI_COLORS.border}`,
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
+      }}
+    >
+      {TABS.map((tab) => {
         const active = activeTab === tab.id;
-        const color = accentColors[tab.id];
+        const color = ACCENT_COLORS[tab.id];
+
         return (
           <button
             key={tab.id}
@@ -33,19 +46,27 @@ export default function TabBar({ activeTab, onChange }) {
             data-testid={`tab-${tab.id}`}
             aria-label={`Open ${tab.label} tab`}
             style={{
-              flex: 1, padding: "10px 8px", borderRadius: 10, cursor: "pointer",
-              border: "none",
-              background: active ? "#1e293b" : "transparent",
-              color: active ? color : "#64748b",
-              fontSize: 12, fontWeight: active ? 700 : 500,
-              fontFamily: "'Inter', sans-serif",
-              transition: "all 0.15s",
-              borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              minWidth: 0,
+              padding: compact ? '8px 6px' : '10px 8px',
+              borderRadius: UI_RADII.sm,
+              cursor: 'pointer',
+              border: 'none',
+              background: active ? UI_COLORS.surface : 'transparent',
+              color: active ? color : UI_COLORS.textMuted,
+              fontSize: compact ? UI_TEXT.micro : UI_TEXT.caption,
+              fontWeight: active ? 700 : 600,
+              transition: 'background 0.15s ease, color 0.15s ease',
+              borderBottom: active ? `2px solid ${color}` : '2px solid transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: compact ? 4 : 6,
             }}
           >
-            <span style={{ fontSize: 14 }}>{tab.icon}</span>
-            {tab.label}
+            <span style={{ fontSize: compact ? 12 : 14 }} aria-hidden='true'>
+              {tab.icon}
+            </span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.label}</span>
           </button>
         );
       })}

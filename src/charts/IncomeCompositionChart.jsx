@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { INCOME_SOURCES } from '../charts/chartUtils.js';
+import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 
 export default function IncomeCompositionChart({ data, investmentReturn, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
@@ -10,6 +11,9 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
   const maxExpense = Math.max(...data.map(d => d.expenses));
   const stackMax = Math.max(maxIncome, maxExpense) * 1.1 || 1;
   const stackYPad = 60;
+  const currentQuarter = data[0];
+  const steadyIdx = data.findIndex((row) => row.netMonthly >= 0);
+  const steadyQuarter = steadyIdx >= 0 ? data[steadyIdx] : data[data.length - 1];
 
   // Build display sources with dynamic invest returns label
   const sources = INCOME_SOURCES.map(s =>
@@ -17,6 +21,10 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
       ? { ...s, label: `${s.label} (${investmentReturn}%/yr)` }
       : s
   );
+  const legendItems = buildLegendItems([
+    ...sources.map((source) => ({ id: source.key, label: source.label, color: source.color })),
+    { id: 'expenses', label: 'Expenses', color: '#f87171', line: true },
+  ]);
 
   return (
     <div data-testid="income-composition-chart" style={{
@@ -24,7 +32,19 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
       border: "1px solid #334155", marginBottom: 24
     }}>
       <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 4px", fontWeight: 600 }}>Income Composition vs Expenses</h3>
-      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 12px" }}>All values are monthly rates at each quarter — hover for breakdown</p>
+      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 12px" }}>All values are monthly rates at each quarter — hover adds detail, but the current and steady-state picture stays visible.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 12 }}>
+        {[
+          { label: `${getSummaryTimeframeLabel('current')} income`, value: fmtFull(currentQuarter.totalIncome), color: '#4ade80' },
+          { label: `${getSummaryTimeframeLabel('steady')} income`, value: fmtFull(steadyQuarter.totalIncome), color: '#60a5fa' },
+          { label: `${getSummaryTimeframeLabel('current')} expenses`, value: fmtFull(currentQuarter.expenses), color: '#f87171' },
+        ].map((item) => (
+          <div key={item.label} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 10px', border: '1px solid #334155' }}>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
       <div data-testid="income-composition-hover-surface" style={{ position: "relative", height: stackH + 40, paddingLeft: stackYPad }}
         onMouseLeave={() => setIncomeTooltip(null)}>
         {/* Y-axis labels */}
@@ -221,16 +241,12 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
 
       {/* Legend */}
       <div style={{ display: "flex", gap: 14, marginTop: 32, justifyContent: "center", flexWrap: "wrap" }}>
-        {sources.map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 12, height: 12, borderRadius: 2, background: s.color, opacity: 0.7 }} />
-            <span style={{ fontSize: 11, color: "#94a3b8" }}>{s.label}</span>
+        {legendItems.map((item) => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: item.line ? 16 : 12, height: item.line ? 2 : 12, borderRadius: item.line ? 0 : 2, background: item.line ? undefined : item.color, borderTop: item.line ? `2px solid ${item.color}` : undefined, opacity: item.line ? 1 : 0.7 }} />
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{item.label}</span>
           </div>
         ))}
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 16, height: 2, background: "#f87171" }} />
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>Expenses</span>
-        </div>
       </div>
     </div>
   );

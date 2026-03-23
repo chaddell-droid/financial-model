@@ -1,5 +1,6 @@
 import React from 'react';
 import { fmtFull } from '../model/formatters.js';
+import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 const Slider = ({
   label,
@@ -13,22 +14,27 @@ const Slider = ({
   testId,
   ariaLabel,
   disabled = false,
+  helperText,
+  disabledReason,
 }) => {
   const resolvedAriaLabel = ariaLabel || (typeof label === 'string' && label.trim() ? label : undefined);
+  const message = disabled ? disabledReason : helperText;
 
   return (
     <div
       data-testid={testId ? `${testId}-container` : undefined}
-      style={{ padding: '4px 0', opacity: disabled ? 0.45 : 1 }}
+      style={{ padding: '6px 0', opacity: disabled ? 0.55 : 1 }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 10 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#cbd5e1', fontWeight: 600, lineHeight: 1.25 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 10, alignItems: 'baseline' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: UI_TEXT.label, color: UI_COLORS.textBody, fontWeight: 600, lineHeight: 1.25 }}>
           {label}
         </span>
-        <span style={{ fontSize: 13, color, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{format(value)}</span>
+        <span style={{ fontSize: UI_TEXT.label, color: disabled ? UI_COLORS.textMuted : color, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+          {format(value)}
+        </span>
       </div>
       <input
-        type="range"
+        type='range'
         min={min}
         max={max}
         step={step}
@@ -39,6 +45,11 @@ const Slider = ({
         onChange={(e) => onChange(Number(e.target.value))}
         style={{ width: '100%', accentColor: color, height: 6, cursor: disabled ? 'not-allowed' : 'pointer' }}
       />
+      {message ? (
+        <div style={{ marginTop: 4, fontSize: UI_TEXT.micro, color: disabled ? UI_COLORS.textMuted : UI_COLORS.textDim, lineHeight: 1.4 }}>
+          {message}
+        </div>
+      ) : null}
     </div>
   );
 };

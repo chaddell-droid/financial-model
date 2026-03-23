@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { DAYS_PER_MONTH, SGA_LIMIT } from '../model/constants.js';
 import { getVestingMonthly } from '../model/vesting.js';
@@ -481,84 +481,104 @@ const BridgeChart = ({
   const pts = (monthlyDetail || []).filter((row) => row.month <= months);
   if (!pts.length) return null;
 
-  const trendNet = (row) => Math.round(row.netMonthlySmoothed ?? row.netMonthly ?? 0);
-  const allNet = pts.map(trendNet);
-  const maxNet = Math.max(...allNet, 1000) * 1.12;
-  const minNet = Math.min(...allNet, -1000) * 1.12;
-  const range = (maxNet - minNet) || 1;
+  // Memoize the entire expensive computation block — story model, SVG geometry, markers
+  const computed = useMemo(() => {
+    const trendNet = (row) => Math.round(row.netMonthlySmoothed ?? row.netMonthly ?? 0);
+    const allNet = pts.map(trendNet);
+    const maxNet = Math.max(...allNet, 1000) * 1.12;
+    const minNet = Math.min(...allNet, -1000) * 1.12;
+    const range = (maxNet - minNet) || 1;
 
-  const xOf = (month) => padL + (month / months) * plotW;
-  const yOf = (value) => padT + ((maxNet - value) / range) * plotH;
-  const zeroY = yOf(0);
-  const xTicks = [0, 12, 24, 36, 48, 60];
-  const tickStep = getTickStep(minNet, maxNet);
-  const yTicks = [];
-  for (let value = Math.ceil(minNet / tickStep) * tickStep; value <= maxNet; value += tickStep) {
-    yTicks.push(value);
-  }
+    const xOf = (month) => padL + (month / months) * plotW;
+    const yOf = (value) => padT + ((maxNet - value) / range) * plotH;
+    const zeroY = yOf(0);
+    const xTicks = [0, 12, 24, 36, 48, 60];
+    const tickStep = getTickStep(minNet, maxNet);
+    const yTicks = [];
+    for (let value = Math.ceil(minNet / tickStep) * tickStep; value <= maxNet; value += tickStep) {
+      yTicks.push(value);
+    }
 
-  const path = pts.map((point, index) => {
-    const x = xOf(point.month);
-    const y = yOf(trendNet(point));
-    return index === 0 ? `M ${x},${y}` : `H ${x} V ${y}`;
-  }).join(' ');
+    const path = pts.map((point, index) => {
+      const x = xOf(point.month);
+      const y = yOf(trendNet(point));
+      return index === 0 ? `M ${x},${y}` : `H ${x} V ${y}`;
+    }).join(' ');
 
-  const useSS = ssType === 'ss';
-  const currentMsft = data?.[0]?.msftVesting || 0;
-  const effectiveStartMonth = chadJobStartMonth ?? 3;
-  const chadJobMonthlyNet = chadJob ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
-  const chadJobHealthVal = chadJob ? (chadJobHealthSavings || 4200) : 0;
-  const jobImmediate = chadJob && effectiveStartMonth === 0;
-  const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow + (jobImmediate ? chadJobMonthlyNet : 0);
-  const rawExpenses = baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - (jobImmediate ? chadJobHealthVal : 0);
-  const todayGap = rawIncome - rawExpenses;
-  const monthlyReturn = startingSavings > 0
-    ? Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1 / 12) - 1))
-    : 0;
-  const sarahY3Rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, 3), sarahMaxRate);
-  const sarahY3Clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, 3), sarahMaxClients);
-  const sarahGrowth = Math.round(sarahY3Rate * sarahY3Clients * DAYS_PER_MONTH) - sarahCurrentNet;
-  const postCliffMsft = getVestingMonthly(18, msftGrowth);
-  const ssActive = !chadJob && (useSS || !ssdiDenied);
-  const ssAmount = ssActive ? (useSS ? ssFamilyTotal : ssdiFamilyTotal) : 0;
-  const ssMonth = useSS ? ssStartMonth : ssdiApprovalMonth;
-  const totalCuts = lifestyleCuts + cutInHalf + extraCuts;
+    const useSS = ssType === 'ss';
+    const currentMsft = data?.[0]?.msftVesting || 0;
+    const effectiveStartMonth = chadJobStartMonth ?? 3;
+    const chadJobMonthlyNet = chadJob ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
+    const chadJobHealthVal = chadJob ? (chadJobHealthSavings || 4200) : 0;
+    const jobImmediate = chadJob && effectiveStartMonth === 0;
+    const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow + (jobImmediate ? chadJobMonthlyNet : 0);
+    const rawExpenses = baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - (jobImmediate ? chadJobHealthVal : 0);
+    const todayGap = rawIncome - rawExpenses;
+    const monthlyReturn = startingSavings > 0
+      ? Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1 / 12) - 1))
+      : 0;
+    const sarahY3Rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, 3), sarahMaxRate);
+    const sarahY3Clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, 3), sarahMaxClients);
+    const sarahGrowth = Math.round(sarahY3Rate * sarahY3Clients * DAYS_PER_MONTH) - sarahCurrentNet;
+    const postCliffMsft = getVestingMonthly(18, msftGrowth);
+    const ssActive = !chadJob && (useSS || !ssdiDenied);
+    const ssAmount = ssActive ? (useSS ? ssFamilyTotal : ssdiFamilyTotal) : 0;
+    const ssMonth = useSS ? ssStartMonth : ssdiApprovalMonth;
+    const totalCuts = lifestyleCuts + cutInHalf + extraCuts;
 
-  const story = buildBridgeStoryModel({
-    monthlyDetail,
-    data,
-    milestones,
-    variant,
-    todayGap,
-    finalNet: trendNet(pts[pts.length - 1]),
-    crossMonth: pts.find((row) => trendNet(row) >= 0) || null,
-    trustIncomeNow,
-    trustIncomeFuture,
-    trustIncreaseMonth,
-    retireDebt,
-    debtService,
-    vanSold,
-    vanSaleMonth,
-    vanMonthlySavings,
-    lifestyleCutsApplied,
-    totalCuts,
-    bcsYearsLeft,
-    bcsFamilyMonthly,
-    currentMsft,
-    postCliffMsft,
-    ssLabel: useSS ? 'SS' : 'SSDI',
-    ssMonth,
-    ssAmount: ssActive ? ssAmount + (!chadJob && chadConsulting > 0 ? (useSS ? chadConsulting : Math.min(chadConsulting, SGA_LIMIT)) : 0) : 0,
-    sarahGrowth,
-    monthlyReturn,
-    chadJobLabel: 'Chad job + health savings',
-    chadJobMonth: effectiveStartMonth,
-    chadJobMonthlyNet,
-    chadJobHealthVal,
-  });
+    const story = buildBridgeStoryModel({
+      monthlyDetail,
+      data,
+      milestones,
+      variant,
+      todayGap,
+      finalNet: trendNet(pts[pts.length - 1]),
+      crossMonth: pts.find((row) => trendNet(row) >= 0) || null,
+      trustIncomeNow,
+      trustIncomeFuture,
+      trustIncreaseMonth,
+      retireDebt,
+      debtService,
+      vanSold,
+      vanSaleMonth,
+      vanMonthlySavings,
+      lifestyleCutsApplied,
+      totalCuts,
+      bcsYearsLeft,
+      bcsFamilyMonthly,
+      currentMsft,
+      postCliffMsft,
+      ssLabel: useSS ? 'SS' : 'SSDI',
+      ssMonth,
+      ssAmount: ssActive ? ssAmount + (!chadJob && chadConsulting > 0 ? (useSS ? chadConsulting : Math.min(chadConsulting, SGA_LIMIT)) : 0) : 0,
+      sarahGrowth,
+      monthlyReturn,
+      chadJobLabel: 'Chad job + health savings',
+      chadJobMonth: effectiveStartMonth,
+      chadJobMonthlyNet,
+      chadJobHealthVal,
+    });
 
-  const finalNet = story.meta.steadyGap;
-  const markerLayouts = getMarkerClusterLayouts(story, xOf, padT, plotH, variant);
+    const finalNet = story.meta.steadyGap;
+    const markerLayouts = getMarkerClusterLayouts(story, xOf, padT, plotH, variant);
+
+    return { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts };
+  }, [
+    pts, monthlyDetail, data, variant,
+    sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
+    retireDebt, vanSold, lifestyleCutsApplied,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
+    ssFamilyTotal, ssStartMonth,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    milestones, bcsYearsLeft, bcsFamilyMonthly,
+    baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
+    lifestyleCuts, cutInHalf, extraCuts,
+    startingSavings, investmentReturn, msftGrowth,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+  ]);
+
+  const { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts } = computed;
 
   return (
     <SurfaceCard

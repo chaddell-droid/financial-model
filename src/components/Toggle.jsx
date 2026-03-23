@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 const Toggle = ({
@@ -88,4 +88,4 @@ const Toggle = ({
   );
 };
 
-export default Toggle;
+export default memo(Toggle);

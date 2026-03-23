@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo, useEffect } from 'react';
+import React, { memo, useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import HelpDrawer from '../components/help/HelpDrawer.jsx';
@@ -171,6 +171,21 @@ function RetirementIncomeChart({
   const [pwaIntroReady, setPwaIntroReady] = useState(false);
   const isPwaMode = retirementMode === 'adaptive_pwa';
 
+  // Defer slider values that cascade into 57,000+ simulation calls.
+  // Slider thumbs + labels use the immediate value; expensive computations use deferred.
+  // Defer ALL slider values that cascade into expensive simulations (57,000+ calls).
+  // Slider thumbs + labels use the immediate value; computations use deferred.
+  const dChadPassesAge = useDeferredValue(chadPassesAge);
+  const dEquityAllocation = useDeferredValue(equityAllocation);
+  const dPoolFloor = useDeferredValue(poolFloor);
+  const dInheritanceAmount = useDeferredValue(inheritanceAmount);
+  const dInheritanceSarahAge = useDeferredValue(inheritanceSarahAge);
+  const dMaxDepletionMonths = useDeferredValue(maxDepletionMonths);
+  const dBequestTarget = useDeferredValue(bequestTarget);
+  const dPwaPercentile = useDeferredValue(pwaPercentile);
+  const dPwaToleranceLow = useDeferredValue(pwaToleranceLow);
+  const dPwaToleranceHigh = useDeferredValue(pwaToleranceHigh);
+
   // Chad is 60, Sarah is 46 (14 years younger)
   const ageDiff = 14;
   const sarahTargetAge = 90;
@@ -197,15 +212,15 @@ function RetirementIncomeChart({
   const trustMonthly = trustIncomeFuture || 0;
   const startingCoupleIncome = chadSS + trustMonthly;
   const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
-  const normalizedPwaToleranceLow = Math.min(pwaToleranceLow, pwaToleranceHigh);
-  const normalizedPwaToleranceHigh = Math.max(pwaToleranceLow, pwaToleranceHigh);
+  const normalizedPwaToleranceLow = Math.min(dPwaToleranceLow, dPwaToleranceHigh);
+  const normalizedPwaToleranceHigh = Math.max(dPwaToleranceLow, dPwaToleranceHigh);
 
-  // Inheritance
-  const inheritanceChadAge = inheritanceSarahAge + ageDiff;
+  // Inheritance — use deferred values for computation, immediate for display
+  const inheritanceChadAge = dInheritanceSarahAge + ageDiff;
   const inheritanceYear = inheritanceChadAge - 67;
   const inheritanceMonth = inheritanceYear * 12;
-  const hasInheritance = inheritanceAmount > 0;
-  const inhDuringCouple = hasInheritance && inheritanceChadAge < chadPassesAge;
+  const hasInheritance = dInheritanceAmount > 0;
+  const inhDuringCouple = hasInheritance && inheritanceChadAge < dChadPassesAge;
 
   function formatRange(startValue, endValue, suffix = '') {
     if (startValue === endValue) return `${fmtFull(startValue)}${suffix}`;
@@ -214,14 +229,14 @@ function RetirementIncomeChart({
 
   // Blended historical returns (memoized on equity allocation)
   const blendedReturns = useMemo(
-    () => getBlendedReturns(equityAllocation / 100),
-    [equityAllocation]
+    () => getBlendedReturns(dEquityAllocation / 100),
+    [dEquityAllocation]
   );
 
   const retirementContext = useMemo(() => {
     return buildRetirementContext({
       horizonMonths,
-      chadPassesAge,
+      chadPassesAge: dChadPassesAge,
       ageDiff,
       survivorSpendRatio,
       chadSS,
@@ -230,7 +245,7 @@ function RetirementIncomeChart({
       survivorSS,
       trustMonthly,
     });
-  }, [horizonMonths, chadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly]);
 
   // Build rescue flows and scaling arrays (shared by all cohorts)
   // rescueFlows: only inheritance (one-time lump sum once the pool is empty)
@@ -238,19 +253,19 @@ function RetirementIncomeChart({
   const { rescueFlows, scaling } = useMemo(() => {
     return buildScalingAndRescueFlows({
       horizonMonths,
-      chadPassesAge,
+      chadPassesAge: dChadPassesAge,
       survivorSpendRatio,
       hasInheritance,
       inheritanceMonth,
-      inheritanceAmount,
+      inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, chadPassesAge, survivorSpendRatio, hasInheritance, inheritanceMonth, inheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, survivorSpendRatio, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Supplemental flows used by the simulator while the pool is active.
   const simulationSupplementalFlows = useMemo(() => {
     return buildSupplementalFlows({
       horizonMonths,
-      chadPassesAge,
+      chadPassesAge: dChadPassesAge,
       ageDiff,
       chadSS,
       ssFRA,
@@ -259,9 +274,9 @@ function RetirementIncomeChart({
       trustMonthly,
       hasInheritance,
       inheritanceMonth,
-      inheritanceAmount,
+      inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, chadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, inheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Closed-form cohort math excludes inheritance. Inheritance is state-dependent in the
   // simulator: it can arrive as ordinary capital while solvent or rescue the pool once it
@@ -270,7 +285,7 @@ function RetirementIncomeChart({
   const formulaSupplementalFlows = useMemo(() => {
     return buildSupplementalFlows({
       horizonMonths,
-      chadPassesAge,
+      chadPassesAge: dChadPassesAge,
       ageDiff,
       chadSS,
       ssFRA,
@@ -279,9 +294,9 @@ function RetirementIncomeChart({
       trustMonthly,
       hasInheritance: false,
       inheritanceMonth,
-      inheritanceAmount,
+      inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, chadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, inheritanceMonth, inheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, inheritanceMonth, dInheritanceAmount]);
 
   const pwaStartContext = useMemo(
     () => sliceRetirementContext(retirementContext, 0),
@@ -295,20 +310,20 @@ function RetirementIncomeChart({
       decisionMonth: 0,
       horizonMonths,
       totalPool,
-      bequestTarget,
+      bequestTarget: dBequestTarget,
       supplementalFlows: retirementContext.supplementalFlows,
       scaling: retirementContext.scaling,
     });
-  }, [blendedReturns, horizonMonths, totalPool, bequestTarget, retirementContext]);
+  }, [blendedReturns, horizonMonths, totalPool, dBequestTarget, retirementContext]);
 
   const pwaCurrentSelection = useMemo(() => {
     return selectPwaWithdrawal(pwaCurrentDistribution, {
       strategy: pwaStrategy,
-      basePercentile: pwaPercentile,
+      basePercentile: dPwaPercentile,
       lowerTolerancePercentile: normalizedPwaToleranceLow,
       upperTolerancePercentile: normalizedPwaToleranceHigh,
     });
-  }, [pwaCurrentDistribution, pwaStrategy, pwaPercentile, normalizedPwaToleranceLow, normalizedPwaToleranceHigh]);
+  }, [pwaCurrentDistribution, pwaStrategy, dPwaPercentile, normalizedPwaToleranceLow, normalizedPwaToleranceHigh]);
 
   const pwaCurrentView = useMemo(() => {
     return deriveCurrentWithdrawalView(
@@ -333,13 +348,13 @@ function RetirementIncomeChart({
       cohortStart: referenceSample.cohortStart,
       horizonMonths,
       totalPool,
-      bequestTarget,
+      bequestTarget: dBequestTarget,
       supplementalFlows: retirementContext.supplementalFlows,
       scaling: retirementContext.scaling,
       retirementContext,
       strategyConfig: {
         strategy: pwaStrategy,
-        basePercentile: pwaPercentile,
+        basePercentile: dPwaPercentile,
         lowerTolerancePercentile: normalizedPwaToleranceLow,
         upperTolerancePercentile: normalizedPwaToleranceHigh,
       },
@@ -354,12 +369,12 @@ function RetirementIncomeChart({
     blendedReturns,
     horizonMonths,
     totalPool,
-    bequestTarget,
+    dBequestTarget,
     retirementContext,
     pwaCurrentDistribution,
     pwaCurrentSelection,
     pwaStrategy,
-    pwaPercentile,
+    dPwaPercentile,
     normalizedPwaToleranceLow,
     normalizedPwaToleranceHigh,
   ]);
@@ -371,13 +386,17 @@ function RetirementIncomeChart({
     const swrs = new Float64Array(numCohorts);
     for (let c = 0; c < numCohorts; c++) {
       swrs[c] = computeSWR(blendedReturns, c, horizonMonths,
-        formulaSupplementalFlows, scaling, poolFloor, totalPool);
+        formulaSupplementalFlows, scaling, dPoolFloor, totalPool);
     }
     return swrs;
-  }, [blendedReturns, horizonMonths, formulaSupplementalFlows, scaling, poolFloor, totalPool]);
+  }, [blendedReturns, horizonMonths, formulaSupplementalFlows, scaling, dPoolFloor, totalPool]);
 
   // Optimal rates (independent of withdrawal slider — closed-form from cohortSWRs)
   const optimalRates = useMemo(() => {
+    // Shadow deferred values so the body stays in sync with the dep array
+    const poolFloor = dPoolFloor;
+    const maxDepletionMonths = dMaxDepletionMonths;
+    const inheritanceAmount = dInheritanceAmount;
     const empty = {
       optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
       safeRate: 0, safeMonthly: 0,
@@ -490,7 +509,7 @@ function RetirementIncomeChart({
       optimalConsumption, sliderMax,
     };
   }, [cohortSWRs, totalPool, horizonMonths, startingCoupleIncome,
-    hasInheritance, inheritanceMonth, blendedReturns, simulationSupplementalFlows, scaling, poolFloor, rescueFlows, maxDepletionMonths]);
+    hasInheritance, inheritanceMonth, blendedReturns, simulationSupplementalFlows, scaling, dPoolFloor, rescueFlows, dMaxDepletionMonths]);
 
   // Sync withdrawal slider to SAFE rate (pool never depletes) — chart default
   useEffect(() => {
@@ -519,15 +538,16 @@ function RetirementIncomeChart({
     const numCohorts = getNumCohorts(horizonMonths);
     if (numCohorts <= 0) return { finishAboveReserveRate: 0, bands: emptyBands };
 
+    const pf = dPoolFloor;
     const allYearlyPools = new Array(numCohorts);
     let survivedCount = 0;
 
     const userConsumption = baseMonthlyConsumption;
 
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, simulationSupplementalFlows, scaling, totalPool, poolFloor, rescueFlows);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, simulationSupplementalFlows, scaling, totalPool, pf, rescueFlows);
       allYearlyPools[c] = sim.yearlyPools;
-      if (sim.finalPool >= poolFloor) survivedCount++;
+      if (sim.finalPool >= pf) survivedCount++;
     }
 
     const percentiles = [10, 25, 50, 75, 90];
@@ -545,7 +565,7 @@ function RetirementIncomeChart({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { finishAboveReserveRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, poolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows]);
 
   // Deterministic trajectory using average historical return.
   // Uses the same begin-of-month cash-flow ordering as simulatePath().
@@ -564,9 +584,9 @@ function RetirementIncomeChart({
 
       for (let m = 0; m < 12; m++) {
         const t = y * 12 + m;
-        if (pool > poolFloor) {
+        if (pool > dPoolFloor) {
           pool = (pool - baseMonthlyConsumption * scaling[t] + simulationSupplementalFlows[t]) * (1 + avgMonthly);
-          if (pool < poolFloor) pool = poolFloor;
+          if (pool < dPoolFloor) pool = dPoolFloor;
         } else if (rescueFlows[t] > 0) {
           pool += rescueFlows[t]; // only inheritance rescues depleted pool
         }
@@ -574,10 +594,10 @@ function RetirementIncomeChart({
     }
 
     return { deterministicPools: pools, avgAnnualReal };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, poolFloor, scaling, simulationSupplementalFlows, rescueFlows, years]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, scaling, simulationSupplementalFlows, rescueFlows, years]);
 
   const incomePlanConfig = {
-    chadPassesAge,
+    chadPassesAge: dChadPassesAge,
     ageDiff,
     baseMonthlyConsumption,
     survivorSpendRatio,
@@ -591,7 +611,7 @@ function RetirementIncomeChart({
   // Build yearlyData for tooltip and income display
   const yearlyData = deterministicPools.map((pool, y) => {
     const chadAge = 67 + y;
-    const incomePlan = getRetirementIncomePlan(chadAge, pool > poolFloor, incomePlanConfig);
+    const incomePlan = getRetirementIncomePlan(chadAge, pool > dPoolFloor, incomePlanConfig);
     const isPostInh = hasInheritance && y >= inheritanceYear;
     const isInheritanceYear = hasInheritance && y === inheritanceYear;
     const phase = !incomePlan.chadAlive ? 'survivor' : (isPostInh ? 'postInheritance' : 'chad');
@@ -632,9 +652,9 @@ function RetirementIncomeChart({
     if (v <= poolRange) yTicks.push(v);
   }
 
-  const coupleSummary = getRetirementPhaseSummary(67, inhDuringCouple ? inheritanceChadAge : chadPassesAge, incomePlanConfig);
-  const postInheritanceSummary = inhDuringCouple ? getRetirementPhaseSummary(inheritanceChadAge, chadPassesAge, incomePlanConfig) : null;
-  const survivorSummary = getRetirementPhaseSummary(chadPassesAge, endAge + 1, incomePlanConfig);
+  const coupleSummary = getRetirementPhaseSummary(67, inhDuringCouple ? inheritanceChadAge : dChadPassesAge, incomePlanConfig);
+  const postInheritanceSummary = inhDuringCouple ? getRetirementPhaseSummary(inheritanceChadAge, dChadPassesAge, incomePlanConfig) : null;
+  const survivorSummary = getRetirementPhaseSummary(dChadPassesAge, endAge + 1, incomePlanConfig);
 
   // Band paths for chart
   const bandPairs = [

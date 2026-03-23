@@ -53,12 +53,4 @@ installUiTestHarness();
 const uiTestConfig = getUiTestConfig();
 const app = <FinancialModel />;
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  uiTestConfig.enabled
-    ? app
-    : (
-      <React.StrictMode>
-        {app}
-      </React.StrictMode>
-    )
-);
+ReactDOM.createRoot(document.getElementById('root')).render(app);

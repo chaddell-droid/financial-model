@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useEffect, useState, useDeferredValue } from "react";
+import { useReducer, useMemo, useEffect, useState, useDeferredValue, useCallback, useRef } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
@@ -26,7 +26,18 @@ import IncomeTab from './panels/tabs/IncomeTab.jsx';
 import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
 import { getShellWidthBucket } from './ui/tokens.js';
-import { useLaggedValue } from './ui/useLaggedValue.js';
+import { useIsVisible } from './ui/useIsVisible.js';
+
+// Lazy wrapper: only renders RetirementIncomeChart when scrolled into view.
+// This chart runs 54,000+ simulations per render — skip it while off-screen.
+function LazyRetirementChart(props) {
+  const [ref, visible] = useIsVisible();
+  return (
+    <div ref={ref} style={{ minHeight: visible ? undefined : 400 }}>
+      {visible ? <RetirementIncomeChart {...props} /> : null}
+    </div>
+  );
+}
 
 function getInitialShellWidthBucket() {
   if (typeof window === 'undefined') return 'desktop';
@@ -48,13 +59,19 @@ export default function FinancialModel() {
     dispatch({ type: 'RESTORE_STATE', state: patch });
   };
 
-  const set = (field) => (value) => {
-    if (field.startsWith('cut') && field !== 'cutsOverride') {
-      dispatch({ type: 'SET_FIELDS', fields: { [field]: value, cutsOverride: null } });
-      return;
+  const setterCache = useRef({});
+  const set = useCallback((field) => {
+    if (!setterCache.current[field]) {
+      setterCache.current[field] = (value) => {
+        if (field.startsWith('cut') && field !== 'cutsOverride') {
+          dispatch({ type: 'SET_FIELDS', fields: { [field]: value, cutsOverride: null } });
+          return;
+        }
+        dispatch({ type: 'SET_FIELD', field, value });
+      };
     }
-    dispatch({ type: 'SET_FIELD', field, value });
-  };
+    return setterCache.current[field];
+  }, [dispatch]);
 
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
@@ -105,45 +122,33 @@ export default function FinancialModel() {
   const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
   const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), 9200);
 
-  const gatherState = () => {
+  const gatherState = (src) => {
+    const st = src || state;
     const s = {};
-    for (const key of MODEL_KEYS) s[key] = state[key] ?? INITIAL_STATE[key];
-    s.bcsFamilyMonthly = bcsFamilyMonthly;
+    for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
+    s.bcsFamilyMonthly = Math.round(Math.max(0, (st.bcsAnnualTotal || 0) - (st.bcsParentsAnnual || 0)) / 12);
     // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
     // Otherwise use the individual item sums
-    const override = state.cutsOverride;
+    const override = st.cutsOverride;
     if (override != null) {
       s.lifestyleCuts = override;
       s.cutInHalf = 0;
       s.extraCuts = 0;
     } else {
-      s.lifestyleCuts = lifestyleCuts;
-      s.cutInHalf = cutInHalf;
-      s.extraCuts = extraCuts;
+      s.lifestyleCuts = (st.cutOliver || 0) + (st.cutVacation || 0) + (st.cutGym || 0);
+      s.cutInHalf = (st.cutMedical || 0) + (st.cutShopping || 0) + (st.cutSaaS || 0);
+      s.extraCuts = (st.cutAmazon || 0) + (st.cutEntertainment || 0) + (st.cutGroceries || 0) + (st.cutPersonalCare || 0) + (st.cutSmallItems || 0);
     }
     return s;
   };
 
-  // Projections
-  const projection = useMemo(() => computeProjection(gatherState()), [
-    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    msftGrowth,
-    ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
-    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    baseExpenses, debtService, bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, milestones,
-    lifestyleCutsApplied, cutsOverride,
-    cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
-    cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
-    retireDebt,
-    startingSavings, investmentReturn, ssdiBackPayMonths,
-    moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
-    debtCC, debtPersonal, debtIRS, debtFirstmark,
-    starting401k, return401k,
-    homeEquity, homeAppreciation,
-  ]);
+  // Projections — use deferred state so computation doesn't block slider interaction.
+  // React will skip intermediate computations during rapid drag and only compute when idle.
+  const deferredState = useDeferredValue(state);
+  const projection = useMemo(
+    () => computeProjection(gatherState(deferredState)),
+    [deferredState],
+  );
   const data = projection.data;
   const savingsData = projection.savingsData;
   const monthlyDetail = projection.monthlyData;
@@ -322,24 +327,15 @@ export default function FinancialModel() {
   const dadSupportState = useMemo(() => {
     if (!dadMode) return null;
     return {
-      ...gatherState(),
+      ...gatherState(deferredState),
       vanSold: true, lifestyleCutsApplied: true,
       retireDebt: false,
-      debtService: Math.round(debtService * (1 - dadDebtPct / 100)),
+      debtService: Math.round((deferredState.debtService || 0) * (1 - dadDebtPct / 100)),
       bcsParentsAnnual: dadBcsParents,
-      bcsFamilyMonthly: Math.round(Math.max(0, bcsAnnualTotal - dadBcsParents) / 12),
+      bcsFamilyMonthly: Math.round(Math.max(0, (deferredState.bcsAnnualTotal || 0) - dadBcsParents) / 12),
       moldInclude: dadMold, roofInclude: dadRoof, otherInclude: dadProjects,
     };
-  }, [dadMode, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects,
-      sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-      msftGrowth, ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal,
-      ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths, kidsAgeOutMonths, chadConsulting,
-      chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-      baseExpenses, debtService, bcsAnnualTotal, bcsYearsLeft,
-      cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
-      trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-      vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth, startingSavings, investmentReturn, ssdiBackPayMonths,
-      moldCost, roofCost, otherProjects, debtCC, debtPersonal, debtIRS, debtFirstmark, milestones, bcsFamilyMonthly]);
+  }, [deferredState, dadMode, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects]);
 
   const dadProjection = useMemo(() => {
     if (!dadSupportState) return null;
@@ -376,20 +372,23 @@ export default function FinancialModel() {
     });
   };
 
-  // Chart helpers
-  const minNet = Math.min(...data.map(d => d.netMonthly));
-  const maxNet = Math.max(...data.map(d => d.netMonthly));
-  const maxVesting = Math.max(...data.map(d => d.msftVesting));
-  const chartH = 380;
-  const netRange = Math.max(Math.abs(minNet), Math.abs(maxNet)) || 1;
-
-  const breakevenIdx = findOperationalBreakevenIndex(data);
-  const bestIdx = data.reduce((bestI, d, i) => d.netMonthly > data[bestI].netMonthly ? i : bestI, 0);
-  const bestProjectedGap = data[bestIdx]?.netMonthly ?? data[0]?.netMonthly ?? rawMonthlyGap;
-  const bestProjectedLabel = data[bestIdx]?.label ?? '';
-  const highlightIdx = breakevenIdx >= 0 ? breakevenIdx : bestIdx;
-  const highlightLabel = breakevenIdx >= 0 ? "BREAKEVEN" : "BEST";
-  const breakevenLabel = breakevenIdx >= 0 ? data[breakevenIdx].label : `Best: ${fmt(data[bestIdx].netMonthly)} at ${data[bestIdx].label}`;
+  // Chart helpers (memoized — only recompute when projection data changes)
+  const chartHelpers = useMemo(() => {
+    const minNet = Math.min(...data.map(d => d.netMonthly));
+    const maxNet = Math.max(...data.map(d => d.netMonthly));
+    const maxVesting = Math.max(...data.map(d => d.msftVesting));
+    const chartH = 380;
+    const netRange = Math.max(Math.abs(minNet), Math.abs(maxNet)) || 1;
+    const breakevenIdx = findOperationalBreakevenIndex(data);
+    const bestIdx = data.reduce((bestI, d, i) => d.netMonthly > data[bestI].netMonthly ? i : bestI, 0);
+    const bestProjectedGap = data[bestIdx]?.netMonthly ?? data[0]?.netMonthly ?? rawMonthlyGap;
+    const bestProjectedLabel = data[bestIdx]?.label ?? '';
+    const highlightIdx = breakevenIdx >= 0 ? breakevenIdx : bestIdx;
+    const highlightLabel = breakevenIdx >= 0 ? "BREAKEVEN" : "BEST";
+    const breakevenLabel = breakevenIdx >= 0 ? data[breakevenIdx].label : `Best: ${fmt(data[bestIdx].netMonthly)} at ${data[bestIdx].label}`;
+    return { minNet, maxNet, maxVesting, chartH, netRange, breakevenIdx, bestIdx, bestProjectedGap, bestProjectedLabel, highlightIdx, highlightLabel, breakevenLabel };
+  }, [data, rawMonthlyGap]);
+  const { minNet, maxNet, maxVesting, chartH, netRange, breakevenIdx, bestIdx, bestProjectedGap, bestProjectedLabel, highlightIdx, highlightLabel, breakevenLabel } = chartHelpers;
 
   // === PROP BUNDLES for tab components ===
   const bridgeProps = useMemo(() => ({
@@ -543,19 +542,20 @@ export default function FinancialModel() {
     otherProjects, otherInclude,
   ]);
 
+  const stableGatherState = useCallback(() => gatherState(), [state]);
   const monteCarloProps = useMemo(() => ({
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     onParamChange: set, onRun: handleRunMonteCarlo,
     savingsData, presentMode,
-    gatherState,
+    gatherState: stableGatherState,
     mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline },
   }), [
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
-    savingsData, presentMode,
+    savingsData, presentMode, stableGatherState,
   ]);
 
   const seqReturnsProps = useMemo(() => ({
@@ -602,6 +602,16 @@ export default function FinancialModel() {
     presentMode,
   ]);
 
+  // Stable risk-tab variants with instanceId baked in (avoids inline spread that defeats memo)
+  const riskSavingsDrawdownProps = useMemo(
+    () => ({ ...savingsDrawdownProps, instanceId: 'risk-tab' }),
+    [savingsDrawdownProps],
+  );
+  const riskNetWorthProps = useMemo(
+    () => ({ ...netWorthProps, instanceId: 'risk-tab' }),
+    [netWorthProps],
+  );
+
   const dataTableProps = useMemo(() => ({ data }), [data]);
 
   const summaryAskProps = useMemo(() => ({
@@ -644,7 +654,8 @@ export default function FinancialModel() {
       : 'below';
   const compactShell = shellWidthBucket === 'compact';
   const showCompareBanner = activeExperience === 'planner' && Boolean(compareState);
-  const laggedRailDelayMs = railPlacement === 'below' ? 240 : 0;
+  // Rail charts use useDeferredValue for prioritization — no additional delay needed.
+  // A hard debounce here prevents charts from updating at all during slider drag.
   const goalPanelProps = useMemo(() => ({
     goals,
     goalResults,
@@ -656,8 +667,9 @@ export default function FinancialModel() {
 
   const deferredPlanBridgeProps = useDeferredValue(bridgeProps);
   const deferredCashFlowProps = useDeferredValue(cashFlowProps);
-  const deferredSavingsDrawdownProps = useDeferredValue(savingsDrawdownProps);
-  const deferredNetWorthProps = useDeferredValue(netWorthProps);
+  // savingsDrawdownProps and netWorthProps are NOT deferred — they contain sliders
+  // whose values must update immediately. The projection data inside them is already
+  // deferred via deferredState (layer 1), so no second defer is needed.
   const retirementRailProps = useMemo(() => ({
     savingsData,
     wealthData,
@@ -668,9 +680,7 @@ export default function FinancialModel() {
   }), [savingsData, wealthData, ssType, ssPersonal, chadJob, trustIncomeFuture]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
-  const laggedSavingsDrawdownProps = useLaggedValue(deferredSavingsDrawdownProps, laggedRailDelayMs);
-  const laggedNetWorthProps = useLaggedValue(deferredNetWorthProps, laggedRailDelayMs);
-  const laggedRetirementRailProps = useLaggedValue(deferredRetirementRailProps, laggedRailDelayMs);
+  // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization
 
   const plannerSummary = useMemo(() => {
     if (!showTopSummary) return null;
@@ -773,8 +783,8 @@ export default function FinancialModel() {
         <RiskTab
           monteCarloProps={monteCarloProps}
           seqReturnsProps={seqReturnsProps}
-          savingsDrawdownProps={{ ...savingsDrawdownProps, instanceId: 'risk-tab' }}
-          netWorthProps={{ ...netWorthProps, instanceId: 'risk-tab' }}
+          savingsDrawdownProps={riskSavingsDrawdownProps}
+          netWorthProps={riskNetWorthProps}
           showEmbeddedBalanceCharts={!showRail}
         />
       )}
@@ -826,16 +836,16 @@ export default function FinancialModel() {
   const plannerRail = useMemo(() => (
     <>
       <SavingsDrawdownChart
-        {...laggedSavingsDrawdownProps}
+        {...savingsDrawdownProps}
         instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}
       />
       <NetWorthChart
-        {...laggedNetWorthProps}
+        {...netWorthProps}
         instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}
       />
-      <RetirementIncomeChart {...laggedRetirementRailProps} />
+      <LazyRetirementChart {...deferredRetirementRailProps} />
     </>
-  ), [laggedSavingsDrawdownProps, laggedNetWorthProps, laggedRetirementRailProps, effectiveTab]);
+  ), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, effectiveTab]);
 
   return (
     <div style={{

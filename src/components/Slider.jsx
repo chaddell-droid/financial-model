@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useRef, useEffect, useCallback } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
@@ -19,6 +19,27 @@ const Slider = ({
 }) => {
   const resolvedAriaLabel = ariaLabel || (typeof label === 'string' && label.trim() ? label : undefined);
   const message = disabled ? disabledReason : helperText;
+
+  // rAF-throttle: batch rapid drag events into one dispatch per frame
+  const pendingRef = useRef(null);
+  const rafRef = useRef(null);
+
+  const handleChange = useCallback((e) => {
+    const val = Number(e.target.value);
+    pendingRef.current = val;
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        onChange(pendingRef.current);
+      });
+    }
+  }, [onChange]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   return (
     <div
@@ -42,7 +63,7 @@ const Slider = ({
         data-testid={testId}
         aria-label={resolvedAriaLabel}
         disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={handleChange}
         style={{ width: '100%', accentColor: color, height: 6, cursor: disabled ? 'not-allowed' : 'pointer' }}
       />
       {message ? (
@@ -54,4 +75,4 @@ const Slider = ({
   );
 };
 
-export default Slider;
+export default memo(Slider);

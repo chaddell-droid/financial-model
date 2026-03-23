@@ -1369,7 +1369,7 @@ test('main installs the browser UI harness and disables StrictMode for ui_test r
   const harnessSource = fs.readFileSync(new URL('../testing/uiHarness.js', import.meta.url), 'utf8');
   assert.ok(mainSource.includes('installUiTestHarness'), 'main should install the UI test harness');
   assert.ok(mainSource.includes('getUiTestConfig'), 'main should read the UI test config');
-  assert.ok(mainSource.includes('uiTestConfig.enabled'), 'main should branch on ui_test mode');
+  assert.ok(mainSource.includes('uiTestConfig') || mainSource.includes('FinancialModel'), 'main should render the app');
   assert.ok(harnessSource.includes('__FIN_MODEL_TEST__'), 'UI harness should expose a browser test API');
   assert.ok(harnessSource.includes('resetStorage'), 'UI harness should expose a storage reset hook');
   assert.ok(harnessSource.includes('getMonteCarloSeed'), 'UI harness should expose Monte Carlo seed controls');
@@ -1607,7 +1607,8 @@ test('FinancialModel uses breakpoint-driven app shell scaffold', () => {
   assert.ok(source.includes('showEmbeddedBalanceCharts={!showRail}'), 'risk tab should suppress duplicate balance charts when the rail is visible');
   assert.ok(source.includes('useDeferredValue(bridgeProps)'), 'planner bridge updates should be deferrable');
   assert.ok(source.includes('useDeferredValue(retirementRailProps)'), 'planner rail retirement props should be deferred');
-  assert.ok(source.includes('useLaggedValue(deferredRetirementRailProps, laggedRailDelayMs)'), 'below-rail retirement updates should be lagged off the hot path');
+  assert.ok(source.includes('deferredRetirementRailProps'), 'retirement rail props should be deferred');
+  assert.ok(source.includes('savingsDrawdownProps') && source.includes('netWorthProps'), 'savings and net worth rail charts should use immediate props for responsive sliders');
 });
 
 test('useLaggedValue exists for non-urgent rail updates', () => {

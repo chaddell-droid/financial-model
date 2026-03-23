@@ -103,7 +103,14 @@ const IncomeControls = ({
             {/* Chad Gets a Job */}
             <div style={{ marginBottom: 12, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: `1px solid ${chadJob ? "#22c55e33" : "#334155"}` }}>
               <h4 style={{ fontSize: 11, color: "#22c55e", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chad Gets a Job</h4>
-              <Toggle label="Chad employed (W-2 income)" checked={chadJob} onChange={set('chadJob')} color="#22c55e" testId="income-chad-job" />
+              <Toggle
+                label="Chad employed (W-2 income)"
+                description="Use this instead of the SSDI/SS plus consulting path."
+                checked={chadJob}
+                onChange={set('chadJob')}
+                color="#22c55e"
+                testId="income-chad-job"
+              />
               {chadJob && (
                 <>
                   <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} min={30000} max={150000} step={5000} color="#22c55e" format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
@@ -166,7 +173,14 @@ const IncomeControls = ({
             {ssType === 'ssdi' && !chadJob && (
               <>
                 <div style={{ marginBottom: 8 }}>
-                  <Toggle label="SSDI Denied (model worst case)" checked={ssdiDenied} onChange={set('ssdiDenied')} color="#f87171" testId="income-ssdi-denied" />
+                  <Toggle
+                    label="SSDI Denied (model worst case)"
+                    description="Zero the SSDI path and test the fallback case."
+                    checked={ssdiDenied}
+                    onChange={set('ssdiDenied')}
+                    color="#f87171"
+                    testId="income-ssdi-denied"
+                  />
                   {ssdiDenied && (
                     <div style={{ fontSize: 10, color: "#f87171", marginLeft: 54, marginTop: -2, marginBottom: 4, fontStyle: "italic" }}>
                       All SSDI income zeroed. Back pay zeroed. Consulting disabled.
@@ -190,6 +204,8 @@ const IncomeControls = ({
                     step={100}
                     color="#38bdf8"
                     disabled={ssdiDenied}
+                    disabledReason="Disabled while SSDI is denied."
+                    helperText="Starts after SSDI approval. Stay under SGA to protect benefits."
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4 }}>
                     <span style={{ color: "#64748b" }}>SGA limit (2026):</span>
@@ -199,16 +215,6 @@ const IncomeControls = ({
                     <span style={{ color: "#64748b" }}>Annual:</span>
                     <span style={{ color: "#38bdf8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(chadConsulting * 12)}/yr</span>
                   </div>
-                  {ssdiDenied && (
-                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, fontStyle: "italic" }}>
-                      Disabled while SSDI is denied.
-                    </div>
-                  )}
-                  {chadConsulting > 0 && (
-                    <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontStyle: "italic" }}>
-                      Starts after SSDI approval. Stay under SGA to protect benefits.
-                    </div>
-                  )}
                 </div>
               </>
             )}

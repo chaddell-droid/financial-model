@@ -2,6 +2,10 @@ import React from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
+import ActionButton from '../components/ui/ActionButton.jsx';
+import SurfaceCard from '../components/ui/SurfaceCard.jsx';
+import { METRIC_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
+import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 export default function DadMode({
   // Dad-mode specific state
@@ -75,34 +79,80 @@ export default function DadMode({
   const baseFinal = baseSavings.find(d => d.month === months)?.balance || 0;
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto" }}>
-      {/* Exit */}
-      <div style={{ textAlign: "right", marginBottom: 16 }}>
-        <button data-testid="dad-mode-exit" onClick={() => set('dadMode')(false)} style={{
-          background: "transparent", border: "1px solid #475569", borderRadius: 6,
-          color: "#94a3b8", fontSize: 11, padding: "6px 12px", cursor: "pointer"
-        }}>← Back to full model</button>
-      </div>
+    <div data-testid='dad-mode-root' style={{ maxWidth: 960, margin: '0 auto 24px', display: 'grid', gap: UI_SPACE.lg }}>
+      <SurfaceCard
+        data-testid='dad-mode-hero'
+        tone='featured'
+        padding='lg'
+        style={{ borderColor: UI_COLORS.modeDad, background: 'rgba(245, 158, 11, 0.06)' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: UI_SPACE.lg, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.modeDad, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+              Perspective
+            </div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: UI_COLORS.textStrong, margin: 0 }}>Dad Mode</h2>
+            <p style={{ fontSize: UI_TEXT.body, color: UI_COLORS.textMuted, margin: '8px 0 0', maxWidth: 760, lineHeight: 1.6 }}>
+              Support-focused view of the shared family plan. This keeps the focus on the current gap, the changes already underway, and which support levers move the outcome most.
+            </p>
+          </div>
+          <ActionButton
+            data-testid='dad-mode-exit'
+            onClick={() => set('dadMode')(false)}
+            variant={UI_ACTION_VARIANTS.secondary}
+            accent={UI_COLORS.modeDad}
+          >
+            Back to planner
+          </ActionButton>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: UI_SPACE.md, marginTop: UI_SPACE.lg }}>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              {METRIC_LABELS.currentMonthlyGap}
+            </div>
+            <div style={{ fontSize: 24, color: data[0].netCashFlow >= 0 ? UI_COLORS.positive : UI_COLORS.destructive, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(data[0].netCashFlow)}/mo
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Family changes underway
+            </div>
+            <div style={{ fontSize: 24, color: UI_COLORS.positive, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+              +{fmtFull(familyCommitSavings)}/mo
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Reserve at {TIMEFRAME_LABELS.modelStart}
+            </div>
+            <div style={{ fontSize: 24, color: UI_COLORS.info, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(startingSavings)}
+            </div>
+          </div>
+        </div>
+      </SurfaceCard>
 
       {/* ACT 1 */}
       {dadStep >= 1 && (
-        <div style={{
-          background: "#1e293b", borderRadius: 12, padding: "32px 24px", marginBottom: 16,
-          border: "1px solid #334155", textAlign: "center"
-        }}>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+        <SurfaceCard style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: UI_COLORS.textDim, marginBottom: 8 }}>
             Chad & Sarah · 3 kids at home · Kirkland, WA
           </div>
-          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>
+          <h3 style={{ fontSize: UI_TEXT.heading, color: UI_COLORS.textStrong, margin: '0 0 6px', fontWeight: 700 }}>
+            What the plan is facing now
+          </h3>
+          <div style={{ fontSize: 13, color: UI_COLORS.textMuted, marginBottom: 16 }}>
             Right now, our family spends more than we earn every month.
           </div>
           <div style={{
-            fontSize: 48, fontWeight: 700, color: "#f87171",
+            fontSize: 48, fontWeight: 700, color: UI_COLORS.destructive,
             fontFamily: "'JetBrains Mono', monospace", marginBottom: 4
           }}>
             {fmtFull(currentGap)}<span style={{ fontSize: 20 }}>/mo</span>
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>monthly deficit</div>
+          <div style={{ fontSize: 12, color: UI_COLORS.textDim, marginBottom: 20 }}>{METRIC_LABELS.currentMonthlyGap.toLowerCase()}</div>
 
           {/* Income vs Expense bar */}
           <div style={{ maxWidth: 500, margin: "0 auto 16px" }}>
@@ -193,32 +243,33 @@ export default function DadMode({
             );
           })()}
 
-          <div style={{ fontSize: 12, color: "#64748b" }}>
+          <div style={{ fontSize: 12, color: UI_COLORS.textDim }}>
             Savings: {fmtFull(startingSavings)} — at this rate, gone in ~{savingsZeroMonth ? Math.round(savingsZeroMonth.month) : "60+"} months
           </div>
 
           {dadStep === 1 && (
-            <button onClick={() => set('dadStep')(2)} style={{
-              marginTop: 24, background: "#334155", border: "none", borderRadius: 8,
-              color: "#e2e8f0", fontSize: 14, padding: "12px 32px", cursor: "pointer", fontWeight: 600
-            }}>
-              Here's what we're already doing →
-            </button>
+            <div style={{ marginTop: 24 }}>
+              <ActionButton
+                data-testid='dad-mode-next-act-1'
+                onClick={() => set('dadStep')(2)}
+                variant={UI_ACTION_VARIANTS.secondary}
+                accent={UI_COLORS.modeDad}
+              >
+                See what the family is already doing
+              </ActionButton>
+            </div>
           )}
-        </div>
+        </SurfaceCard>
       )}
 
       {/* ACT 2 */}
       {dadStep >= 2 && (
-        <div style={{
-          background: "#1e293b", borderRadius: 12, padding: "24px 24px", marginBottom: 16,
-          border: "1px solid #334155"
-        }}>
-          <h3 style={{ fontSize: 15, color: "#f8fafc", margin: "0 0 4px", fontWeight: 700 }}>
-            What we've already committed to
+        <SurfaceCard>
+          <h3 style={{ fontSize: 15, color: UI_COLORS.textStrong, margin: "0 0 4px", fontWeight: 700 }}>
+            What the family is already doing
           </h3>
-          <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 16px" }}>
-            These changes are happening regardless — this is what we control
+          <p style={{ fontSize: 11, color: UI_COLORS.textDim, margin: "0 0 16px" }}>
+            These changes are already part of the plan and reduce the gap before any outside support.
           </p>
 
           {[
@@ -256,25 +307,30 @@ export default function DadMode({
 
           {dadStep === 2 && (
             <div style={{ textAlign: "center" }}>
-              <button onClick={() => set('dadStep')(3)} style={{
-                marginTop: 16, background: "#c084fc", border: "none", borderRadius: 8,
-                color: "#0f172a", fontSize: 14, padding: "12px 32px", cursor: "pointer", fontWeight: 700
-              }}>
-                Here's where you can make the difference →
-              </button>
+              <ActionButton
+                data-testid='dad-mode-next-act-2'
+                onClick={() => set('dadStep')(3)}
+                variant={UI_ACTION_VARIANTS.primary}
+                style={{ marginTop: 16 }}
+              >
+                See where support changes the outcome
+              </ActionButton>
             </div>
           )}
-        </div>
+        </SurfaceCard>
       )}
 
       {/* ACT 3 */}
       {dadStep >= 3 && (
-        <div style={{
-          background: "#1e293b", borderRadius: 12, padding: "24px 24px", marginBottom: 16,
-          border: `1px solid ${solv && solv.solvency >= 0.9 ? "#4ade8033" : "#33415566"}`
-        }}>
-          <h3 style={{ fontSize: 15, color: "#f8fafc", margin: "0 0 16px", fontWeight: 700 }}>
-            Your support changes everything
+        <SurfaceCard
+          tone={solv && solv.solvency >= 0.9 ? 'success' : 'default'}
+          padding='lg'
+          style={{
+            borderColor: solv && solv.solvency >= 0.9 ? 'rgba(74, 222, 128, 0.22)' : undefined,
+          }}
+        >
+          <h3 style={{ fontSize: 15, color: UI_COLORS.textStrong, margin: "0 0 16px", fontWeight: 700 }}>
+            Where support changes the outcome
           </h3>
 
           {/* Dad's 3 levers */}
@@ -319,10 +375,10 @@ export default function DadMode({
             {/* House */}
             <div style={{ background: "#0f172a", borderRadius: 8, padding: "14px 14px", border: "1px solid #1e293b" }}>
               <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Home Safety</div>
-              <Toggle label={`Mold remediation (${fmtFull(moldCost)})`} checked={dadMold} onChange={set('dadMold')} color="#fbbf24" />
+              <Toggle testId='dad-mold-toggle' label={`Mold remediation (${fmtFull(moldCost)})`} checked={dadMold} onChange={set('dadMold')} color="#fbbf24" />
               <div style={{ fontSize: 10, color: "#475569", marginLeft: 54, marginTop: -4, marginBottom: 4 }}>Chad's health — MCAS triggered by mold</div>
-              <Toggle label={`Roof replacement (${fmtFull(roofCost)})`} checked={dadRoof} onChange={set('dadRoof')} color="#fbbf24" />
-              <Toggle label={`House projects (${fmtFull(otherProjects)})`} checked={dadProjects} onChange={set('dadProjects')} color="#fbbf24" />
+              <Toggle testId='dad-roof-toggle' label={`Roof replacement (${fmtFull(roofCost)})`} checked={dadRoof} onChange={set('dadRoof')} color="#fbbf24" />
+              <Toggle testId='dad-projects-toggle' label={`House projects (${fmtFull(otherProjects)})`} checked={dadProjects} onChange={set('dadProjects')} color="#fbbf24" />
             </div>
           </div>
 
@@ -425,7 +481,7 @@ export default function DadMode({
               </div>
             )}
           </div>
-        </div>
+        </SurfaceCard>
       )}
     </div>
   );

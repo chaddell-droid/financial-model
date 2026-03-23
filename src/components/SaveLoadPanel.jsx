@@ -1,4 +1,15 @@
-import React from "react";
+import React from 'react';
+import ActionButton from './ui/ActionButton.jsx';
+import SurfaceCard from './ui/SurfaceCard.jsx';
+import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+
+function getStorageMessage(storageStatus) {
+  if (storageStatus === 'saved') return { text: 'Checkpoint saved locally.', color: UI_COLORS.positive };
+  if (storageStatus === 'no-storage') return { text: 'Saved scenarios are unavailable in this browser session.', color: UI_COLORS.destructive };
+  if (storageStatus === 'set-returned-null') return { text: 'The current checkpoint could not be saved.', color: UI_COLORS.destructive };
+  if (storageStatus?.startsWith('error')) return { text: storageStatus, color: UI_COLORS.destructive };
+  return null;
+}
 
 export default function SaveLoadPanel({
   showSaveLoad,
@@ -12,107 +23,125 @@ export default function SaveLoadPanel({
   onClearCompare,
   onDelete,
   storageStatus,
-  storageAvailable
+  storageAvailable,
 }) {
   if (!showSaveLoad) return null;
 
+  const storageMessage = getStorageMessage(storageStatus);
+
   return (
-    <div data-testid="save-load-panel" style={{
-      background: "#1e293b", borderRadius: 12, padding: "16px 20px",
-      border: "1px solid #60a5fa33", marginBottom: 24
-    }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+    <SurfaceCard data-testid='save-load-panel' tone='default' padding='lg' style={{ marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: UI_SPACE.sm, alignItems: 'start', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: UI_TEXT.title, color: UI_COLORS.textStrong, fontWeight: 700, marginBottom: 4 }}>
+            Scenario workspace
+          </div>
+          <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textMuted, lineHeight: 1.45 }}>
+            Save the current plan as a checkpoint, reload an earlier version, or compare it against what you are editing now.
+          </div>
+        </div>
+        {compareName ? (
+          <ActionButton onClick={onClearCompare} variant={UI_ACTION_VARIANTS.secondary} size='sm'>
+            Stop comparing
+          </ActionButton>
+        ) : null}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: UI_SPACE.sm, alignItems: 'center', marginBottom: 12 }}>
         <input
-          type="text"
+          type='text'
           value={scenarioName}
           onChange={(e) => onScenarioNameChange(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onSave(scenarioName)}
-          data-testid="save-load-name"
-          aria-label="Scenario name"
-          placeholder="Name this scenario..."
+          onKeyDown={(e) => e.key === 'Enter' && onSave(scenarioName)}
+          data-testid='save-load-name'
+          aria-label='Scenario name'
+          placeholder='Name this scenario...'
           style={{
-            flex: 1, background: "#0f172a", border: "1px solid #334155", borderRadius: 6,
-            color: "#e2e8f0", padding: "8px 12px", fontSize: 13,
-            fontFamily: "'Inter', sans-serif", outline: "none"
+            width: '100%',
+            background: '#0f172a',
+            border: '1px solid #334155',
+            borderRadius: 6,
+            color: '#e2e8f0',
+            padding: '8px 12px',
+            fontSize: UI_TEXT.body,
+            outline: 'none',
           }}
         />
-        <button
+        <ActionButton
           onClick={() => onSave(scenarioName)}
           disabled={!scenarioName.trim()}
-          data-testid="save-load-save-current"
-          aria-label="Save current scenario"
-          style={{
-            background: scenarioName.trim() ? "#60a5fa" : "#334155", border: "none", borderRadius: 6,
-            color: scenarioName.trim() ? "#0f172a" : "#64748b", fontSize: 12, padding: "8px 16px",
-            cursor: scenarioName.trim() ? "pointer" : "not-allowed",
-            fontWeight: 700, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
-            transition: "all 0.2s"
-          }}
+          data-testid='save-load-save-current'
+          aria-label='Save current scenario'
+          variant={UI_ACTION_VARIANTS.primary}
         >
-          Save Current
-        </button>
-        {storageStatus === "saved" && (
-          <span style={{ fontSize: 11, color: "#4ade80", whiteSpace: "nowrap" }}>Saved!</span>
-        )}
-        {storageStatus === "no-storage" && (
-          <span style={{ fontSize: 11, color: "#f87171", whiteSpace: "nowrap" }}>Storage unavailable</span>
-        )}
-        {storageStatus.startsWith("error") && (
-          <span style={{ fontSize: 11, color: "#f87171", whiteSpace: "nowrap" }}>{storageStatus}</span>
-        )}
-        {storageStatus === "set-returned-null" && (
-          <span style={{ fontSize: 11, color: "#f87171", whiteSpace: "nowrap" }}>Save failed (null)</span>
-        )}
+          Save checkpoint
+        </ActionButton>
       </div>
+
+      {storageMessage ? (
+        <div style={{ fontSize: UI_TEXT.micro, color: storageMessage.color, marginBottom: 12 }}>
+          {storageMessage.text}
+        </div>
+      ) : null}
+
       {savedScenarios.length === 0 ? (
-        <div style={{ fontSize: 12, color: "#475569", fontStyle: "italic" }}>No saved scenarios yet. Adjust settings and save to compare later.</div>
+        <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textDim, fontStyle: 'italic' }}>
+          No saved scenarios yet. Save a version of the plan once you have something you want to compare.
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {savedScenarios.map((s, i) => (
-            <div key={i} data-testid={`save-load-row-${i}`} data-scenario-name={s.name} style={{
-              padding: "8px 12px", background: "#0f172a", borderRadius: 6, border: "1px solid #334155"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {savedScenarios.map((scenario, index) => (
+            <SurfaceCard
+              key={index}
+              data-testid={`save-load-row-${index}`}
+              data-scenario-name={scenario.name}
+              tone='featured'
+              padding='sm'
+              style={{ background: '#0f172a' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: UI_SPACE.md, flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 600 }}>{s.name}</div>
-                  <div style={{ fontSize: 10, color: "#475569" }}>
-                    {new Date(s.savedAt).toLocaleDateString()} {new Date(s.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  <div style={{ fontSize: UI_TEXT.body, color: UI_COLORS.textStrong, fontWeight: 600 }}>
+                    {scenario.name}
+                  </div>
+                  <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 2 }}>
+                    {new Date(scenario.savedAt).toLocaleDateString()} {new Date(scenario.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button onClick={() => onLoad(s)}
-                    data-testid={`save-load-load-${i}`}
-                    aria-label={`Load scenario ${s.name}`}
-                    style={{ background: "transparent", border: "1px solid #4ade80", borderRadius: 4, color: "#4ade80", fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <ActionButton onClick={() => onLoad(scenario)} data-testid={`save-load-load-${index}`} aria-label={`Load scenario ${scenario.name}`} variant={UI_ACTION_VARIANTS.secondary} size='sm' accent={UI_COLORS.positive}>
                     Load
-                  </button>
-                  <button onClick={() => onSave(s.name)}
-                    data-testid={`save-load-update-${i}`}
-                    aria-label={`Update scenario ${s.name}`}
-                    style={{ background: "transparent", border: "1px solid #60a5fa", borderRadius: 4, color: "#60a5fa", fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-                    Update
-                  </button>
-                  <button onClick={() => onCompare(s.name, s.state)}
-                    data-testid={`save-load-compare-${i}`}
-                    aria-label={`${compareName === s.name ? 'Stop comparing' : 'Compare'} scenario ${s.name}`}
-                    style={{ background: compareName === s.name ? "#fbbf2420" : "transparent", border: "1px solid #fbbf24", borderRadius: 4, color: "#fbbf24", fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-                    {compareName === s.name ? "Comparing" : "Compare"}
-                  </button>
-                  <button onClick={() => onDelete(s.name)}
-                    data-testid={`save-load-delete-${i}`}
-                    aria-label={`Delete scenario ${s.name}`}
-                    style={{ background: "transparent", border: "1px solid #475569", borderRadius: 4, color: "#64748b", fontSize: 11, padding: "4px 8px", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-                    {"\u2715"}
-                  </button>
+                  </ActionButton>
+                  <ActionButton onClick={() => onSave(scenario.name)} data-testid={`save-load-update-${index}`} aria-label={`Update scenario ${scenario.name}`} variant={UI_ACTION_VARIANTS.secondary} size='sm' accent={UI_COLORS.primary}>
+                    Update checkpoint
+                  </ActionButton>
+                  <ActionButton
+                    onClick={() => onCompare(scenario.name, scenario.state)}
+                    data-testid={`save-load-compare-${index}`}
+                    aria-label={`${compareName === scenario.name ? 'Stop comparing' : 'Compare'} scenario ${scenario.name}`}
+                    variant={UI_ACTION_VARIANTS.secondary}
+                    size='sm'
+                    accent={UI_COLORS.compare}
+                    active={compareName === scenario.name}
+                  >
+                    {compareName === scenario.name ? 'Comparing now' : 'Compare'}
+                  </ActionButton>
+                  <ActionButton onClick={() => onDelete(scenario.name)} data-testid={`save-load-delete-${index}`} aria-label={`Delete scenario ${scenario.name}`} variant={UI_ACTION_VARIANTS.destructive} size='sm'>
+                    Delete
+                  </ActionButton>
                 </div>
               </div>
-            </div>
+            </SurfaceCard>
           ))}
         </div>
       )}
-      <div style={{ marginTop: 8, fontSize: 10, color: "#334155" }}>
-        Storage: {storageAvailable ? "available" : "unavailable"} | Status: {storageStatus || "idle"} | Scenarios in memory: {savedScenarios.length}
+
+      <div style={{ marginTop: 10, fontSize: UI_TEXT.micro, color: UI_COLORS.textDim }}>
+        {storageAvailable
+          ? `${savedScenarios.length} saved ${savedScenarios.length === 1 ? 'checkpoint' : 'checkpoints'} on this device${compareName ? ` · comparing ${compareName}` : ''}.`
+          : 'This browser session cannot keep saved checkpoints.'}
       </div>
-    </div>
+    </SurfaceCard>
   );
 }

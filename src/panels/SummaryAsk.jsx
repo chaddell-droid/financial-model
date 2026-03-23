@@ -1,5 +1,8 @@
-import React from "react";
+import React from 'react';
+import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { fmtFull } from '../model/formatters.js';
+import { formatModelTimeLabel } from '../charts/chartContract.js';
+import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 const SummaryAsk = ({
   totalRemainingVesting, data, startingSavings,
@@ -11,64 +14,101 @@ const SummaryAsk = ({
   advanceNeeded, breakevenIdx,
 }) => {
   const breakevenRow = breakevenIdx >= 0 ? data[breakevenIdx] : null;
+  const openingRow = data[0] || {};
+  const bestRow = data[data.length - 1] || {};
+  const requestItems = [
+    retireDebt ? { label: 'Retire high-interest debt', value: debtTotal, detail: `frees ${fmtFull(debtService)}/month in required payments` } : null,
+    moldInclude ? { label: 'Mold remediation', value: moldCost, detail: "reduces Chad's housing health risk" } : null,
+    roofInclude ? { label: 'Roof replacement', value: roofCost, detail: 'addresses the near-term home safety backlog' } : null,
+    otherInclude ? { label: 'House projects + toilets', value: otherProjects, detail: 'can be phased, but are already in the repair queue' } : null,
+  ].filter(Boolean);
+
   return (
-        <div style={{
-          background: "linear-gradient(135deg, #1e293b, #0f172a)", borderRadius: 12, padding: 20,
-          border: "1px solid #475569", marginTop: 24
-        }}>
-          <h3 style={{ fontSize: 14, color: "#fbbf24", margin: "0 0 12px", fontWeight: 700 }}>The Ask — Summary</h3>
-          <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.8 }}>
-            <p style={{ margin: "0 0 10px" }}>
-              <strong style={{ color: "#f59e0b" }}>Critical context:</strong> MSFT retirement stock vesting ({fmtFull(totalRemainingVesting)} remaining) declines sharply in late 2027 and ends entirely by August 2028. This is currently funding ~{fmtFull(data[0].msftVesting)}/month of our expenses and is not replaceable.
-              {savingsZeroMonth && (<> At the current burn rate, our {fmtFull(startingSavings)} in savings will be depleted in approximately {savingsZeroLabel}.</>)}
-            </p>
-            <p style={{ margin: "0 0 10px" }}>
-              <strong style={{ color: "#4ade80" }}>SSDI back pay:</strong> Upon approval (~{ssdiApprovalMonth} months out), Chad is entitled to an estimated {fmtFull(ssdiBackPayActual)} lump sum covering {ssdiBackPayMonths} months of retroactive benefits (onset Sept 2024, net of attorney fees). This provides a one-time buffer for savings.
-            </p>
-            {retireDebt && (
-              <p style={{ margin: "0 0 10px" }}>
-                <strong style={{ color: "#f8fafc" }}>Debt retirement:</strong> Retire high-interest debt ({fmtFull(debtTotal)}) to free up {fmtFull(debtService)}/month in cash flow.
-              </p>
-            )}
-            {moldInclude && (
-              <p style={{ margin: "0 0 10px" }}>
-                <strong style={{ color: "#f8fafc" }}>Mold remediation:</strong> {fmtFull(moldCost)} — directly impacts Chad's health (MCAS exacerbated by mold exposure). Urgent.
-              </p>
-            )}
-            {roofInclude && (
-              <p style={{ margin: "0 0 10px" }}>
-                <strong style={{ color: "#f8fafc" }}>Roof replacement:</strong> {fmtFull(roofCost)} — can be phased but needed within 12 months.
-              </p>
-            )}
-            {otherInclude && (
-              <p style={{ margin: "0 0 10px" }}>
-                <strong style={{ color: "#f8fafc" }}>House projects + toilets:</strong> {fmtFull(otherProjects)} — can be phased over 12{"\u2013"}18 months.
-              </p>
-            )}
-            {bcsParentsAnnual > 25000 && (
-              <p style={{ margin: "0 0 10px" }}>
-                <strong style={{ color: "#c084fc" }}>Ongoing ({bcsYearsLeft} yrs):</strong> Parents increase BCS contribution from $25K to {fmtFull(bcsParentsAnnual)}/yr (our share: {fmtFull(bcsFamilyMonthly)}/mo → {bcsFamilyMonthly === 0 ? "fully covered" : fmtFull(bcsFamilyMonthly) + "/mo"}).
-              </p>
-            )}
-            <p style={{ margin: "0 0 10px" }}>
-              <strong style={{ color: "#f8fafc" }}>Total one-time advance request:</strong>{" "}
-              <span style={{ color: "#fbbf24", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: 16 }}>
+    <SurfaceCard
+      data-testid='summary-ask'
+      tone='featured'
+      padding='lg'
+      style={{
+        marginTop: 24,
+        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))',
+        borderColor: 'rgba(251, 191, 36, 0.22)',
+      }}
+    >
+      <div style={{ display: 'grid', gap: UI_SPACE.lg }}>
+        <div>
+          <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.caution, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            The Ask
+          </div>
+          <h3 style={{ fontSize: UI_TEXT.heading, color: UI_COLORS.textStrong, margin: 0, fontWeight: 700 }}>
+            Decision summary
+          </h3>
+          <p style={{ fontSize: UI_TEXT.body, color: UI_COLORS.textMuted, lineHeight: 1.6, margin: '8px 0 0' }}>
+            What is happening now, the next best lever, and what the advance request covers.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: UI_SPACE.md }}>
+          <div data-testid='summary-ask-happening' style={{ display: 'grid', gap: UI_SPACE.sm }}>
+            <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textStrong, fontWeight: 700 }}>
+              What is happening
+            </div>
+            <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textBody, lineHeight: 1.7 }}>
+              MSFT vesting still contributes about {fmtFull(openingRow.msftVesting || 0)}/month, but it steps down in late 2027 and ends by August 2028. The current operating position is {fmtFull(openingRow.netCashFlow || 0)}/month before investment returns.
+              {savingsZeroMonth ? ` At the current burn rate, ${fmtFull(startingSavings)} in savings lasts about ${savingsZeroLabel}.` : ''}
+            </div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, lineHeight: 1.6 }}>
+              SSDI approval is modeled about {ssdiApprovalMonth} months out, with {fmtFull(ssdiBackPayActual)} of back pay covering {ssdiBackPayMonths} retroactive months.
+            </div>
+          </div>
+
+          <div data-testid='summary-ask-next-lever' style={{ display: 'grid', gap: UI_SPACE.sm }}>
+            <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textStrong, fontWeight: 700 }}>
+              The next best lever
+            </div>
+            <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textBody, lineHeight: 1.7 }}>
+              The near-term job is to bridge the plan until SSDI activates and debt service is reduced. That pair of changes does more for monthly stability than any optional spending assumption.
+            </div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, lineHeight: 1.6 }}>
+              {breakevenRow
+                ? `With debt retired and SSDI active, operational cash flow improves from ${fmtFull(openingRow.netCashFlow || 0)} to about ${fmtFull(breakevenRow.netCashFlow || 0)}/month by ${formatModelTimeLabel(breakevenIdx)}.`
+                : `Even after debt retirement and SSDI, the best projected operating level is ${fmtFull(bestRow.netCashFlow || 0)}/month, so the plan still stays short of cash flow breakeven before vesting ends.`}
+            </div>
+            {bcsParentsAnnual > 25000 ? (
+              <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, lineHeight: 1.6 }}>
+                Extra parent support for BCS also matters: moving from $25K to {fmtFull(bcsParentsAnnual)}/yr shifts the family share to {bcsFamilyMonthly === 0 ? 'fully covered' : `${fmtFull(bcsFamilyMonthly)}/month`} for the next {bcsYearsLeft} years.
+              </div>
+            ) : null}
+          </div>
+
+          <div data-testid='summary-ask-advance' style={{ display: 'grid', gap: UI_SPACE.sm }}>
+            <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textStrong, fontWeight: 700 }}>
+              What the ask covers
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: UI_SPACE.sm, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textMuted }}>
+                One-time advance request
+              </span>
+              <span style={{ color: UI_COLORS.caution, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: UI_TEXT.heading }}>
                 {fmtFull(advanceNeeded)}
               </span>
-            </p>
-            <p style={{ margin: 0, color: "#94a3b8", fontSize: 12, fontStyle: "italic" }}>
-              {breakevenRow ? (
-                <>
-                  With debt retired and SSDI active, monthly cash flow moves from {fmtFull(data[0].netMonthly)} to approximately {fmtFull(breakevenRow.netMonthly)}/month {"\u2014"} reaching sustainability before vesting ends.
-                </>
-              ) : (
-                <>
-                  With debt retired and SSDI active, monthly cash flow moves from {fmtFull(data[0].netMonthly)} to the best projected level of {fmtFull(data[data.length - 1]?.netMonthly || 0)}/month, but it still does not reach sustainability before vesting ends.
-                </>
-              )}
-            </p>
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {requestItems.map((item) => (
+                <div key={item.label} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: UI_SPACE.sm, alignItems: 'start', fontSize: UI_TEXT.micro }}>
+                  <div>
+                    <div style={{ color: UI_COLORS.textBody, fontWeight: 600 }}>{item.label}</div>
+                    <div style={{ color: UI_COLORS.textDim, lineHeight: 1.5 }}>{item.detail}</div>
+                  </div>
+                  <div style={{ color: UI_COLORS.textStrong, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+                    {fmtFull(item.value)}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
+    </SurfaceCard>
   );
 };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
+import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 
 export default function SequenceOfReturnsChart({
   seqBadY1, seqBadY2, onParamChange,
@@ -57,7 +58,6 @@ export default function SequenceOfReturnsChart({
   const cliffMonth = 18;
   const msftEndMonth = 30;
   const balAtCliff = scenarioData.map(s => s.pts[cliffMonth] || 0);
-  const balAtEnd = scenarioData.map(s => s.pts[msftEndMonth] || s.pts[s.pts.length - 1]);
   const cliffGap = balAtCliff[2] - balAtCliff[1]; // good minus bad at cliff
 
   // Chart dimensions
@@ -73,6 +73,13 @@ export default function SequenceOfReturnsChart({
   const seqZeroY = seqY(0);
   const makePath = (pts) => pts.slice(0, months + 1).map((v, m) => `${m === 0 ? "M" : "L"} ${seqX(m).toFixed(1)},${seqY(v).toFixed(1)}`).join(" ");
   const zeroMonths = scenarioData.map(s => { const idx = s.pts.findIndex(v => v <= 0); return (idx >= 0 && idx <= months) ? idx : null; });
+  const legendItems = buildLegendItems(scenarioData.map((scenario) => ({
+    id: scenario.name.toLowerCase().replace(/\s+/g, '-'),
+    label: scenario.name,
+    color: scenario.color,
+    type: scenario.dash ? 'dashed' : 'line',
+    detail: `avg ${Math.round(scenario.schedule.reduce((a, b) => a + b, 0) / scenario.schedule.length * 10) / 10}%`,
+  })));
 
   // Y-axis ticks
   const yTicks = (() => {
@@ -85,13 +92,37 @@ export default function SequenceOfReturnsChart({
   return (
     <div style={{ marginTop: 16, padding: "14px 16px", background: "#1e293b", borderRadius: 12, border: "1px solid #334155", marginBottom: 24 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", marginBottom: 2 }}>
-        Sequence-of-Returns Risk — The Vulnerability Window
+        What if bad returns arrive before the plan reaches stability?
       </div>
       <div style={{ fontSize: 10, color: "#475569", marginBottom: 10 }}>
-        Months 0–30: the critical drawdown period before the plan reaches sustainability. Same average returns, different timing.
+        Months 0-30 are the vulnerable window. This keeps the same average six-year return and changes only the order that returns arrive.
+      </div>
+
+      <div data-testid="sequence-returns-summary" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 12 }}>
+        <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #334155" }}>
+          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Bad early path at M18</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#f87171", fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(balAtCliff[1])}
+          </div>
+        </div>
+        <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #fbbf2433" }}>
+          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Difference by the cliff</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(cliffGap)}
+          </div>
+        </div>
+        <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #334155" }}>
+          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Good early path at M18</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtFull(balAtCliff[2])}
+          </div>
+        </div>
       </div>
 
       {/* Controls */}
+      <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>
+        Scenario setup
+      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
           <Slider label="Bad year 1 return" value={seqBadY1} onChange={set('seqBadY1')} min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
@@ -106,30 +137,6 @@ export default function SequenceOfReturnsChart({
           </div>
           <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>
             6yr avg: {Math.round(spread.reduce((a, b) => a + b, 0) / 6 * 10) / 10}% = base {annualReturn}%
-          </div>
-        </div>
-      </div>
-
-      {/* Balance at cliff stats */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-        {scenarios.map((sc, i) => (
-          <div key={i} style={{ flex: 1, minWidth: 130, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
-            <div style={{ fontSize: 9, color: "#475569" }}>Balance at MSFT cliff (M18)</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: sc.color, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(balAtCliff[i])}
-            </div>
-            <div style={{ fontSize: 9, color: "#475569" }}>
-              At MSFT end (M30): {fmtFull(balAtEnd[i])}
-            </div>
-          </div>
-        ))}
-        <div style={{ flex: 1, minWidth: 130, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #fbbf2433" }}>
-          <div style={{ fontSize: 9, color: "#475569" }}>Gap at cliff (good vs bad)</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#fbbf24", fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(cliffGap)}
-          </div>
-          <div style={{ fontSize: 9, color: "#475569" }}>
-            Same avg return, {fmtFull(cliffGap)} different outcome
           </div>
         </div>
       </div>
@@ -173,7 +180,7 @@ export default function SequenceOfReturnsChart({
         {/* X-axis labels */}
         {[0, 6, 12, 18, 24, 30].map(m => (
           <text key={m} x={seqX(m)} y={seqH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
-            {m === 0 ? "M0" : `M${m}`}
+            {formatModelTimeLabel(m)}
           </text>
         ))}
 
@@ -203,17 +210,18 @@ export default function SequenceOfReturnsChart({
         })()}
 
         {/* Zero-crossing markers */}
-        {zeroMonths.map((zm, i) => zm !== null ? (
+        {zeroMonths.map((zm, i) => (zm !== null && i !== 0) ? (
           <g key={`z${i}`}>
             <circle cx={seqX(zm)} cy={seqZeroY} r="4" fill="none" stroke={scenarioData[i].color} strokeWidth="2" />
             <text x={seqX(zm)} y={seqZeroY + 14} textAnchor="middle" fill={scenarioData[i].color} fontSize="9" fontWeight="600">
-              M{zm}
+              {formatModelTimeLabel(zm)}
             </text>
           </g>
         ) : null)}
 
         {/* Endpoint labels */}
         {scenarioData.map((s, i) => {
+          if (i === 0) return null;
           const final = s.pts[months];
           return (
             <text key={`e${i}`} x={seqX(months) + 4} y={seqY(final) + (i * 13 - 13)}
@@ -227,25 +235,19 @@ export default function SequenceOfReturnsChart({
 
       {/* Legend */}
       <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 6, flexWrap: "wrap" }}>
-        {scenarioData.map((s, i) => {
-          const avg = Math.round(s.schedule.reduce((a, b) => a + b, 0) / s.schedule.length * 10) / 10;
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 16, height: i === 0 ? 0 : 3, borderTop: i === 0 ? `2px dashed ${s.color}` : `3px solid ${s.color}` }} />
-              <span style={{ fontSize: 10, color: s.color }}>{s.name} (avg {avg}%)</span>
-            </div>
-          );
-        })}
+        {legendItems.map((item) => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 16, height: item.type === 'dashed' ? 0 : 3, borderTop: item.type === 'dashed' ? `2px dashed ${item.color}` : `3px solid ${item.color}` }} />
+            <span style={{ fontSize: 10, color: item.color }}>{item.label} ({item.detail})</span>
+          </div>
+        ))}
       </div>
 
       {/* Narrative */}
       <div data-testid="sequence-returns-narrative" style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
-        With {seqBadY1}% and {seqBadY2}% returns in years 1–2, <strong style={{ color: "#f87171" }}>bad early returns</strong> drain
-        the savings buffer faster — arriving at the MSFT cliff with {fmtFull(cliffGap)} less than
-        <strong style={{ color: "#4ade80" }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1–2), despite identical average performance.
-        {" "}<span style={{ color: "#fbbf24" }}>The inheritance advance directly reduces the monthly deficit
-        during this window, preserving more of the savings buffer regardless of market conditions.
-        Every dollar of deficit reduction during months 0–18 compounds forward.</span>
+        With {seqBadY1}% and {seqBadY2}% returns in years 1-2, <strong style={{ color: "#f87171" }}>bad early returns</strong> reach the MSFT cliff with {fmtFull(cliffGap)} less cash than
+        <strong style={{ color: "#4ade80" }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1-2), even though the six-year average return is identical.
+        {" "}<span style={{ color: "#fbbf24" }}>That difference is the sequence-risk cost of taking losses before the plan reaches stability. The inheritance advance reduces the deficit during this window and preserves more runway regardless of market direction.</span>
       </div>
     </div>
   );

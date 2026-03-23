@@ -3,6 +3,8 @@ import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import HelpDrawer from '../components/help/HelpDrawer.jsx';
 import HelpTip from '../components/help/HelpTip.jsx';
+import ActionButton from '../components/ui/ActionButton.jsx';
+import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import PwaDistributionChart from './PwaDistributionChart.jsx';
 import { HELP } from '../content/help/registry.js';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
@@ -59,6 +61,88 @@ function HelpChip({ label, help, accent = '#60a5fa' }) {
       <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.45, marginTop: 4 }}>
         {help.short}
       </div>
+    </div>
+  );
+}
+
+function ModeIdentityBanner({
+  testId,
+  accent,
+  title,
+  summary,
+  primaryLabel,
+  primaryValue,
+  secondaryLabel,
+  secondaryValue,
+  bullets,
+}) {
+  return (
+    <SurfaceCard
+      data-testid={testId}
+      tone="featured"
+      padding="sm"
+      style={{
+        background: '#0f172a',
+        borderColor: `${accent}55`,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(240px, 1fr)', gap: 12, alignItems: 'start' }}>
+        <div>
+          <div style={{ fontSize: 11, color: accent, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+            Mode identity
+          </div>
+          <div style={{ fontSize: 16, color: '#e2e8f0', fontWeight: 700, marginBottom: 4 }}>
+            {title}
+          </div>
+          <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
+            {summary}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ background: '#02061766', border: '1px solid #1e293b', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4, fontWeight: 700 }}>
+              {primaryLabel}
+            </div>
+            <div style={{ fontSize: 15, color: accent, fontWeight: 700, lineHeight: 1.35 }}>
+              {primaryValue}
+            </div>
+          </div>
+          <div style={{ background: '#02061766', border: '1px solid #1e293b', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4, fontWeight: 700 }}>
+              {secondaryLabel}
+            </div>
+            <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600, lineHeight: 1.45 }}>
+              {secondaryValue}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>
+        {bullets.map((bullet) => (
+          <div key={bullet} style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.45 }}>
+            {bullet}
+          </div>
+        ))}
+      </div>
+    </SurfaceCard>
+  );
+}
+
+function ControlSection({ title, subtitle, children, testId }) {
+  return (
+    <div data-testid={testId}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 700 }}>
+          {title}
+        </div>
+        {subtitle ? (
+          <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+            {subtitle}
+          </div>
+        ) : null}
+      </div>
+      {children}
     </div>
   );
 }
@@ -572,6 +656,35 @@ export default function RetirementIncomeChart({
   const retirementTextBody = '#cbd5e1';
   const retirementTextMuted = '#94a3b8';
   const sectionOverviewHelp = isPwaMode ? HELP.retirement_overview_pwa : HELP.retirement_overview_historical;
+  const modeIdentity = isPwaMode
+    ? {
+        accent: '#60a5fa',
+        title: 'Adaptive PWA',
+        summary: 'Use this mode when you want a spending target that can re-solve each year from the remaining pool, remaining horizon, and bequest goal.',
+        primaryLabel: 'Headline meaning',
+        primaryValue: `${pwaConfidencePct}% won't need to cut later`,
+        secondaryLabel: 'Planning constraint',
+        secondaryValue: `Stay near ${fmtFull(Math.round(pwaCurrentSelection.selectedWithdrawal || 0))}/mo while still ending near ${fmtFull(bequestTarget)}.`,
+        bullets: [
+          'Start by choosing the bequest target and strategy. The app then recommends a current total spending target, not just a raw pool draw.',
+          'Use tolerance controls only after the target framework feels right. They decide when the model recenters versus staying sticky.',
+          'Compare this mode against Historical Safe by framework, not by headline percentage. The top metric here is future-cut risk, not reserve survival.',
+        ],
+      }
+    : {
+        accent: '#4ade80',
+        title: 'Historical Safe',
+        summary: 'Use this mode when you want a fixed starting pool draw tested across every historical retirement cohort with reserve and survivor constraints.',
+        primaryLabel: 'Headline meaning',
+        primaryValue: `${Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah ${sarahTargetAge}`,
+        secondaryLabel: 'Safety backstop',
+        secondaryValue: `${optimalRates.safeRate}% safe pool draw means the reserve is never touched in 90% of cohorts.`,
+        bullets: [
+          'Set the pool draw and survivor timing first. Then use reserve and inheritance assumptions to decide how much slack you want in bad historical starts.',
+          'The two top-line rates answer different questions: finish above reserve versus reserve never touched. Keep them separate when comparing outcomes.',
+          'Use the survivor spending cards to read how the same plan behaves before inheritance, after inheritance, and after Chad passes.',
+        ],
+      };
 
   function dismissPwaIntro() {
     setShowPwaIntro(false);
@@ -599,25 +712,20 @@ export default function RetirementIncomeChart({
               { value: 'historical_safe', label: 'Historical Safe' },
               { value: 'adaptive_pwa', label: 'Adaptive PWA' },
             ].map(mode => (
-              <button
+              <ActionButton
                 key={mode.value}
                 type="button"
                 onClick={() => setRetirementMode(mode.value)}
                 data-testid={`retirement-mode-${mode.value}`}
                 aria-label={`Switch retirement mode to ${mode.label}`}
-                style={{
-                  background: retirementMode === mode.value ? '#0f172a' : '#1e293b',
-                  color: retirementMode === mode.value ? retirementTextStrong : retirementTextMuted,
-                  border: `1px solid ${retirementMode === mode.value ? '#60a5fa' : '#334155'}`,
-                  borderRadius: 999,
-                  padding: '6px 10px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
+                variant="chip"
+                size="sm"
+                active={retirementMode === mode.value}
+                accent={mode.value === 'adaptive_pwa' ? '#60a5fa' : '#4ade80'}
+                style={{ borderRadius: 999 }}
               >
                 {mode.label}
-              </button>
+              </ActionButton>
             ))}
           </div>
         </div>
@@ -672,7 +780,7 @@ export default function RetirementIncomeChart({
         title={isPwaMode ? 'How To Read Adaptive PWA' : 'How To Read Historical Safe'}
         accent={isPwaMode ? '#60a5fa' : '#4ade80'}
         defaultOpen={isPwaMode}
-      >
+        >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
           {isPwaMode ? (
             <>
@@ -691,6 +799,18 @@ export default function RetirementIncomeChart({
           )}
         </div>
       </HelpDrawer>
+
+      <ModeIdentityBanner
+        testId="retirement-mode-identity"
+        accent={modeIdentity.accent}
+        title={modeIdentity.title}
+        summary={modeIdentity.summary}
+        primaryLabel={modeIdentity.primaryLabel}
+        primaryValue={modeIdentity.primaryValue}
+        secondaryLabel={modeIdentity.secondaryLabel}
+        secondaryValue={modeIdentity.secondaryValue}
+        bullets={modeIdentity.bullets}
+      />
 
       {isPwaMode && pwaIntroReady && showPwaIntro && (
         <div data-testid="retirement-adaptive-pwa-intro" style={{
@@ -1233,146 +1353,176 @@ export default function RetirementIncomeChart({
 
       {/* Sliders */}
       {isPwaMode ? (
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-          <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
-            testId="retirement-equity-allocation"
-            min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
-          <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
-            testId="retirement-chad-passes-age"
-            min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
-          <Slider label={<LabelWithHelp label="Bequest target" help={HELP.bequest_target} accent="#4ade80" />} value={bequestTarget} onChange={setBequestTarget}
-            testId="retirement-bequest-target"
-            ariaLabel="Bequest target"
-            min={0} max={Math.max(totalPool, 1000000)} step={25000} color="#4ade80" />
+        <div style={{ marginTop: 12, display: 'grid', gap: 14 }}>
+          <ControlSection
+            testId="retirement-primary-decisions"
+            title="Primary decisions"
+            subtitle="Set the mix, target framework, and bequest goal first."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
+                testId="retirement-equity-allocation"
+                min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
+              <Slider label={<LabelWithHelp label="Bequest target" help={HELP.bequest_target} accent="#4ade80" />} value={bequestTarget} onChange={setBequestTarget}
+                testId="retirement-bequest-target"
+                ariaLabel="Bequest target"
+                min={0} max={Math.max(totalPool, 1000000)} step={25000} color="#4ade80" />
 
-          <div data-testid="retirement-pwa-strategy-container" style={{ padding: '4px 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
-                <span>PWA strategy</span>
-                <HelpTip help={HELP.pwa_strategy} accent="#60a5fa" />
-              </span>
-              <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 700 }}>
-                {getPwaStrategyLabel(pwaStrategy)}
-              </span>
+              <div data-testid="retirement-pwa-strategy-container" style={{ padding: '4px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
+                    <span>PWA strategy</span>
+                    <HelpTip help={HELP.pwa_strategy} accent="#60a5fa" />
+                  </span>
+                  <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 700 }}>
+                    {getPwaStrategyLabel(pwaStrategy)}
+                  </span>
+                </div>
+                <select
+                  value={pwaStrategy}
+                  onChange={(e) => setPwaStrategy(e.target.value)}
+                  data-testid="retirement-pwa-strategy"
+                  aria-label="PWA strategy"
+                  style={{ width: '100%', background: '#0f172a', color: retirementTextStrong, border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', fontSize: 13 }}
+                >
+                  {PWA_STRATEGY_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {pwaStrategy !== 'sticky_median' && (
+                <Slider label={<LabelWithHelp label="Target percentile" help={HELP.pwa_target_percentile} accent="#4ade80" />} value={pwaPercentile} onChange={setPwaPercentile}
+                  testId="retirement-pwa-target-percentile"
+                  ariaLabel="Target percentile"
+                  min={5} max={95} step={5} format={(v) => `${v}th`} color="#4ade80" />
+              )}
             </div>
-            <select
-              value={pwaStrategy}
-              onChange={(e) => setPwaStrategy(e.target.value)}
-              data-testid="retirement-pwa-strategy"
-              aria-label="PWA strategy"
-              style={{ width: '100%', background: '#0f172a', color: retirementTextStrong, border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', fontSize: 13 }}
-            >
-              {PWA_STRATEGY_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
+          </ControlSection>
 
-          {pwaStrategy !== 'sticky_median' && (
-            <Slider label={<LabelWithHelp label="Target percentile" help={HELP.pwa_target_percentile} accent="#4ade80" />} value={pwaPercentile} onChange={setPwaPercentile}
-              testId="retirement-pwa-target-percentile"
-              ariaLabel="Target percentile"
-              min={5} max={95} step={5} format={(v) => `${v}th`} color="#4ade80" />
-          )}
-
-          {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
-            <>
-              <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
-                testId="retirement-pwa-tolerance-low"
-                ariaLabel="Tolerance low"
-                min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
-              <Slider label={<LabelWithHelp label="Tolerance high" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
-                testId="retirement-pwa-tolerance-high"
-                ariaLabel="Tolerance high"
-                min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
-            </>
-          )}
+          <ControlSection
+            testId="retirement-advanced-assumptions"
+            title="Advanced assumptions"
+            subtitle="Refine life-event timing and stickiness after the target framework is set."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+                testId="retirement-chad-passes-age"
+                min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
+              {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
+                <>
+                  <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
+                    testId="retirement-pwa-tolerance-low"
+                    ariaLabel="Tolerance low"
+                    min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
+                  <Slider label={<LabelWithHelp label="Tolerance high" help={HELP.pwa_tolerance_band} accent="#60a5fa" />} value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
+                    testId="retirement-pwa-tolerance-high"
+                    ariaLabel="Tolerance high"
+                    min={5} max={95} step={5} format={(v) => `${v}th`} color="#60a5fa" />
+                </>
+              )}
+            </div>
+          </ControlSection>
         </div>
       ) : (
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-          <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
-            testId="retirement-equity-allocation"
-            min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
+        <div style={{ marginTop: 12, display: 'grid', gap: 14 }}>
+          <ControlSection
+            testId="retirement-primary-decisions"
+            title="Primary decisions"
+            subtitle="Set the fixed draw, portfolio mix, and survivor timing before tuning reserve slack."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
+                testId="retirement-equity-allocation"
+                min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color="#60a5fa" />
 
-          {/* Withdrawal rate with optimal marker */}
-          <div style={{ padding: "4px 0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
-                <span>Pool draw rate</span>
-                <HelpTip help={HELP.pool_draw_rate} accent="#f59e0b" />
-              </span>
-              <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
-                {withdrawalRate}%
-                {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
-                {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above ERN max)</span>}
-              </span>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
-                data-testid="retirement-pool-draw-rate"
-                aria-label="Pool draw rate"
-                onChange={(e) => setWithdrawalRate(Number(e.target.value))}
-                style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
-              {/* Rate markers below the slider — staggered vertically to avoid overlap */}
-              {(() => {
-                const thumbHalf = 8;
-                const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
-                const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
-                return (
-                  <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
-                    {/* Safe rate marker (green) — top row */}
-                    <div style={{
-                      position: 'absolute',
-                      left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
-                      top: 0,
-                      transform: 'translateX(-50%)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      pointerEvents: 'none',
-                    }}>
-                      <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
-                      <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {optimalRates.safeRate}% safe
-                      </div>
-                    </div>
-                    {/* ERN max marker (blue) — bottom row, staggered down */}
-                    {optRate > 0 && (
-                      <div style={{
-                        position: 'absolute',
-                        left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
-                        top: 14,
-                        transform: 'translateX(-50%)',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        pointerEvents: 'none',
-                      }}>
-                        <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
-                        <div style={{ fontSize: 9, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          {optRate}% ERN max
+              {/* Withdrawal rate with optimal marker */}
+              <div style={{ padding: "4px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: retirementTextBody, fontWeight: 600 }}>
+                    <span>Pool draw rate</span>
+                    <HelpTip help={HELP.pool_draw_rate} accent="#f59e0b" />
+                  </span>
+                  <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {withdrawalRate}%
+                    {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
+                    {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above ERN max)</span>}
+                  </span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <input type="range" min={0} max={optimalRates.sliderMax} step={0.1} value={withdrawalRate}
+                    data-testid="retirement-pool-draw-rate"
+                    aria-label="Pool draw rate"
+                    onChange={(e) => setWithdrawalRate(Number(e.target.value))}
+                    style={{ width: "100%", accentColor: withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80', height: 6 }} />
+                  {(() => {
+                    const thumbHalf = 8;
+                    const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+                    const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+                    return (
+                      <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
+                        <div style={{
+                          position: 'absolute',
+                          left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
+                          top: 0,
+                          transform: 'translateX(-50%)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          pointerEvents: 'none',
+                        }}>
+                          <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
+                          <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {optimalRates.safeRate}% safe
+                          </div>
                         </div>
+                        {optRate > 0 && (
+                          <div style={{
+                            position: 'absolute',
+                            left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
+                            top: 14,
+                            transform: 'translateX(-50%)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            pointerEvents: 'none',
+                          }}>
+                            <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
+                            <div style={{ fontSize: 9, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {optRate}% ERN max
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
+                    );
+                  })()}
+                </div>
+              </div>
 
-          <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
-            testId="retirement-chad-passes-age"
-            min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
-          <Slider label={<LabelWithHelp label="Pool floor (reserve)" help={HELP.reserve_floor} accent="#f59e0b" />} value={poolFloor} onChange={setPoolFloor}
-            testId="retirement-pool-floor"
-            ariaLabel="Pool floor reserve"
-            min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
-          <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
-            testId="retirement-inheritance-amount"
-            min={0} max={2000000} step={50000} color="#4ade80" />
-          <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
-            testId="retirement-inheritance-sarah-age"
-            min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
-          <Slider label={<LabelWithHelp label="Max depletion gap" help={HELP.max_depletion_gap} accent="#94a3b8" />} value={maxDepletionMonths} onChange={setMaxDepletionMonths}
-            testId="retirement-max-depletion-gap"
-            ariaLabel="Max depletion gap"
-            min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
+              <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
+                testId="retirement-chad-passes-age"
+                min={67} max={95} step={1} format={(v) => v + ''} color="#f59e0b" />
+            </div>
+          </ControlSection>
+
+          <ControlSection
+            testId="retirement-advanced-assumptions"
+            title="Advanced assumptions"
+            subtitle="Reserve and inheritance settings decide how much path slack you want in the hardest historical starts."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <Slider label={<LabelWithHelp label="Pool floor (reserve)" help={HELP.reserve_floor} accent="#f59e0b" />} value={poolFloor} onChange={setPoolFloor}
+                testId="retirement-pool-floor"
+                ariaLabel="Pool floor reserve"
+                min={0} max={Math.min(totalPool, 500000)} step={25000} color="#f59e0b" />
+              <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
+                testId="retirement-inheritance-amount"
+                min={0} max={2000000} step={50000} color="#4ade80" />
+              <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
+                testId="retirement-inheritance-sarah-age"
+                min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
+              <Slider label={<LabelWithHelp label="Max depletion gap" help={HELP.max_depletion_gap} accent="#94a3b8" />} value={maxDepletionMonths} onChange={setMaxDepletionMonths}
+                testId="retirement-max-depletion-gap"
+                ariaLabel="Max depletion gap"
+                min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
+            </div>
+          </ControlSection>
         </div>
       )}
 

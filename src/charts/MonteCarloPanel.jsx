@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { computeProjection } from '../model/projection.js';
 import Slider from '../components/Slider.jsx';
+import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 
 export default function MonteCarloPanel({
   mcResults,
@@ -68,9 +69,11 @@ export default function MonteCarloPanel({
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
-              <h3 style={{ fontSize: 15, color: "#f8fafc", margin: "0 0 2px", fontWeight: 700 }}>Monte Carlo Simulation</h3>
+              <h3 style={{ fontSize: 15, color: "#f8fafc", margin: "0 0 2px", fontWeight: 700 }}>Will the plan stay solvent through the 6-year outlook?</h3>
               <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>
-                {mcResults ? `${mcResults.numSims} scenarios with randomized outcomes` : "Stress-test the plan against uncertainty"}
+                {mcResults
+                  ? `${mcResults.numSims} randomized paths answering the solvency question`
+                  : 'Stress-test the plan against uncertainty before relying on the base-case path'}
               </p>
             </div>
             <button onClick={onRun} disabled={mcRunning} data-testid="monte-carlo-run" aria-label={mcResults ? "Re-run Monte Carlo simulation" : "Run Monte Carlo simulation"} style={{
@@ -83,6 +86,9 @@ export default function MonteCarloPanel({
           </div>
 
           {/* Uncertainty controls */}
+          <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>
+            Stress assumptions
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
               <Slider label="Investment volatility" value={mcInvestVol} onChange={onParamChange('mcInvestVol')} min={0} max={30} step={1} format={(v) => v + "% \u03C3"} color="#22d3ee" />
@@ -145,6 +151,12 @@ export default function MonteCarloPanel({
 
             const medianPath = bands[medianIdx].series.map((v, m) => `${m === 0 ? "M" : "L"} ${xOf(m).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
             const detPath = savingsData.filter(d => d.month <= months).map(d => `${d.month === 0 ? "M" : "L"} ${xOf(d.month).toFixed(1)},${yOf(d.balance).toFixed(1)}`).join(" ");
+            const legendItems = buildLegendItems([
+              { id: 'mc-p50', label: 'Typical path (P50)', color: '#22d3ee', type: 'line' },
+              { id: 'mc-mid-band', label: 'Likely middle range (P25-P75)', color: '#22d3ee', type: 'band', opacity: 0.12 },
+              { id: 'mc-wide-band', label: 'Wide range (P10-P90)', color: '#22d3ee', type: 'band', opacity: 0.06 },
+              { id: 'mc-base', label: 'Deterministic base case', color: '#94a3b8', type: 'dashed' },
+            ]);
 
             const solvColor = solvencyRate >= 0.95 ? "#4ade80" : solvencyRate >= 0.80 ? "#fbbf24" : "#f87171";
             const solvEmoji = solvencyRate >= 0.95 ? "\uD83D\uDFE2" : solvencyRate >= 0.80 ? "\uD83D\uDFE1" : "\uD83D\uDD34";
@@ -172,13 +184,16 @@ export default function MonteCarloPanel({
             return (
               <div>
                 {/* Stats row */}
+                <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>
+                  Primary answers
+                </div>
                 <div style={{ display: "flex", gap: 2, marginBottom: 12, flexWrap: "wrap" }}>
                   {[
-                    { label: "Solvency Rate", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} scenarios never dip below zero`, color: solvColor },
-                    { label: "Median Trough", value: fmtFull(medianTrough), sub: "Median of scenario minimum balances", color: medianTrough >= 0 ? "#4ade80" : "#f87171" },
-                    { label: "Median Final (Y6)", value: fmtFull(medianFinal), color: medianFinal >= 0 ? "#4ade80" : "#f87171" },
-                    { label: "10th Percentile Final", value: fmtFull(p10Final), sub: "Bad luck scenario", color: p10Final >= 0 ? "#fbbf24" : "#f87171" },
-                    { label: "90th Percentile Final", value: fmtFull(p90Final), sub: "Good luck scenario", color: "#4ade80" },
+                    { label: "Chance of staying solvent", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} paths never dip below zero`, color: solvColor },
+                    { label: "Typical lowest point", value: fmtFull(medianTrough), sub: "Median trough across paths", color: medianTrough >= 0 ? "#4ade80" : "#f87171" },
+                    { label: "Typical finish", value: fmtFull(medianFinal), sub: "Median balance at Y6", color: medianFinal >= 0 ? "#4ade80" : "#f87171" },
+                    { label: "Bad-luck finish", value: fmtFull(p10Final), sub: "10th percentile ending balance", color: p10Final >= 0 ? "#fbbf24" : "#f87171" },
+                    { label: "Good-luck finish", value: fmtFull(p90Final), sub: "90th percentile ending balance", color: "#4ade80" },
                   ].map((item, i) => (
                     <div key={i} style={{
                       flex: 1, minWidth: 110,
@@ -195,6 +210,9 @@ export default function MonteCarloPanel({
                 </div>
 
                 {/* Fan chart with tooltip */}
+                <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>
+                  Range of outcomes
+                </div>
                 <div data-testid="monte-carlo-fan-chart-hover-surface" style={{ position: "relative" }}>
                   <svg data-testid="monte-carlo-fan-chart" viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
                     onMouseMove={handleMouseMove}
@@ -279,7 +297,7 @@ export default function MonteCarloPanel({
                       minWidth: 130,
                     }}>
                       <div style={{ fontWeight: 700, marginBottom: 4, color: "#94a3b8" }}>
-                        Month {mcTooltip.month} ({mcTooltip.month < 12 ? `M${mcTooltip.month}` : `Y${(mcTooltip.month/12).toFixed(1)}`})
+                        {formatModelTimeLabel(mcTooltip.month)}
                       </div>
                       <div style={{ color: "#475569" }}>P90: <span style={{ color: "#4ade80" }}>{fmt(mcTooltip.p90)}</span></div>
                       <div style={{ color: "#475569" }}>P75: <span style={{ color: "#22d3ee" }}>{fmt(mcTooltip.p75)}</span></div>
@@ -297,22 +315,18 @@ export default function MonteCarloPanel({
 
                 {/* Legend */}
                 <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 20, height: 3, background: "#22d3ee", borderRadius: 2 }} />
-                    <span style={{ fontSize: 10, color: "#94a3b8" }}>Median (P50)</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 20, height: 8, background: "#22d3ee", opacity: 0.12, borderRadius: 2 }} />
-                    <span style={{ fontSize: 10, color: "#94a3b8" }}>25th-75th percentile</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 20, height: 8, background: "#22d3ee", opacity: 0.06, borderRadius: 2 }} />
-                    <span style={{ fontSize: 10, color: "#94a3b8" }}>10th-90th percentile</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 20, height: 0, borderTop: "2px dashed #94a3b8" }} />
-                    <span style={{ fontSize: 10, color: "#94a3b8" }}>Deterministic base case</span>
-                  </div>
+                  {legendItems.map((item) => (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {item.type === 'band' ? (
+                        <div style={{ width: 20, height: 8, background: item.color, opacity: item.opacity, borderRadius: 2 }} />
+                      ) : item.type === 'dashed' ? (
+                        <div style={{ width: 20, height: 0, borderTop: `2px dashed ${item.color}` }} />
+                      ) : (
+                        <div style={{ width: 20, height: 3, background: item.color, borderRadius: 2 }} />
+                      )}
+                      <span style={{ fontSize: 10, color: "#94a3b8" }}>{item.label}</span>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Sensitivity Tornado Chart */}
@@ -325,13 +339,13 @@ export default function MonteCarloPanel({
                   const halfW = (tornadoW - labelW) / 2 - 20;
 
                   return (
-                    <div style={{ marginTop: 16, borderTop: "1px solid #334155", paddingTop: 12 }}>
-                      <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 700, marginBottom: 8 }}>
-                        Sensitivity Analysis
-                      </div>
-                      <div style={{ fontSize: 10, color: "#475569", marginBottom: 8 }}>
-                        Impact of +/- 1 standard deviation on final balance (Y6)
-                      </div>
+                      <div style={{ marginTop: 16, borderTop: "1px solid #334155", paddingTop: 12 }}>
+                        <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 700, marginBottom: 8 }}>
+                          Which assumption moves the result most?
+                        </div>
+                        <div style={{ fontSize: 10, color: "#475569", marginBottom: 8 }}>
+                          Approximate change in the year-6 balance from a one-sigma move in each assumption
+                        </div>
                       <svg viewBox={`0 0 ${tornadoW} ${tornado.length * (barH + 4) + 20}`} style={{ width: "100%", height: "auto" }}>
                         {/* Center line */}
                         <line x1={centerX} x2={centerX} y1={0} y2={tornado.length * (barH + 4)} stroke="#475569" strokeWidth="1" />

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import { getDistributionPercentile } from '../model/pwaDistribution.js';
+import { buildLegendItems } from './chartContract.js';
 
 function normalizeSampleValue(sample) {
   return typeof sample === 'number' ? sample : sample?.totalSpendingTarget ?? 0;
@@ -140,6 +141,13 @@ export default function PwaDistributionChart({
       dash: '3,3',
     },
   ];
+  const legendItems = buildLegendItems(markerDefs.map((marker) => ({
+    id: marker.shortLabel.toLowerCase().replace(/\s+/g, '-'),
+    label: marker.shortLabel,
+    color: marker.color,
+    line: true,
+    dash: marker.dash,
+  })));
 
   return (
     <div
@@ -165,6 +173,14 @@ export default function PwaDistributionChart({
         <div style={{ textAlign: 'right', fontSize: 10, color: '#cbd5e1', lineHeight: 1.45, fontFamily: "'JetBrains Mono', monospace" }}>
           {chart.sortedValues.length.toLocaleString()} cohorts · {fmtFull(Math.round(chart.min))} to {fmtFull(Math.round(chart.max))}
         </div>
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+        {legendItems.map((item) => (
+          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 16, height: 0, borderTop: `2px ${item.dash ? 'dashed' : 'solid'} ${item.color}` }} />
+            <span style={{ fontSize: 10, color: '#94a3b8' }}>{item.label}</span>
+          </div>
+        ))}
       </div>
 
       <div data-testid={`${testIdPrefix}-hover-surface`} style={{ position: 'relative' }}>

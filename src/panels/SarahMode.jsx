@@ -1,15 +1,18 @@
-import React from "react";
-import { fmtFull } from "../model/formatters.js";
-import { DAYS_PER_MONTH } from "../model/constants.js";
-import { findOperationalBreakevenIndex } from "../model/projection.js";
-import Slider from "../components/Slider.jsx";
-import SarahPracticeChart from "../charts/SarahPracticeChart.jsx";
+import React from 'react';
+import { fmtFull } from '../model/formatters.js';
+import { DAYS_PER_MONTH } from '../model/constants.js';
+import { findOperationalBreakevenIndex } from '../model/projection.js';
+import Slider from '../components/Slider.jsx';
+import SarahPracticeChart from '../charts/SarahPracticeChart.jsx';
+import ActionButton from '../components/ui/ActionButton.jsx';
+import SurfaceCard from '../components/ui/SurfaceCard.jsx';
+import { METRIC_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
+import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
-const TEAL = "#2dd4bf";
-const WARM_GREEN = "#4ade80";
-const WARM_BG = "#0c1a2e";
-const CARD_BG = "#132237";
-const CARD_BORDER = "#1e3a5f";
+const TEAL = UI_COLORS.modeSarah;
+const WARM_GREEN = UI_COLORS.positive;
+const CARD_BG = UI_COLORS.surface;
+const CARD_BORDER = UI_COLORS.borderStrong;
 
 const CUT_ITEMS = [
   { key: "cutOliver", label: "Oliver's activities" },
@@ -77,16 +80,16 @@ export default function SarahMode({
   const gaugeColor = solvencyPct >= 80 ? WARM_GREEN : solvencyPct >= 60 ? "#fbbf24" : "#f87171";
 
   const cardStyle = {
-    background: CARD_BG, borderRadius: 16, padding: "24px 20px",
-    border: `1px solid ${CARD_BORDER}`, marginBottom: 20,
+    background: CARD_BG,
+    marginBottom: 0,
   };
 
   const headingStyle = (color) => ({
-    fontSize: 18, fontWeight: 700, color, margin: "0 0 4px", letterSpacing: "-0.01em",
+    fontSize: UI_TEXT.heading, fontWeight: 700, color, margin: "0 0 4px", letterSpacing: "-0.01em",
   });
 
   const subtextStyle = {
-    fontSize: 14, color: "#8ba4c4", margin: "0 0 16px", lineHeight: 1.5,
+    fontSize: UI_TEXT.body, color: UI_COLORS.textMuted, margin: "0 0 16px", lineHeight: 1.5,
   };
 
   const metricStyle = (color) => ({
@@ -94,45 +97,81 @@ export default function SarahMode({
   });
 
   return (
-    <div style={{ background: WARM_BG, borderRadius: 20, padding: "28px 20px", marginBottom: 24, border: `1px solid ${CARD_BORDER}` }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: TEAL, margin: 0 }}>Sarah's View</h2>
-          <p style={{ fontSize: 13, color: "#6b8db5", margin: "4px 0 0" }}>Your contributions and our path forward</p>
+    <div data-testid='sarah-mode-root' style={{ display: 'grid', gap: UI_SPACE.lg, marginBottom: 24 }}>
+      <SurfaceCard
+        data-testid='sarah-mode-hero'
+        tone='featured'
+        padding='lg'
+        style={{ borderColor: TEAL, background: 'rgba(45, 212, 191, 0.06)' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: UI_SPACE.lg, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: TEAL, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+              Perspective
+            </div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: UI_COLORS.textStrong, margin: 0 }}>Sarah&apos;s View</h2>
+            <p style={{ fontSize: UI_TEXT.body, color: UI_COLORS.textMuted, margin: '8px 0 0', maxWidth: 760, lineHeight: 1.6 }}>
+              Business-first view of the shared family plan. This keeps the focus on your practice, the spending support already in motion, and the 6-year outlook.
+            </p>
+          </div>
+          <ActionButton
+            onClick={onExit}
+            data-testid='sarah-mode-exit'
+            variant={UI_ACTION_VARIANTS.secondary}
+            accent={TEAL}
+          >
+            Back to planner
+          </ActionButton>
         </div>
-        <button
-          onClick={onExit}
-          data-testid="sarah-mode-exit"
-          style={{
-            background: "transparent", border: `1px solid ${TEAL}`, borderRadius: 8,
-            color: TEAL, fontSize: 12, padding: "8px 16px", cursor: "pointer",
-            fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
-          }}
-        >
-          {"\u2715"} Back to Full View
-        </button>
-      </div>
 
-      {/* Card 0: Our Net Worth */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle("#60a5fa")}>Our Net Worth</h3>
-        <p style={subtextStyle}>
-          Everything we've built together — savings, retirement, and our home.
-        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: UI_SPACE.md, marginTop: UI_SPACE.lg }}>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              {METRIC_LABELS.currentMonthlyGap}
+            </div>
+            <div style={{ fontSize: 24, color: getMetricColor(monthlyDetail?.[0]?.netCashFlow || 0), fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(monthlyDetail?.[0]?.netCashFlow || 0)}/mo
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              {METRIC_LABELS.cashFlowBreakeven}
+            </div>
+            <div style={{ fontSize: 24, color: breakevenText ? WARM_GREEN : UI_COLORS.caution, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+              {breakevenText || 'Not in range'}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              {TIMEFRAME_LABELS.sixYearHorizon}
+            </div>
+            <div style={{ fontSize: 24, color: nwGrowing ? WARM_GREEN : UI_COLORS.caution, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fmtFull(y6NetWorth)}
+            </div>
+          </div>
+        </div>
+      </SurfaceCard>
+
+      <SurfaceCard style={cardStyle} padding='lg'>
+        <div>
+          <h3 style={headingStyle(UI_COLORS.info)}>Shared balance sheet</h3>
+          <p style={{ ...subtextStyle, marginBottom: 16 }}>
+            The family balance sheet today and across the {TIMEFRAME_LABELS.sixYearHorizon.toLowerCase()}.
+          </p>
+        </div>
 
         {/* Big numbers: Today → Year 6 */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, margin: "8px 0 20px" }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#6b8db5", marginBottom: 4 }}>Today</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace" }}>
+            <div style={{ fontSize: 11, color: UI_COLORS.textDim, marginBottom: 4 }}>{TIMEFRAME_LABELS.today}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: UI_COLORS.info, fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(nowNetWorth)}
             </div>
           </div>
-          <div style={{ fontSize: 24, color: nwGrowing ? WARM_GREEN : "#f87171" }}>{nwGrowing ? "\u2192" : "\u2192"}</div>
+          <div style={{ fontSize: 24, color: nwGrowing ? WARM_GREEN : UI_COLORS.caution }}>{nwGrowing ? "\u2192" : "\u2192"}</div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#6b8db5", marginBottom: 4 }}>Year 6</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: nwGrowing ? WARM_GREEN : "#fbbf24", fontFamily: "'JetBrains Mono', monospace" }}>
+            <div style={{ fontSize: 11, color: UI_COLORS.textDim, marginBottom: 4 }}>{TIMEFRAME_LABELS.sixYearHorizon}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: nwGrowing ? WARM_GREEN : UI_COLORS.caution, fontFamily: "'JetBrains Mono', monospace" }}>
               {fmtFull(y6NetWorth)}
             </div>
           </div>
@@ -141,29 +180,29 @@ export default function SarahMode({
         {/* Mini bar chart showing components */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
-            { label: "Today", savings: nowSavings, ret: now401k, home: nowHome, total: nowNetWorth },
-            { label: "Year 6", savings: y6Savings, ret: y6_401k, home: y6Home, total: y6NetWorth },
+            { label: TIMEFRAME_LABELS.today, savings: nowSavings, ret: now401k, home: nowHome, total: nowNetWorth },
+            { label: TIMEFRAME_LABELS.sixYearHorizon, savings: y6Savings, ret: y6_401k, home: y6Home, total: y6NetWorth },
           ].map((col, ci) => {
             const maxVal = Math.max(Math.abs(nowNetWorth), Math.abs(y6NetWorth)) || 1;
             return (
-              <div key={ci} style={{ background: "#0c1a2e", borderRadius: 10, padding: "12px 14px", border: `1px solid ${CARD_BORDER}` }}>
-                <div style={{ fontSize: 11, color: "#6b8db5", fontWeight: 600, marginBottom: 10 }}>{col.label}</div>
+              <div key={ci} style={{ background: UI_COLORS.page, borderRadius: 10, padding: "12px 14px", border: `1px solid ${CARD_BORDER}` }}>
+                <div style={{ fontSize: 11, color: UI_COLORS.textDim, fontWeight: 600, marginBottom: 10 }}>{col.label}</div>
                 {[
-                  { name: "Savings", value: col.savings, color: "#60a5fa" },
+                  { name: "Savings", value: col.savings, color: UI_COLORS.info },
                   { name: "401(k)", value: col.ret, color: WARM_GREEN },
                   { name: "Home equity", value: col.home, color: TEAL },
                 ].map((item, i) => (
                   <div key={i} style={{ marginBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: "#8ba4c4" }}>{item.name}</span>
-                      <span style={{ fontSize: 11, color: item.value >= 0 ? item.color : "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                      <span style={{ fontSize: 11, color: UI_COLORS.textMuted }}>{item.name}</span>
+                      <span style={{ fontSize: 11, color: item.value >= 0 ? item.color : UI_COLORS.destructive, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
                         {fmtFull(item.value)}
                       </span>
                     </div>
-                    <div style={{ height: 4, background: "#1e3a5f", borderRadius: 2 }}>
+                    <div style={{ height: 4, background: UI_COLORS.surfaceMuted, borderRadius: 2 }}>
                       <div style={{
                         height: 4, borderRadius: 2,
-                        background: item.value >= 0 ? item.color : "#f87171",
+                        background: item.value >= 0 ? item.color : UI_COLORS.destructive,
                         width: `${Math.max(0, Math.min(100, (Math.abs(item.value) / maxVal) * 100))}%`,
                         opacity: item.value < 0 ? 0.5 : 1,
                       }} />
@@ -176,8 +215,8 @@ export default function SarahMode({
         </div>
 
         {/* Narrative */}
-        <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "12px 16px", marginTop: 12, border: `1px solid ${CARD_BORDER}` }}>
-          <p style={{ fontSize: 13, color: "#8ba4c4", margin: 0, lineHeight: 1.6 }}>
+        <div style={{ background: UI_COLORS.page, borderRadius: 10, padding: "12px 16px", marginTop: 12, border: `1px solid ${CARD_BORDER}` }}>
+          <p style={{ fontSize: 13, color: UI_COLORS.textMuted, margin: 0, lineHeight: 1.6 }}>
             {nwGrowing ? (
               <>Our net worth grows by <span style={{ color: WARM_GREEN, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(nwChange)}</span> over 6 years.
               {" "}Even through this transition, our 401(k) and home equity keep building toward retirement.</>
@@ -190,17 +229,17 @@ export default function SarahMode({
             )}
           </p>
         </div>
-      </div>
+      </SurfaceCard>
 
       {/* Card 1: Your Income Impact */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle(TEAL)}>Your Income Impact</h3>
+      <SurfaceCard style={cardStyle} padding='lg'>
+        <h3 style={headingStyle(TEAL)}>Practice contribution</h3>
         <p style={subtextStyle}>
           Your practice is the engine of our plan. You're generating{" "}
           <span style={metricStyle(TEAL)}>{fmtFull(currentMonthly)}</span>
-          <span style={{ color: "#8ba4c4" }}>/mo in gross billings today, growing to </span>
+          <span style={{ color: UI_COLORS.textMuted }}>/mo in gross billings today, growing to </span>
           <span style={metricStyle(WARM_GREEN)}>{fmtFull(year3Monthly)}</span>
-          <span style={{ color: "#8ba4c4" }}>/mo by Year 3.</span>
+          <span style={{ color: UI_COLORS.textMuted }}>/mo by Y3.</span>
         </p>
 
         <SarahPracticeChart
@@ -208,10 +247,10 @@ export default function SarahMode({
           sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
         />
 
-        <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "14px 16px", marginTop: 12, border: `1px solid ${CARD_BORDER}` }}>
-          <p style={{ fontSize: 13, color: "#8ba4c4", margin: 0, lineHeight: 1.6 }}>
+        <div style={{ background: UI_COLORS.page, borderRadius: 10, padding: "14px 16px", marginTop: 12, border: `1px solid ${CARD_BORDER}` }}>
+          <p style={{ fontSize: 13, color: UI_COLORS.textMuted, margin: 0, lineHeight: 1.6 }}>
             Every new client adds <span style={{ color: TEAL, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(perClientImpact)}/mo</span> to gross billings.
-            {breakevenText && <> At this pace, we reach cash flow breakeven in <span style={{ color: WARM_GREEN, fontWeight: 700 }}>{breakevenText}</span>.</>}
+            {breakevenText && <> At this pace, {METRIC_LABELS.cashFlowBreakeven.toLowerCase()} arrives in <span style={{ color: WARM_GREEN, fontWeight: 700 }}>{breakevenText}</span>.</>}
           </p>
         </div>
 
@@ -223,11 +262,11 @@ export default function SarahMode({
           <Slider label="Rate growth/year" value={sarahRateGrowth} onChange={onFieldChange('sarahRateGrowth')} min={0} max={20} step={1} format={v => `${v}%`} color={TEAL} />
           <Slider label="Client growth/year" value={sarahClientGrowth} onChange={onFieldChange('sarahClientGrowth')} min={0} max={30} step={1} format={v => `${v}%`} color={TEAL} />
         </div>
-      </div>
+      </SurfaceCard>
 
       {/* Card 2: Your Savings Impact */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle("#f0abfc")}>Your Savings Impact</h3>
+      <SurfaceCard style={cardStyle} padding='lg'>
+        <h3 style={headingStyle("#f0abfc")}>Spending support</h3>
         {lifestyleCutsApplied ? (
           <>
             <p style={subtextStyle}>
@@ -243,10 +282,10 @@ export default function SarahMode({
                 return (
                   <div key={key} style={{
                     display: "flex", justifyContent: "space-between", alignItems: "center",
-                    background: "#0c1a2e", borderRadius: 8, padding: "8px 12px",
+                    background: UI_COLORS.page, borderRadius: 8, padding: "8px 12px",
                     border: `1px solid ${CARD_BORDER}`,
                   }}>
-                    <span style={{ fontSize: 12, color: "#8ba4c4" }}>{label}</span>
+                    <span style={{ fontSize: 12, color: UI_COLORS.textMuted }}>{label}</span>
                     <span style={{ fontSize: 12, color: "#f0abfc", fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
                       {fmtFull(val)}/mo
                     </span>
@@ -256,19 +295,19 @@ export default function SarahMode({
             </div>
           </>
         ) : (
-          <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "16px", border: `1px solid ${CARD_BORDER}` }}>
-            <p style={{ fontSize: 14, color: "#8ba4c4", margin: 0, lineHeight: 1.6 }}>
+          <div style={{ background: UI_COLORS.page, borderRadius: 10, padding: "16px", border: `1px solid ${CARD_BORDER}` }}>
+            <p style={{ fontSize: 14, color: UI_COLORS.textMuted, margin: 0, lineHeight: 1.6 }}>
               When we're ready, spending adjustments can save up to{" "}
               <span style={{ color: "#f0abfc", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(totalCutsAnnual)}/year</span>
               {" "}({fmtFull(totalCutsMonthly)}/month). That's a powerful lever we can pull when the time is right.
             </p>
           </div>
         )}
-      </div>
+      </SurfaceCard>
 
       {/* Card 3: We're Going To Be OK */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle(WARM_GREEN)}>We're Going To Be OK</h3>
+      <SurfaceCard data-testid='sarah-mode-outlook' style={cardStyle} padding='lg'>
+        <h3 style={headingStyle(WARM_GREEN)}>Plan outlook</h3>
 
         {solvencyPct !== null ? (
           <>
@@ -285,14 +324,14 @@ export default function SarahMode({
                 <text x="100" y="85" textAnchor="middle" fill={gaugeColor} fontSize="32" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
                   {solvencyPct}%
                 </text>
-                <text x="100" y="102" textAnchor="middle" fill="#6b8db5" fontSize="11">
+                <text x="100" y="102" textAnchor="middle" fill="var(--ui-text-dim)" fontSize="11">
                   confidence
                 </text>
               </svg>
             </div>
 
-            <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "14px 16px", marginBottom: 16, border: `1px solid ${CARD_BORDER}` }}>
-              <p style={{ fontSize: 14, color: "#8ba4c4", margin: 0, lineHeight: 1.7 }}>
+            <div style={{ background: UI_COLORS.page, borderRadius: 10, padding: "14px 16px", marginBottom: 16, border: `1px solid ${CARD_BORDER}` }}>
+              <p style={{ fontSize: 14, color: UI_COLORS.textMuted, margin: 0, lineHeight: 1.7 }}>
                 {solvencyPct >= 80 ? (
                   <>With your practice growing and our spending discipline, <span style={{ color: WARM_GREEN, fontWeight: 700 }}>{solvencyPct}% of scenarios</span> show us staying financially stable through Year 6. We're on a strong path.</>
                 ) : solvencyPct >= 60 ? (
@@ -304,8 +343,8 @@ export default function SarahMode({
             </div>
           </>
         ) : (
-          <div style={{ background: "#0c1a2e", borderRadius: 10, padding: "14px 16px", marginBottom: 16, border: `1px solid ${CARD_BORDER}` }}>
-            <p style={{ fontSize: 14, color: "#8ba4c4", margin: 0, lineHeight: 1.7 }}>
+          <div style={{ background: UI_COLORS.page, borderRadius: 10, padding: "14px 16px", marginBottom: 16, border: `1px solid ${CARD_BORDER}` }}>
+            <p style={{ fontSize: 14, color: UI_COLORS.textMuted, margin: 0, lineHeight: 1.7 }}>
               {goalResults && goalResults.filter(g => g.achieved).length > 0 ? (
                 <>Based on our current plan, we're already meeting {goalResults.filter(g => g.achieved).length} of our {goalResults.length} goals. Run Monte Carlo in the full view for confidence percentages.</>
               ) : (
@@ -326,12 +365,12 @@ export default function SarahMode({
               return (
                 <div key={g.id || i} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",
-                  background: "#0c1a2e", borderRadius: 10, padding: "12px 16px",
+                  background: UI_COLORS.page, borderRadius: 10, padding: "12px 16px",
                   border: `1px solid ${CARD_BORDER}`,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 16 }}>{statusIcon}</span>
-                    <span style={{ fontSize: 13, color: "#c8daf0", fontWeight: 500 }}>{g.name}</span>
+                    <span style={{ fontSize: 13, color: UI_COLORS.textBody, fontWeight: 500 }}>{g.name}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {mcPct !== null && (
@@ -353,31 +392,37 @@ export default function SarahMode({
         )}
 
         {/* Timeline */}
-        <div style={{ marginTop: 20, background: "#0c1a2e", borderRadius: 10, padding: "14px 16px", border: `1px solid ${CARD_BORDER}` }}>
-          <div style={{ fontSize: 11, color: "#6b8db5", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        <div style={{ marginTop: 20, background: UI_COLORS.page, borderRadius: 10, padding: "14px 16px", border: `1px solid ${CARD_BORDER}` }}>
+          <div style={{ fontSize: 11, color: UI_COLORS.textDim, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Key milestones ahead
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 0, position: "relative", height: 32 }}>
-            <div style={{ position: "absolute", top: 14, left: 0, right: 0, height: 2, background: "#1e3a5f", borderRadius: 1 }} />
+            <div style={{ position: "absolute", top: 14, left: 0, right: 0, height: 2, background: UI_COLORS.surfaceMuted, borderRadius: 1 }} />
             {[
               { label: "M0", month: 0, color: TEAL },
               { label: ssType === 'ss' ? "SS at 62" : "SSDI", month: ssType === 'ss' ? 18 : 7, color: "#fbbf24" },
               { label: "BCS ends", month: 36, color: "#f0abfc" },
-              { label: "Year 6", month: 72, color: WARM_GREEN },
+              { label: "Y6", month: 72, color: WARM_GREEN },
             ].map((evt, i) => (
               <div key={i} style={{
                 position: "absolute", left: `${(evt.month / 72) * 100}%`, transform: "translateX(-50%)",
                 display: "flex", flexDirection: "column", alignItems: "center",
               }}>
                 <div style={{ fontSize: 9, color: evt.color, fontWeight: 600, marginBottom: 2, whiteSpace: "nowrap" }}>{evt.label}</div>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: evt.color, border: "2px solid #0c1a2e" }} />
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: evt.color, border: `2px solid ${UI_COLORS.page}` }} />
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </SurfaceCard>
     </div>
   );
+}
+
+function getMetricColor(value) {
+  if (value >= 0) return UI_COLORS.positive;
+  if (value >= -5000) return UI_COLORS.caution;
+  return UI_COLORS.destructive;
 }
 
 // SVG arc helper

@@ -48,7 +48,7 @@
     }
   ],
   "knownGaps": [
-    "GoalPanel and DadMode still depend partly on visible-text selectors instead of dedicated test ids.",
+    "Alternate modes now rely on stable root, action, and derived selectors rather than visible-text hooks.",
     "BridgeChart, SarahPracticeChart, DataTable, and SummaryAsk are observation surfaces, not strong interaction surfaces.",
     "Compare-state and help-dismissal checks must start from a reset storage baseline.",
     "Hover checks should use explicit hover-surface selectors from Wave 0 rather than guessed coordinates."
@@ -85,6 +85,22 @@
         { "selector": "[data-testid=\"tab-details\"]", "expect": "shows Details content" }
       ],
       "checks": ["render", "input", "state", "mode"]
+    },
+    {
+      "id": "shell.mode_exclusivity",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "shell",
+      "paths": ["src/FinancialModel.jsx", "src/components/Header.jsx", "src/components/layout/AppShell.jsx"],
+      "preconditions": ["default app view"],
+      "elements": [
+        { "selector": "[data-testid=\"header-enter-sarah-mode\"]", "expect": "enters Sarah mode and hides planner shell" },
+        { "selector": "[data-testid=\"header-present-mode\"]", "expect": "switches from alternate mode into present mode without overlap" },
+        { "selector": "[data-testid=\"header-enter-dad-mode\"]", "expect": "enters Dad mode and hides planner-only utilities" },
+        { "selector": "[data-testid=\"sarah-mode-root\"]", "expect": "appears only while Sarah mode is active" },
+        { "selector": "[data-testid=\"dad-mode-root\"]", "expect": "appears only while Dad mode is active" }
+      ],
+      "checks": ["render", "input", "mode", "state"]
     },
     {
       "id": "shell.save_load.lifecycle",
@@ -150,6 +166,20 @@
         { "selector": "[data-testid=\"scenario-bcs-parents-annual\"]", "expect": "updates BCS family share and inheritance ask summary" }
       ],
       "checks": ["render", "input", "state", "derived"]
+    },
+    {
+      "id": "shell.compact_layout",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "shell",
+      "paths": ["src/FinancialModel.jsx", "src/components/layout/AppShell.jsx"],
+      "preconditions": ["viewport 900x1000", "default app view"],
+      "elements": [
+        { "selector": "[data-testid=\"app-shell\"]", "expect": "sets data-compact=true in compact mode" },
+        { "selector": "[data-testid=\"app-shell-rail\"]", "expect": "moves the rail below the workspace" },
+        { "selector": "[data-testid=\"app-shell-workspace\"]", "expect": "remains visible without horizontal overflow" }
+      ],
+      "checks": ["render", "layout", "integrity"]
     },
     {
       "id": "overview.bridge_chart.observe",
@@ -286,6 +316,8 @@
         "surface": "risk",
         "paths": ["src/charts/SequenceOfReturnsChart.jsx"],
         "elements": [
+          { "selector": "[data-testid=\"risk-workflow-overview\"]", "expect": "orients the risk tab around the decision workflow" },
+          { "selector": "[data-testid=\"sequence-returns-summary\"]", "expect": "shows the key vulnerability-window summary before the chart" },
           { "selector": "[aria-label=\"Bad year 1 return\"]", "expect": "changes early-loss scenario line" },
           { "selector": "[aria-label=\"Bad year 2 return\"]", "expect": "changes early-loss scenario line" },
           { "selector": "[data-testid=\"sequence-returns-narrative\"]", "expect": "narrative updates to reflect the current early-loss path" }
@@ -299,8 +331,7 @@
       "surface": "risk",
       "paths": ["src/charts/SavingsDrawdownChart.jsx", "src/FinancialModel.jsx"],
       "elements": [
-        { "selector": "[data-testid=\"savings-drawdown-hover-surface-risk-tab\"]", "expect": "hover works on in-tab chart instance" },
-        { "selector": "[data-testid=\"savings-drawdown-hover-surface-right-rail\"]", "expect": "hover works on right-rail chart instance" }
+        { "selector": "[data-testid=\"savings-drawdown-hover-surface-right-rail\"]", "expect": "hover works on the shared rail chart instance while risk is active" }
       ],
       "checks": ["render", "visual", "integrity"]
     },
@@ -311,23 +342,23 @@
       "surface": "risk",
       "paths": ["src/charts/NetWorthChart.jsx", "src/FinancialModel.jsx"],
       "elements": [
-        { "selector": "[data-testid=\"net-worth-hover-surface-risk-tab\"]", "expect": "hover works on in-tab chart instance" },
-        { "selector": "[data-testid=\"net-worth-hover-surface-right-rail\"]", "expect": "hover works on right-rail chart instance" }
+        { "selector": "[data-testid=\"net-worth-hover-surface-right-rail\"]", "expect": "hover works on the shared rail chart instance while risk is active" }
       ],
       "checks": ["render", "visual", "integrity"]
     },
-    {
-      "id": "retirement.mode_and_help",
-      "worker": "worker-5",
-      "status": "ready",
-      "surface": "retirement",
-      "paths": ["src/charts/RetirementIncomeChart.jsx", "src/components/help/HelpDrawer.jsx", "src/components/help/HelpTip.jsx"],
-      "elements": [
-        { "selector": "[data-testid=\"retirement-mode-historical_safe\"]", "expect": "shows Historical Safe controls" },
-        { "selector": "[data-testid=\"retirement-mode-adaptive_pwa\"]", "expect": "shows Adaptive PWA controls" },
-        { "selector": "[data-testid=\"retirement-adaptive-pwa-intro-dismiss\"]", "expect": "dismisses the intro and persists dismissal" },
-        { "selector": "[aria-label^=\"Explain \"]", "expect": "opens inline help popovers without layout breakage" }
-      ],
+      {
+        "id": "retirement.mode_and_help",
+        "worker": "worker-5",
+        "status": "ready",
+        "surface": "retirement",
+        "paths": ["src/charts/RetirementIncomeChart.jsx", "src/components/help/HelpDrawer.jsx", "src/components/help/HelpTip.jsx"],
+        "elements": [
+          { "selector": "[data-testid=\"retirement-mode-historical_safe\"]", "expect": "shows Historical Safe controls" },
+          { "selector": "[data-testid=\"retirement-mode-adaptive_pwa\"]", "expect": "shows Adaptive PWA controls" },
+          { "selector": "[data-testid=\"retirement-mode-identity\"]", "expect": "renders the current mode identity banner" },
+          { "selector": "[data-testid=\"retirement-adaptive-pwa-intro-dismiss\"]", "expect": "dismisses the intro and persists dismissal" },
+          { "selector": "[aria-label^=\"Explain \"]", "expect": "opens inline help popovers without layout breakage" }
+        ],
       "checks": ["render", "input", "mode", "persistence", "visual"]
     },
     {
@@ -407,7 +438,8 @@
       "surface": "details",
       "paths": ["src/panels/SummaryAsk.jsx", "src/panels/DataTable.jsx"],
       "elements": [
-        { "selector": "text=The Ask", "expect": "summary narrative renders coherent financial claims" },
+        { "selector": "[data-testid=\"summary-ask\"]", "expect": "decision summary renders the ask workflow" },
+        { "selector": "[data-testid=\"summary-ask-next-lever\"]", "expect": "summary identifies the next best lever" },
         { "selector": "text=Detailed Projections", "expect": "data table renders the current projection rows" }
       ],
       "checks": ["render", "derived", "integrity"]
@@ -415,12 +447,14 @@
     {
       "id": "sarah_mode.entry_exit_and_sliders",
       "worker": "worker-6",
-      "status": "partial",
+      "status": "ready",
       "surface": "sarah_mode",
       "paths": ["src/panels/SarahMode.jsx"],
       "preconditions": ["enter from header"],
       "elements": [
-        { "selector": "button:has-text(\"Back to Full View\")", "expect": "returns to the main app" },
+        { "selector": "[data-testid=\"sarah-mode-root\"]", "expect": "renders Sarah mode in the shared shell grammar" },
+        { "selector": "[data-testid=\"sarah-mode-hero\"]", "expect": "shows the Sarah perspective summary" },
+        { "selector": "[data-testid=\"sarah-mode-exit\"]", "expect": "returns to the main app" },
         { "selector": "[aria-label=\"Your hourly rate\"]", "expect": "changes Sarah-mode income framing" },
         { "selector": "[aria-label=\"Max rate target\"]", "expect": "changes long-run ceiling framing" },
         { "selector": "[aria-label=\"Current clients/day\"]", "expect": "changes current gross billings framing" },
@@ -433,28 +467,31 @@
     {
       "id": "dad_mode.entry_exit_and_progression",
       "worker": "worker-6",
-      "status": "partial",
+      "status": "ready",
       "surface": "dad_mode",
       "paths": ["src/panels/DadMode.jsx"],
       "preconditions": ["enter from header"],
       "elements": [
-        { "selector": "button:has-text(\"Back to full model\")", "expect": "returns to the main app" },
-        { "selector": "button:has-text(\"Here's what we're already doing\")", "expect": "advances Dad mode from act 1 to act 2" },
-        { "selector": "button:has-text(\"Here's where you can make the difference\")", "expect": "advances Dad mode from act 2 to act 3" }
+        { "selector": "[data-testid=\"dad-mode-root\"]", "expect": "renders Dad mode in the shared shell grammar" },
+        { "selector": "[data-testid=\"dad-mode-exit\"]", "expect": "returns to the main app" },
+        { "selector": "[data-testid=\"dad-mode-next-act-1\"]", "expect": "advances Dad mode from act 1 to act 2" },
+        { "selector": "[data-testid=\"dad-mode-next-act-2\"]", "expect": "advances Dad mode from act 2 to act 3" }
       ],
       "checks": ["render", "input", "mode", "state"]
     },
     {
       "id": "dad_mode.support_controls",
       "worker": "worker-6",
-      "status": "partial",
+      "status": "ready",
       "surface": "dad_mode",
       "paths": ["src/panels/DadMode.jsx"],
       "preconditions": ["Dad mode act 3 active"],
       "elements": [
         { "selector": "[aria-label=\"Pay off debt\"]", "expect": "changes debt-support scenario math" },
-        { "selector": "input[type=\"range\"][value]", "expect": "BCS contribution slider changes family share in Dad mode" },
-        { "selector": "[role=\"switch\"]", "expect": "house project toggles change one-time support math" }
+        { "selector": "[data-testid=\"dad-bcs-parents\"]", "expect": "BCS contribution slider changes family share in Dad mode" },
+        { "selector": "[data-testid=\"dad-mold-toggle\"]", "expect": "mold support toggle changes one-time support math" },
+        { "selector": "[data-testid=\"dad-roof-toggle\"]", "expect": "roof support toggle changes one-time support math" },
+        { "selector": "[data-testid=\"dad-projects-toggle\"]", "expect": "house-project support toggle changes one-time support math" }
       ],
       "checks": ["render", "input", "derived", "integrity"]
     }

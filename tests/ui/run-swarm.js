@@ -9,6 +9,11 @@ const baseUrl = process.env.UI_SWARM_URL || manifest.appUrl;
 const stickyUrl = baseUrl.includes('reset_storage=1')
   ? baseUrl.replace(/([?&])reset_storage=1(&?)/, (match, prefix, suffix) => (suffix ? prefix : ''))
   : baseUrl;
+const VIEWPORTS = {
+  desktop: { width: 1440, height: 2600 },
+  stacked: { width: 1180, height: 2200 },
+  compact: { width: 900, height: 1600 },
+};
 
 function fail(message) {
   throw new Error(message);
@@ -16,6 +21,12 @@ function fail(message) {
 
 function ok(condition, message) {
   if (!condition) fail(message);
+}
+
+function eq(actual, expected, message) {
+  if (actual !== expected) {
+    fail(`${message}: expected ${expected}, got ${actual}`);
+  }
 }
 
 function summarizeResults(results) {
@@ -36,9 +47,12 @@ function printWorkerSummary(workerId, results) {
   }
 }
 
-async function createSession(viewport = { width: 1440, height: 2200 }) {
+async function createSession(viewport = 'desktop') {
+  const resolvedViewport = typeof viewport === 'string'
+    ? (VIEWPORTS[viewport] || VIEWPORTS.desktop)
+    : viewport;
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport, acceptDownloads: true });
+  const context = await browser.newContext({ viewport: resolvedViewport, acceptDownloads: true });
   const page = await context.newPage();
   const consoleIssues = [];
   page.on('console', (msg) => {
@@ -132,6 +146,29 @@ async function worker1() {
       return 'all tabs switched to expected content';
     }));
 
+    results.push(await runEntry('shell.mode_exclusivity', async () => {
+      await gotoApp(page);
+      await page.getByTestId('header-enter-sarah-mode').click();
+      ok(await page.getByTestId('sarah-mode-root').count() === 1, 'Sarah mode did not render');
+      ok(await page.getByTestId('app-shell').count() === 0, 'planner shell should not remain visible in Sarah mode');
+      ok(await page.getByTestId('goal-panel').count() === 0, 'planner goal panel should be hidden in Sarah mode');
+
+      await page.getByTestId('header-present-mode').click();
+      ok(await page.getByTestId('app-shell').count() === 1, 'present mode should restore the planner shell');
+      ok(await page.getByTestId('sarah-mode-root').count() === 0, 'Sarah mode should clear when present mode starts');
+      ok(await page.getByTestId('header-enter-sarah-mode').count() === 0, 'present mode should hide alternate-mode buttons');
+
+      await page.getByTestId('header-present-mode').click();
+      await page.getByTestId('header-enter-dad-mode').click();
+      ok(await page.getByTestId('dad-mode-root').count() === 1, 'Dad mode did not render');
+      ok(await page.getByTestId('sarah-mode-root').count() === 0, 'Sarah mode should not remain visible in Dad mode');
+      ok(await page.getByTestId('app-shell').count() === 0, 'planner shell should not remain visible in Dad mode');
+      ok(await page.getByTestId('header-toggle-save-load').count() === 0, 'planner-only utility controls should be hidden in Dad mode');
+      await page.getByTestId('dad-mode-exit').click();
+      ok(await page.getByTestId('app-shell').count() === 1, 'planner shell should return after leaving Dad mode');
+      return 'planner, present, Sarah, and Dad states stayed mutually exclusive';
+    }));
+
     results.push(await runEntry('shell.save_load.lifecycle', async () => {
       await page.getByTestId('header-toggle-save-load').click();
       await page.getByTestId('save-load-name').fill('Swarm Worker 1');
@@ -193,6 +230,27 @@ async function worker1() {
       await expectVisibleText(page, 'We owe $0/mo');
       await page.getByTestId('scenario-reset-cuts-override').click();
       return 'scenario strip sliders and toggles updated derived summaries';
+    }));
+
+    results.push(await runEntry('shell.compact_layout', async () => {
+      await page.setViewportSize(VIEWPORTS.compact);
+      await gotoApp(page);
+      const appShell = page.getByTestId('app-shell');
+      eq(await appShell.getAttribute('data-compact'), 'true', 'compact shell data flag');
+      eq(await appShell.getAttribute('data-rail-placement'), 'below', 'compact rail placement');
+      const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+      ok(noOverflow, 'compact shell introduced horizontal overflow');
+      const orderOk = await page.evaluate(() => {
+        const root = document.querySelector('[data-testid="app-shell"]');
+        const workspace = root?.querySelector('[data-testid="app-shell-workspace"]');
+        const rail = root?.querySelector('[data-testid="app-shell-rail"]');
+        if (!root || !workspace || !rail) return false;
+        return Boolean(workspace.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      ok(orderOk, 'compact shell rail should follow the workspace in DOM order');
+      await page.setViewportSize(VIEWPORTS.desktop);
+      await gotoApp(page);
+      return 'compact shell stacked correctly without overflow';
     }));
 
     ok(consoleIssues.length === 0, `console issues detected: ${consoleIssues.join(' | ')}`);
@@ -345,6 +403,7 @@ async function worker4() {
     await page.getByTestId('tab-risk').click();
 
     results.push(await runEntry('risk.monte_carlo.controls', async () => {
+      ok(await page.getByTestId('risk-workflow-overview').count() === 1, 'risk workflow overview missing');
       await page.getByLabel('Investment volatility').fill('19');
       await page.getByLabel('Business growth uncertainty').fill('7');
       await page.getByLabel('MSFT price uncertainty').fill('21');
@@ -353,7 +412,7 @@ async function worker4() {
       await page.getByLabel('Spending discipline uncertainty').fill('25');
       await page.getByLabel('Number of simulations').fill('400');
       await page.getByTestId('monte-carlo-run').click();
-      await expectVisibleText(page, '400 scenarios with randomized outcomes');
+      await expectVisibleText(page, '400 randomized paths answering the solvency question');
       return 'deterministic Monte Carlo run completed';
     }));
 
@@ -366,6 +425,7 @@ async function worker4() {
     }));
 
     results.push(await runEntry('risk.sequence_of_returns.controls', async () => {
+      ok(await page.getByTestId('sequence-returns-summary').count() === 1, 'sequence summary strip missing');
       const before = await page.getByTestId('sequence-returns-narrative').innerText();
       await page.getByLabel('Bad year 1 return').fill('-35');
       await page.getByLabel('Bad year 2 return').fill('-25');
@@ -376,27 +436,21 @@ async function worker4() {
     }));
 
     results.push(await runEntry('risk.savings_drawdown.instances', async () => {
-      const riskSurface = page.getByTestId('savings-drawdown-hover-surface-risk-tab');
       const railSurface = page.getByTestId('savings-drawdown-hover-surface-right-rail');
-      await hoverMidpoint(riskSurface);
-      const riskText = await riskSurface.innerText();
       await hoverMidpoint(railSurface);
-      const railText = await railSurface.innerText();
-      ok(/Month/.test(riskText), 'risk-tab savings tooltip missing');
-      ok(/Month/.test(railText), 'right-rail savings tooltip missing');
-      return 'both savings chart instances rendered hover tooltips';
+      const railTooltip = page.getByTestId('savings-drawdown-tooltip-right-rail');
+      await railTooltip.waitFor({ state: 'visible' });
+      const railText = await railTooltip.innerText();
+      ok(railText.trim().length > 0, 'right-rail savings tooltip missing');
+      return 'shared rail savings chart rendered hover tooltip on the Risk tab';
     }));
 
     results.push(await runEntry('risk.net_worth.instances', async () => {
-      const riskSurface = page.getByTestId('net-worth-hover-surface-risk-tab');
       const railSurface = page.getByTestId('net-worth-hover-surface-right-rail');
-      await hoverMidpoint(riskSurface);
-      const riskText = await riskSurface.innerText();
       await hoverMidpoint(railSurface);
       const railText = await railSurface.innerText();
-      ok(riskText.includes('Total'), 'risk-tab net worth tooltip missing');
       ok(railText.includes('Total'), 'right-rail net worth tooltip missing');
-      return 'both net-worth chart instances rendered hover tooltips';
+      return 'shared rail net-worth chart rendered hover tooltip on the Risk tab';
     }));
 
     ok(consoleIssues.length === 0, `console issues detected: ${consoleIssues.join(' | ')}`);
@@ -417,12 +471,16 @@ async function worker5() {
 
     results.push(await runEntry('retirement.mode_and_help', async () => {
       await page.getByTestId('retirement-mode-adaptive_pwa').click();
+      const adaptiveIdentity = await page.getByTestId('retirement-mode-identity').innerText();
+      ok(adaptiveIdentity.includes('Adaptive PWA'), 'adaptive mode identity banner missing');
       await page.getByRole('button', { name: /Explain Retirement Mode/i }).click();
       await page.getByTestId('retirement-adaptive-pwa-intro-dismiss').click();
       await gotoApp(page, { reset: false });
       await page.getByTestId('tab-plan').click();
       await page.getByTestId('retirement-mode-adaptive_pwa').click();
       ok(await page.getByTestId('retirement-adaptive-pwa-intro').count() === 0, 'Adaptive PWA intro dismissal did not persist');
+      const persistedIdentity = await page.getByTestId('retirement-mode-identity').innerText();
+      ok(persistedIdentity.includes('Adaptive PWA'), 'adaptive identity banner should persist after reload');
       return 'mode toggle and help dismissal persisted';
     }));
 
@@ -504,7 +562,8 @@ async function worker6() {
 
     results.push(await runEntry('details.summary_and_table.observe', async () => {
       await page.getByTestId('tab-details').click();
-      await expectVisibleText(page, 'The Ask');
+      ok(await page.getByTestId('summary-ask').count() === 1, 'summary ask card missing');
+      ok(await page.getByTestId('summary-ask-next-lever').count() === 1, 'summary ask next-lever section missing');
       await expectVisibleText(page, 'Detailed Projections');
       const text = await page.locator('body').innerText();
       ok(!/NaN|undefined/.test(text), 'details surface contains invalid tokens');
@@ -513,6 +572,8 @@ async function worker6() {
 
     results.push(await runEntry('sarah_mode.entry_exit_and_sliders', async () => {
       await page.getByTestId('header-enter-sarah-mode').click();
+      ok(await page.getByTestId('sarah-mode-root').count() === 1, 'Sarah mode root missing');
+      ok(await page.getByTestId('sarah-mode-hero').count() === 1, 'Sarah mode hero missing');
       await page.getByLabel('Your hourly rate').press('End');
       await page.getByLabel('Current clients/day').press('End');
       await expectVisibleText(page, '/mo');
@@ -523,8 +584,9 @@ async function worker6() {
 
     results.push(await runEntry('dad_mode.entry_exit_and_progression', async () => {
       await page.getByTestId('header-enter-dad-mode').click();
-      await page.getByRole('button', { name: /already doing/i }).click();
-      await page.getByRole('button', { name: /make the difference/i }).click();
+      ok(await page.getByTestId('dad-mode-root').count() === 1, 'Dad mode root missing');
+      await page.getByTestId('dad-mode-next-act-1').click();
+      await page.getByTestId('dad-mode-next-act-2').click();
       await expectVisibleText(page, 'Your contribution');
       return 'Dad mode progressed through all acts';
     }));
@@ -532,6 +594,8 @@ async function worker6() {
     results.push(await runEntry('dad_mode.support_controls', async () => {
       await page.getByTestId('dad-pay-off-debt').press('End');
       await page.getByTestId('dad-bcs-parents').press('End');
+      await page.getByTestId('dad-mold-toggle').click();
+      await page.getByTestId('dad-roof-toggle').click();
       await expectVisibleText(page, 'Fully covered');
       await page.getByTestId('dad-mode-exit').click();
       return 'Dad support controls updated derived support math';

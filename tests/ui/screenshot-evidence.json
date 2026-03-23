@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "generatedAt": "2026-03-22",
+  "requiredViewports": ["1440x1200", "1180x1000", "900x1000"],
+  "surfaces": {
+    "shell": {
+      "1440x1200": "wave5-shell-1440x1200.png",
+      "1180x1000": "wave4-shell-save-load-1180x1000.png",
+      "900x1000": "wave5-shell-900x1000.png"
+    },
+    "retirement": {
+      "1440x1200": "wave5-retirement-1440x1200.png",
+      "1180x1000": "wave5-retirement-1180x1000.png",
+      "900x1000": "wave5-retirement-900x1000.png"
+    },
+    "risk": {
+      "1440x1200": "wave5-risk-1440x1200.png",
+      "1180x1000": "wave5-risk-1180x1000.png",
+      "900x1000": "wave5-risk-900x1000.png"
+    },
+    "sarah": {
+      "1440x1200": "wave4-sarah-1440x1200.png",
+      "1180x1000": "wave5-sarah-1180x1000.png",
+      "900x1000": "wave4-sarah-900x1000.png"
+    },
+    "dad": {
+      "1440x1200": "wave4-dad-1440x1200.png",
+      "1180x1000": "wave5-dad-1180x1000.png",
+      "900x1000": "wave4-dad-900x1000.png"
+    }
+  }
+}

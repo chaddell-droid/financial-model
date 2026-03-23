@@ -27,6 +27,9 @@ import { fmt } from './formatters.js';
 import { exportModelData } from './exportData.js';
 import { buildPwaDistribution, getDistributionPercentile, getPwaSummary } from './pwaDistribution.js';
 import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from './pwaStrategies.js';
+import { buildLegendItems, CHART_PRESENTATION, formatModelTimeLabel, getSummaryTimeframeLabel } from '../charts/chartContract.js';
+import { RETIREMENT_LABELS, RISK_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
+import { UI_BREAKPOINTS, getShellWidthBucket } from '../ui/tokens.js';
 
 // --- Helpers ---
 
@@ -797,10 +800,10 @@ test('Retirement surface wires inline help primitives into the section', () => {
   assert.ok(source.includes('adaptive_pwa_intro'), 'retirement chart should wire the Adaptive PWA intro help');
   assert.ok(source.includes('pwa_tolerance_band'), 'retirement chart should explain tolerance controls');
 });
-test('Retirement help layout keeps the overview rail wider and uses responsive retirement grids', () => {
-  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+test('Retirement help layout uses the shared shell rail and responsive retirement grids', () => {
+  const shellSource = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
-  assert.ok(appSource.includes('minmax(580px, 660px)'), 'overview rail should reserve more width for retirement content');
+  assert.ok(shellSource.includes("minmax(460px, 560px)"), 'shared shell should reserve dedicated rail width for the retirement surface');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'retirement controls should use responsive auto-fit grids');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
 });
@@ -871,7 +874,10 @@ test('shared input primitives expose stable automation metadata', () => {
   assert.ok(sliderSource.includes('aria-label'), 'Slider should expose an aria-label hook');
   assert.ok(sliderSource.includes('disabled={disabled}'), 'Slider should support disabled state for non-interactive controls');
   assert.ok(toggleSource.includes('data-testid'), 'Toggle should expose a data-testid hook');
-  assert.ok(toggleSource.includes('role="switch"'), 'Toggle should behave like a switch for automation and accessibility');
+  assert.ok(
+    toggleSource.includes('role="switch"') || toggleSource.includes("role='switch'"),
+    'Toggle should behave like a switch for automation and accessibility'
+  );
 });
 test('shell controls expose Wave 0 selectors', () => {
   const headerSource = fs.readFileSync(new URL('../components/Header.jsx', import.meta.url), 'utf8');
@@ -1008,6 +1014,249 @@ test('UI swarm manifest uses stable selectors for previously partial surfaces', 
 test('package.json exposes the one-command UI swarm runner', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   eq(pkg.scripts['ui:swarm'], 'node tests/ui/run-swarm.js', 'ui:swarm script');
+});
+
+console.log('\n=== UI Foundation Guards ===');
+
+test('formatModelTimeLabel preserves the shared M0/Y1 timeline contract', () => {
+  eq(formatModelTimeLabel(0), 'M0');
+  eq(formatModelTimeLabel(5), 'M5');
+  eq(formatModelTimeLabel(12), 'Y1');
+});
+
+test('summary timeframe labels are sourced from the shared glossary', () => {
+  eq(getSummaryTimeframeLabel('current'), TIMEFRAME_LABELS.currentAssumptions);
+  eq(getSummaryTimeframeLabel('steady'), TIMEFRAME_LABELS.steadyState);
+});
+
+test('buildLegendItems filters falsy entries and assigns fallback ids', () => {
+  const legend = buildLegendItems([
+    { label: 'Current', color: '#fff' },
+    null,
+    { id: 'compare', label: 'Compare', color: '#000' },
+  ]);
+  eq(legend.length, 2);
+  eq(legend[0].id, 'legend-0');
+  eq(legend[1].id, 'compare');
+});
+
+test('chart contract caps primary annotations at four', () => {
+  eq(CHART_PRESENTATION.maxPrimaryAnnotations, 4);
+});
+
+test('ui glossary exports canonical timeline, retirement, and risk labels', () => {
+  eq(TIMEFRAME_LABELS.modelStart, 'M0');
+  eq(RETIREMENT_LABELS.futureCutRisk, 'Won’t need to cut later');
+  eq(RISK_LABELS.sequenceRisk, 'Sequence risk');
+});
+
+test('shell width buckets follow the shared breakpoint contract', () => {
+  eq(getShellWidthBucket(UI_BREAKPOINTS.compact - 1), 'compact');
+  eq(getShellWidthBucket(UI_BREAKPOINTS.compact), 'stacked');
+  eq(getShellWidthBucket(UI_BREAKPOINTS.railCollapse), 'desktop');
+});
+
+test('index.css no longer uses style-string typography overrides', () => {
+  const source = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+  assert.ok(!source.includes('[style*="font-size:'), 'font-size string hacks should be removed');
+  assert.ok(!source.includes('[style*="color:'), 'color string hacks should be removed');
+});
+
+test('FinancialModel uses breakpoint-driven app shell scaffold', () => {
+  const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('const activeExperience ='), 'shell should derive activeExperience');
+  assert.ok(source.includes('const [shellWidthBucket, setShellWidthBucket] = useState'), 'shell should track breakpoint buckets');
+  assert.ok(source.includes('<AppShell'), 'shell should render AppShell');
+  assert.ok(source.includes('showEmbeddedBalanceCharts={!showRail}'), 'risk tab should suppress duplicate balance charts when the rail is visible');
+});
+
+test('docs ui contract records the required shell behavior matrix and help hierarchy', () => {
+  const source = fs.readFileSync(new URL('../../docs/ui-contract.md', import.meta.url), 'utf8');
+  assert.ok(source.includes('## Required Shell Behavior Matrix'), 'shell matrix heading should exist');
+  assert.ok(source.includes('railPlacement'), 'shell matrix should document rail placement');
+  assert.ok(source.includes('drawer = section framing'), 'help hierarchy should define drawer ownership');
+});
+
+test('ActionButton and SurfaceCard exist as Wave 1 shell primitives', () => {
+  assert.ok(fs.existsSync(new URL('../components/ui/ActionButton.jsx', import.meta.url)));
+  assert.ok(fs.existsSync(new URL('../components/ui/SurfaceCard.jsx', import.meta.url)));
+});
+
+console.log('\n=== Wave 2 UI Contract Guards ===');
+
+test('Slider exposes helperText and disabledReason semantics', () => {
+  const source = fs.readFileSync(new URL('../components/Slider.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('helperText'), 'slider should support helperText');
+  assert.ok(source.includes('disabledReason'), 'slider should support disabledReason');
+});
+
+test('Toggle exposes description and disabledReason semantics', () => {
+  const source = fs.readFileSync(new URL('../components/Toggle.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('description'), 'toggle should support description');
+  assert.ok(source.includes('disabledReason'), 'toggle should support disabledReason');
+});
+
+test('Help primitives use larger readable targets and token-driven text sizing', () => {
+  const tipSource = fs.readFileSync(new URL('../components/help/HelpTip.jsx', import.meta.url), 'utf8');
+  const popoverSource = fs.readFileSync(new URL('../components/help/HelpPopover.jsx', import.meta.url), 'utf8');
+  assert.ok(tipSource.includes("size = 'md'"), 'help tip should expose a size prop');
+  assert.ok(tipSource.includes('const SIZE_MAP'), 'help tip should use explicit size mapping');
+  assert.ok(popoverSource.includes('UI_TEXT.caption'), 'help popover should use token-driven readable body sizing');
+});
+
+test('GoalPanel uses a semantic collapse button and responsive form layout', () => {
+  const source = fs.readFileSync(new URL('../panels/GoalPanel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes("type='button'"), 'goal panel toggle should be a semantic button');
+  assert.ok(source.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'goal form should fall back responsively');
+  assert.ok(source.includes('ActionButton'), 'goal panel should use shared action buttons');
+});
+
+test('SaveLoadPanel routes scenario actions through shared action buttons', () => {
+  const source = fs.readFileSync(new URL('../components/SaveLoadPanel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('ActionButton'), 'save/load panel should use shared action buttons');
+  assert.ok(source.includes('Stop comparing'), 'save/load panel should expose a clear compare action');
+});
+
+test('Monthly and rail charts adopt the shared chart contract helpers', () => {
+  const bridgeSource = fs.readFileSync(new URL('../charts/BridgeChart.jsx', import.meta.url), 'utf8');
+  const cashFlowSource = fs.readFileSync(new URL('../charts/MonthlyCashFlowChart.jsx', import.meta.url), 'utf8');
+  const incomeSource = fs.readFileSync(new URL('../charts/IncomeCompositionChart.jsx', import.meta.url), 'utf8');
+  const savingsSource = fs.readFileSync(new URL('../charts/SavingsDrawdownChart.jsx', import.meta.url), 'utf8');
+  const netWorthSource = fs.readFileSync(new URL('../charts/NetWorthChart.jsx', import.meta.url), 'utf8');
+  const pwaSource = fs.readFileSync(new URL('../charts/PwaDistributionChart.jsx', import.meta.url), 'utf8');
+  assert.ok(bridgeSource.includes('formatModelTimeLabel'), 'bridge chart should use shared model-time labels');
+  assert.ok(cashFlowSource.includes('buildLegendItems'), 'monthly cash flow chart should use shared legend helpers');
+  assert.ok(incomeSource.includes('buildLegendItems'), 'income composition chart should use shared legend helpers');
+  assert.ok(savingsSource.includes('formatModelTimeLabel'), 'savings drawdown chart should use shared model-time labels');
+  assert.ok(netWorthSource.includes('formatModelTimeLabel'), 'net worth chart should use shared model-time labels');
+  assert.ok(pwaSource.includes('buildLegendItems'), 'PWA distribution chart should use shared legend helpers');
+});
+
+console.log('\n=== Wave 3 UI Contract Guards ===');
+
+test('Retirement surface distinguishes planning modes with identity and control sections', () => {
+  const source = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('function ModeIdentityBanner'), 'retirement surface should define a mode identity banner');
+  assert.ok(source.includes('testId="retirement-mode-identity"') || source.includes("testId='retirement-mode-identity'"), 'retirement surface should expose the mode identity banner');
+  assert.ok(source.includes('Primary decisions'), 'retirement surface should group controls under primary decisions');
+  assert.ok(source.includes('Advanced assumptions'), 'retirement surface should group controls under advanced assumptions');
+});
+
+test('Risk tab is sequenced around questions instead of flat widgets', () => {
+  const source = fs.readFileSync(new URL('../panels/tabs/RiskTab.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('function RiskQuestion'), 'risk tab should define a question wrapper');
+  assert.ok(source.includes('data-testid="risk-workflow-overview"'), 'risk tab should expose a workflow overview');
+  assert.ok(source.includes('Question 1'), 'risk tab should label the probability step');
+  assert.ok(source.includes('Question 2'), 'risk tab should label the sequence step');
+});
+
+test('Risk charts use decision-oriented wording and reduced sequence clutter', () => {
+  const monteCarloSource = fs.readFileSync(new URL('../charts/MonteCarloPanel.jsx', import.meta.url), 'utf8');
+  const sequenceSource = fs.readFileSync(new URL('../charts/SequenceOfReturnsChart.jsx', import.meta.url), 'utf8');
+  assert.ok(monteCarloSource.includes('Will the plan stay solvent through the 6-year outlook?'), 'Monte Carlo should lead with the decision question');
+  assert.ok(monteCarloSource.includes('Which assumption moves the result most?'), 'Monte Carlo should frame sensitivity by question');
+  assert.ok(sequenceSource.includes('buildLegendItems'), 'sequence chart should use shared legend helpers');
+  assert.ok(sequenceSource.includes('data-testid="sequence-returns-summary"'), 'sequence chart should expose its summary strip');
+  assert.ok(sequenceSource.includes('if (i === 0) return null;'), 'sequence chart should reduce endpoint-label clutter');
+});
+
+test('UI swarm manifest tracks the new risk workflow and retirement identity selectors', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const sequence = manifest.entries.find((entry) => entry.id === 'risk.sequence_of_returns.controls');
+  const retirement = manifest.entries.find((entry) => entry.id === 'retirement.mode_and_help');
+  assert.ok(sequence.elements.some((element) => element.selector === '[data-testid="risk-workflow-overview"]'), 'risk manifest should track the workflow overview');
+  assert.ok(sequence.elements.some((element) => element.selector === '[data-testid="sequence-returns-summary"]'), 'risk manifest should track the sequence summary strip');
+  assert.ok(retirement.elements.some((element) => element.selector === '[data-testid="retirement-mode-identity"]'), 'retirement manifest should track the mode identity banner');
+});
+
+console.log('\n=== UI-07 Utility And Mode Alignment Guards ===');
+
+test('SummaryAsk is structured as a decision workflow', () => {
+  const summarySource = fs.readFileSync(new URL('../panels/SummaryAsk.jsx', import.meta.url), 'utf8');
+  assert.ok(summarySource.includes("data-testid='summary-ask'"), 'summary ask should expose a stable root selector');
+  assert.ok(summarySource.includes('What is happening'), 'summary ask should explain what is happening');
+  assert.ok(summarySource.includes('The next best lever'), 'summary ask should identify the next best lever');
+  assert.ok(summarySource.includes('What the ask covers'), 'summary ask should identify what the ask covers');
+});
+
+test('utility panels use shared workflow language', () => {
+  const saveLoadSource = fs.readFileSync(new URL('../components/SaveLoadPanel.jsx', import.meta.url), 'utf8');
+  const goalPanelSource = fs.readFileSync(new URL('../panels/GoalPanel.jsx', import.meta.url), 'utf8');
+  assert.ok(saveLoadSource.includes('Scenario workspace'), 'save/load panel should use scenario workspace wording');
+  assert.ok(saveLoadSource.includes('Save checkpoint'), 'save/load panel should use checkpoint language');
+  assert.ok(saveLoadSource.includes('saved checkpoint'), 'save/load panel should describe saved checkpoints');
+  assert.ok(goalPanelSource.includes('Planning goals'), 'goal panel should use planning-goal wording');
+  assert.ok(goalPanelSource.includes('goal-panel-subtitle'), 'goal panel should expose its workflow subtitle');
+  assert.ok(goalPanelSource.includes('Track goal'), 'goal panel should use action-oriented goal wording');
+});
+
+test('Sarah and Dad modes use shared cards, actions, and stable selectors', () => {
+  const sarahSource = fs.readFileSync(new URL('../panels/SarahMode.jsx', import.meta.url), 'utf8');
+  const dadSource = fs.readFileSync(new URL('../panels/DadMode.jsx', import.meta.url), 'utf8');
+  assert.ok(sarahSource.includes('SurfaceCard'), 'Sarah mode should use shared card primitives');
+  assert.ok(sarahSource.includes('ActionButton'), 'Sarah mode should use shared action primitives');
+  assert.ok(sarahSource.includes("data-testid='sarah-mode-hero'"), 'Sarah mode should expose a stable hero selector');
+  assert.ok(dadSource.includes('SurfaceCard'), 'Dad mode should use shared card primitives');
+  assert.ok(dadSource.includes('ActionButton'), 'Dad mode should use shared action primitives');
+  assert.ok(dadSource.includes("data-testid='dad-mode-next-act-1'"), 'Dad mode should expose a stable act-1 progression selector');
+  assert.ok(dadSource.includes("testId='dad-mold-toggle'"), 'Dad mode should expose stable support toggle selectors');
+});
+
+test('UI swarm manifest marks alternate modes as ready with stable selectors', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const details = manifest.entries.find((entry) => entry.id === 'details.summary_and_table.observe');
+  const sarah = manifest.entries.find((entry) => entry.id === 'sarah_mode.entry_exit_and_sliders');
+  const dadProgression = manifest.entries.find((entry) => entry.id === 'dad_mode.entry_exit_and_progression');
+  const dadControls = manifest.entries.find((entry) => entry.id === 'dad_mode.support_controls');
+  assert.ok(details.elements.some((element) => element.selector === '[data-testid="summary-ask-next-lever"]'), 'details manifest should track the summary next-lever selector');
+  eq(sarah.status, 'ready', 'Sarah mode manifest status');
+  eq(dadProgression.status, 'ready', 'Dad progression manifest status');
+  eq(dadControls.status, 'ready', 'Dad support manifest status');
+  assert.ok(dadControls.elements.some((element) => element.selector === '[data-testid="dad-mold-toggle"]'), 'Dad support manifest should use stable toggle selectors');
+});
+
+console.log('\n=== UI-08 Validation And Guardrail Checks ===');
+
+test('UI swarm runner supports compact viewport coverage and mode exclusivity checks', () => {
+  const runnerSource = fs.readFileSync(new URL('../../tests/ui/run-swarm.js', import.meta.url), 'utf8');
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const compact = manifest.entries.find((entry) => entry.id === 'shell.compact_layout');
+  const exclusivity = manifest.entries.find((entry) => entry.id === 'shell.mode_exclusivity');
+  assert.ok(runnerSource.includes('const VIEWPORTS ='), 'ui swarm runner should define a viewport matrix');
+  assert.ok(runnerSource.includes('shell.compact_layout'), 'ui swarm runner should execute compact shell coverage');
+  assert.ok(runnerSource.includes('shell.mode_exclusivity'), 'ui swarm runner should execute mode exclusivity coverage');
+  eq(compact.status, 'ready', 'compact layout manifest status');
+  eq(exclusivity.status, 'ready', 'mode exclusivity manifest status');
+});
+
+test('planner, present, Sarah, and Dad experiences stay mutually exclusive in the shell source', () => {
+  const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes("activeExperience === 'sarah'"), 'FinancialModel should isolate Sarah mode rendering');
+  assert.ok(source.includes("activeExperience === 'dad'"), 'FinancialModel should isolate Dad mode rendering');
+  assert.ok(source.includes("(activeExperience === 'planner' || activeExperience === 'present')"), 'FinancialModel should isolate planner/present shell rendering');
+});
+
+test('shell performance guardrails stay event-driven without polling or observer churn', () => {
+  const financialSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  const shellSource = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
+  const resizeListeners = (financialSource.match(/addEventListener\('resize'/g) || []).length;
+  const animationFrameCalls = (financialSource.match(/requestAnimationFrame\(/g) || []).length;
+  eq(resizeListeners, 1, 'FinancialModel should use a single resize listener for breakpoint updates');
+  eq(animationFrameCalls, 1, 'FinancialModel should use at most one animation-frame debounce for breakpoint updates');
+  assert.ok(!financialSource.includes('setInterval('), 'FinancialModel should not introduce polling timers');
+  assert.ok(!shellSource.includes('ResizeObserver'), 'AppShell should not introduce resize observers for layout');
+});
+
+test('screenshot evidence manifest covers shell, retirement, risk, Sarah, and Dad at required breakpoints', () => {
+  const evidence = JSON.parse(fs.readFileSync(new URL('../../tests/ui/screenshot-evidence.json', import.meta.url), 'utf8'));
+  const required = ['1440x1200', '1180x1000', '900x1000'];
+  eq(evidence.requiredViewports.length, required.length, 'required screenshot viewport count');
+  for (const surface of ['shell', 'retirement', 'risk', 'sarah', 'dad']) {
+    assert.ok(evidence.surfaces[surface], `${surface} screenshot surface should exist`);
+    for (const viewport of required) {
+      assert.ok(typeof evidence.surfaces[surface][viewport] === 'string', `${surface} should define screenshot evidence for ${viewport}`);
+    }
+  }
 });
 
 console.log('\n=== Formatter Guards ===');

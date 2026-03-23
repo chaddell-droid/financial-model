@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "ui:swarm": "node tests/ui/run-swarm.js",
+    "ui:perf": "node tests/ui/perf/run-perf.js",
     "playwright:mcp:recover": "pwsh -NoProfile -File scripts/recover-playwright-mcp.ps1"
   },
   "dependencies": {

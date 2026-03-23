@@ -1,12 +1,22 @@
 {
   "version": 1,
-  "generatedAt": "2026-03-22",
+  "generatedAt": "2026-03-23",
   "requiredViewports": ["1440x1200", "1180x1000", "900x1000"],
   "surfaces": {
     "shell": {
       "1440x1200": "wave5-shell-1440x1200.png",
       "1180x1000": "wave4-shell-save-load-1180x1000.png",
       "900x1000": "wave5-shell-900x1000.png"
+    },
+    "overview_reset": {
+      "1440x1200": "overview-reset-1440x1200.png",
+      "1180x1000": "overview-reset-1180x1000.png",
+      "900x1000": "overview-reset-900x1000.png"
+    },
+    "plan_workspace": {
+      "1440x1200": "plan-workspace-1440x1200.png",
+      "1180x1000": "plan-workspace-1180x1000.png",
+      "900x1000": "plan-workspace-900x1000.png"
     },
     "primary_levers": {
       "1440x1200": "primary-levers-1440x1200.png",

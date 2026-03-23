@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { UI_SPACE } from '../../ui/tokens.js';
 
-export default function AppShell({
+function AppShell({
   summary,
   tabs,
   workspace,
@@ -27,7 +27,7 @@ export default function AppShell({
         style={{
           display: 'grid',
           gridTemplateColumns: showRail && railPlacement === 'side'
-            ? 'minmax(0, 1fr) minmax(460px, 560px)'
+            ? 'minmax(0, 1fr) minmax(320px, 420px)'
             : 'minmax(0, 1fr)',
           gap: UI_SPACE.xl,
           alignItems: 'start',
@@ -52,3 +52,5 @@ export default function AppShell({
     </div>
   );
 }
+
+export default memo(AppShell);

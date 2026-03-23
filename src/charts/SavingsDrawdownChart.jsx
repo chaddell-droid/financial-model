@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel, getSummaryTimeframeLabel } from './chartContract.js';
 
-export default function SavingsDrawdownChart({
+function SavingsDrawdownChart({
   savingsData,
   savingsZeroMonth,
   savingsZeroLabel,
@@ -341,3 +341,5 @@ export default function SavingsDrawdownChart({
         </div>
   );
 }
+
+export default memo(SavingsDrawdownChart);

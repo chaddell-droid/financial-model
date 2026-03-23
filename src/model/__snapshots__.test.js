@@ -10,6 +10,7 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import { INITIAL_STATE, MODEL_KEYS } from '../state/initialState.js';
+import { reducer } from '../state/reducer.js';
 import { runMonthlySimulation, computeProjection, computeWealthProjection, findOperationalBreakevenIndex } from './projection.js';
 import { getVestEvents, getTotalRemainingVesting } from './vesting.js';
 import { evaluateGoal, evaluateGoalPass, evaluateAllGoals } from './goalEvaluation.js';
@@ -26,6 +27,7 @@ import { runDadMonteCarlo, runMonteCarlo } from './monteCarlo.js';
 import { fmt } from './formatters.js';
 import { exportModelData } from './exportData.js';
 import { PRIMARY_LEVERS_BCS_STATUS_QUO, buildPrimaryLeversModel } from './scenarioLevers.js';
+import { buildBridgeStoryModel, buildOverviewStatusModel, groupBridgeDrivers, selectBridgeMarkers } from './overviewStory.js';
 import { buildPwaDistribution, getDistributionPercentile, getPwaSummary } from './pwaDistribution.js';
 import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from './pwaStrategies.js';
 import { buildLegendItems, CHART_PRESENTATION, formatModelTimeLabel, getSummaryTimeframeLabel } from '../charts/chartContract.js';
@@ -592,6 +594,324 @@ test('buildPrimaryLeversModel separates changed-here and other-assumption conseq
   assert.ok(otherAssumptions.includes('house_projects'), 'other assumptions should include house projects');
 });
 
+console.log('\n=== Overview Story Model Guards ===');
+
+test('buildOverviewStatusModel returns exactly four compact strip entries', () => {
+  const status = buildOverviewStatusModel({
+    rawMonthlyGap: -22659,
+    netMonthly: -20530,
+    breakevenLabel: 'Best: -$16.3K at Q2\'27',
+    breakevenIdx: -1,
+    bestProjectedGap: -16301,
+    bestProjectedLabel: 'Q2\'27',
+    savingsZeroLabel: '~12 months',
+    savingsZeroMonth: { month: 12 },
+    advanceNeeded: 0,
+    steadyStateNet: -19412,
+    steadyLabel: 'Q4\'30',
+    mcResults: null,
+  });
+
+  eq(status.question, 'How far are we from monthly breakeven?');
+  eq(status.answer, 'Not reached in current projection');
+  eq(status.items.length, 4);
+  eq(status.items[0].id, 'current_gap');
+  eq(status.items[1].id, 'breakeven');
+  eq(status.items[2].id, 'best_projected_gap');
+  eq(status.items[3].id, 'runway');
+  eq(status.items[2].detail, 'Q2\'27');
+});
+
+test('selectBridgeMarkers caps overview markers at ten and plan markers at nine', () => {
+  const markers = [
+    { id: 'cuts', label: 'Cuts', month: 0, kind: 'benefit' },
+    { id: 'breakeven', label: 'Breakeven', month: 12, kind: 'breakeven' },
+    { id: 'trust', label: 'Trust', month: 9, kind: 'transition' },
+    { id: 'cliff', label: 'MSFT cliff', month: 18, kind: 'cliff' },
+    { id: 'end', label: 'MSFT ends', month: 30, kind: 'cliff' },
+    { id: 'milestone', label: 'Milestone', month: 24, kind: 'milestone' },
+    { id: 'ageout', label: 'Kids age out', month: 43, kind: 'cliff' },
+    { id: 'stepdown', label: 'MSFT step-down', month: 6, kind: 'cliff' },
+    { id: 'bcs', label: 'BCS ends', month: 36, kind: 'transition' },
+  ];
+
+  eq(selectBridgeMarkers(markers, 'overview').length, 9);
+  eq(selectBridgeMarkers(markers, 'plan').length, 9);
+  eq(selectBridgeMarkers(markers, 'overview')[0].id, 'cuts');
+  eq(selectBridgeMarkers(markers, 'plan')[0].id, 'cuts');
+});
+
+test('selectBridgeMarkers keeps only the highest-priority marker per month before applying the cap', () => {
+  const markers = selectBridgeMarkers([
+    { id: 'debt', label: 'Debt retired', month: 0, kind: 'benefit' },
+    { id: 'van', label: 'Van sold', month: 0, kind: 'benefit' },
+    { id: 'cuts', label: 'Cuts applied', month: 0, kind: 'benefit' },
+    { id: 'breakeven', label: 'Breakeven M0', month: 0, kind: 'breakeven' },
+    { id: 'trust', label: 'Trust +$1,250/mo', month: 11, kind: 'transition' },
+    { id: 'ss', label: 'SS $7,099/mo', month: 18, kind: 'transition' },
+    { id: 'cliff', label: 'MSFT cliff', month: 18, kind: 'cliff' },
+    { id: 'bcs', label: 'BCS ends', month: 36, kind: 'transition' },
+  ], 'overview');
+
+  eq(markers.length, 4);
+  eq(markers.filter((marker) => marker.month === 0).length, 1);
+  eq(markers.find((marker) => marker.month === 0).id, 'breakeven');
+  eq(markers.find((marker) => marker.month === 18).id, 'ss');
+});
+
+test('groupBridgeDrivers produces at most three grouped rows', () => {
+  const groups = groupBridgeDrivers([
+    { id: 'returns', impact: 1000, month: 0 },
+    { id: 'ss', impact: 2000, month: 12 },
+    { id: 'trust', impact: 500, month: 9 },
+    { id: 'cliff', impact: -4000, month: 18, kind: 'drop' },
+    { id: 'end', impact: -2000, month: 30, kind: 'drop' },
+  ], 'overview');
+
+  eq(groups.length, 3);
+  eq(groups[0].id, 'helps_now');
+  eq(groups[1].id, 'changes_later');
+  eq(groups[2].id, 'drops_off');
+});
+
+test('buildBridgeStoryModel separates timed drops from helpful drivers and expands marker coverage for major steps', () => {
+  const story = buildBridgeStoryModel({
+    monthlyDetail: [{ month: 0, netMonthlySmoothed: -20530 }, { month: 12, netMonthlySmoothed: -17019 }],
+    data: [
+      { label: 'Q1\'26', month: 0, netMonthly: -20530, netCashFlow: -22463 },
+      { label: 'Q2\'27', month: 15, netMonthly: -16301, netCashFlow: -16310 },
+      { label: 'Q4\'30', month: 57, netMonthly: -19412, netCashFlow: -19412 },
+    ],
+    milestones: [{ name: 'Oliver tuition drop', month: 24, savings: 1200 }],
+    variant: 'overview',
+    todayGap: -22659,
+    finalNet: -19412,
+    crossMonth: null,
+    trustIncomeNow: 833,
+    trustIncomeFuture: 2083,
+    trustIncreaseMonth: 9,
+    retireDebt: true,
+    debtService: 6434,
+    vanSold: true,
+    vanMonthlySavings: 807,
+    lifestyleCutsApplied: true,
+    totalCuts: 11670,
+    bcsYearsLeft: 3,
+    bcsFamilyMonthly: 2917,
+    currentMsft: 14565,
+    postCliffMsft: 3500,
+    ssLabel: 'SSDI',
+    ssMonth: 7,
+    ssAmount: 6500,
+    sarahGrowth: 3200,
+    monthlyReturn: 1900,
+    chadJobLabel: '',
+    chadJobMonth: 0,
+    chadJobMonthlyNet: 0,
+    chadJobHealthVal: 0,
+  });
+
+  eq(story.title, 'Monthly gap path');
+  eq(story.chips.length, 3);
+  assert.ok(story.markers.length <= 10, 'overview marker count should cap at ten');
+  assert.ok(story.driverGroups.some((group) => group.id === 'helps_now'), 'story should include helps-now drivers');
+  assert.ok(story.driverGroups.some((group) => group.id === 'drops_off'), 'story should include drop-off drivers');
+  assert.ok(story.driverGroups.find((group) => group.id === 'drops_off').items.some((item) => item.id === 'msft_cliff'), 'timed drops should stay in the drops-off group');
+  assert.ok(story.driverGroups.find((group) => group.id === 'helps_now').items.some((item) => item.id === 'debt_retired'), 'retired debt should contribute to helps-now drivers');
+});
+
+test('buildBridgeStoryModel keeps SS visible in dense scenarios by collapsing same-month markers', () => {
+  const story = buildBridgeStoryModel({
+    monthlyDetail: [
+      { month: 0, netMonthlySmoothed: 1200 },
+      { month: 12, netMonthlySmoothed: 1800 },
+      { month: 18, netMonthlySmoothed: -900 },
+      { month: 36, netMonthlySmoothed: 700 },
+    ],
+    data: [
+      { label: 'Q1\'26', month: 0, netMonthly: 1200, netCashFlow: 1200 },
+      { label: 'Q4\'26', month: 9, netMonthly: 1400, netCashFlow: 1400 },
+      { label: 'Q2\'27', month: 15, netMonthly: 1800, netCashFlow: 1800 },
+      { label: 'Q4\'30', month: 57, netMonthly: 700, netCashFlow: 700 },
+    ],
+    milestones: [],
+    variant: 'overview',
+    todayGap: 1200,
+    finalNet: 700,
+    crossMonth: { month: 0, label: 'M0' },
+    trustIncomeNow: 833,
+    trustIncomeFuture: 2083,
+    trustIncreaseMonth: 11,
+    retireDebt: true,
+    debtService: 6434,
+    vanSold: true,
+    vanSaleMonth: 6,
+    vanMonthlySavings: 807,
+    lifestyleCutsApplied: true,
+    totalCuts: 16500,
+    bcsYearsLeft: 3,
+    bcsFamilyMonthly: 2917,
+    currentMsft: 14565,
+    postCliffMsft: 3500,
+    ssLabel: 'SS',
+    ssMonth: 18,
+    ssAmount: 7099,
+    sarahGrowth: 3200,
+    monthlyReturn: 1900,
+    chadJobLabel: '',
+    chadJobMonth: 0,
+    chadJobMonthlyNet: 0,
+    chadJobHealthVal: 0,
+  });
+
+  eq(story.markers.filter((marker) => marker.month === 0).length, 1);
+  assert.ok(story.markers.some((marker) => marker.id === 'ss_income'), 'dense bridge story should retain the SS transition marker');
+  assert.ok(story.markers.every((marker) => marker.id !== 'debt_retired' || marker.month !== 0), 'same-month benefits should not crowd out later transitions');
+});
+
+test('buildBridgeStoryModel keeps MSFT end visible in dense bridge states with multiple future transitions', () => {
+  const story = buildBridgeStoryModel({
+    monthlyDetail: [
+      { month: 0, netMonthlySmoothed: 4200 },
+      { month: 6, netMonthlySmoothed: 3800, msftSmoothed: 9500 },
+      { month: 7, netMonthlySmoothed: 10100, ssdi: 6500 },
+      { month: 11, netMonthlySmoothed: 11200, trustLLC: 2083 },
+      { month: 12, netMonthlySmoothed: 12600, expenses: 21000 },
+      { month: 18, netMonthlySmoothed: 9400, msftSmoothed: 3300 },
+      { month: 30, netMonthlySmoothed: 9300, msftSmoothed: 0 },
+      { month: 36, netMonthlySmoothed: 13700, expenses: 16500, ssdi: 6500 },
+      { month: 43, netMonthlySmoothed: 11400, ssdi: 4166 },
+    ],
+    data: [
+      { label: 'Q1\'26', month: 0, netMonthly: 4200, netCashFlow: 4200 },
+      { label: 'Q4\'30', month: 57, netMonthly: 18968, netCashFlow: 18968 },
+    ],
+    milestones: [{ name: 'Twins to college', month: 36, savings: 3000 }],
+    variant: 'overview',
+    todayGap: 4200,
+    finalNet: 18968,
+    crossMonth: { month: 0, label: 'M0' },
+    trustIncomeNow: 833,
+    trustIncomeFuture: 2083,
+    trustIncreaseMonth: 11,
+    retireDebt: true,
+    debtService: 6434,
+    vanSold: true,
+    vanSaleMonth: 12,
+    vanMonthlySavings: 2597,
+    lifestyleCutsApplied: true,
+    totalCuts: 18104,
+    bcsYearsLeft: 3,
+    bcsFamilyMonthly: 4333,
+    currentMsft: 14565,
+    postCliffMsft: 3304,
+    ssLabel: 'SSDI',
+    ssMonth: 7,
+    ssAmount: 6500,
+    sarahGrowth: 6275,
+    monthlyReturn: 2343,
+    chadJobLabel: '',
+    chadJobMonth: 0,
+    chadJobMonthlyNet: 0,
+    chadJobHealthVal: 0,
+  });
+
+  assert.ok(story.markers.some((marker) => marker.id === 'msft_end'), 'dense bridge story should keep the MSFT end marker visible');
+  assert.ok(story.markers.some((marker) => marker.id === 'ss_stepdown'), 'dense bridge story should keep the later benefit step-down visible');
+});
+
+test('buildBridgeStoryModel places van sale at the modeled sale month', () => {
+  const story = buildBridgeStoryModel({
+    monthlyDetail: [
+      { month: 0, netMonthlySmoothed: -20530 },
+      { month: 6, netMonthlySmoothed: -18000 },
+      { month: 12, netMonthlySmoothed: -17019 },
+    ],
+    data: [
+      { label: 'Q1\'26', month: 0, netMonthly: -20530, netCashFlow: -22463 },
+      { label: 'Q3\'26', month: 6, netMonthly: -18000, netCashFlow: -18000 },
+      { label: 'Q4\'30', month: 57, netMonthly: -19412, netCashFlow: -19412 },
+    ],
+    milestones: [],
+    variant: 'overview',
+    todayGap: -22659,
+    finalNet: -19412,
+    crossMonth: null,
+    trustIncomeNow: 833,
+    trustIncomeFuture: 2083,
+    trustIncreaseMonth: 11,
+    retireDebt: false,
+    debtService: 6434,
+    vanSold: true,
+    vanSaleMonth: 6,
+    vanMonthlySavings: 807,
+    lifestyleCutsApplied: false,
+    totalCuts: 0,
+    bcsYearsLeft: 3,
+    bcsFamilyMonthly: 2917,
+    currentMsft: 14565,
+    postCliffMsft: 3500,
+    ssLabel: 'SSDI',
+    ssMonth: 7,
+    ssAmount: 6500,
+    sarahGrowth: 3200,
+    monthlyReturn: 1900,
+    chadJobLabel: '',
+    chadJobMonth: 0,
+    chadJobMonthlyNet: 0,
+    chadJobHealthVal: 0,
+  });
+
+  eq(story.markers.find((marker) => marker.id === 'van_sold').month, 6);
+  eq(story.driverGroups.find((group) => group.id === 'changes_later').items.some((item) => item.id === 'van_sold'), false);
+});
+
+test('buildBridgeStoryModel labels major monthly step changes from the underlying projection', () => {
+  const state = gatherState();
+  const projection = computeProjection(state);
+  const story = buildBridgeStoryModel({
+    monthlyDetail: projection.monthlyData,
+    data: projection.data,
+    milestones: state.milestones,
+    variant: 'overview',
+    todayGap: projection.monthlyData[0].netMonthlySmoothed,
+    finalNet: projection.monthlyData[projection.monthlyData.length - 1].netMonthlySmoothed,
+    crossMonth: projection.monthlyData.find((row) => row.netMonthlySmoothed >= 0) || null,
+    trustIncomeNow: state.trustIncomeNow,
+    trustIncomeFuture: state.trustIncomeFuture,
+    trustIncreaseMonth: state.trustIncreaseMonth,
+    retireDebt: state.retireDebt,
+    debtService: state.debtService,
+    vanSold: state.vanSold,
+    vanSaleMonth: state.vanSaleMonth,
+    vanMonthlySavings: state.vanMonthlySavings,
+    lifestyleCutsApplied: state.lifestyleCutsApplied,
+    totalCuts: state.lifestyleCuts + state.cutInHalf + state.extraCuts,
+    bcsYearsLeft: state.bcsYearsLeft,
+    bcsFamilyMonthly: state.bcsFamilyMonthly,
+    currentMsft: 14565,
+    postCliffMsft: 3500,
+    ssLabel: 'SSDI',
+    ssMonth: state.ssdiApprovalMonth,
+    ssAmount: state.ssdiFamilyTotal,
+    sarahGrowth: 0,
+    monthlyReturn: 0,
+    chadJobLabel: '',
+    chadJobMonth: 0,
+    chadJobMonthlyNet: 0,
+    chadJobHealthVal: 0,
+  });
+
+  assert.ok(story.markers.some((marker) => marker.id === 'msft_stepdown_6'), 'baseline bridge should label the early MSFT step-down');
+  assert.ok(story.markers.some((marker) => marker.id === 'ss_income'), 'baseline bridge should label SSDI start');
+  assert.ok(story.markers.some((marker) => marker.id === 'trust_increase'), 'baseline bridge should label the trust increase');
+  assert.ok(story.markers.some((marker) => marker.id === 'msft_cliff'), 'baseline bridge should label the MSFT cliff');
+  assert.ok(story.markers.some((marker) => marker.id === 'msft_end'), 'baseline bridge should label MSFT ending');
+  assert.ok(story.markers.some((marker) => marker.id === 'bcs_end'), 'baseline bridge should label BCS ending');
+  assert.ok(story.markers.some((marker) => marker.id === 'ss_stepdown'), 'baseline bridge should label the later benefit step-down');
+  assert.ok(story.driverGroups.find((group) => group.id === 'drops_off').items.some((item) => item.id === 'ss_stepdown'), 'benefit step-down should be reflected in the drops-off explanation');
+});
+
 console.log('\n=== Primary Levers UI Contract Guards ===');
 
 test('ScenarioStrip uses Primary Levers title and no longer leads with Scenarios', () => {
@@ -645,7 +965,7 @@ test('ScenarioStrip uses layoutBucket plumbing instead of a fixed 1fr/1fr split'
   assert.ok(!source.includes('gridTemplateColumns: "1fr 1fr"'), 'scenario strip should not depend on the old fixed 50/50 split');
 });
 
-test('FinancialModel passes the shell layout bucket into ScenarioStrip', () => {
+test('FinancialModel passes the shell layout bucket into plan-owned ScenarioStrip props', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
   assert.ok(source.includes('layoutBucket: shellWidthBucket'), 'FinancialModel should pass shellWidthBucket into ScenarioStrip');
 });
@@ -988,7 +1308,7 @@ test('Retirement surface wires inline help primitives into the section', () => {
 test('Retirement help layout uses the shared shell rail and responsive retirement grids', () => {
   const shellSource = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
-  assert.ok(shellSource.includes("minmax(460px, 560px)"), 'shared shell should reserve dedicated rail width for the retirement surface');
+  assert.ok(shellSource.includes("minmax(320px, 420px)"), 'shared shell should cap rail width for the retirement surface');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'retirement controls should use responsive auto-fit grids');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
 });
@@ -1044,13 +1364,16 @@ test('runDadMonteCarlo stays finite with extreme negative MSFT growth', () => {
 
 console.log('\n=== UI Harness Guards ===');
 
-test('main installs the browser UI harness in development builds', () => {
+test('main installs the browser UI harness and disables StrictMode for ui_test runs', () => {
   const mainSource = fs.readFileSync(new URL('../main.jsx', import.meta.url), 'utf8');
   const harnessSource = fs.readFileSync(new URL('../testing/uiHarness.js', import.meta.url), 'utf8');
   assert.ok(mainSource.includes('installUiTestHarness'), 'main should install the UI test harness');
+  assert.ok(mainSource.includes('getUiTestConfig'), 'main should read the UI test config');
+  assert.ok(mainSource.includes('uiTestConfig.enabled'), 'main should branch on ui_test mode');
   assert.ok(harnessSource.includes('__FIN_MODEL_TEST__'), 'UI harness should expose a browser test API');
   assert.ok(harnessSource.includes('resetStorage'), 'UI harness should expose a storage reset hook');
   assert.ok(harnessSource.includes('getMonteCarloSeed'), 'UI harness should expose Monte Carlo seed controls');
+  assert.ok(harnessSource.includes('!import.meta.env.DEV && !config.enabled'), 'UI harness should remain available in preview when ui_test is enabled');
 });
 test('shared input primitives expose stable automation metadata', () => {
   const sliderSource = fs.readFileSync(new URL('../components/Slider.jsx', import.meta.url), 'utf8');
@@ -1125,7 +1448,10 @@ test('SSDI denied disables the SSDI-path consulting slider', () => {
 test('bridge chart endpoint label stays inside the plot area', () => {
   const bridgeSource = fs.readFileSync(new URL('../charts/BridgeChart.jsx', import.meta.url), 'utf8');
   assert.ok(bridgeSource.includes('x={svgW - padR - 4}'), 'bridge endpoint label should anchor inside the right edge');
-  assert.ok(bridgeSource.includes('textAnchor="end"'), 'bridge endpoint label should anchor inward to avoid clipping');
+  assert.ok(
+    bridgeSource.includes("textAnchor='end'") || bridgeSource.includes('textAnchor="end"'),
+    'bridge endpoint label should anchor inward to avoid clipping'
+  );
 });
 
 console.log('\n=== UI Swarm Contract Guards ===');
@@ -1201,6 +1527,32 @@ test('package.json exposes the one-command UI swarm runner', () => {
   eq(pkg.scripts['ui:swarm'], 'node tests/ui/run-swarm.js', 'ui:swarm script');
 });
 
+test('package.json exposes the preview-based UI perf runner', () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  eq(pkg.scripts['ui:perf'], 'node tests/ui/perf/run-perf.js', 'ui:perf script');
+});
+
+test('UI perf runner artifacts exist', () => {
+  assert.ok(fs.existsSync(new URL('../../tests/ui/perf/run-perf.js', import.meta.url)), 'ui perf runner should exist');
+  assert.ok(fs.existsSync(new URL('../../tests/ui/perf/budgets.json', import.meta.url)), 'ui perf budgets should exist');
+  assert.ok(fs.existsSync(new URL('../../tests/ui/perf/README.md', import.meta.url)), 'ui perf README should exist');
+});
+
+test('UI perf budgets stay deterministic and complete', () => {
+  const perfBudgets = JSON.parse(fs.readFileSync(new URL('../../tests/ui/perf/budgets.json', import.meta.url), 'utf8'));
+  assert.ok(perfBudgets.appUrl.includes('ui_test=1'), 'perf budgets should target deterministic ui_test mode');
+  assert.ok(perfBudgets.appUrl.includes('mc_seed=123'), 'perf budgets should seed Monte Carlo');
+  assert.ok(perfBudgets.appUrl.includes('reset_storage=1'), 'perf budgets should reset storage');
+  assert.ok(Array.isArray(perfBudgets.metrics) && perfBudgets.metrics.length > 0, 'perf budgets should define at least one metric');
+  perfBudgets.metrics.forEach((metric) => {
+    assert.ok(metric.id, 'each perf budget should have an id');
+    assert.ok(typeof metric.maxMedianMs === 'number', `perf budget ${metric.id} should cap median latency`);
+    assert.ok(typeof metric.maxP95Ms === 'number', `perf budget ${metric.id} should cap p95 latency`);
+    assert.ok(typeof metric.maxLongTaskCount === 'number', `perf budget ${metric.id} should cap long-task count`);
+    assert.ok(typeof metric.maxLongTaskMs === 'number', `perf budget ${metric.id} should cap long-task duration`);
+  });
+});
+
 console.log('\n=== UI Foundation Guards ===');
 
 test('formatModelTimeLabel preserves the shared M0/Y1 timeline contract', () => {
@@ -1226,7 +1578,7 @@ test('buildLegendItems filters falsy entries and assigns fallback ids', () => {
 });
 
 test('chart contract caps primary annotations at four', () => {
-  eq(CHART_PRESENTATION.maxPrimaryAnnotations, 4);
+  eq(CHART_PRESENTATION.maxPrimaryAnnotations, 10);
 });
 
 test('ui glossary exports canonical timeline, retirement, and risk labels', () => {
@@ -1238,7 +1590,7 @@ test('ui glossary exports canonical timeline, retirement, and risk labels', () =
 test('shell width buckets follow the shared breakpoint contract', () => {
   eq(getShellWidthBucket(UI_BREAKPOINTS.compact - 1), 'compact');
   eq(getShellWidthBucket(UI_BREAKPOINTS.compact), 'stacked');
-  eq(getShellWidthBucket(UI_BREAKPOINTS.railCollapse), 'desktop');
+  eq(getShellWidthBucket(UI_BREAKPOINTS.railCollapse), 'stacked');
 });
 
 test('index.css no longer uses style-string typography overrides', () => {
@@ -1253,6 +1605,15 @@ test('FinancialModel uses breakpoint-driven app shell scaffold', () => {
   assert.ok(source.includes('const [shellWidthBucket, setShellWidthBucket] = useState'), 'shell should track breakpoint buckets');
   assert.ok(source.includes('<AppShell'), 'shell should render AppShell');
   assert.ok(source.includes('showEmbeddedBalanceCharts={!showRail}'), 'risk tab should suppress duplicate balance charts when the rail is visible');
+  assert.ok(source.includes('useDeferredValue(bridgeProps)'), 'planner bridge updates should be deferrable');
+  assert.ok(source.includes('useDeferredValue(retirementRailProps)'), 'planner rail retirement props should be deferred');
+  assert.ok(source.includes('useLaggedValue(deferredRetirementRailProps, laggedRailDelayMs)'), 'below-rail retirement updates should be lagged off the hot path');
+});
+
+test('useLaggedValue exists for non-urgent rail updates', () => {
+  const source = fs.readFileSync(new URL('../ui/useLaggedValue.js', import.meta.url), 'utf8');
+  assert.ok(source.includes('window.setTimeout'), 'lagged value updates should wait on a timer');
+  assert.ok(source.includes('window.clearTimeout'), 'lagged value updates should clear pending timers');
 });
 
 test('docs ui contract records the required shell behavior matrix and help hierarchy', () => {
@@ -1268,6 +1629,18 @@ test('ActionButton and SurfaceCard exist as Wave 1 shell primitives', () => {
 });
 
 console.log('\n=== Wave 2 UI Contract Guards ===');
+
+test('reducer supports batched field updates for hot UI paths', () => {
+  const next = reducer(INITIAL_STATE, {
+    type: 'SET_FIELDS',
+    fields: {
+      cutShopping: 999,
+      cutsOverride: null,
+    },
+  });
+  eq(next.cutShopping, 999);
+  eq(next.cutsOverride, null);
+});
 
 test('Slider exposes helperText and disabledReason semantics', () => {
   const source = fs.readFileSync(new URL('../components/Slider.jsx', import.meta.url), 'utf8');
@@ -1317,6 +1690,63 @@ test('Monthly and rail charts adopt the shared chart contract helpers', () => {
   assert.ok(pwaSource.includes('buildLegendItems'), 'PWA distribution chart should use shared legend helpers');
 });
 
+test('PlanTab owns ScenarioStrip and GoalPanel instead of the global shell', () => {
+  const planSource = fs.readFileSync(new URL('../panels/tabs/PlanTab.jsx', import.meta.url), 'utf8');
+  assert.ok(planSource.includes('<ScenarioStrip {...scenarioStripProps} />'), 'PlanTab should render ScenarioStrip');
+  assert.ok(planSource.includes('<GoalPanel {...goalPanelProps} />'), 'PlanTab should render GoalPanel');
+  assert.ok(planSource.includes("data-testid='plan-workspace'"), 'PlanTab should expose a stable workspace selector');
+});
+
+test('FinancialModel passes planning workflow props into PlanTab', () => {
+  const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('scenarioStripProps={scenarioStripProps}'), 'FinancialModel should pass scenarioStripProps into PlanTab');
+  assert.ok(source.includes('goalPanelProps={deferredGoalPanelProps}'), 'FinancialModel should pass deferred goalPanelProps into PlanTab');
+  assert.ok(source.includes('showCompareBanner'), 'FinancialModel should keep compare state in the compact summary zone');
+});
+
+test('FinancialModel passes best-projected-gap inputs into KeyMetrics', () => {
+  const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('bestProjectedGap={bestProjectedGap}'), 'FinancialModel should pass bestProjectedGap into KeyMetrics');
+  assert.ok(source.includes('bestProjectedLabel={bestProjectedLabel}'), 'FinancialModel should pass bestProjectedLabel into KeyMetrics');
+});
+
+test('Overview and Plan force the rail below the first workspace viewport', () => {
+  const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes("(effectiveTab === 'overview' || effectiveTab === 'plan')"), 'overview and plan should force below-rail placement');
+});
+
+test('AppShell narrows the side rail width contract', () => {
+  const source = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes("minmax(320px, 420px)"), 'AppShell should narrow the side rail width');
+  assert.ok(!source.includes("minmax(460px, 560px)"), 'AppShell should drop the old wide side-rail contract');
+});
+
+test('shell width buckets collapse the rail at 1180 inclusive', () => {
+  eq(getShellWidthBucket(959), 'compact');
+  eq(getShellWidthBucket(960), 'stacked');
+  eq(getShellWidthBucket(1180), 'stacked');
+  eq(getShellWidthBucket(1181), 'desktop');
+});
+
+test('KeyMetrics uses a single compact overview status strip contract', () => {
+  const source = fs.readFileSync(new URL('../components/KeyMetrics.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('buildOverviewStatusModel'), 'KeyMetrics should use the overview story helper');
+  assert.ok(source.includes("data-testid='overview-status-strip'"), 'KeyMetrics should expose the overview status strip selector');
+  assert.ok(source.includes("data-testid='overview-primary-question'"), 'KeyMetrics should expose the overview question selector');
+  assert.ok(source.includes("data-testid='overview-primary-answer'"), 'KeyMetrics should expose the overview answer selector');
+  assert.ok(source.includes("overview-status-current-gap"), 'KeyMetrics should expose the current-gap selector');
+  assert.ok(source.includes("overview-status-best-gap"), 'KeyMetrics should expose the best-gap selector');
+  assert.ok(!source.includes('summaryCards = ['), 'KeyMetrics should not keep the old summaryCards deck');
+  assert.ok(!source.includes('const metrics = ['), 'KeyMetrics should not keep the old second metrics grid');
+});
+
+test('ActiveTogglePills exposes a compact active-plan summary row', () => {
+  const source = fs.readFileSync(new URL('../components/ActiveTogglePills.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes("data-testid='overview-active-plan-summary'"), 'ActiveTogglePills should expose the compact active-plan summary selector');
+  assert.ok(source.includes('Baseline assumptions active.'), 'ActiveTogglePills should render a baseline summary when no levers are active');
+  assert.ok(source.includes('overview-active-pill-'), 'ActiveTogglePills should expose stable active-pill selectors');
+});
+
 console.log('\n=== Wave 3 UI Contract Guards ===');
 
 test('Retirement surface distinguishes planning modes with identity and control sections', () => {
@@ -1352,6 +1782,43 @@ test('UI swarm manifest tracks the new risk workflow and retirement identity sel
   assert.ok(sequence.elements.some((element) => element.selector === '[data-testid="risk-workflow-overview"]'), 'risk manifest should track the workflow overview');
   assert.ok(sequence.elements.some((element) => element.selector === '[data-testid="sequence-returns-summary"]'), 'risk manifest should track the sequence summary strip');
   assert.ok(retirement.elements.some((element) => element.selector === '[data-testid="retirement-mode-identity"]'), 'retirement manifest should track the mode identity banner');
+});
+
+console.log('\n=== Wave 4 UI Contract Guards ===');
+
+test('Overview and Plan wire the simplified bridge variants explicitly', () => {
+  const overviewSource = fs.readFileSync(new URL('../panels/tabs/OverviewTab.jsx', import.meta.url), 'utf8');
+  const planSource = fs.readFileSync(new URL('../panels/tabs/PlanTab.jsx', import.meta.url), 'utf8');
+  assert.ok(overviewSource.includes("variant='overview'"), 'OverviewTab should pass the overview bridge variant');
+  assert.ok(planSource.includes("variant='plan'"), 'PlanTab should pass the plan bridge variant');
+  assert.ok(planSource.includes("data-testid='plan-bridge-feedback'"), 'PlanTab should keep a stable bridge feedback selector');
+});
+
+test('BridgeChart uses the single-card monthly gap path contract', () => {
+  const bridgeSource = fs.readFileSync(new URL('../charts/BridgeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(bridgeSource.includes('{story.title}'), 'BridgeChart should render the simplified story-driven title');
+  assert.ok(bridgeSource.includes("data-testid='bridge-card'"), 'BridgeChart should expose the bridge card selector');
+  assert.ok(bridgeSource.includes("data-testid='bridge-kpi-strip'"), 'BridgeChart should expose the KPI strip selector');
+  assert.ok(bridgeSource.includes("data-testid='bridge-driver-groups'"), 'BridgeChart should expose grouped drivers below the chart');
+  assert.ok(bridgeSource.includes("data-testid='bridge-marker-layer'"), 'BridgeChart should expose the marker layer selector');
+  assert.ok(bridgeSource.includes('layoutMarkerLabels'), 'BridgeChart should lay marker labels out instead of alternating by raw index');
+  assert.ok(bridgeSource.includes('return `bridge-marker-${item.id}`;'), 'BridgeChart should expose stable bridge marker selectors');
+  assert.ok(bridgeSource.includes('variant === \'overview\''), 'BridgeChart should vary presentation by overview/plan mode');
+  assert.ok(!bridgeSource.includes('Lever summary — total monthly impact of each action'), 'BridgeChart should not retain the old lever-summary waterfall');
+  assert.ok(!bridgeSource.includes('Bridge to Sustainability'), 'BridgeChart should not retain the old bridge title');
+});
+
+test('UI swarm manifest tracks the simplified bridge surface selectors', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
+  const overview = manifest.entries.find((entry) => entry.id === 'overview.status_and_bridge');
+  const dense = manifest.entries.find((entry) => entry.id === 'overview.bridge_dense_markers');
+  const plan = manifest.entries.find((entry) => entry.id === 'plan.workspace_first');
+  assert.ok(overview.elements.some((element) => element.selector === '[data-testid="bridge-card"]'), 'overview manifest should track the bridge card selector');
+  assert.ok(overview.elements.some((element) => element.selector === '[data-testid="bridge-kpi-strip"]'), 'overview manifest should track the bridge KPI strip selector');
+  assert.ok(overview.elements.some((element) => element.selector === '[data-testid="bridge-driver-groups"]'), 'overview manifest should track the grouped driver selector');
+  assert.ok(dense.elements.some((element) => element.selector === '[data-testid="bridge-marker-ss_income"]'), 'dense overview manifest should track the SS marker selector');
+  assert.ok(plan.elements.some((element) => element.selector === '[data-testid="plan-primary-levers-section"]'), 'plan manifest should track the primary levers section');
+  assert.ok(plan.elements.some((element) => element.selector === '[data-testid="plan-bridge-feedback"]'), 'plan manifest should track the bridge feedback section');
 });
 
 console.log('\n=== UI-07 Utility And Mode Alignment Guards ===');
@@ -1432,11 +1899,11 @@ test('shell performance guardrails stay event-driven without polling or observer
   assert.ok(!shellSource.includes('ResizeObserver'), 'AppShell should not introduce resize observers for layout');
 });
 
-test('screenshot evidence manifest covers shell, Primary Levers, retirement, risk, Sarah, and Dad at required breakpoints', () => {
+test('screenshot evidence manifest covers shell, Overview, Plan, Primary Levers, retirement, risk, Sarah, and Dad at required breakpoints', () => {
   const evidence = JSON.parse(fs.readFileSync(new URL('../../tests/ui/screenshot-evidence.json', import.meta.url), 'utf8'));
   const required = ['1440x1200', '1180x1000', '900x1000'];
   eq(evidence.requiredViewports.length, required.length, 'required screenshot viewport count');
-  for (const surface of ['shell', 'primary_levers', 'retirement', 'risk', 'sarah', 'dad']) {
+  for (const surface of ['shell', 'overview_reset', 'plan_workspace', 'primary_levers', 'retirement', 'risk', 'sarah', 'dad']) {
     assert.ok(evidence.surfaces[surface], `${surface} screenshot surface should exist`);
     for (const viewport of required) {
       assert.ok(typeof evidence.surfaces[surface][viewport] === 'string', `${surface} should define screenshot evidence for ${viewport}`);

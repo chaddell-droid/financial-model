@@ -1,0 +1,42 @@
+{
+  "appUrl": "http://127.0.0.1:4173/?ui_test=1&mc_seed=123&reset_storage=1",
+  "runs": 5,
+  "warmups": 1,
+  "metrics": [
+    {
+      "id": "shell.overview_to_plan_ready_ms",
+      "maxMedianMs": 220,
+      "maxP95Ms": 320,
+      "maxLongTaskCount": 0,
+      "maxLongTaskMs": 0
+    },
+    {
+      "id": "plan.retire_debt_toggle_ms",
+      "maxMedianMs": 260,
+      "maxP95Ms": 360,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 50
+    },
+    {
+      "id": "plan.van_toggle_ms",
+      "maxMedianMs": 260,
+      "maxP95Ms": 360,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 50
+    },
+    {
+      "id": "plan.cuts_toggle_ms",
+      "maxMedianMs": 260,
+      "maxP95Ms": 360,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 50
+    },
+    {
+      "id": "plan.base_expense_slider_ms",
+      "maxMedianMs": 80,
+      "maxP95Ms": 120,
+      "maxLongTaskCount": 0,
+      "maxLongTaskMs": 0
+    }
+  ]
+}

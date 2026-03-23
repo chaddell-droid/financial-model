@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { memo, useState, useMemo, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import HelpDrawer from '../components/help/HelpDrawer.jsx';
@@ -147,7 +147,7 @@ function ControlSection({ title, subtitle, children, testId }) {
   );
 }
 
-export default function RetirementIncomeChart({
+function RetirementIncomeChart({
   savingsData, wealthData,
   ssType, ssPersonal,
   chadJob,
@@ -1572,3 +1572,5 @@ export default function RetirementIncomeChart({
     </div>
   );
 }
+
+export default memo(RetirementIncomeChart);

@@ -1,6 +1,8 @@
-import React from "react";
+import React, { memo } from "react";
 import BridgeChart from '../../charts/BridgeChart.jsx';
 
-export default function OverviewTab({ bridgeProps }) {
-  return <BridgeChart {...bridgeProps} />;
+function OverviewTab({ bridgeProps }) {
+  return <BridgeChart {...bridgeProps} variant='overview' />;
 }
+
+export default memo(OverviewTab);

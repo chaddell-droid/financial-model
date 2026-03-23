@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useEffect, useState } from "react";
+import { useReducer, useMemo, useEffect, useState, useDeferredValue } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
@@ -20,14 +20,13 @@ import NetWorthChart from './charts/NetWorthChart.jsx';
 import RetirementIncomeChart from './charts/RetirementIncomeChart.jsx';
 import DadMode from './panels/DadMode.jsx';
 import SarahMode from './panels/SarahMode.jsx';
-import ScenarioStrip from './panels/ScenarioStrip.jsx';
-import GoalPanel from './panels/GoalPanel.jsx';
 import OverviewTab from './panels/tabs/OverviewTab.jsx';
 import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
 import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
 import { getShellWidthBucket } from './ui/tokens.js';
+import { useLaggedValue } from './ui/useLaggedValue.js';
 
 function getInitialShellWidthBucket() {
   if (typeof window === 'undefined') return 'desktop';
@@ -50,11 +49,11 @@ export default function FinancialModel() {
   };
 
   const set = (field) => (value) => {
-    dispatch({ type: 'SET_FIELD', field, value });
-    // If an individual cut changes, clear the macro override so detail takes over
     if (field.startsWith('cut') && field !== 'cutsOverride') {
-      dispatch({ type: 'SET_FIELD', field: 'cutsOverride', value: null });
+      dispatch({ type: 'SET_FIELDS', fields: { [field]: value, cutsOverride: null } });
+      return;
     }
+    dispatch({ type: 'SET_FIELD', field, value });
   };
 
   const {
@@ -386,12 +385,14 @@ export default function FinancialModel() {
 
   const breakevenIdx = findOperationalBreakevenIndex(data);
   const bestIdx = data.reduce((bestI, d, i) => d.netMonthly > data[bestI].netMonthly ? i : bestI, 0);
+  const bestProjectedGap = data[bestIdx]?.netMonthly ?? data[0]?.netMonthly ?? rawMonthlyGap;
+  const bestProjectedLabel = data[bestIdx]?.label ?? '';
   const highlightIdx = breakevenIdx >= 0 ? breakevenIdx : bestIdx;
   const highlightLabel = breakevenIdx >= 0 ? "BREAKEVEN" : "BEST";
   const breakevenLabel = breakevenIdx >= 0 ? data[breakevenIdx].label : `Best: ${fmt(data[bestIdx].netMonthly)} at ${data[bestIdx].label}`;
 
   // === PROP BUNDLES for tab components ===
-  const bridgeProps = {
+  const bridgeProps = useMemo(() => ({
     monthlyDetail, data,
     sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
@@ -400,13 +401,26 @@ export default function FinancialModel() {
     ssFamilyTotal, ssStartMonth,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     milestones, bcsYearsLeft, bcsFamilyMonthly,
-    baseExpenses, debtService, vanMonthlySavings,
+    baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
     lifestyleCuts, cutInHalf, extraCuts,
     startingSavings, investmentReturn, msftGrowth,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-  };
+  }), [
+    monthlyDetail, data,
+    sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
+    retireDebt, vanSold, lifestyleCutsApplied,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
+    ssFamilyTotal, ssStartMonth,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    milestones, bcsYearsLeft, bcsFamilyMonthly,
+    baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
+    lifestyleCuts, cutInHalf, extraCuts,
+    startingSavings, investmentReturn, msftGrowth,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+  ]);
 
-  const timelineProps = {
+  const timelineProps = useMemo(() => ({
     retireDebt, debtService,
     ssType, ssdiApprovalMonth, ssdiFamilyTotal,
     ssdiPersonal, ssdiBackPayActual,
@@ -417,9 +431,19 @@ export default function FinancialModel() {
     vanSold, vanMonthlySavings,
     kidsAgeOutMonths, msftGrowth,
     currentMsftVesting: data[0].msftVesting,
-  };
+  }), [
+    retireDebt, debtService,
+    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
+    ssdiPersonal, ssdiBackPayActual,
+    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    chadConsulting, milestones,
+    bcsYearsLeft, bcsFamilyMonthly,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    vanSold, vanMonthlySavings,
+    kidsAgeOutMonths, msftGrowth, data,
+  ]);
 
-  const scenarioStripProps = {
+  const scenarioStripProps = useMemo(() => ({
     retireDebt, lifestyleCutsApplied, cutsOverride,
     lifestyleCuts, cutInHalf, extraCuts,
     debtTotal, debtService,
@@ -433,17 +457,35 @@ export default function FinancialModel() {
     advanceNeeded,
     layoutBucket: shellWidthBucket,
     onFieldChange: set,
-  };
+  }), [
+    retireDebt, lifestyleCutsApplied, cutsOverride,
+    lifestyleCuts, cutInHalf, extraCuts,
+    debtTotal, debtService,
+    baseExpenses, data,
+    vanSold, vanMonthlySavings,
+    bcsAnnualTotal, bcsParentsAnnual,
+    bcsYearsLeft, bcsFamilyMonthly,
+    moldCost, moldInclude,
+    roofCost, roofInclude,
+    otherProjects, otherInclude,
+    advanceNeeded, shellWidthBucket,
+  ]);
 
-  const cashFlowProps = {
+  const cashFlowProps = useMemo(() => ({
     data, chartH, netRange,
     minNet, maxNet, maxVesting,
     highlightIdx, highlightLabel,
     ssType, ssdiApprovalMonth, ssdiFamilyTotal,
     msftGrowth,
-  };
+  }), [
+    data, chartH, netRange,
+    minNet, maxNet, maxVesting,
+    highlightIdx, highlightLabel,
+    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
+    msftGrowth,
+  ]);
 
-  const incomeControlsProps = {
+  const incomeControlsProps = useMemo(() => ({
     sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     sarahCurrentNet, sarahCeiling,
@@ -457,9 +499,22 @@ export default function FinancialModel() {
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     onFieldChange: set,
-  };
+  }), [
+    sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
+    sarahCurrentNet, sarahCeiling,
+    ssType, ssdiDenied,
+    ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
+    ssdiApprovalMonth, ssdiBackPayMonths,
+    ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
+    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    chadConsulting,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
+    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
+  ]);
 
-  const expenseControlsProps = {
+  const expenseControlsProps = useMemo(() => ({
     baseExpenses, debtService,
     debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
     retireDebt, lifestyleCutsApplied,
@@ -473,9 +528,22 @@ export default function FinancialModel() {
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
     onFieldChange: set,
-  };
+  }), [
+    baseExpenses, debtService,
+    debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
+    retireDebt, lifestyleCutsApplied,
+    cutOliver, cutVacation, cutShopping,
+    cutMedical, cutGym, cutAmazon, cutSaaS,
+    cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
+    lifestyleCuts, cutInHalf, extraCuts,
+    bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+    vanSold, vanMonthlySavings,
+    milestones,
+    moldCost, moldInclude, roofCost, roofInclude,
+    otherProjects, otherInclude,
+  ]);
 
-  const monteCarloProps = {
+  const monteCarloProps = useMemo(() => ({
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
@@ -483,18 +551,29 @@ export default function FinancialModel() {
     savingsData, presentMode,
     gatherState,
     mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline },
-  };
+  }), [
+    mcResults, mcRunning,
+    mcNumSims, mcInvestVol, mcBizGrowthVol,
+    mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
+    savingsData, presentMode,
+  ]);
 
-  const seqReturnsProps = {
+  const seqReturnsProps = useMemo(() => ({
     seqBadY1, seqBadY2,
     onParamChange: set,
     startingSavings, investmentReturn,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
     ssStartMonth, ssKidsAgeOutMonths,
     monthlyDetail, presentMode,
-  };
+  }), [
+    seqBadY1, seqBadY2,
+    startingSavings, investmentReturn,
+    ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
+    ssStartMonth, ssKidsAgeOutMonths,
+    monthlyDetail, presentMode,
+  ]);
 
-  const savingsDrawdownProps = {
+  const savingsDrawdownProps = useMemo(() => ({
     savingsData, savingsZeroMonth, savingsZeroLabel,
     compareProjection, compareName,
     data, startingSavings, investmentReturn,
@@ -502,18 +581,30 @@ export default function FinancialModel() {
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode,
     onFieldChange: set, baseExpenses,
-  };
+  }), [
+    savingsData, savingsZeroMonth, savingsZeroLabel,
+    compareProjection, compareName,
+    data, startingSavings, investmentReturn,
+    debtCC, debtPersonal, debtIRS, debtFirstmark,
+    debtService, ssdiApprovalMonth, ssdiBackPayActual,
+    milestones, retireDebt, presentMode, baseExpenses,
+  ]);
 
-  const netWorthProps = {
+  const netWorthProps = useMemo(() => ({
     savingsData, wealthData,
     starting401k, return401k,
     homeEquity, homeAppreciation,
     presentMode, onFieldChange: set,
-  };
+  }), [
+    savingsData, wealthData,
+    starting401k, return401k,
+    homeEquity, homeAppreciation,
+    presentMode,
+  ]);
 
-  const dataTableProps = { data };
+  const dataTableProps = useMemo(() => ({ data }), [data]);
 
-  const summaryAskProps = {
+  const summaryAskProps = useMemo(() => ({
     totalRemainingVesting, data, startingSavings,
     savingsZeroMonth, savingsZeroLabel,
     ssdiApprovalMonth, ssdiBackPayActual, ssdiBackPayMonths,
@@ -522,7 +613,16 @@ export default function FinancialModel() {
     otherInclude, otherProjects,
     bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
     advanceNeeded, breakevenIdx,
-  };
+  }), [
+    totalRemainingVesting, data, startingSavings,
+    savingsZeroMonth, savingsZeroLabel,
+    ssdiApprovalMonth, ssdiBackPayActual, ssdiBackPayMonths,
+    retireDebt, debtTotal, debtService,
+    moldInclude, moldCost, roofInclude, roofCost,
+    otherInclude, otherProjects,
+    bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+    advanceNeeded, breakevenIdx,
+  ]);
 
   const activeExperience = dadMode
     ? 'dad'
@@ -531,88 +631,133 @@ export default function FinancialModel() {
       : presentMode
         ? 'present'
         : 'planner';
+  const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = activeExperience === 'planner' || activeExperience === 'present';
   const showTabs = activeExperience === 'planner';
   const showRail = activeExperience === 'planner';
-  const showWorkflowPanels = activeExperience === 'planner';
   const railPlacement = !showRail
     ? 'hidden'
-    : shellWidthBucket === 'desktop'
+    : (effectiveTab === 'overview' || effectiveTab === 'plan')
+      ? 'below'
+      : shellWidthBucket === 'desktop'
       ? 'side'
       : 'below';
   const compactShell = shellWidthBucket === 'compact';
-  const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
+  const showCompareBanner = activeExperience === 'planner' && Boolean(compareState);
+  const laggedRailDelayMs = railPlacement === 'below' ? 240 : 0;
+  const goalPanelProps = useMemo(() => ({
+    goals,
+    goalResults,
+    mcGoalResults,
+    mcRunning,
+    presentMode,
+    onGoalsChange: (newGoals) => set('goals')(newGoals),
+  }), [goals, goalResults, mcGoalResults, mcRunning, presentMode]);
 
-  const plannerSummary = showTopSummary ? (
-    <>
-      <KeyMetrics
-        netMonthly={data[0].netMonthly}
-        breakevenLabel={breakevenLabel}
-        breakevenIdx={breakevenIdx}
-        savingsZeroLabel={savingsZeroLabel}
-        savingsZeroMonth={savingsZeroMonth}
-        advanceNeeded={advanceNeeded}
-        mcResults={mcResults}
-        rawMonthlyGap={rawMonthlyGap}
-        steadyStateNet={steadyStateNet}
-        steadyLabel={data[steadyIdx]?.label}
-      />
+  const deferredPlanBridgeProps = useDeferredValue(bridgeProps);
+  const deferredCashFlowProps = useDeferredValue(cashFlowProps);
+  const deferredSavingsDrawdownProps = useDeferredValue(savingsDrawdownProps);
+  const deferredNetWorthProps = useDeferredValue(netWorthProps);
+  const retirementRailProps = useMemo(() => ({
+    savingsData,
+    wealthData,
+    ssType,
+    ssPersonal,
+    chadJob,
+    trustIncomeFuture,
+  }), [savingsData, wealthData, ssType, ssPersonal, chadJob, trustIncomeFuture]);
+  const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
+  const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
+  const laggedSavingsDrawdownProps = useLaggedValue(deferredSavingsDrawdownProps, laggedRailDelayMs);
+  const laggedNetWorthProps = useLaggedValue(deferredNetWorthProps, laggedRailDelayMs);
+  const laggedRetirementRailProps = useLaggedValue(deferredRetirementRailProps, laggedRailDelayMs);
 
-      <ActiveTogglePills
-        retireDebt={retireDebt}
-        lifestyleCutsApplied={lifestyleCutsApplied}
-        vanSold={vanSold}
-        debtService={debtService}
-        totalCuts={lifestyleCuts + cutInHalf + extraCuts}
-      />
-
-      {showWorkflowPanels ? (
-        <ComparisonBanner
-          compareState={compareState}
-          compareName={compareName}
-          onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
+  const plannerSummary = useMemo(() => {
+    if (!showTopSummary) return null;
+    return (
+      <>
+        <KeyMetrics
+          netMonthly={data[0].netMonthly}
+          breakevenLabel={breakevenLabel}
+          breakevenIdx={breakevenIdx}
+          savingsZeroLabel={savingsZeroLabel}
+          savingsZeroMonth={savingsZeroMonth}
+          advanceNeeded={advanceNeeded}
+          mcResults={mcResults}
+          rawMonthlyGap={rawMonthlyGap}
+          steadyStateNet={steadyStateNet}
+          steadyLabel={data[steadyIdx]?.label}
+          bestProjectedGap={bestProjectedGap}
+          bestProjectedLabel={bestProjectedLabel}
         />
-      ) : null}
-    </>
-  ) : null;
 
-  const plannerTabs = showWorkflowPanels || showTabs ? (
-    <>
-      {showWorkflowPanels ? (
-        <ScenarioStrip {...scenarioStripProps} />
-      ) : null}
-
-      {showTabs ? (
-        <TabBar activeTab={effectiveTab} onChange={set('activeTab')} compact={compactShell} />
-      ) : null}
-
-      {showWorkflowPanels ? (
-        <GoalPanel
-          goals={goals} goalResults={goalResults} mcGoalResults={mcGoalResults}
-          mcRunning={mcRunning} presentMode={presentMode}
-          onGoalsChange={(newGoals) => set('goals')(newGoals)}
+        <ActiveTogglePills
+          retireDebt={retireDebt}
+          lifestyleCutsApplied={lifestyleCutsApplied}
+          vanSold={vanSold}
+          debtService={debtService}
+          totalCuts={lifestyleCuts + cutInHalf + extraCuts}
         />
-      ) : null}
-    </>
-  ) : null;
 
-  const plannerWorkspace = (
+        {showCompareBanner ? (
+          <ComparisonBanner
+            compareState={compareState}
+            compareName={compareName}
+            onClearCompare={() => { set('compareState')(null); set('compareName')(''); }}
+          />
+        ) : null}
+      </>
+    );
+  }, [
+    showTopSummary,
+    data,
+    breakevenLabel,
+    breakevenIdx,
+    savingsZeroLabel,
+    savingsZeroMonth,
+    advanceNeeded,
+    mcResults,
+    rawMonthlyGap,
+    steadyStateNet,
+    steadyIdx,
+    bestProjectedGap,
+    bestProjectedLabel,
+    retireDebt,
+    lifestyleCutsApplied,
+    vanSold,
+    debtService,
+    lifestyleCuts,
+    cutInHalf,
+    extraCuts,
+    showCompareBanner,
+    compareState,
+    compareName,
+  ]);
+
+  const plannerTabs = useMemo(() => (
+    showTabs ? <TabBar activeTab={effectiveTab} onChange={set('activeTab')} compact={compactShell} /> : null
+  ), [showTabs, effectiveTab, compactShell]);
+
+  const plannerWorkspace = useMemo(() => (
     <>
-      {effectiveTab === "overview" && (
+      {effectiveTab === 'overview' && (
         <OverviewTab bridgeProps={bridgeProps} />
       )}
 
-      {effectiveTab === "plan" && (
+      {effectiveTab === 'plan' && (
         <PlanTab
-          bridgeProps={bridgeProps}
-          cashFlowProps={cashFlowProps}
+          bridgeProps={deferredPlanBridgeProps}
+          cashFlowProps={deferredCashFlowProps}
           incomeControlsProps={incomeControlsProps}
           expenseControlsProps={expenseControlsProps}
+          scenarioStripProps={scenarioStripProps}
+          goalPanelProps={deferredGoalPanelProps}
+          shellWidthBucket={shellWidthBucket}
           presentMode={presentMode}
         />
       )}
 
-      {effectiveTab === "income" && (
+      {effectiveTab === 'income' && (
         <IncomeTab
           vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
           msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
@@ -624,7 +769,7 @@ export default function FinancialModel() {
         />
       )}
 
-      {effectiveTab === "risk" && (
+      {effectiveTab === 'risk' && (
         <RiskTab
           monteCarloProps={monteCarloProps}
           seqReturnsProps={seqReturnsProps}
@@ -634,7 +779,7 @@ export default function FinancialModel() {
         />
       )}
 
-      {effectiveTab === "details" && (
+      {effectiveTab === 'details' && (
         <DetailsTab
           dataTableProps={dataTableProps}
           summaryAskProps={summaryAskProps}
@@ -642,20 +787,55 @@ export default function FinancialModel() {
         />
       )}
     </>
-  );
+  ), [
+    effectiveTab,
+    bridgeProps,
+    deferredPlanBridgeProps,
+    deferredCashFlowProps,
+    incomeControlsProps,
+    expenseControlsProps,
+    scenarioStripProps,
+    deferredGoalPanelProps,
+    shellWidthBucket,
+    presentMode,
+    vestEvents,
+    totalRemainingVesting,
+    msftGrowth,
+    sarahRate,
+    sarahMaxRate,
+    sarahRateGrowth,
+    sarahCurrentClients,
+    sarahMaxClients,
+    sarahClientGrowth,
+    data,
+    investmentReturn,
+    vanSold,
+    vanSaleMonth,
+    vanMonthlySavings,
+    bcsYearsLeft,
+    milestones,
+    monteCarloProps,
+    seqReturnsProps,
+    savingsDrawdownProps,
+    netWorthProps,
+    showRail,
+    dataTableProps,
+    summaryAskProps,
+  ]);
 
-  const plannerRail = (
+  const plannerRail = useMemo(() => (
     <>
-      <SavingsDrawdownChart {...savingsDrawdownProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
-      <NetWorthChart {...netWorthProps} instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'} />
-      <RetirementIncomeChart
-        savingsData={savingsData} wealthData={wealthData}
-        ssType={ssType} ssPersonal={ssPersonal}
-        chadJob={chadJob}
-        trustIncomeFuture={trustIncomeFuture}
+      <SavingsDrawdownChart
+        {...laggedSavingsDrawdownProps}
+        instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}
       />
+      <NetWorthChart
+        {...laggedNetWorthProps}
+        instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}
+      />
+      <RetirementIncomeChart {...laggedRetirementRailProps} />
     </>
-  );
+  ), [laggedSavingsDrawdownProps, laggedNetWorthProps, laggedRetirementRailProps, effectiveTab]);
 
   return (
     <div style={{

@@ -30,5 +30,5 @@ export const CHART_PRESENTATION = {
   minAnnotationFont: 12,
   requirePersistentSummary: true,
   hoverMustBeSupplemental: true,
-  maxPrimaryAnnotations: 4,
+  maxPrimaryAnnotations: 10,
 };

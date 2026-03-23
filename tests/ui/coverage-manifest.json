@@ -131,13 +131,13 @@
         ],
         "checks": ["render", "input", "state"]
       },
-      {
-        "id": "shell.goal_panel.core",
-        "worker": "worker-1",
-        "status": "ready",
-        "surface": "goals",
-        "paths": ["src/panels/GoalPanel.jsx"],
-        "preconditions": ["presentMode=false"],
+    {
+      "id": "shell.goal_panel.core",
+      "worker": "worker-1",
+      "status": "ready",
+      "surface": "goals",
+      "paths": ["src/panels/GoalPanel.jsx"],
+      "preconditions": ["presentMode=false", "active tab = plan"],
         "elements": [
           { "selector": "[data-testid=\"goal-panel-toggle\"]", "expect": "collapses and expands the panel" },
           { "selector": "[data-testid=\"goal-panel-add-toggle\"]", "expect": "opens the add-goal form" },
@@ -156,6 +156,7 @@
       "status": "ready",
       "surface": "scenario_strip",
       "paths": ["src/panels/ScenarioStrip.jsx"],
+      "preconditions": ["active tab = plan"],
       "elements": [
         { "selector": "[data-testid=\"primary-levers-summary\"]", "expect": "renders the summary-first Primary Levers shell" },
         { "selector": "[data-testid=\"scenario-base-expenses\"]", "expect": "changes the monthly baseline" },
@@ -187,15 +188,62 @@
       "checks": ["render", "layout", "integrity"]
     },
     {
-      "id": "overview.bridge_chart.observe",
+      "id": "overview.status_and_bridge",
       "worker": "worker-2",
-      "status": "observe",
+      "status": "ready",
       "surface": "overview",
-      "paths": ["src/panels/tabs/OverviewTab.jsx", "src/charts/BridgeChart.jsx"],
+      "paths": ["src/components/KeyMetrics.jsx", "src/components/ActiveTogglePills.jsx", "src/panels/tabs/OverviewTab.jsx", "src/charts/BridgeChart.jsx"],
       "elements": [
-        { "selector": "text=Bridge", "expect": "chart renders without clipping or stale labels" }
+        { "selector": "[data-testid=\"overview-status-strip\"]", "expect": "renders the compact overview status strip" },
+        { "selector": "[data-testid=\"overview-status-current-gap\"]", "expect": "shows the current gap summary" },
+        { "selector": "[data-testid=\"overview-status-breakeven\"]", "expect": "shows the breakeven summary" },
+        { "selector": "[data-testid=\"overview-status-best-gap\"]", "expect": "shows the best projected gap summary" },
+        { "selector": "[data-testid=\"overview-status-runway\"]", "expect": "shows the runway summary" },
+        { "selector": "[data-testid=\"overview-active-plan-summary\"]", "expect": "shows the compact active-plan state summary" },
+        { "selector": "[data-testid=\"bridge-card\"]", "expect": "renders the simplified single-card bridge surface" },
+        { "selector": "[data-testid=\"bridge-kpi-strip\"]", "expect": "shows the capped bridge KPI chips" },
+        { "selector": "[data-testid=\"bridge-driver-groups\"]", "expect": "shows grouped bridge drivers under the chart" },
+        { "selector": "[data-testid=\"bridge-marker-msft_stepdown_6\"]", "expect": "labels the early MSFT step-down that creates the first large bridge drop" },
+        { "selector": "[data-testid=\"bridge-marker-ss_income\"]", "expect": "labels the SSDI start month" },
+        { "selector": "[data-testid=\"bridge-marker-trust_increase\"]", "expect": "labels the trust increase month" },
+        { "selector": "[data-testid=\"bridge-marker-msft_cliff\"]", "expect": "labels the later MSFT cliff" },
+        { "selector": "[data-testid=\"bridge-marker-msft_end\"]", "expect": "labels when MSFT vesting ends" },
+        { "selector": "[data-testid=\"bridge-marker-bcs_end\"]", "expect": "labels when BCS ends" },
+        { "selector": "[data-testid=\"bridge-marker-ss_stepdown\"]", "expect": "labels the later benefit step-down when kids age out" }
       ],
-      "checks": ["render", "visual", "integrity"]
+      "checks": ["render", "visual", "summary", "integrity"]
+    },
+    {
+      "id": "overview.bridge_dense_markers",
+      "worker": "worker-2",
+      "status": "ready",
+      "surface": "overview",
+      "paths": ["src/charts/BridgeChart.jsx", "src/model/overviewStory.js", "src/panels/IncomeControls.jsx", "src/panels/ScenarioStrip.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"bridge-marker-layer\"]", "expect": "renders bridge markers even after multiple scenario changes" },
+        { "selector": "[data-testid=\"bridge-marker-ss_income\"]", "expect": "keeps the SS transition marker visible in a dense state" },
+        { "selector": "[data-testid=\"bridge-marker-breakeven\"]", "expect": "keeps the breakeven marker visible at month zero when applicable" },
+        { "selector": "[data-testid=\"bridge-marker-van_sold\"]", "expect": "keeps the van-sale marker visible even when grouped into a dense month-zero cluster" },
+        { "selector": "[data-testid=\"bridge-marker-msft_end\"]", "expect": "keeps the MSFT end marker visible when many future transitions are present" },
+        { "selector": "[data-testid=\"bridge-marker-ss_stepdown\"]", "expect": "keeps the later benefit step-down visible alongside MSFT ending" }
+      ],
+      "checks": ["render", "input", "visual", "integrity"]
+    },
+    {
+      "id": "plan.workspace_first",
+      "worker": "worker-2",
+      "status": "ready",
+      "surface": "plan",
+      "paths": ["src/panels/tabs/PlanTab.jsx", "src/panels/ScenarioStrip.jsx", "src/panels/GoalPanel.jsx", "src/charts/BridgeChart.jsx"],
+      "elements": [
+        { "selector": "[data-testid=\"plan-workspace\"]", "expect": "renders the plan workspace root" },
+        { "selector": "[data-testid=\"plan-primary-levers-section\"]", "expect": "starts the plan workflow with Primary Levers" },
+        { "selector": "[data-testid=\"plan-detailed-controls\"]", "expect": "keeps detailed controls after Primary Levers" },
+        { "selector": "[data-testid=\"plan-first-chart\"]", "expect": "renders the first planning chart before bridge feedback" },
+        { "selector": "[data-testid=\"plan-bridge-feedback\"]", "expect": "renders the compact bridge feedback later in the workflow" },
+        { "selector": "[data-testid=\"plan-goals-section\"]", "expect": "renders goals after the first planning chart" }
+      ],
+      "checks": ["render", "layout", "ordering", "workflow"]
     },
     {
       "id": "plan.monthly_cash_flow.hover",

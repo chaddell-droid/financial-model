@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import FinancialModel from './FinancialModel.jsx';
 import './index.css';
-import { installUiTestHarness } from './testing/uiHarness.js';
+import { getUiTestConfig, installUiTestHarness } from './testing/uiHarness.js';
 
 // Polyfill window.storage — Claude artifacts provide this API,
 // but in a standard browser we use localStorage as the backing store
@@ -50,8 +50,15 @@ window.storage = {
 
 installUiTestHarness();
 
+const uiTestConfig = getUiTestConfig();
+const app = <FinancialModel />;
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <FinancialModel />
-  </React.StrictMode>
+  uiTestConfig.enabled
+    ? app
+    : (
+      <React.StrictMode>
+        {app}
+      </React.StrictMode>
+    )
 );

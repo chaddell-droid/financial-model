@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 
-export default function MonthlyCashFlowChart({
+function MonthlyCashFlowChart({
   data,
   chartH = 380,
   netRange,
@@ -255,3 +255,5 @@ export default function MonthlyCashFlowChart({
     </div>
   );
 }
+
+export default memo(MonthlyCashFlowChart);

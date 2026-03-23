@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { createScales, generateYTicks, autoTickStep } from './chartUtils.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 
-export default function NetWorthChart({
+function NetWorthChart({
   savingsData, wealthData,
   starting401k, return401k, homeEquity, homeAppreciation,
   presentMode, onFieldChange,
@@ -292,3 +292,5 @@ export default function NetWorthChart({
     </div>
   );
 }
+
+export default memo(NetWorthChart);

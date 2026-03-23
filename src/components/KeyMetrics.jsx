@@ -1,15 +1,20 @@
 import React from 'react';
-import { fmtFull } from '../model/formatters.js';
 import SurfaceCard from './ui/SurfaceCard.jsx';
-import { getSummaryTimeframeLabel } from '../charts/chartContract.js';
-import { METRIC_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
+import { buildOverviewStatusModel } from '../model/overviewStory.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
-function MetricValue({ value, color, small }) {
+const ITEM_TEST_IDS = {
+  current_gap: 'overview-status-current-gap',
+  breakeven: 'overview-status-breakeven',
+  best_projected_gap: 'overview-status-best-gap',
+  runway: 'overview-status-runway',
+};
+
+function MetricValue({ value, color }) {
   return (
     <div
       style={{
-        fontSize: small ? 16 : 22,
+        fontSize: 18,
         fontWeight: 700,
         color,
         fontFamily: "'JetBrains Mono', monospace",
@@ -31,118 +36,107 @@ export default function KeyMetrics({
   rawMonthlyGap,
   steadyStateNet,
   steadyLabel,
+  bestProjectedGap,
+  bestProjectedLabel,
 }) {
-  const summaryCards = [
-    {
-      label: TIMEFRAME_LABELS.today,
-      value: rawMonthlyGap,
-      color: UI_COLORS.destructive,
-      sublabel: 'No plan toggles applied',
-    },
-    {
-      label: TIMEFRAME_LABELS.currentAssumptions,
-      value: netMonthly,
-      color: netMonthly >= 0 ? UI_COLORS.positive : UI_COLORS.textMuted,
-      sublabel: getSummaryTimeframeLabel('current'),
-    },
-    {
-      label: `${TIMEFRAME_LABELS.steadyState} (${steadyLabel || 'Y3'})`,
-      value: steadyStateNet,
-      color: steadyStateNet >= 0 ? UI_COLORS.positive : UI_COLORS.textMuted,
-      sublabel: getSummaryTimeframeLabel('steady'),
-    },
-    {
-      label: METRIC_LABELS.totalSwing,
-      value: steadyStateNet - rawMonthlyGap,
-      color: steadyStateNet - rawMonthlyGap >= 0 ? UI_COLORS.positive : UI_COLORS.destructive,
-      sublabel: `${TIMEFRAME_LABELS.today} → ${TIMEFRAME_LABELS.steadyState}`,
-    },
-  ];
-
-  const metrics = [
-    {
-      label: METRIC_LABELS.currentMonthlyGap,
-      value: fmtFull(netMonthly),
-      color: netMonthly >= 0 ? UI_COLORS.positive : UI_COLORS.destructive,
-    },
-    {
-      label: METRIC_LABELS.cashFlowBreakeven,
-      value: breakevenLabel,
-      isText: true,
-      color: breakevenIdx >= 0 ? UI_COLORS.positive : UI_COLORS.caution,
-      sublabel: 'When income covers expenses',
-      smallText: breakevenIdx < 0,
-    },
-    {
-      label: METRIC_LABELS.savingsRunway,
-      value: savingsZeroLabel,
-      isText: true,
-      color: savingsZeroMonth ? UI_COLORS.destructive : UI_COLORS.positive,
-      sublabel: savingsZeroMonth ? 'Until savings are depleted' : 'Savings stay positive through the horizon',
-      smallText: true,
-    },
-    {
-      label: METRIC_LABELS.advanceNeeded,
-      value: fmtFull(advanceNeeded),
-      color: UI_COLORS.caution,
-    },
-    ...(mcResults ? [{
-      label: METRIC_LABELS.monteCarloSolvency,
-      value: `${(mcResults.solvencyRate * 100).toFixed(1)}%`,
-      isText: true,
-      color: mcResults.solvencyRate >= 0.95
-        ? UI_COLORS.positive
-        : mcResults.solvencyRate >= 0.80
-          ? UI_COLORS.caution
-          : UI_COLORS.destructive,
-      sublabel: `${mcResults.numSims} simulations`,
-    }] : []),
-  ];
+  const status = buildOverviewStatusModel({
+    rawMonthlyGap,
+    netMonthly,
+    breakevenLabel,
+    breakevenIdx,
+    bestProjectedGap,
+    bestProjectedLabel,
+    savingsZeroLabel,
+    savingsZeroMonth,
+    advanceNeeded,
+    steadyStateNet,
+    steadyLabel,
+    mcResults,
+  });
 
   return (
-    <div data-testid='key-metrics' style={{ display: 'grid', gap: UI_SPACE.lg, marginBottom: UI_SPACE.xl }}>
+    <SurfaceCard
+      data-testid='overview-status-strip'
+      tone='featured'
+      padding='md'
+      style={{ marginBottom: UI_SPACE.lg }}
+    >
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: UI_SPACE.sm,
-          alignItems: 'stretch',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: UI_SPACE.lg,
+          flexWrap: 'wrap',
+          marginBottom: UI_SPACE.md,
         }}
       >
-        {summaryCards.map((card) => (
-          <SurfaceCard key={card.label} tone='featured' padding='md'>
-            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-              {card.label}
-            </div>
-            <MetricValue value={fmtFull(card.value)} color={card.color} />
-            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
-              {card.sublabel}
-            </div>
-          </SurfaceCard>
-        ))}
-      </div>
+        <div style={{ minWidth: 220, flex: '1 1 260px' }}>
+          <div
+            data-testid='overview-primary-question'
+            style={{
+              fontSize: UI_TEXT.micro,
+              color: UI_COLORS.textMuted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: 4,
+            }}
+          >
+            {status.question}
+          </div>
+          <div
+            data-testid='overview-primary-answer'
+            style={{
+              fontSize: UI_TEXT.heading,
+              fontWeight: 700,
+              color: UI_COLORS.textStrong,
+              lineHeight: 1.2,
+            }}
+          >
+            {status.answer}
+          </div>
+        </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: UI_SPACE.sm,
-        }}
-      >
-        {metrics.map((metric) => (
-          <SurfaceCard key={metric.label} tone='default' padding='md'>
-            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-              {metric.label}
-            </div>
-            <MetricValue value={metric.value} color={metric.color} small={metric.smallText} />
-            {metric.sublabel ? (
-              <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
-                {metric.sublabel}
+        <div
+          data-testid='overview-status-items'
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: UI_SPACE.sm,
+            flex: '3 1 640px',
+          }}
+        >
+          {status.items.map((item) => {
+            const color = item.tone === 'positive'
+              ? UI_COLORS.positive
+              : item.tone === 'destructive'
+                ? UI_COLORS.destructive
+                : item.tone === 'caution'
+                  ? UI_COLORS.caution
+                  : UI_COLORS.textStrong;
+
+            return (
+              <div
+                key={item.id}
+                data-testid={ITEM_TEST_IDS[item.id]}
+                style={{
+                  minWidth: 0,
+                  paddingLeft: UI_SPACE.md,
+                  borderLeft: `2px solid ${color}`,
+                }}
+              >
+                <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, marginBottom: 4 }}>
+                  {item.label}
+                </div>
+                <MetricValue value={item.valueLabel} color={color} />
+                <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4, lineHeight: 1.35 }}>
+                  {item.detail}
+                </div>
               </div>
-            ) : null}
-          </SurfaceCard>
-        ))}
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </SurfaceCard>
   );
 }

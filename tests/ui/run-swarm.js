@@ -114,6 +114,7 @@ async function worker1() {
       await page.getByTestId('header-toggle-save-load').click();
       ok(await page.getByTestId('save-load-panel').count() === 0, 'save/load panel did not close');
 
+      await page.getByTestId('tab-plan').click();
       await page.getByTestId('scenario-retire-debt').click();
       let resetDialogMessage = '';
       page.once('dialog', async (dialog) => {
@@ -123,6 +124,7 @@ async function worker1() {
       await page.getByTestId('header-reset-all').click();
       await page.waitForTimeout(120);
       ok(resetDialogMessage.includes('Reset all assumptions'), 'reset confirmation message mismatch');
+      await page.getByTestId('tab-plan').click();
       ok((await page.getByTestId('scenario-retire-debt').getAttribute('aria-checked')) === 'false', 'reset did not restore baseline state');
 
       const downloadPromise = page.waitForEvent('download');
@@ -134,7 +136,7 @@ async function worker1() {
 
     results.push(await runEntry('shell.tab_bar.navigation', async () => {
       await page.getByTestId('tab-overview').click();
-      await expectVisibleText(page, 'Bridge to Sustainability');
+      ok(await page.getByTestId('bridge-card').count() === 1, 'overview tab missing bridge card');
       await page.getByTestId('tab-plan').click();
       ok(await page.getByTestId('income-controls').count() === 1, 'plan tab missing income controls');
       await page.getByTestId('tab-income').click();
@@ -175,6 +177,7 @@ async function worker1() {
       await page.getByTestId('save-load-save-current').click();
       ok(await page.getByTestId('save-load-load-0').count() === 1, 'saved scenario row missing');
 
+      await page.getByTestId('tab-plan').click();
       await page.getByTestId('scenario-retire-debt').click();
       await page.getByTestId('save-load-update-0').click();
       await page.getByTestId('save-load-load-0').click();
@@ -201,6 +204,7 @@ async function worker1() {
     }));
 
     results.push(await runEntry('shell.goal_panel.core', async () => {
+      await page.getByTestId('tab-plan').click();
       await page.getByTestId('goal-panel-toggle').click();
       await page.getByTestId('goal-panel-toggle').click();
       await page.getByTestId('goal-panel-add-toggle').click();
@@ -222,6 +226,7 @@ async function worker1() {
 
     results.push(await runEntry('shell.scenario_strip.core', async () => {
       await gotoApp(page);
+      await page.getByTestId('tab-plan').click();
       eq(await page.getByTestId('scenario-strip').getAttribute('data-layout'), 'desktop', 'scenario strip desktop layout flag');
       eq(await page.getByTestId('scenario-strip').getAttribute('data-order'), 'controls-first', 'scenario strip order flag');
       await expectVisibleText(page, 'Primary Levers');
@@ -259,6 +264,7 @@ async function worker1() {
       const appShell = page.getByTestId('app-shell');
       eq(await appShell.getAttribute('data-compact'), 'true', 'compact shell data flag');
       eq(await appShell.getAttribute('data-rail-placement'), 'below', 'compact rail placement');
+      await page.getByTestId('tab-plan').click();
       const primaryLevers = page.getByTestId('scenario-strip');
       eq(await primaryLevers.getAttribute('data-layout'), 'compact', 'primary levers compact layout flag');
       eq(await primaryLevers.getAttribute('data-order'), 'controls-first', 'primary levers compact order flag');
@@ -300,7 +306,24 @@ async function worker2() {
   try {
     await gotoApp(page);
 
-    results.push(await runEntry('overview.bridge_chart.observe', async () => {
+    results.push(await runEntry('overview.status_and_bridge', async () => {
+      ok(await page.getByTestId('overview-status-strip').count() === 1, 'overview status strip did not render');
+      ok(await page.getByTestId('overview-active-plan-summary').count() === 1, 'overview active-plan summary did not render');
+      ok(await page.getByTestId('bridge-card').count() === 1, 'bridge card did not render');
+      ok(await page.getByTestId('bridge-variant-overview').count() === 1, 'overview bridge variant did not render');
+      ok(await page.getByTestId('bridge-kpi-strip').count() === 1, 'bridge KPI strip did not render');
+      ok(await page.getByTestId('bridge-driver-groups').count() === 1, 'bridge driver groups did not render');
+      ok((await page.getByTestId('overview-status-current-gap').innerText()).includes('/mo'), 'current gap summary should include a monthly value');
+      ok((await page.getByTestId('overview-status-best-gap').innerText()).includes('Q'), 'best projected gap summary should include timing');
+      ok((await page.getByTestId('overview-status-runway').innerText()).length > 0, 'runway summary should not be empty');
+      ok(await page.getByTestId('bridge-marker-msft_stepdown_6').count() === 1, 'overview bridge should label the early MSFT step-down');
+      ok(await page.getByTestId('bridge-marker-ss_income').count() === 1, 'overview bridge should label SSDI start');
+      ok(await page.getByTestId('bridge-marker-trust_increase').count() === 1, 'overview bridge should label the trust increase');
+      ok(await page.getByTestId('bridge-marker-msft_cliff').count() === 1, 'overview bridge should label the MSFT cliff');
+      ok(await page.getByTestId('bridge-marker-msft_end').count() === 1, 'overview bridge should label MSFT ending');
+      ok(await page.getByTestId('bridge-marker-bcs_end').count() === 1, 'overview bridge should label BCS ending');
+      ok(await page.getByTestId('bridge-marker-ss_stepdown').count() === 1, 'overview bridge should label the later benefit step-down');
+      eq(await page.getByTestId('app-shell').getAttribute('data-rail-placement'), 'below', 'overview should stack the rail below the workspace');
       const geometry = await page.evaluate(() => {
         const endpoint = Array.from(document.querySelectorAll('svg text')).find((node) => /\/mo$/.test(node.textContent || ''));
         if (!endpoint) return null;
@@ -316,9 +339,80 @@ async function worker2() {
       return geometry.label;
     }));
 
+    results.push(await runEntry('overview.bridge_dense_markers', async () => {
+      await page.getByTestId('tab-plan').click();
+      await page.getByTestId('income-ss-type-ss').click();
+      await page.getByTestId('scenario-retire-debt').click();
+      await page.getByTestId('scenario-van-sold').click();
+      await page.getByTestId('scenario-lifestyle-cuts').click();
+      await page.getByTestId('tab-overview').click();
+
+      ok(await page.getByTestId('bridge-marker-layer').count() === 1, 'dense-state bridge marker layer missing');
+      ok(await page.getByTestId('bridge-marker-breakeven').count() === 1, 'dense-state bridge should keep the breakeven marker');
+      ok(await page.getByTestId('bridge-marker-ss_income').count() === 1, 'dense-state bridge should keep the SS marker');
+      ok(await page.getByTestId('bridge-marker-van_sold').count() === 1, 'dense-state bridge should keep the van-sale marker');
+      ok(await page.getByTestId('bridge-marker-msft_end').count() === 1, 'dense-state bridge should keep the MSFT end marker');
+      ok(await page.getByTestId('bridge-marker-ss_stepdown').count() === 1, 'dense-state bridge should keep the later benefit step-down marker');
+
+      const overlapPairs = await page.evaluate(() => {
+        const labels = Array.from(document.querySelectorAll('[data-testid="bridge-marker-layer"] text')).map((node) => {
+          const rect = node.getBoundingClientRect();
+          return {
+            text: node.textContent || '',
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+            bottom: rect.bottom,
+          };
+        });
+
+        const overlaps = [];
+        for (let i = 0; i < labels.length; i++) {
+          for (let j = i + 1; j < labels.length; j++) {
+            const a = labels[i];
+            const b = labels[j];
+            const intersects = !(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top);
+            if (intersects) overlaps.push(`${a.text} :: ${b.text}`);
+          }
+        }
+        return overlaps;
+      });
+
+      eq(overlapPairs.length, 0, `dense-state bridge labels should not overlap: ${overlapPairs.join(', ')}`);
+      return 'dense bridge state keeps future transitions visible without marker overlap';
+    }));
+
     await page.getByTestId('tab-plan').click();
 
+    results.push(await runEntry('plan.workspace_first', async () => {
+      ok(await page.getByTestId('plan-workspace').count() === 1, 'plan workspace root missing');
+      ok(await page.getByTestId('plan-primary-levers-section').count() === 1, 'plan should start with Primary Levers');
+      ok(await page.getByTestId('plan-detailed-controls').count() === 1, 'plan detailed controls missing');
+      ok(await page.getByTestId('plan-first-chart').count() === 1, 'plan first chart missing');
+      ok(await page.getByTestId('plan-bridge-feedback').count() === 1, 'plan bridge feedback missing');
+      ok(await page.getByTestId('plan-goals-section').count() === 1, 'plan goals section missing');
+      ok(await page.getByTestId('bridge-variant-plan').count() === 1, 'plan bridge variant did not render');
+
+      const order = await page.evaluate(() => {
+        const root = document.querySelector('[data-testid="plan-workspace"]');
+        const primary = root?.querySelector('[data-testid="plan-primary-levers-section"]');
+        const controls = root?.querySelector('[data-testid="plan-detailed-controls"]');
+        const chart = root?.querySelector('[data-testid="plan-first-chart"]');
+        const bridge = root?.querySelector('[data-testid="plan-bridge-feedback"]');
+        const goals = root?.querySelector('[data-testid="plan-goals-section"]');
+        if (!root || !primary || !controls || !chart || !bridge || !goals) return false;
+        const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        return follows(primary, controls) && follows(controls, chart) && follows(chart, bridge) && follows(bridge, goals);
+      });
+      ok(order, 'plan workflow order should be Primary Levers -> controls -> first chart -> bridge -> goals');
+
+      const shell = await page.getByTestId('app-shell').getAttribute('data-rail-placement');
+      eq(shell, 'below', 'plan should keep the rail below the first workspace viewport');
+      return 'plan workflow order is workspace-first';
+    }));
+
     results.push(await runEntry('plan.monthly_cash_flow.hover', async () => {
+      eq(await page.getByTestId('app-shell').getAttribute('data-rail-placement'), 'below', 'plan should stack the rail below the workspace');
       const surface = page.getByTestId('monthly-cash-flow-hover-surface');
       await hoverMidpoint(surface);
       const text = await surface.innerText();
@@ -327,6 +421,8 @@ async function worker2() {
     }));
 
     results.push(await runEntry('plan.income_controls.core', async () => {
+      await gotoApp(page);
+      await page.getByTestId('tab-plan').click();
       await page.getByLabel('Rate growth/yr').fill('8');
       await page.getByLabel('Current hourly rate').fill('220');
       await page.getByLabel('Current clients/day').fill('5');

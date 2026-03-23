@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { fmt } from '../model/formatters.js';
 import ActionButton from '../components/ui/ActionButton.jsx';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
@@ -39,7 +39,7 @@ function formatGoalTargetLabel(month) {
   return `M${month}`;
 }
 
-export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning, presentMode, onGoalsChange }) {
+function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning, presentMode, onGoalsChange }) {
   const [collapsed, setCollapsed] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newGoal, setNewGoal] = useState({
@@ -305,3 +305,5 @@ export default function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning
     </div>
   );
 }
+
+export default memo(GoalPanel);

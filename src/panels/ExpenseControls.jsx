@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
@@ -200,4 +200,4 @@ const ExpenseControls = ({
   );
 };
 
-export default ExpenseControls;
+export default memo(ExpenseControls);

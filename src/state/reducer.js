@@ -4,6 +4,8 @@ export function reducer(state, action) {
   switch (action.type) {
     case 'SET_FIELD':
       return { ...state, [action.field]: action.value };
+    case 'SET_FIELDS':
+      return { ...state, ...action.fields };
     case 'RESTORE_STATE': {
       const s = action.state;
       // Backward compatibility: if old scenario has aggregate cuts but no individual cuts,

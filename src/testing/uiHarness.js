@@ -27,9 +27,9 @@ export function getUiTestConfig() {
 }
 
 export function installUiTestHarness() {
-  if (typeof window === 'undefined' || !import.meta.env.DEV) return;
-
+  if (typeof window === 'undefined') return;
   const config = getUiTestConfig();
+  if (!import.meta.env.DEV && !config.enabled) return;
   const state = { monteCarloSeed: config.monteCarloSeed };
 
   const resetStorage = () => {

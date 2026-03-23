@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import Toggle from '../components/Toggle.jsx';
 import Slider from '../components/Slider.jsx';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
@@ -631,4 +631,4 @@ const ScenarioStrip = ({
   );
 };
 
-export default ScenarioStrip;
+export default memo(ScenarioStrip);

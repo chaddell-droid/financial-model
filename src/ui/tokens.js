@@ -59,6 +59,6 @@ export const UI_ACTION_VARIANTS = {
 
 export function getShellWidthBucket(width) {
   if (width < UI_BREAKPOINTS.compact) return 'compact';
-  if (width < UI_BREAKPOINTS.railCollapse) return 'stacked';
+  if (width <= UI_BREAKPOINTS.railCollapse) return 'stacked';
   return 'desktop';
 }

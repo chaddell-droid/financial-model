@@ -3,6 +3,7 @@ import { fmt, fmtFull } from '../model/formatters.js';
 import { computeProjection } from '../model/projection.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
+import { useRenderMetric } from '../testing/perfMetrics.js';
 
 export default function MonteCarloPanel({
   mcResults,
@@ -21,6 +22,7 @@ export default function MonteCarloPanel({
   gatherState,
   mcParams,
 }) {
+  useRenderMetric('MonteCarloPanel');
   const [mcTooltip, setMcTooltip] = useState(null);
 
   if (presentMode) return null;
@@ -91,25 +93,25 @@ export default function MonteCarloPanel({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="Investment volatility" value={mcInvestVol} onChange={onParamChange('mcInvestVol')} min={0} max={30} step={1} format={(v) => v + "% \u03C3"} color="#22d3ee" />
+              <Slider label="Investment volatility" value={mcInvestVol} onChange={onParamChange('mcInvestVol')} commitStrategy='release' min={0} max={30} step={1} format={(v) => v + "% \u03C3"} color="#22d3ee" />
             </div>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="Business growth uncertainty" value={mcBizGrowthVol} onChange={onParamChange('mcBizGrowthVol')} min={0} max={15} step={1} format={(v) => v + "% \u03C3"} color="#60a5fa" />
+              <Slider label="Business growth uncertainty" value={mcBizGrowthVol} onChange={onParamChange('mcBizGrowthVol')} commitStrategy='release' min={0} max={15} step={1} format={(v) => v + "% \u03C3"} color="#60a5fa" />
             </div>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="MSFT price uncertainty" value={mcMsftVol} onChange={onParamChange('mcMsftVol')} min={0} max={30} step={1} format={(v) => v + "% \u03C3"} color="#f59e0b" />
+              <Slider label="MSFT price uncertainty" value={mcMsftVol} onChange={onParamChange('mcMsftVol')} commitStrategy='release' min={0} max={30} step={1} format={(v) => v + "% \u03C3"} color="#f59e0b" />
             </div>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="SSDI max delay" value={mcSsdiDelay} onChange={onParamChange('mcSsdiDelay')} min={0} max={18} step={1} format={(v) => v + " mo"} color="#4ade80" />
+              <Slider label="SSDI max delay" value={mcSsdiDelay} onChange={onParamChange('mcSsdiDelay')} commitStrategy='release' min={0} max={18} step={1} format={(v) => v + " mo"} color="#4ade80" />
             </div>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="SSDI denial rate" value={mcSsdiDenialPct} onChange={onParamChange('mcSsdiDenialPct')} min={0} max={50} step={1} format={(v) => v + "%"} color="#f87171" />
+              <Slider label="SSDI denial rate" value={mcSsdiDenialPct} onChange={onParamChange('mcSsdiDenialPct')} commitStrategy='release' min={0} max={50} step={1} format={(v) => v + "%"} color="#f87171" />
             </div>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="Spending discipline uncertainty" value={mcCutsDiscipline} onChange={onParamChange('mcCutsDiscipline')} min={0} max={50} step={5} format={(v) => v + "% \u03C3"} color="#f87171" />
+              <Slider label="Spending discipline uncertainty" value={mcCutsDiscipline} onChange={onParamChange('mcCutsDiscipline')} commitStrategy='release' min={0} max={50} step={5} format={(v) => v + "% \u03C3"} color="#f87171" />
             </div>
             <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #1e293b" }}>
-              <Slider label="Number of simulations" value={mcNumSims} onChange={onParamChange('mcNumSims')} min={100} max={1000} step={100} format={(v) => v.toString()} color="#94a3b8" />
+              <Slider label="Number of simulations" value={mcNumSims} onChange={onParamChange('mcNumSims')} commitStrategy='release' min={100} max={1000} step={100} format={(v) => v.toString()} color="#94a3b8" />
             </div>
           </div>
 

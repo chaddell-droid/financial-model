@@ -110,6 +110,18 @@ function test(name, fn) {
   }
 }
 
+async function asyncTest(name, fn) {
+  try {
+    await fn();
+    passed++;
+    console.log(`  PASS  ${name}`);
+  } catch (e) {
+    failed++;
+    console.log(`  FAIL  ${name}`);
+    console.log(`        ${e.message}`);
+  }
+}
+
 function eq(actual, expected, label = '') {
   assert.strictEqual(actual, expected, `${label}: expected ${expected}, got ${actual}`);
 }
@@ -1483,8 +1495,7 @@ test('UI swarm manifest covers the highest-risk interactive surfaces', () => {
     'risk.savings_drawdown.instances',
     'retirement.mode_and_help',
     'retirement.pwa_distribution.hover',
-    'sarah_mode.entry_exit_and_sliders',
-    'dad_mode.entry_exit_and_progression'
+    'details.summary_and_table.observe'
   ].forEach((id) => {
     assert.ok(entryIds.has(id), `manifest should include ${id}`);
   });
@@ -1551,6 +1562,68 @@ test('UI perf budgets stay deterministic and complete', () => {
     assert.ok(typeof metric.maxLongTaskCount === 'number', `perf budget ${metric.id} should cap long-task count`);
     assert.ok(typeof metric.maxLongTaskMs === 'number', `perf budget ${metric.id} should cap long-task duration`);
   });
+});
+
+test('Slider exposes draft and release-commit performance controls', () => {
+  const sliderSource = fs.readFileSync(new URL('../components/Slider.jsx', import.meta.url), 'utf8');
+  assert.ok(sliderSource.includes("commitStrategy = 'continuous'"), 'Slider should support explicit commit strategies');
+  assert.ok(sliderSource.includes('onDraftChange'), 'Slider should expose draft-change semantics');
+  assert.ok(sliderSource.includes('hideHeader'), 'Slider should support compact embedded layouts');
+  assert.ok(sliderSource.includes('pointerActiveRef'), 'Slider should avoid mid-drag settled commits while the pointer is active');
+});
+
+test('Hot slider surfaces no longer use raw range inputs outside the shared Slider primitive', () => {
+  const expenseSource = fs.readFileSync(new URL('../panels/ExpenseControls.jsx', import.meta.url), 'utf8');
+  const dadSource = fs.readFileSync(new URL('../panels/DadMode.jsx', import.meta.url), 'utf8');
+  const goalSource = fs.readFileSync(new URL('../panels/GoalPanel.jsx', import.meta.url), 'utf8');
+  const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(!expenseSource.includes("type='range'") && !expenseSource.includes('type="range"'), 'ExpenseControls should route hot sliders through Slider');
+  assert.ok(!dadSource.includes("type='range'") && !dadSource.includes('type="range"'), 'DadMode should route hot sliders through Slider');
+  assert.ok(!goalSource.includes("type='range'") && !goalSource.includes('type="range"'), 'GoalPanel should route the target-month slider through Slider');
+  assert.ok(!retirementSource.includes("type='range'") && !retirementSource.includes('type="range"'), 'RetirementIncomeChart should route the pool draw slider through Slider');
+});
+
+test('UI harness exposes performance counters for render, commit, and compute tracking', () => {
+  const harnessSource = fs.readFileSync(new URL('../testing/uiHarness.js', import.meta.url), 'utf8');
+  const perfMetricsSource = fs.readFileSync(new URL('../testing/perfMetrics.js', import.meta.url), 'utf8');
+  assert.ok(harnessSource.includes('resetPerfMetrics'), 'UI harness should reset perf metrics');
+  assert.ok(harnessSource.includes('getPerfMetrics'), 'UI harness should expose perf metrics');
+  assert.ok(harnessSource.includes('bumpSliderCommit'), 'UI harness should track slider commits');
+  assert.ok(harnessSource.includes('bumpCompute'), 'UI harness should track compute counts');
+  assert.ok(perfMetricsSource.includes('useRenderMetric'), 'perf metrics helper should expose a render hook');
+  assert.ok(perfMetricsSource.includes('noteSliderDraft'), 'perf metrics helper should track slider drafts');
+});
+
+test('UI perf runner measures drag-path interactions and counter budgets across heavy slider families', () => {
+  const perfRunnerSource = fs.readFileSync(new URL('../../tests/ui/perf/run-perf.js', import.meta.url), 'utf8');
+  const perfBudgets = JSON.parse(fs.readFileSync(new URL('../../tests/ui/perf/budgets.json', import.meta.url), 'utf8'));
+  assert.ok(perfRunnerSource.includes('dragSliderToValue'), 'perf runner should measure real drag paths');
+  assert.ok(perfRunnerSource.includes('resetPerfMetrics'), 'perf runner should reset perf counters between samples');
+  assert.ok(perfRunnerSource.includes('waitForCounterDelta'), 'perf runner should wait on perf-counter deltas');
+  [
+    'plan.base_expense_slider_drag_ms',
+    'plan.cuts_slider_drag_ms',
+    'plan.bcs_slider_drag_ms',
+    'income.ssdi_approval_slider_drag_ms',
+    'goal.target_month_slider_drag_ms',
+    'retirement.pool_draw_slider_drag_ms',
+    'risk.mc_num_sims_slider_drag_ms',
+  ].forEach((id) => {
+    assert.ok(perfBudgets.metrics.some((metric) => metric.id === id), `perf budgets should include ${id}`);
+  });
+});
+
+test('FinancialModel and heavy slider surfaces expose performance instrumentation hooks', () => {
+  const financialSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  const goalSource = fs.readFileSync(new URL('../panels/GoalPanel.jsx', import.meta.url), 'utf8');
+  const monteCarloSource = fs.readFileSync(new URL('../charts/MonteCarloPanel.jsx', import.meta.url), 'utf8');
+  const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  assert.ok(financialSource.includes("noteCompute('projection')"), 'FinancialModel should track projection recomputation');
+  assert.ok(financialSource.includes("noteCompute('dadProjection')"), 'FinancialModel should track Dad projection recomputation');
+  assert.ok(financialSource.includes("noteCompute('dadMcRun')"), 'FinancialModel should track Dad Monte Carlo recomputation');
+  assert.ok(goalSource.includes("useRenderMetric('GoalPanel')"), 'GoalPanel should expose render instrumentation');
+  assert.ok(monteCarloSource.includes("useRenderMetric('MonteCarloPanel')"), 'MonteCarloPanel should expose render instrumentation');
+  assert.ok(retirementSource.includes("useRenderMetric('RetirementIncomeChart')"), 'RetirementIncomeChart should expose render instrumentation');
 });
 
 console.log('\n=== UI Foundation Guards ===');
@@ -1713,7 +1786,7 @@ test('FinancialModel passes best-projected-gap inputs into KeyMetrics', () => {
 
 test('Overview and Plan force the rail below the first workspace viewport', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes("(effectiveTab === 'overview' || effectiveTab === 'plan')"), 'overview and plan should force below-rail placement');
+  assert.ok(source.includes("effectiveTab === 'overview'") && source.includes("effectiveTab === 'plan'"), 'overview and plan should force below-rail placement');
 });
 
 test('AppShell narrows the side rail width contract', () => {
@@ -1855,17 +1928,13 @@ test('Sarah and Dad modes use shared cards, actions, and stable selectors', () =
   assert.ok(dadSource.includes("testId='dad-mold-toggle'"), 'Dad mode should expose stable support toggle selectors');
 });
 
-test('UI swarm manifest marks alternate modes as ready with stable selectors', () => {
+test('UI swarm manifest retires alternate modes from the active surface contract', () => {
   const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
   const details = manifest.entries.find((entry) => entry.id === 'details.summary_and_table.observe');
-  const sarah = manifest.entries.find((entry) => entry.id === 'sarah_mode.entry_exit_and_sliders');
-  const dadProgression = manifest.entries.find((entry) => entry.id === 'dad_mode.entry_exit_and_progression');
-  const dadControls = manifest.entries.find((entry) => entry.id === 'dad_mode.support_controls');
   assert.ok(details.elements.some((element) => element.selector === '[data-testid="summary-ask-next-lever"]'), 'details manifest should track the summary next-lever selector');
-  eq(sarah.status, 'ready', 'Sarah mode manifest status');
-  eq(dadProgression.status, 'ready', 'Dad progression manifest status');
-  eq(dadControls.status, 'ready', 'Dad support manifest status');
-  assert.ok(dadControls.elements.some((element) => element.selector === '[data-testid="dad-mold-toggle"]'), 'Dad support manifest should use stable toggle selectors');
+  assert.ok(!manifest.entries.some((entry) => entry.id === 'sarah_mode.entry_exit_and_sliders'), 'Sarah mode should be retired from the active manifest');
+  assert.ok(!manifest.entries.some((entry) => entry.id === 'dad_mode.entry_exit_and_progression'), 'Dad mode progression should be retired from the active manifest');
+  assert.ok(!manifest.entries.some((entry) => entry.id === 'dad_mode.support_controls'), 'Dad mode support controls should be retired from the active manifest');
 });
 
 console.log('\n=== UI-08 Validation And Guardrail Checks ===');
@@ -1918,6 +1987,96 @@ test('fmt uses M for seven-figure values', () => eq(fmt(1500000), '$1.5M'));
 test('fmt avoids 1000.0K spillover near one million', () => eq(fmt(999999), '$1.0M'));
 test('fmt rounds negative compact values symmetrically', () => eq(fmt(-1050), '-$1.1K'));
 test('fmt uses B for billion-scale values', () => eq(fmt(1500000000), '$1.5B'));
+
+// === Monthly Check-In Contract Guards ===
+
+console.log('\n=== Monthly Check-In Contract Guards ===');
+
+await asyncTest('checkIn module exports core functions', async () => {
+  const mod = await import('../model/checkIn.js');
+  assert.ok(typeof mod.getCurrentModelMonth === 'function', 'getCurrentModelMonth should be exported');
+  assert.ok(typeof mod.getPlanSnapshot === 'function', 'getPlanSnapshot should be exported');
+  assert.ok(typeof mod.computeMonthlyDrift === 'function', 'computeMonthlyDrift should be exported');
+  assert.ok(typeof mod.computeCumulativeDrift === 'function', 'computeCumulativeDrift should be exported');
+  assert.ok(typeof mod.getMonthLabel === 'function', 'getMonthLabel should be exported');
+  assert.ok(typeof mod.buildReforecast === 'function', 'buildReforecast should be exported');
+  assert.ok(typeof mod.buildStatusSummary === 'function', 'buildStatusSummary should be exported');
+});
+
+await asyncTest('getCurrentModelMonth returns 0 for March 2026', async () => {
+  const { getCurrentModelMonth } = await import('../model/checkIn.js');
+  assert.strictEqual(getCurrentModelMonth(new Date(2026, 2, 15)), 0, 'March 2026 should be month 0');
+  assert.strictEqual(getCurrentModelMonth(new Date(2026, 3, 1)), 1, 'April 2026 should be month 1');
+  assert.strictEqual(getCurrentModelMonth(new Date(2027, 2, 1)), 12, 'March 2027 should be month 12');
+});
+
+await asyncTest('getMonthLabel formats model months correctly', async () => {
+  const { getMonthLabel } = await import('../model/checkIn.js');
+  assert.strictEqual(getMonthLabel(0), 'March 2026', 'month 0 should be March 2026');
+  assert.strictEqual(getMonthLabel(1), 'April 2026', 'month 1 should be April 2026');
+  assert.strictEqual(getMonthLabel(12), 'March 2027', 'month 12 should be March 2027');
+});
+
+await asyncTest('getPlanSnapshot extracts correct fields from projection monthlyDetail', async () => {
+  const { getPlanSnapshot } = await import('../model/checkIn.js');
+  const { computeProjection } = await import('../model/projection.js');
+  const { INITIAL_STATE } = await import('../state/initialState.js');
+  const proj = computeProjection(INITIAL_STATE);
+  const snap = getPlanSnapshot(proj.monthlyData, 0);
+  assert.ok(snap !== null, 'snapshot should not be null');
+  assert.ok(typeof snap.sarahIncome === 'number', 'sarahIncome should be a number');
+  assert.ok(typeof snap.expenses === 'number', 'expenses should be a number');
+  assert.ok(typeof snap.balance === 'number', 'balance should be a number');
+  assert.ok(typeof snap.totalIncome === 'number', 'totalIncome should be a number');
+});
+
+await asyncTest('computeMonthlyDrift identifies ahead, on-track, and behind', async () => {
+  const { computeMonthlyDrift } = await import('../model/checkIn.js');
+  const plan = { sarahIncome: 20000, expenses: 50000, balance: 180000, totalIncome: 30000 };
+  const ahead = { sarahIncome: 25000, expenses: 40000, balance: 200000, totalIncome: 35000 };
+  const behind = { sarahIncome: 15000, expenses: 60000, balance: 150000, totalIncome: 20000 };
+  const onTrack = { sarahIncome: 20500, expenses: 50500, balance: 179000, totalIncome: 30500 };
+
+  const dAhead = computeMonthlyDrift(ahead, plan);
+  assert.strictEqual(dAhead.balance.status, 'ahead', 'higher balance should be ahead');
+  assert.strictEqual(dAhead.expenses.status, 'ahead', 'lower expenses should be ahead');
+
+  const dBehind = computeMonthlyDrift(behind, plan);
+  assert.strictEqual(dBehind.balance.status, 'behind', 'lower balance should be behind');
+
+  const dOnTrack = computeMonthlyDrift(onTrack, plan);
+  assert.strictEqual(dOnTrack.balance.status, 'on-track', 'within 10% should be on-track');
+});
+
+await asyncTest('reducer handles RECORD_CHECK_IN and DELETE_CHECK_IN', async () => {
+  const { reducer } = await import('../state/reducer.js');
+  const { INITIAL_STATE } = await import('../state/initialState.js');
+
+  const checkIn = { month: 0, inputDate: '2026-03-31', actuals: { balance: 195000 }, planSnapshot: { balance: 200000 } };
+  const s1 = reducer(INITIAL_STATE, { type: 'RECORD_CHECK_IN', checkIn });
+  assert.strictEqual(s1.checkInHistory.length, 1, 'should have 1 check-in');
+  assert.strictEqual(s1.checkInHistory[0].month, 0, 'check-in should be for month 0');
+
+  const s2 = reducer(s1, { type: 'DELETE_CHECK_IN', month: 0 });
+  assert.strictEqual(s2.checkInHistory.length, 0, 'should have 0 check-ins after delete');
+});
+
+await asyncTest('RESET_ALL preserves checkInHistory', async () => {
+  const { reducer } = await import('../state/reducer.js');
+  const { INITIAL_STATE } = await import('../state/initialState.js');
+
+  const checkIn = { month: 0, inputDate: '2026-03-31', actuals: { balance: 195000 }, planSnapshot: { balance: 200000 } };
+  const s1 = reducer(INITIAL_STATE, { type: 'RECORD_CHECK_IN', checkIn });
+  const s2 = reducer(s1, { type: 'RESET_ALL' });
+  assert.strictEqual(s2.checkInHistory.length, 1, 'RESET_ALL should preserve check-in history');
+});
+
+test('TabBar includes Track tab', () => {
+  const source = fs.readFileSync(new URL('../components/TabBar.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes("id: 'track'"), 'TabBar should have a track tab');
+  assert.ok(source.includes("label: 'Track'"), 'track tab should be labeled Track');
+  assert.ok(source.includes('repeat(6'), 'TabBar grid should have 6 columns');
+});
 
 // --- Summary ---
 console.log('\n' + '='.repeat(50));

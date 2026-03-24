@@ -5,6 +5,7 @@ import IncomeControls from '../IncomeControls.jsx';
 import ExpenseControls from '../ExpenseControls.jsx';
 import ScenarioStrip from '../ScenarioStrip.jsx';
 import GoalPanel from '../GoalPanel.jsx';
+import { useRenderMetric } from '../../testing/perfMetrics.js';
 
 function PlanTab({
   bridgeProps, cashFlowProps,
@@ -12,6 +13,7 @@ function PlanTab({
   scenarioStripProps, goalPanelProps,
   shellWidthBucket = 'desktop', presentMode,
 }) {
+  useRenderMetric('PlanTab');
   const stackedControls = shellWidthBucket !== 'desktop';
   const primaryLeversSection = useMemo(() => (
     !presentMode ? (

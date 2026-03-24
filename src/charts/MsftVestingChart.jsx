@@ -62,7 +62,7 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsf
     </div>
     <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 16 }}>
       <div style={{ flex: 1 }}>
-        <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange}
+        <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange} commitStrategy='release'
           min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color="#f59e0b" />
       </div>
       <div data-testid="msft-vesting-footer" style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap", textAlign: "right" }}>

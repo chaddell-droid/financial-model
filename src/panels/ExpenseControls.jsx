@@ -2,6 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
+import { useRenderMetric } from '../testing/perfMetrics.js';
 
 const CUT_ITEMS = [
   { key: 'cutOliver', label: 'Oliver support', was: 5832, max: 5832, sub: 'Sober living + transfers' },
@@ -31,8 +32,10 @@ const ExpenseControls = ({
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
   onFieldChange,
 }) => {
+  useRenderMetric('ExpenseControls');
   const set = onFieldChange;
   const totalCuts = lifestyleCuts + cutInHalf + extraCuts;
+  const commitStrategy = 'release';
 
   const cutValues = { cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems };
 
@@ -61,9 +64,9 @@ const ExpenseControls = ({
 
             <div style={{ marginTop: 8, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
               <h4 style={{ fontSize: 11, color: "#f87171", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Debt Balances (Scenario C)</h4>
-              <Slider label="Credit cards (10 accts)" value={debtCC} onChange={set('debtCC')} min={0} max={150000} step={1000} color={retireDebt ? "#4ade80" : "#f87171"} />
-              <Slider label="Personal loans (Affirm/LC/AP)" value={debtPersonal} onChange={set('debtPersonal')} min={0} max={100000} step={1000} color={retireDebt ? "#4ade80" : "#f87171"} />
-              <Slider label="IRS back taxes" value={debtIRS} onChange={set('debtIRS')} min={0} max={30000} step={500} color={retireDebt ? "#4ade80" : "#f87171"} />
+              <Slider label="Credit cards (10 accts)" value={debtCC} onChange={set('debtCC')} commitStrategy={commitStrategy} min={0} max={150000} step={1000} color={retireDebt ? "#4ade80" : "#f87171"} />
+              <Slider label="Personal loans (Affirm/LC/AP)" value={debtPersonal} onChange={set('debtPersonal')} commitStrategy={commitStrategy} min={0} max={100000} step={1000} color={retireDebt ? "#4ade80" : "#f87171"} />
+              <Slider label="IRS back taxes" value={debtIRS} onChange={set('debtIRS')} commitStrategy={commitStrategy} min={0} max={30000} step={500} color={retireDebt ? "#4ade80" : "#f87171"} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: "#64748b" }}>
                 <span>Firstmark student loan (kept):</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(debtFirstmark)} @ $251/mo</span>
@@ -98,11 +101,19 @@ const ExpenseControls = ({
                         <span style={{ color: "#64748b" }}>Keep: {fmtFull(keep)}</span>
                         <span style={{ color: lifestyleCutsApplied ? "#4ade80" : "#64748b" }}>Cut: {fmtFull(val)}</span>
                       </div>
-                      <input type="range" min={0} max={item.was} step={50} value={val}
-                        data-testid={`expense-cut-${item.key}`}
-                        aria-label={`${item.label} cut amount`}
-                        onChange={(e) => set(item.key)(Number(e.target.value))}
-                        style={{ width: "100%", accentColor: lifestyleCutsApplied ? "#4ade80" : "#334155", height: 4 }} />
+                      <Slider
+                        label=""
+                        hideHeader
+                        value={val}
+                        onChange={set(item.key)}
+                        commitStrategy={commitStrategy}
+                        min={0}
+                        max={item.was}
+                        step={50}
+                        testId={`expense-cut-${item.key}`}
+                        ariaLabel={`${item.label} cut amount`}
+                        color={lifestyleCutsApplied ? "#4ade80" : "#334155"}
+                      />
                       {item.sub && <div style={{ fontSize: 8, color: "#475569", marginTop: 1 }}>{item.sub}</div>}
                     </div>
                   );
@@ -116,9 +127,9 @@ const ExpenseControls = ({
 
             <div style={{ marginTop: 8, padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
               <h4 style={{ fontSize: 11, color: "#c084fc", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>BCS Tuition</h4>
-              <Slider label="Total annual tuition" value={bcsAnnualTotal} onChange={set('bcsAnnualTotal')} min={30000} max={50000} step={1000} color="#c084fc" />
-              <Slider label="Parents pay annually" value={bcsParentsAnnual} onChange={set('bcsParentsAnnual')} min={0} max={bcsAnnualTotal} step={1000} color="#c084fc" />
-              <Slider label="Years remaining" value={bcsYearsLeft} onChange={set('bcsYearsLeft')} min={1} max={5} format={(v) => v + " yrs"} color="#c084fc" />
+              <Slider label="Total annual tuition" value={bcsAnnualTotal} onChange={set('bcsAnnualTotal')} commitStrategy={commitStrategy} min={30000} max={50000} step={1000} color="#c084fc" />
+              <Slider label="Parents pay annually" value={bcsParentsAnnual} onChange={set('bcsParentsAnnual')} commitStrategy={commitStrategy} min={0} max={bcsAnnualTotal} step={1000} color="#c084fc" />
+              <Slider label="Years remaining" value={bcsYearsLeft} onChange={set('bcsYearsLeft')} commitStrategy={commitStrategy} min={1} max={5} format={(v) => v + " yrs"} color="#c084fc" />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: "#64748b" }}>
                 <span>Family share:</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", color: bcsFamilyMonthly > 0 ? "#f87171" : "#4ade80" }}>
@@ -140,12 +151,14 @@ const ExpenseControls = ({
                   />
                   <div style={{ flex: 1 }}>
                     <Slider label="" value={ms.month} onChange={(v) => { const u = [...milestones]; u[i] = {...u[i], month: v}; set('milestones')(u); }}
+                      commitStrategy={commitStrategy}
                       testId={`expense-milestone-month-${i}`}
                       ariaLabel={`Milestone ${i + 1} month`}
                       min={3} max={60} format={(v) => v + "mo"} color="#94a3b8" />
                   </div>
                   <div style={{ flex: 1 }}>
                     <Slider label="" value={ms.savings} onChange={(v) => { const u = [...milestones]; u[i] = {...u[i], savings: v}; set('milestones')(u); }}
+                      commitStrategy={commitStrategy}
                       testId={`expense-milestone-savings-${i}`}
                       ariaLabel={`Milestone ${i + 1} savings`}
                       min={0} max={5000} step={100} color="#4ade80" />
@@ -180,19 +193,19 @@ const ExpenseControls = ({
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Toggle label="" checked={moldInclude} onChange={set('moldInclude')} color="#fbbf24" testId="expense-mold-include" ariaLabel="Include mold remediation" />
                 <div style={{ flex: 1, opacity: moldInclude ? 1 : 0.4 }}>
-                  <Slider label="Mold remediation" value={moldCost} onChange={set('moldCost')} min={20000} max={100000} step={5000} color={moldInclude ? "#fbbf24" : "#334155"} />
+                  <Slider label="Mold remediation" value={moldCost} onChange={set('moldCost')} commitStrategy={commitStrategy} min={20000} max={100000} step={5000} color={moldInclude ? "#fbbf24" : "#334155"} />
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Toggle label="" checked={roofInclude} onChange={set('roofInclude')} color="#fbbf24" testId="expense-roof-include" ariaLabel="Include roof project" />
                 <div style={{ flex: 1, opacity: roofInclude ? 1 : 0.4 }}>
-                  <Slider label="Roof" value={roofCost} onChange={set('roofCost')} min={20000} max={60000} step={5000} color={roofInclude ? "#fbbf24" : "#334155"} />
+                  <Slider label="Roof" value={roofCost} onChange={set('roofCost')} commitStrategy={commitStrategy} min={20000} max={60000} step={5000} color={roofInclude ? "#fbbf24" : "#334155"} />
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Toggle label="" checked={otherInclude} onChange={set('otherInclude')} color="#fbbf24" testId="expense-other-projects-include" ariaLabel="Include house projects and toilets" />
                 <div style={{ flex: 1, opacity: otherInclude ? 1 : 0.4 }}>
-                  <Slider label="House projects + toilets" value={otherProjects} onChange={set('otherProjects')} min={10000} max={60000} step={5000} color={otherInclude ? "#fbbf24" : "#334155"} />
+                  <Slider label="House projects + toilets" value={otherProjects} onChange={set('otherProjects')} commitStrategy={commitStrategy} min={10000} max={60000} step={5000} color={otherInclude ? "#fbbf24" : "#334155"} />
                 </div>
               </div>
             </div>

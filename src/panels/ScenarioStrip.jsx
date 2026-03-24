@@ -5,6 +5,7 @@ import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { fmtFull } from '../model/formatters.js';
 import { buildPrimaryLeversModel } from '../model/scenarioLevers.js';
 import { UI_COLORS, UI_RADII, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import { useRenderMetric } from '../testing/perfMetrics.js';
 
 function formatSignedAmount(amount, suffix = '') {
   if (amount === 0) return `$0${suffix}`;
@@ -242,8 +243,10 @@ const ScenarioStrip = ({
   onFieldChange,
   layoutBucket = 'desktop',
 }) => {
+  useRenderMetric('ScenarioStrip');
   const [showBreakdown, setShowBreakdown] = useState(false);
   const set = onFieldChange;
+  const commitStrategy = 'release';
 
   const model = buildPrimaryLeversModel({
     retireDebt,
@@ -362,6 +365,7 @@ const ScenarioStrip = ({
               label='Base living expenses'
               value={baseExpenses}
               onChange={set('baseExpenses')}
+              commitStrategy={commitStrategy}
               testId='scenario-base-expenses'
               min={25000}
               max={55000}
@@ -418,6 +422,7 @@ const ScenarioStrip = ({
                             label='Total cuts'
                             value={cutsValue}
                             onChange={(value) => set('cutsOverride')(value)}
+                            commitStrategy={commitStrategy}
                             testId='scenario-total-cuts'
                             min={0}
                             max={25000}
@@ -511,6 +516,7 @@ const ScenarioStrip = ({
                 label="BCS tuition parents' contribution"
                 value={bcsParentsAnnual}
                 onChange={set('bcsParentsAnnual')}
+                commitStrategy={commitStrategy}
                 min={0}
                 max={bcsAnnualTotal}
                 step={1000}

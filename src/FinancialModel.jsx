@@ -25,8 +25,11 @@ import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
 import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
+import TrackTab from './panels/tabs/TrackTab.jsx';
+import { getCurrentModelMonth, buildReforecast } from './model/checkIn.js';
 import { getShellWidthBucket } from './ui/tokens.js';
 import { useIsVisible } from './ui/useIsVisible.js';
+import { noteCompute } from './testing/perfMetrics.js';
 
 // Lazy wrapper: only renders RetirementIncomeChart when scrolled into view.
 // This chart runs 54,000+ simulations per render — skip it while off-screen.
@@ -102,6 +105,7 @@ export default function FinancialModel() {
     goals,
     storageStatus,
     activeTab,
+    checkInHistory, activeCheckInMonth,
   } = state;
 
   // Backward-compatible computed totals from individual cuts
@@ -146,7 +150,10 @@ export default function FinancialModel() {
   // React will skip intermediate computations during rapid drag and only compute when idle.
   const deferredState = useDeferredValue(state);
   const projection = useMemo(
-    () => computeProjection(gatherState(deferredState)),
+    () => {
+      noteCompute('projection');
+      return computeProjection(gatherState(deferredState));
+    },
     [deferredState],
   );
   const data = projection.data;
@@ -168,6 +175,14 @@ export default function FinancialModel() {
     if (!goals || goals.length === 0) return [];
     return evaluateAllGoals(goals, monthlyDetail, { wealthData, retireDebt });
   }, [goals, monthlyDetail, wealthData, retireDebt]);
+
+  const currentModelMonth = useMemo(() => getCurrentModelMonth(), []);
+
+  const reforecastProjection = useMemo(() => {
+    if (!checkInHistory || checkInHistory.length === 0) return null;
+    const latest = checkInHistory[checkInHistory.length - 1];
+    return buildReforecast(gatherState, latest);
+  }, [checkInHistory, deferredState]);
 
   const compareProjection = useMemo(() => {
     if (!compareState) return null;
@@ -202,6 +217,30 @@ export default function FinancialModel() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!storageAvailable) return;
+    (async () => {
+      try {
+        const result = await window.storage.get("fin-check-ins");
+        if (result && result.value) {
+          const parsed = JSON.parse(result.value);
+          if (Array.isArray(parsed)) {
+            dispatch({ type: 'RESTORE_STATE', state: { checkInHistory: parsed } });
+          }
+        }
+      } catch (e) { /* no saved check-ins */ }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!storageAvailable || !checkInHistory.length) return;
+    (async () => {
+      try {
+        await window.storage.set("fin-check-ins", JSON.stringify(checkInHistory));
+      } catch (e) { /* storage write failed */ }
+    })();
+  }, [checkInHistory, storageAvailable]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -339,11 +378,13 @@ export default function FinancialModel() {
 
   const dadProjection = useMemo(() => {
     if (!dadSupportState) return null;
+    noteCompute('dadProjection');
     return computeProjection(dadSupportState);
   }, [dadSupportState]);
 
   const dadMcRun = useMemo(() => {
     if (!dadSupportState || dadStep < 3) return null;
+    noteCompute('dadMcRun');
     return runDadMonteCarlo(dadSupportState);
   }, [dadSupportState, dadStep]);
 
@@ -634,6 +675,20 @@ export default function FinancialModel() {
     advanceNeeded, breakevenIdx,
   ]);
 
+  const trackTabProps = useMemo(() => ({
+    checkInHistory,
+    monthlyDetail,
+    currentModelMonth,
+    onRecordCheckIn: (checkIn) => dispatch({ type: 'RECORD_CHECK_IN', checkIn }),
+    onDeleteCheckIn: (month) => dispatch({ type: 'DELETE_CHECK_IN', month }),
+    savingsData,
+    reforecastProjection,
+    goals,
+    goalResults,
+    presentMode,
+  }), [checkInHistory, monthlyDetail, currentModelMonth, savingsData,
+       reforecastProjection, goals, goalResults, presentMode]);
+
   const activeExperience = dadMode
     ? 'dad'
     : sarahMode
@@ -647,7 +702,7 @@ export default function FinancialModel() {
   const showRail = activeExperience === 'planner';
   const railPlacement = !showRail
     ? 'hidden'
-    : (effectiveTab === 'overview' || effectiveTab === 'plan')
+    : (effectiveTab === 'overview' || effectiveTab === 'plan' || effectiveTab === 'track')
       ? 'below'
       : shellWidthBucket === 'desktop'
       ? 'side'
@@ -767,6 +822,10 @@ export default function FinancialModel() {
         />
       )}
 
+      {effectiveTab === 'track' && (
+        <TrackTab {...trackTabProps} />
+      )}
+
       {effectiveTab === 'income' && (
         <IncomeTab
           vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
@@ -831,6 +890,7 @@ export default function FinancialModel() {
     showRail,
     dataTableProps,
     summaryAskProps,
+    trackTabProps,
   ]);
 
   const plannerRail = useMemo(() => (

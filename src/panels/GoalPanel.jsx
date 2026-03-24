@@ -1,7 +1,9 @@
 import { memo, useState } from 'react';
 import { fmt } from '../model/formatters.js';
 import ActionButton from '../components/ui/ActionButton.jsx';
+import Slider from '../components/Slider.jsx';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
+import { useRenderMetric } from '../testing/perfMetrics.js';
 import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 const GOAL_TYPES = [
@@ -40,6 +42,7 @@ function formatGoalTargetLabel(month) {
 }
 
 function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning, presentMode, onGoalsChange }) {
+  useRenderMetric('GoalPanel');
   const [collapsed, setCollapsed] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newGoal, setNewGoal] = useState({
@@ -171,15 +174,16 @@ function GoalPanel({ goals, goalResults, mcGoalResults, mcRunning, presentMode, 
                   <label style={fieldLabelStyle}>
                     Target timeframe: {formatGoalTargetLabel(newGoal.targetMonth)}
                   </label>
-                  <input
-                    type='range'
+                  <Slider
+                    label=''
+                    hideHeader
+                    value={newGoal.targetMonth}
+                    onChange={(value) => setNewGoal({ ...newGoal, targetMonth: value })}
                     min={0}
                     max={72}
-                    value={newGoal.targetMonth}
-                    data-testid='goal-form-target-month'
-                    onChange={(e) => setNewGoal({ ...newGoal, targetMonth: Number(e.target.value) })}
+                    testId='goal-form-target-month'
+                    ariaLabel='Goal target month'
                     disabled={newGoal.type === 'debt_free'}
-                    style={{ width: '100%' }}
                   />
                 </div>
 

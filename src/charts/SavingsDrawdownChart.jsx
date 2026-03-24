@@ -307,14 +307,14 @@ function SavingsDrawdownChart({
           })()}
           {!presentMode && <>
           <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Slider label="Starting savings" value={startingSavings} onChange={onFieldChange('startingSavings')}
+            <Slider label="Starting savings" value={startingSavings} onChange={onFieldChange('startingSavings')} commitStrategy='release'
               min={50000} max={500000} step={10000} color="#60a5fa" />
-            <Slider label="Investment return (annual)" value={investmentReturn} onChange={onFieldChange('investmentReturn')}
+            <Slider label="Investment return (annual)" value={investmentReturn} onChange={onFieldChange('investmentReturn')} commitStrategy='release'
               min={0} max={50} format={(v) => v + "%"} color="#60a5fa" />
           </div>
           <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Slider label="Base living expenses/mo" value={baseExpenses} onChange={onFieldChange('baseExpenses')} min={25000} max={55000} step={500} color="#f87171" />
-            <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} min={3000} max={12000} step={100} color={retireDebt ? "#334155" : "#f87171"} />
+            <Slider label="Base living expenses/mo" value={baseExpenses} onChange={onFieldChange('baseExpenses')} commitStrategy='release' min={25000} max={55000} step={500} color="#f87171" />
+            <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} commitStrategy='release' min={3000} max={12000} step={100} color={retireDebt ? "#334155" : "#f87171"} />
           </div>
           <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, padding: "0 2px" }}>
             <span style={{ color: "#64748b" }}>

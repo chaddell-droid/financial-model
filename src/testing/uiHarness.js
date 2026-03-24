@@ -1,5 +1,29 @@
 const STORAGE_PREFIX = 'fs_';
 
+function createPerfState() {
+  return {
+    renderCounts: {},
+    sliderDraftCounts: {},
+    sliderCommitCounts: {},
+    computeCounts: {},
+  };
+}
+
+function clonePerfState(state) {
+  return {
+    renderCounts: { ...state.renderCounts },
+    sliderDraftCounts: { ...state.sliderDraftCounts },
+    sliderCommitCounts: { ...state.sliderCommitCounts },
+    computeCounts: { ...state.computeCounts },
+  };
+}
+
+function bumpCounter(state, bucket, name) {
+  if (!name) return 0;
+  state[bucket][name] = (state[bucket][name] || 0) + 1;
+  return state[bucket][name];
+}
+
 function parseSeed(value) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
@@ -31,6 +55,7 @@ export function installUiTestHarness() {
   const config = getUiTestConfig();
   if (!import.meta.env.DEV && !config.enabled) return;
   const state = { monteCarloSeed: config.monteCarloSeed };
+  const perf = createPerfState();
 
   const resetStorage = () => {
     const keys = listStorageKeys();
@@ -62,6 +87,28 @@ export function installUiTestHarness() {
         snapshot[key] = window.localStorage.getItem(key);
         return snapshot;
       }, {});
+    },
+    resetPerfMetrics() {
+      perf.renderCounts = {};
+      perf.sliderDraftCounts = {};
+      perf.sliderCommitCounts = {};
+      perf.computeCounts = {};
+      return clonePerfState(perf);
+    },
+    getPerfMetrics() {
+      return clonePerfState(perf);
+    },
+    bumpRender(name) {
+      return bumpCounter(perf, 'renderCounts', name);
+    },
+    bumpSliderDraft(name) {
+      return bumpCounter(perf, 'sliderDraftCounts', name);
+    },
+    bumpSliderCommit(name) {
+      return bumpCounter(perf, 'sliderCommitCounts', name);
+    },
+    bumpCompute(name) {
+      return bumpCounter(perf, 'computeCounts', name);
     },
   };
 

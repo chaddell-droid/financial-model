@@ -102,12 +102,8 @@ async function worker1() {
       await page.getByTestId('header-present-mode').click();
       await expectAria(page.getByTestId('header-present-mode'), /Exit presentation mode/i, 'present mode aria did not toggle');
       await page.getByTestId('header-present-mode').click();
-
-      await page.getByTestId('header-enter-sarah-mode').click();
-      await page.getByTestId('sarah-mode-exit').click();
-
-      await page.getByTestId('header-enter-dad-mode').click();
-      await page.getByTestId('dad-mode-exit').click();
+      ok(await page.getByTestId('header-enter-sarah-mode').count() === 0, 'Sarah mode entry should be hidden');
+      ok(await page.getByTestId('header-enter-dad-mode').count() === 0, 'Dad mode entry should be hidden');
 
       await page.getByTestId('header-toggle-save-load').click();
       ok(await page.getByTestId('save-load-panel').count() === 1, 'save/load panel did not open');
@@ -150,25 +146,18 @@ async function worker1() {
 
     results.push(await runEntry('shell.mode_exclusivity', async () => {
       await gotoApp(page);
-      await page.getByTestId('header-enter-sarah-mode').click();
-      ok(await page.getByTestId('sarah-mode-root').count() === 1, 'Sarah mode did not render');
-      ok(await page.getByTestId('app-shell').count() === 0, 'planner shell should not remain visible in Sarah mode');
-      ok(await page.getByTestId('goal-panel').count() === 0, 'planner goal panel should be hidden in Sarah mode');
+      ok(await page.getByTestId('header-enter-sarah-mode').count() === 0, 'Sarah mode entry should remain hidden in the planner shell');
+      ok(await page.getByTestId('header-enter-dad-mode').count() === 0, 'Dad mode entry should remain hidden in the planner shell');
 
       await page.getByTestId('header-present-mode').click();
       ok(await page.getByTestId('app-shell').count() === 1, 'present mode should restore the planner shell');
-      ok(await page.getByTestId('sarah-mode-root').count() === 0, 'Sarah mode should clear when present mode starts');
-      ok(await page.getByTestId('header-enter-sarah-mode').count() === 0, 'present mode should hide alternate-mode buttons');
-
+      ok(await page.getByTestId('header-enter-sarah-mode').count() === 0, 'present mode should not surface the retired Sarah mode button');
+      ok(await page.getByTestId('header-enter-dad-mode').count() === 0, 'present mode should not surface the retired Dad mode button');
+      ok(await page.getByTestId('header-toggle-save-load').count() === 0, 'present mode should hide save/load controls');
+      ok(await page.getByTestId('header-reset-all').count() === 0, 'present mode should hide reset controls');
       await page.getByTestId('header-present-mode').click();
-      await page.getByTestId('header-enter-dad-mode').click();
-      ok(await page.getByTestId('dad-mode-root').count() === 1, 'Dad mode did not render');
-      ok(await page.getByTestId('sarah-mode-root').count() === 0, 'Sarah mode should not remain visible in Dad mode');
-      ok(await page.getByTestId('app-shell').count() === 0, 'planner shell should not remain visible in Dad mode');
-      ok(await page.getByTestId('header-toggle-save-load').count() === 0, 'planner-only utility controls should be hidden in Dad mode');
-      await page.getByTestId('dad-mode-exit').click();
-      ok(await page.getByTestId('app-shell').count() === 1, 'planner shell should return after leaving Dad mode');
-      return 'planner, present, Sarah, and Dad states stayed mutually exclusive';
+      ok(await page.getByTestId('header-toggle-save-load').count() === 1, 'planner shell should restore save/load controls');
+      return 'planner and present states stayed mutually exclusive while retired modes remained hidden';
     }));
 
     results.push(await runEntry('shell.save_load.lifecycle', async () => {
@@ -233,11 +222,15 @@ async function worker1() {
       ok(await page.getByTestId('primary-levers-summary').count() === 1, 'primary levers summary did not render');
 
       await page.getByTestId('scenario-base-expenses').fill('45000');
+      await page.getByTestId('scenario-base-expenses').blur();
       await page.getByTestId('scenario-retire-debt').click();
       await page.getByTestId('scenario-lifestyle-cuts').click();
       await page.getByTestId('scenario-total-cuts').fill('16500');
+      await page.getByTestId('scenario-total-cuts').blur();
       await page.getByTestId('scenario-van-sold').click();
       await page.getByTestId('scenario-bcs-parents-annual').fill('41000');
+      await page.getByTestId('scenario-bcs-parents-annual').blur();
+      await page.waitForTimeout(180);
       await expectVisibleText(page, 'We owe $0/mo');
       ok((await page.getByTestId('primary-levers-monthly-outflow').textContent()).includes('$31,097/mo'), 'primary levers outflow summary did not update');
       ok((await page.getByTestId('primary-levers-monthly-savings').textContent()).includes('$26,864/mo'), 'primary levers savings summary did not update');
@@ -483,6 +476,7 @@ async function worker3() {
       const before = await page.getByTestId('msft-vesting-total-remaining').innerText();
       const footerBefore = await page.getByTestId('msft-vesting-footer').innerText();
       await page.getByLabel('MSFT annual price growth').fill('10');
+      await page.getByLabel('MSFT annual price growth').blur();
       await page.waitForTimeout(120);
       const after = await page.getByTestId('msft-vesting-total-remaining').innerText();
       const footerAfter = await page.getByTestId('msft-vesting-footer').innerText();
@@ -593,9 +587,15 @@ async function worker5() {
   const { page, consoleIssues } = session;
   const results = [];
 
+  const ensureRetirementVisible = async () => {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.getByTestId('retirement-income-chart').waitFor({ state: 'visible', timeout: 10000 });
+  };
+
   try {
     await gotoApp(page);
     await page.getByTestId('tab-plan').click();
+    await ensureRetirementVisible();
 
     results.push(await runEntry('retirement.mode_and_help', async () => {
       await page.getByTestId('retirement-mode-adaptive_pwa').click();
@@ -605,6 +605,7 @@ async function worker5() {
       await page.getByTestId('retirement-adaptive-pwa-intro-dismiss').click();
       await gotoApp(page, { reset: false });
       await page.getByTestId('tab-plan').click();
+      await ensureRetirementVisible();
       await page.getByTestId('retirement-mode-adaptive_pwa').click();
       ok(await page.getByTestId('retirement-adaptive-pwa-intro').count() === 0, 'Adaptive PWA intro dismissal did not persist');
       const persistedIdentity = await page.getByTestId('retirement-mode-identity').innerText();
@@ -614,6 +615,7 @@ async function worker5() {
 
     await gotoApp(page);
     await page.getByTestId('tab-plan').click();
+    await ensureRetirementVisible();
 
     results.push(await runEntry('retirement.historical_controls', async () => {
       const before = await page.getByTestId('retirement-income-chart').innerText();
@@ -696,37 +698,6 @@ async function worker6() {
       const text = await page.locator('body').innerText();
       ok(!/NaN|undefined/.test(text), 'details surface contains invalid tokens');
       return 'details summary and table rendered coherently';
-    }));
-
-    results.push(await runEntry('sarah_mode.entry_exit_and_sliders', async () => {
-      await page.getByTestId('header-enter-sarah-mode').click();
-      ok(await page.getByTestId('sarah-mode-root').count() === 1, 'Sarah mode root missing');
-      ok(await page.getByTestId('sarah-mode-hero').count() === 1, 'Sarah mode hero missing');
-      await page.getByLabel('Your hourly rate').press('End');
-      await page.getByLabel('Current clients/day').press('End');
-      await expectVisibleText(page, '/mo');
-      await page.getByTestId('sarah-mode-exit').click();
-      ok(await page.getByTestId('header-enter-sarah-mode').count() === 1, 'did not exit Sarah mode');
-      return 'Sarah mode entry, sliders, and exit worked';
-    }));
-
-    results.push(await runEntry('dad_mode.entry_exit_and_progression', async () => {
-      await page.getByTestId('header-enter-dad-mode').click();
-      ok(await page.getByTestId('dad-mode-root').count() === 1, 'Dad mode root missing');
-      await page.getByTestId('dad-mode-next-act-1').click();
-      await page.getByTestId('dad-mode-next-act-2').click();
-      await expectVisibleText(page, 'Your contribution');
-      return 'Dad mode progressed through all acts';
-    }));
-
-    results.push(await runEntry('dad_mode.support_controls', async () => {
-      await page.getByTestId('dad-pay-off-debt').press('End');
-      await page.getByTestId('dad-bcs-parents').press('End');
-      await page.getByTestId('dad-mold-toggle').click();
-      await page.getByTestId('dad-roof-toggle').click();
-      await expectVisibleText(page, 'Fully covered');
-      await page.getByTestId('dad-mode-exit').click();
-      return 'Dad support controls updated derived support math';
     }));
 
     ok(consoleIssues.length === 0, `console issues detected: ${consoleIssues.join(' | ')}`);

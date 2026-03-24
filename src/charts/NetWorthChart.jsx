@@ -275,17 +275,17 @@ function NetWorthChart({
         <div style={{ marginTop: 12 }}>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, fontWeight: 600 }}>401k</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Slider label="Starting 401k balance" value={starting401k} onChange={onFieldChange('starting401k')}
-              min={0} max={1000000} step={10000} color="#60a5fa" />
-            <Slider label="Annual return" value={return401k} onChange={onFieldChange('return401k')}
-              min={0} max={40} format={(v) => v + '%'} color="#60a5fa" />
+            <Slider label="Starting 401k balance" value={starting401k} onChange={onFieldChange('starting401k')} commitStrategy='release'
+            min={0} max={1000000} step={10000} color="#60a5fa" />
+            <Slider label="Annual return" value={return401k} onChange={onFieldChange('return401k')} commitStrategy='release'
+            min={0} max={40} format={(v) => v + '%'} color="#60a5fa" />
           </div>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, marginTop: 8, fontWeight: 600 }}>Home Equity</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Slider label="Home equity" value={homeEquity} onChange={onFieldChange('homeEquity')}
-              min={200000} max={2000000} step={25000} color="#f59e0b" />
-            <Slider label="Annual appreciation" value={homeAppreciation} onChange={onFieldChange('homeAppreciation')}
-              min={0} max={10} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
+            <Slider label="Home equity" value={homeEquity} onChange={onFieldChange('homeEquity')} commitStrategy='release'
+            min={200000} max={2000000} step={25000} color="#f59e0b" />
+            <Slider label="Annual appreciation" value={homeAppreciation} onChange={onFieldChange('homeAppreciation')} commitStrategy='release'
+            min={0} max={10} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
           </div>
         </div>
       )}

@@ -8,6 +8,7 @@ import ActionButton from '../components/ui/ActionButton.jsx';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { METRIC_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
 import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import { useRenderMetric } from '../testing/perfMetrics.js';
 
 const TEAL = UI_COLORS.modeSarah;
 const WARM_GREEN = UI_COLORS.positive;
@@ -40,6 +41,8 @@ export default function SarahMode({
   monthlyDetail, savingsData, wealthData,
   onFieldChange, onExit,
 }) {
+  useRenderMetric('SarahMode');
+  const commitStrategy = 'release';
   const cuts = { cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems };
   const totalCutsMonthly = Object.values(cuts).reduce((s, v) => s + v, 0);
   const totalCutsAnnual = totalCutsMonthly * 12;
@@ -255,12 +258,12 @@ export default function SarahMode({
         </div>
 
         <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Slider label="Your hourly rate" value={sarahRate} onChange={onFieldChange('sarahRate')} min={150} max={350} step={5} format={v => `$${v}`} color={TEAL} />
-          <Slider label="Max rate target" value={sarahMaxRate} onChange={onFieldChange('sarahMaxRate')} min={150} max={400} step={5} format={v => `$${v}`} color={TEAL} />
-          <Slider label="Current clients/day" value={sarahCurrentClients} onChange={onFieldChange('sarahCurrentClients')} min={1} max={6} step={0.25} format={v => v.toFixed(2)} color={TEAL} />
-          <Slider label="Max clients target" value={sarahMaxClients} onChange={onFieldChange('sarahMaxClients')} min={1} max={8} step={0.25} format={v => v.toFixed(2)} color={TEAL} />
-          <Slider label="Rate growth/year" value={sarahRateGrowth} onChange={onFieldChange('sarahRateGrowth')} min={0} max={20} step={1} format={v => `${v}%`} color={TEAL} />
-          <Slider label="Client growth/year" value={sarahClientGrowth} onChange={onFieldChange('sarahClientGrowth')} min={0} max={30} step={1} format={v => `${v}%`} color={TEAL} />
+          <Slider label="Your hourly rate" value={sarahRate} onChange={onFieldChange('sarahRate')} commitStrategy={commitStrategy} min={150} max={350} step={5} format={v => `$${v}`} color={TEAL} />
+          <Slider label="Max rate target" value={sarahMaxRate} onChange={onFieldChange('sarahMaxRate')} commitStrategy={commitStrategy} min={150} max={400} step={5} format={v => `$${v}`} color={TEAL} />
+          <Slider label="Current clients/day" value={sarahCurrentClients} onChange={onFieldChange('sarahCurrentClients')} commitStrategy={commitStrategy} min={1} max={6} step={0.25} format={v => v.toFixed(2)} color={TEAL} />
+          <Slider label="Max clients target" value={sarahMaxClients} onChange={onFieldChange('sarahMaxClients')} commitStrategy={commitStrategy} min={1} max={8} step={0.25} format={v => v.toFixed(2)} color={TEAL} />
+          <Slider label="Rate growth/year" value={sarahRateGrowth} onChange={onFieldChange('sarahRateGrowth')} commitStrategy={commitStrategy} min={0} max={20} step={1} format={v => `${v}%`} color={TEAL} />
+          <Slider label="Client growth/year" value={sarahClientGrowth} onChange={onFieldChange('sarahClientGrowth')} commitStrategy={commitStrategy} min={0} max={30} step={1} format={v => `${v}%`} color={TEAL} />
         </div>
       </SurfaceCard>
 

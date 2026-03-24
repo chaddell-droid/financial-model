@@ -6,6 +6,7 @@ import ActionButton from '../components/ui/ActionButton.jsx';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { METRIC_LABELS, TIMEFRAME_LABELS } from '../content/uiGlossary.js';
 import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import { useRenderMetric } from '../testing/perfMetrics.js';
 
 export default function DadMode({
   // Dad-mode specific state
@@ -31,6 +32,8 @@ export default function DadMode({
   onEnterDadMode,
   onExitDadMode,
 }) {
+  useRenderMetric('DadMode');
+  const commitStrategy = 'release';
   const set = onFieldChange;
 
   // ── Local computations ──
@@ -338,7 +341,7 @@ export default function DadMode({
             {/* Debt */}
             <div style={{ background: "#0f172a", borderRadius: 8, padding: "14px 14px", border: "1px solid #1e293b" }}>
               <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Debt Freedom</div>
-              <Slider label="Pay off debt" value={dadDebtPct} onChange={set('dadDebtPct')} min={0} max={100} step={5} format={(v) => v === 0 ? "None" : v === 100 ? `All (${fmtFull(debtTotal)})` : `${v}% (${fmtFull(Math.round(debtTotal * v / 100))})`} color="#4ade80" testId="dad-pay-off-debt" />
+              <Slider label="Pay off debt" value={dadDebtPct} onChange={set('dadDebtPct')} commitStrategy={commitStrategy} min={0} max={100} step={5} format={(v) => v === 0 ? "None" : v === 100 ? `All (${fmtFull(debtTotal)})` : `${v}% (${fmtFull(Math.round(debtTotal * v / 100))})`} color="#4ade80" testId="dad-pay-off-debt" />
               {dadDebtPct > 0 && (
                 <div style={{ fontSize: 11, marginTop: 6 }}>
                   <div style={{ color: "#4ade80" }}>Frees {fmtFull(dadDebtMonthly)}/month</div>
@@ -356,11 +359,19 @@ export default function DadMode({
             <div style={{ background: "#0f172a", borderRadius: 8, padding: "14px 14px", border: "1px solid #1e293b" }}>
               <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>School Tuition</div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>BCS — {bcsYearsLeft} years remaining</div>
-              <input type="range" min={0} max={bcsAnnualTotal} step={1000} value={dadBcsParents}
-                data-testid="dad-bcs-parents"
-                aria-label="Dad BCS contribution"
-                onChange={(e) => set('dadBcsParents')(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#c084fc", height: 6 }} />
+              <Slider
+                label=""
+                hideHeader
+                value={dadBcsParents}
+                onChange={set('dadBcsParents')}
+                commitStrategy={commitStrategy}
+                min={0}
+                max={bcsAnnualTotal}
+                step={1000}
+                testId="dad-bcs-parents"
+                ariaLabel="Dad BCS contribution"
+                color="#c084fc"
+              />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#475569", marginTop: 4 }}>
                 <span>$0</span><span>$25K</span><span>{fmtFull(bcsAnnualTotal)}</span>
               </div>

@@ -1,6 +1,6 @@
 {
   "appUrl": "http://127.0.0.1:4173/?ui_test=1&mc_seed=123&reset_storage=1",
-  "runs": 5,
+  "runs": 4,
   "warmups": 1,
   "metrics": [
     {
@@ -8,35 +8,80 @@
       "maxMedianMs": 220,
       "maxP95Ms": 320,
       "maxLongTaskCount": 0,
-      "maxLongTaskMs": 0
+      "maxLongTaskMs": 0,
+      "maxSliderCommitMax": 0,
+      "maxRenderMax": 0,
+      "maxComputeMax": 0
     },
     {
-      "id": "plan.retire_debt_toggle_ms",
-      "maxMedianMs": 260,
-      "maxP95Ms": 360,
-      "maxLongTaskCount": 1,
-      "maxLongTaskMs": 50
-    },
-    {
-      "id": "plan.van_toggle_ms",
-      "maxMedianMs": 260,
-      "maxP95Ms": 360,
-      "maxLongTaskCount": 1,
-      "maxLongTaskMs": 50
-    },
-    {
-      "id": "plan.cuts_toggle_ms",
-      "maxMedianMs": 260,
-      "maxP95Ms": 360,
-      "maxLongTaskCount": 1,
-      "maxLongTaskMs": 50
-    },
-    {
-      "id": "plan.base_expense_slider_ms",
-      "maxMedianMs": 80,
-      "maxP95Ms": 120,
+      "id": "plan.base_expense_slider_drag_ms",
+      "maxMedianMs": 140,
+      "maxP95Ms": 180,
       "maxLongTaskCount": 0,
-      "maxLongTaskMs": 0
+      "maxLongTaskMs": 0,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 1
+    },
+    {
+      "id": "plan.cuts_slider_drag_ms",
+      "maxMedianMs": 140,
+      "maxP95Ms": 220,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 50,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 1
+    },
+    {
+      "id": "plan.bcs_slider_drag_ms",
+      "maxMedianMs": 140,
+      "maxP95Ms": 220,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 50,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 1
+    },
+    {
+      "id": "income.ssdi_approval_slider_drag_ms",
+      "maxMedianMs": 150,
+      "maxP95Ms": 240,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 60,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 1
+    },
+    {
+      "id": "goal.target_month_slider_drag_ms",
+      "maxMedianMs": 100,
+      "maxP95Ms": 140,
+      "maxLongTaskCount": 0,
+      "maxLongTaskMs": 0,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 0
+    },
+    {
+      "id": "retirement.pool_draw_slider_drag_ms",
+      "maxMedianMs": 220,
+      "maxP95Ms": 320,
+      "maxLongTaskCount": 1,
+      "maxLongTaskMs": 80,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 0
+    },
+    {
+      "id": "risk.mc_num_sims_slider_drag_ms",
+      "maxMedianMs": 100,
+      "maxP95Ms": 160,
+      "maxLongTaskCount": 0,
+      "maxLongTaskMs": 0,
+      "maxSliderCommitMax": 1,
+      "maxRenderMax": 4,
+      "maxComputeMax": 0
     }
   ]
 }

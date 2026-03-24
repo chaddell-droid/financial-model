@@ -125,10 +125,10 @@ export default function SequenceOfReturnsChart({
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
-          <Slider label="Bad year 1 return" value={seqBadY1} onChange={set('seqBadY1')} min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
+          <Slider label="Bad year 1 return" value={seqBadY1} onChange={set('seqBadY1')} commitStrategy='release' min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
         </div>
         <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
-          <Slider label="Bad year 2 return" value={seqBadY2} onChange={set('seqBadY2')} min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
+          <Slider label="Bad year 2 return" value={seqBadY2} onChange={set('seqBadY2')} commitStrategy='release' min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
         </div>
         <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Recovery years (auto)</div>

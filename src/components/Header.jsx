@@ -25,8 +25,6 @@ export default function Header({
   activeExperience = 'planner',
   presentMode,
   onTogglePresentMode,
-  onEnterDadMode,
-  onEnterSarahMode,
   showSaveLoad,
   onToggleSaveLoad,
   savedScenarios,
@@ -36,8 +34,6 @@ export default function Header({
   const copy = EXPERIENCE_COPY[activeExperience] || EXPERIENCE_COPY.planner;
   const isPlanner = activeExperience === 'planner';
   const isPresent = activeExperience === 'present';
-  const isSarah = activeExperience === 'sarah';
-  const isDad = activeExperience === 'dad';
 
   return (
     <div
@@ -86,32 +82,6 @@ export default function Header({
         >
           {presentMode ? 'Exit Presentation' : 'Present'}
         </ActionButton>
-
-        {!isPresent ? (
-          <ActionButton
-            onClick={onEnterSarahMode}
-            data-testid='header-enter-sarah-mode'
-            aria-label='Open Sarah mode'
-            variant={UI_ACTION_VARIANTS.chip}
-            accent={UI_COLORS.modeSarah}
-            active={isSarah}
-          >
-            Sarah&apos;s View
-          </ActionButton>
-        ) : null}
-
-        {!isPresent ? (
-          <ActionButton
-            onClick={onEnterDadMode}
-            data-testid='header-enter-dad-mode'
-            aria-label='Open Dad mode'
-            variant={UI_ACTION_VARIANTS.chip}
-            accent={UI_COLORS.modeDad}
-            active={isDad}
-          >
-            Dad Mode
-          </ActionButton>
-        ) : null}
 
         {isPlanner ? (
           <ActionButton

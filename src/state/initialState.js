@@ -149,6 +149,10 @@ export const INITIAL_STATE = {
 
   // Storage
   storageStatus: "",
+
+  // Monthly Check-In
+  checkInHistory: [],
+  activeCheckInMonth: null,
 };
 
 // Keys that constitute the financial model (for save/restore/projection)

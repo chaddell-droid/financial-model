@@ -8,7 +8,7 @@ import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import PwaDistributionChart from './PwaDistributionChart.jsx';
 import { HELP } from '../content/help/registry.js';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
-import { simulatePath, computeSWR } from '../model/ernWithdrawal.js';
+import { simulatePath, computeSWR, computePreInhSWR } from '../model/ernWithdrawal.js';
 import {
   buildRetirementContext,
   buildScalingAndRescueFlows,
@@ -394,15 +394,10 @@ function RetirementIncomeChart({
     return swrs;
   }, [blendedReturns, horizonMonths, formulaSupplementalFlows, scaling, dPoolFloor, totalPool]);
 
-  // Optimal rates (independent of withdrawal slider — closed-form from cohortSWRs)
+  // Optimal rates — closed-form percentile extraction from cohortSWRs (no binary search)
   const optimalRates = useMemo(() => {
-    // Shadow deferred values so the body stays in sync with the dep array
-    const poolFloor = dPoolFloor;
-    const maxDepletionMonths = dMaxDepletionMonths;
-    const inheritanceAmount = dInheritanceAmount;
     const empty = {
       optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
-      safeRate: 0, safeMonthly: 0,
       numCohorts: 0, worstCohort: { year: 0 }, cohortRange: '',
       optimalConsumption: 0, sliderMax: 30,
     };
@@ -411,84 +406,34 @@ function RetirementIncomeChart({
     const numCohorts = getNumCohorts(horizonMonths);
     if (numCohorts <= 0 || cohortSWRs.length === 0) return empty;
 
-    // Two-tier rate computation: ERN max >= safe rate.
     const initialIncome = startingCoupleIncome;
-    const targetSurvival = 0.90;
 
-    // Helper: binary search for max pool draw rate at given survival constraint
-    function findMaxRate(hi, checkFn) {
-      let lo = 0;
-      for (let iter = 0; iter < 30; iter++) {
-        const mid = (lo + hi) / 2;
-        const testPoolDraw = Math.round(totalPool * (mid / 100) / 12);
-        const testConsumption = testPoolDraw + initialIncome;
-        let survived = 0;
-        for (let c = 0; c < numCohorts; c++) {
-          const sim = simulatePath(blendedReturns, c, horizonMonths, testConsumption, simulationSupplementalFlows, scaling, totalPool, poolFloor, rescueFlows);
-          if (checkFn(sim)) survived++;
-        }
-        if (survived / numCohorts >= targetSurvival) lo = mid; else hi = mid;
-      }
-      return Math.round(lo * 10) / 10;
-    }
+    // Sort cohort SWRs; 10th percentile = consumption at 90% survival
+    const sorted = Float64Array.from(cohortSWRs).sort();
+    const p10idx = Math.floor(numCohorts * 0.10);
+    const optimalConsumption = Math.max(0, sorted[p10idx]);
 
-    function findMaxPreInheritanceRate(postConsumption) {
-      if (!hasInheritance || inheritanceMonth <= 0 || inheritanceMonth >= horizonMonths) {
-        return { rate: optimalRate, monthly: optimalMonthly };
-      }
+    // Convert total consumption → pool withdrawal rate
+    const optimalPoolDraw = Math.max(0, optimalConsumption - initialIncome);
+    const optimalRate = totalPool > 0
+      ? Math.round(optimalPoolDraw * 12 / totalPool * 1000) / 10 : 0;
+    const optimalMonthly = Math.round(optimalPoolDraw);
 
-      const hi = Math.max(80, optimalRate + 10);
-      let lo = 0;
-      let hiRate = hi;
-      for (let iter = 0; iter < 30; iter++) {
-        const mid = (lo + hiRate) / 2;
-        const prePoolDraw = Math.round(totalPool * (mid / 100) / 12);
-        const preConsumption = prePoolDraw + initialIncome;
-        const scheduledConsumption = new Float64Array(horizonMonths);
-        for (let t = 0; t < horizonMonths; t++) {
-          scheduledConsumption[t] = t < inheritanceMonth ? preConsumption : postConsumption;
-        }
-
-        let survived = 0;
-        for (let c = 0; c < numCohorts; c++) {
-          const sim = simulatePath(
-            blendedReturns,
-            c,
-            horizonMonths,
-            scheduledConsumption,
-            simulationSupplementalFlows,
-            scaling,
-            totalPool,
-            poolFloor,
-            rescueFlows
-          );
-          if (sim.finalPool >= poolFloor && sim.maxConsecutiveDepleted <= maxDepletionMonths) survived++;
-        }
-
-        if (survived / numCohorts >= targetSurvival) lo = mid; else hiRate = mid;
-      }
-
-      return {
-        rate: Math.round(lo * 10) / 10,
-        monthly: Math.round(totalPool * (lo / 100) / 12),
-      };
-    }
-
-    // ERN max rate: the pool can reach the reserve, but not stay there too long.
-    const optimalRate = findMaxRate(80, (sim) => sim.finalPool >= poolFloor && sim.maxConsecutiveDepleted <= maxDepletionMonths);
-    const optimalMonthly = Math.round(totalPool * (optimalRate / 100) / 12);
-    const optimalConsumption = optimalMonthly + initialIncome;
-
-    // Safe rate: the reserve is never touched.
-    const safeRate = findMaxRate(optimalRate + 1, (sim) => sim.finalPool >= poolFloor && !sim.everDepleted);
-    const safeMonthly = Math.round(totalPool * (safeRate / 100) / 12);
-
-    // Pre-inheritance optimal rate (simulation-based to match rescue semantics)
+    // Pre-inheritance rate via closed-form (if applicable)
     let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
     if (hasInheritance && inheritanceMonth > 0 && inheritanceMonth < horizonMonths) {
-      const preInheritance = findMaxPreInheritanceRate(optimalConsumption);
-      optimalPreRate = preInheritance.rate;
-      optimalPreMonthly = preInheritance.monthly;
+      const preSwrs = new Float64Array(numCohorts);
+      for (let c = 0; c < numCohorts; c++) {
+        preSwrs[c] = computePreInhSWR(blendedReturns, c, horizonMonths,
+          formulaSupplementalFlows, scaling, dPoolFloor, totalPool,
+          optimalConsumption, inheritanceMonth);
+      }
+      const sortedPre = Float64Array.from(preSwrs).sort();
+      const preConsumption = Math.max(0, sortedPre[p10idx]);
+      const prePoolDraw = Math.max(0, preConsumption - initialIncome);
+      optimalPreRate = totalPool > 0
+        ? Math.round(prePoolDraw * 12 / totalPool * 1000) / 10 : 0;
+      optimalPreMonthly = Math.round(prePoolDraw);
     }
 
     // Worst historical cohort (lowest formula SWR)
@@ -507,19 +452,18 @@ function RetirementIncomeChart({
 
     return {
       optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
-      safeRate, safeMonthly,
       numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
       optimalConsumption, sliderMax,
     };
   }, [cohortSWRs, totalPool, horizonMonths, startingCoupleIncome,
-    hasInheritance, inheritanceMonth, blendedReturns, simulationSupplementalFlows, scaling, dPoolFloor, rescueFlows, dMaxDepletionMonths]);
+    hasInheritance, inheritanceMonth, blendedReturns, formulaSupplementalFlows, scaling, dPoolFloor]);
 
-  // Sync withdrawal slider to SAFE rate (pool never depletes) — chart default
+  // Sync withdrawal slider to optimal rate (90% survival) — chart default
   useEffect(() => {
-    if (!isPwaMode && optimalRates.safeRate > 0) {
-      setWithdrawalRate(optimalRates.safeRate);
+    if (!isPwaMode && optimalRates.optimalRate > 0) {
+      setWithdrawalRate(optimalRates.optimalRate);
     }
-  }, [isPwaMode, optimalRates.safeRate]);
+  }, [isPwaMode, optimalRates.optimalRate]);
 
   useEffect(() => {
     if (!isPwaMode) return;
@@ -543,14 +487,18 @@ function RetirementIncomeChart({
 
     const pf = dPoolFloor;
     const allYearlyPools = new Array(numCohorts);
-    let survivedCount = 0;
-
     const userConsumption = baseMonthlyConsumption;
 
+    // Formula-based survival: cohort survives if its closed-form SWR >= user's consumption
+    let survivedCount = 0;
+    for (let c = 0; c < numCohorts; c++) {
+      if (cohortSWRs.length > c && cohortSWRs[c] >= userConsumption) survivedCount++;
+    }
+
+    // Simulation still needed for chart band rendering (pool trajectory per cohort)
     for (let c = 0; c < numCohorts; c++) {
       const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, simulationSupplementalFlows, scaling, totalPool, pf, rescueFlows);
       allYearlyPools[c] = sim.yearlyPools;
-      if (sim.finalPool >= pf) survivedCount++;
     }
 
     const percentiles = [10, 25, 50, 75, 90];
@@ -568,7 +516,7 @@ function RetirementIncomeChart({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { finishAboveReserveRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows, cohortSWRs]);
 
   // Deterministic trajectory using average historical return.
   // Uses the same begin-of-month cash-flow ordering as simulatePath().
@@ -700,11 +648,11 @@ function RetirementIncomeChart({
         summary: 'Use this mode when you want a fixed starting pool draw tested across every historical retirement cohort with reserve and survivor constraints.',
         primaryLabel: 'Headline meaning',
         primaryValue: `${Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah ${sarahTargetAge}`,
-        secondaryLabel: 'Safety backstop',
-        secondaryValue: `${optimalRates.safeRate}% safe pool draw means the reserve is never touched in 90% of cohorts.`,
+        secondaryLabel: 'Planning constraint',
+        secondaryValue: `${optimalRates.optimalRate}% optimal pool draw leaves 90% of historical cohorts above reserve at Sarah ${sarahTargetAge}.`,
         bullets: [
           'Set the pool draw and survivor timing first. Then use reserve and inheritance assumptions to decide how much slack you want in bad historical starts.',
-          'The two top-line rates answer different questions: finish above reserve versus reserve never touched. Keep them separate when comparing outcomes.',
+          'The optimal rate is the closed-form ERN result: the exact spending where 90% of historical cohorts end above your reserve target.',
           'Use the survivor spending cards to read how the same plan behaves before inheritance, after inheritance, and after Chad passes.',
         ],
       };
@@ -772,12 +720,6 @@ function RetirementIncomeChart({
               align="right"
             />
           </div>
-          {!isPwaMode && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: retirementTextMuted }}>
-              <span>90% safe uses reserve-never-touched</span>
-              <HelpTip help={HELP.reserve_never_touched} accent="#4ade80" align="right" />
-            </div>
-          )}
         </div>
       </div>
 
@@ -815,7 +757,6 @@ function RetirementIncomeChart({
           ) : (
             <>
               <HelpChip label="Finish above reserve" help={HELP.finish_above_reserve} accent="#60a5fa" />
-              <HelpChip label="Reserve never touched" help={HELP.reserve_never_touched} accent="#4ade80" />
               <HelpChip label="Pool draw" help={HELP.pool_draw} accent="#f59e0b" />
               <HelpChip label="Pool floor" help={HELP.reserve_floor} accent="#f59e0b" />
             </>
@@ -1318,7 +1259,7 @@ function RetirementIncomeChart({
         ))}
       </div>
 
-      {/* Dual optimal rates: Safe (pool never depletes) + ERN max (pool ends at target) */}
+      {/* Optimal rate (closed-form ERN, 90% survival) */}
       <div style={{
         marginTop: 12, padding: '10px 14px', background: '#0f172a', borderRadius: 8,
         border: '1px solid #334155',
@@ -1326,13 +1267,13 @@ function RetirementIncomeChart({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
-              <LabelWithHelp label="Safe pool draw (reserve never touched in 90% of cohorts)" help={HELP.reserve_never_touched} accent="#4ade80" />
+              <LabelWithHelp label="Optimal pool draw (90% finish above reserve)" help={HELP.finish_above_reserve} accent="#4ade80" />
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace" }}>
-              {optimalRates.safeRate}% = {fmtFull(optimalRates.safeMonthly)}/mo
+              {optRate}% = {fmtFull(optMonthly)}/mo from pool
             </div>
             <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 2, lineHeight: 1.35, fontFamily: "'JetBrains Mono', monospace" }}>
-              Starting spend: {fmtFull(optimalRates.safeMonthly + startingCoupleIncome)}/mo with SS + trust
+              Total consumption: {fmtFull(Math.round(optimalRates.optimalConsumption))}/mo with SS + trust
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -1345,29 +1286,8 @@ function RetirementIncomeChart({
             </div>
           </div>
         </div>
-        {/* ERN max consumption */}
-        <div style={{ borderTop: '1px solid #334155', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>
-              <LabelWithHelp
-                label={`ERN max pool draw (finish above reserve in 90% of cohorts, ${maxDepletionMonths > 0 ? `<=${maxDepletionMonths}mo reserve gap` : 'no reserve gap'})`}
-                help={HELP.finish_above_reserve}
-                accent="#60a5fa"
-              />
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
-              {optRate}% = {fmtFull(optMonthly)}/mo from pool
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: retirementTextMuted, marginBottom: 2, fontWeight: 600 }}>Total consumption</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(Math.round(optimalRates.optimalConsumption))}/mo
-            </div>
-          </div>
-        </div>
         {/* Rate vs history comparison */}
-      <div style={{ fontSize: 11, color: retirementTextMuted, marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+        <div style={{ fontSize: 11, color: retirementTextMuted, marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
           Your {withdrawalRate}% pool draw finished above the reserve in {Math.round(endAboveReserveRate * 100)}% of historical cohorts
         </div>
       </div>
@@ -1473,10 +1393,9 @@ function RetirementIncomeChart({
                     <span>Pool draw rate</span>
                     <HelpTip help={HELP.pool_draw_rate} accent="#f59e0b" />
                   </span>
-                  <span style={{ fontSize: 13, color: withdrawalRate > optimalRates.safeRate ? '#f87171' : '#f59e0b', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ fontSize: 13, color: withdrawalRate > optRate ? '#f87171' : '#4ade80', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
                     {withdrawalRate}%
-                    {withdrawalRate > optimalRates.safeRate && withdrawalRate <= optRate && <span style={{ fontSize: 11, color: '#f59e0b' }}> (reserve may be touched briefly)</span>}
-                    {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above ERN max)</span>}
+                    {withdrawalRate > optRate && <span style={{ fontSize: 11, color: '#f87171' }}> (above optimal)</span>}
                   </span>
                 </div>
                 <div style={{ position: 'relative' }}>
@@ -1490,39 +1409,25 @@ function RetirementIncomeChart({
                     min={0}
                     max={optimalRates.sliderMax}
                     step={0.1}
-                    color={withdrawalRate > optRate ? '#f87171' : withdrawalRate > optimalRates.safeRate ? '#f59e0b' : '#4ade80'}
+                    color={withdrawalRate > optRate ? '#f87171' : '#4ade80'}
                   />
                   {(() => {
                     const thumbHalf = 8;
-                    const safePct = Math.min(optimalRates.safeRate, optimalRates.sliderMax) / optimalRates.sliderMax;
-                    const ernPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
+                    const optPct = Math.min(optRate, optimalRates.sliderMax) / optimalRates.sliderMax;
                     return (
-                      <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
-                        <div style={{
-                          position: 'absolute',
-                          left: `calc(${safePct * 100}% + ${(0.5 - safePct) * thumbHalf * 2}px)`,
-                          top: 0,
-                          transform: 'translateX(-50%)',
-                          display: 'flex', flexDirection: 'column', alignItems: 'center',
-                          pointerEvents: 'none',
-                        }}>
-                          <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
-                          <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                            {optimalRates.safeRate}% safe
-                          </div>
-                        </div>
+                      <div style={{ position: 'relative', height: 22, marginTop: 2 }}>
                         {optRate > 0 && (
                           <div style={{
                             position: 'absolute',
-                            left: `calc(${ernPct * 100}% + ${(0.5 - ernPct) * thumbHalf * 2}px)`,
-                            top: 14,
+                            left: `calc(${optPct * 100}% + ${(0.5 - optPct) * thumbHalf * 2}px)`,
+                            top: 0,
                             transform: 'translateX(-50%)',
                             display: 'flex', flexDirection: 'column', alignItems: 'center',
                             pointerEvents: 'none',
                           }}>
-                            <div style={{ width: 2, height: 6, background: '#60a5fa', borderRadius: 1 }} />
-                            <div style={{ fontSize: 9, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                              {optRate}% ERN max
+                            <div style={{ width: 2, height: 6, background: '#4ade80', borderRadius: 1 }} />
+                            <div style={{ fontSize: 9, color: '#4ade80', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {optRate}% optimal
                             </div>
                           </div>
                         )}

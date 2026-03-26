@@ -1435,9 +1435,9 @@ test('retirement and Monte Carlo surfaces expose test handles for Wave 0', () =>
   assert.ok(sarahPracticeSource.includes('sarah-practice-summary'), 'Sarah practice chart should expose derived summary selectors');
   assert.ok(sequenceSource.includes('sequence-returns-narrative'), 'sequence-of-returns chart should expose its narrative selector');
 });
-test('retirement empty-state fallback keeps safe-rate fields numeric', () => {
+test('retirement empty-state fallback keeps optimal-rate fields numeric', () => {
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
-  assert.ok(retirementSource.includes('safeRate: 0, safeMonthly: 0'), 'retirement empty fallback should define safeRate and safeMonthly');
+  assert.ok(retirementSource.includes('optimalRate: 0, optimalMonthly: 0'), 'retirement empty fallback should define optimalRate and optimalMonthly');
 });
 test('reset all uses an explicit confirmation before resetting state', () => {
   const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');

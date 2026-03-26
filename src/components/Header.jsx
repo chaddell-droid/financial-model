@@ -11,14 +11,6 @@ const EXPERIENCE_COPY = {
     title: 'Family Financial Plan',
     subtitle: 'Presentation mode keeps the focus on the core summary and overview story.',
   },
-  sarah: {
-    title: "Sarah's View",
-    subtitle: 'Business-first view of the shared family plan.',
-  },
-  dad: {
-    title: 'Dad Mode',
-    subtitle: 'Support-focused view of the plan and what would help most.',
-  },
 };
 
 export default function Header({

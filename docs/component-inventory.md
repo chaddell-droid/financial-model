@@ -1,99 +1,95 @@
 # Component Inventory
 
-**Generated:** 2026-03-15 | **Scan Level:** Deep
+**Generated:** 2026-03-25 | **Scan Level:** Deep
 
 ---
 
-## Summary
+## Charts (14 files)
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| Root | 1 | Application orchestrator |
-| Model (pure JS) | 7 | Financial computation, no React |
-| State | 2 | Reducer + initial state |
-| Charts | 11 | Custom SVG visualizations |
-| Shared Components | 6 | Reusable UI primitives |
-| Panels | 7 | Feature panels and control groups |
-| **Total** | **35** | |
-
----
-
-## Model Layer (src/model/) — Pure JavaScript
-
-| File | Exports | Purpose |
-|------|---------|---------|
-| `constants.js` | MONTHS, MONTH_VALUES, MSFT_FLOOR_PRICE, VEST_SHARES, SGA_LIMIT, DAYS_PER_MONTH | Time periods, vesting schedule, constants |
-| `formatters.js` | fmt(n), fmtFull(n) | Currency formatting ($1.2K / $1,234) |
-| `vesting.js` | getMsftPrice, getVestingMonthly, getVestingLumpSum, getVestEvents, getTotalRemainingVesting | MSFT RSU vesting calculations |
-| `projection.js` | runMonthlySimulation(s), computeProjection(s), computeWealthProjection(s) | Core 72-month financial simulation |
-| `monteCarlo.js` | runMonteCarlo(base, mcParams, goals), runDadMonteCarlo(base) | Probabilistic scenario analysis |
-| `goalEvaluation.js` | evaluateGoal, evaluateGoalPass, evaluateAllGoals | Goal achievement evaluation (5 types) |
-| `exportData.js` | exportModelData(state, projection, vestEvents, totalRemainingVesting, extras) | JSON export with full model snapshot |
-
----
-
-## State Layer (src/state/)
-
-| File | Exports | Purpose |
-|------|---------|---------|
-| `initialState.js` | INITIAL_STATE, MODEL_KEYS | Default state (80+ keys), persistable key list (50 keys) |
-| `reducer.js` | reducer(state, action) | SET_FIELD, RESTORE_STATE (with backward compat), RESET_ALL |
-
----
-
-## Chart Components (src/charts/) — Custom SVG
-
-| Component | Lines | Key Props | Visualization |
-|-----------|-------|-----------|---------------|
-| `BridgeChart` | 291 | monthlyDetail, income/expense params, toggles | Stepped line chart + waterfall lever breakdown |
-| `SavingsDrawdownChart` | 332 | savingsData, compareProjection, debt/milestone params | Line chart with comparison overlay + milestone markers |
-| `MonteCarloPanel` | 389 | mcResults, mcRunning, volatility params, gatherState | Fan chart (P10-P90 bands) + sensitivity tornado |
-| `NetWorthChart` | 231 | savingsData, wealthData, 401k/home params | Multi-line (savings, 401k, home, total net worth) |
-| `SequenceOfReturnsChart` | 242 | seqBadY1/Y2, monthlyDetail, ssdi params | Three-scenario return timing comparison |
-| `TimelineChart` | 225 | Event parameters (debt, SSDI, MSFT, milestones) | 5-year horizontal timeline with event markers |
-| `SarahPracticeChart` | 187 | sarahRate, sarahMaxRate, sarahRateGrowth, client params | Income growth projection with target line |
-| `IncomeCompositionChart` | 180 | data, investmentReturn | Stacked bars (7 income sources) vs expense line |
-| `MonthlyCashFlowChart` | 246 | data, highlightIdx, ssdiApprovalMonth | Net cash flow bars + MSFT vesting line overlay |
-| `MsftVestingChart` | 78 | vestEvents, totalRemainingVesting, msftGrowth | Quarterly vesting payout bars |
-| `chartUtils.js` | — | — | Shared: createScales, generateYTicks, COLORS, INCOME_SOURCES |
+| Component | File | LOC | Purpose | Memoized |
+|-----------|------|-----|---------|----------|
+| BridgeChart | `charts/BridgeChart.jsx` | 827 | Cash flow bridge with narrative markers, driver groups, KPI strip | useMemo |
+| RetirementIncomeChart | `charts/RetirementIncomeChart.jsx` | 1600+ | ERN SWR, PWA strategies, historical cohort bands, pool trajectory | useMemo |
+| ScenarioStrip | `panels/ScenarioStrip.jsx` | 640 | Primary levers decision console with ranked toggles/sliders | memo |
+| DadMode | `panels/DadMode.jsx` | 499 | 3-act family support narrative with solvency gauge | — |
+| SarahMode | `panels/SarahMode.jsx` | 440 | Business-focused dashboard with practice growth + goals | — |
+| MonteCarloPanel | `charts/MonteCarloPanel.jsx` | 405 | Fan chart + sensitivity tornado + parameter sliders | useMemo |
+| PwaDistributionChart | `charts/PwaDistributionChart.jsx` | 363 | Historical cohort spending histogram with percentile markers | useMemo |
+| SavingsDrawdownChart | `charts/SavingsDrawdownChart.jsx` | 345 | Savings trajectory with gradient fills + comparison overlay | memo |
+| IncomeControls | `panels/IncomeControls.jsx` | 332 | Income assumption sliders (practice, SS, job, trust, van) | memo |
+| GoalPanel | `panels/GoalPanel.jsx` | 313 | Goal cards with progress bars, MC success rates, add/delete | memo |
+| NetWorthChart | `charts/NetWorthChart.jsx` | 296 | 4-series wealth tracking (savings, 401k, home, total) | memo |
+| TrackTab | `panels/tabs/TrackTab.jsx` | 291 | Monthly check-in with drift analysis and reforecasting | memo |
+| MonthlyCashFlowChart | `charts/MonthlyCashFlowChart.jsx` | 259 | Quarterly bars with MSFT vesting line + SSDI marker | memo |
+| SequenceOfReturnsChart | `charts/SequenceOfReturnsChart.jsx` | 254 | 3-scenario return ordering risk with vulnerability window | — |
+| IncomeCompositionChart | `charts/IncomeCompositionChart.jsx` | 253 | Stacked income bars vs. expense line with event markers | — |
+| TimelineChart | `charts/TimelineChart.jsx` | 230 | Diamond-marker event timeline with staggered cards | — |
+| ExpenseControls | `panels/ExpenseControls.jsx` | 216 | Expense sliders (debt, cuts × 11, BCS, milestones, projects) | memo |
+| SarahPracticeChart | `charts/SarahPracticeChart.jsx` | 186 | Practice income growth trajectory with target ceiling | — |
+| Slider | `components/Slider.jsx` | 168 | Range input with continuous/settled commit strategies | memo |
+| SaveLoadPanel | `components/SaveLoadPanel.jsx` | 148 | Scenario save/load/compare/delete workspace | — |
+| KeyMetrics | `components/KeyMetrics.jsx` | 143 | Featured status strip (gap, breakeven, runway, advance) | — |
+| Header | `components/Header.jsx` | 124 | Top nav with mode labels, present toggle, export | — |
+| SummaryAsk | `panels/SummaryAsk.jsx` | 115 | Decision summary + inheritance advance breakdown | — |
+| RiskTab | `panels/tabs/RiskTab.jsx` | 95 | Risk workflow: MC → sequence → balance damage | — |
+| Toggle | `components/Toggle.jsx` | 92 | Accessible switch with ARIA role=switch | memo |
+| ActionButton | `components/ui/ActionButton.jsx` | 88 | 5 variants: primary, secondary, ghost, destructive, chip | — |
+| HelpTip | `components/help/HelpTip.jsx` | 81 | Inline "?" button with positioned popover | — |
+| TabBar | `components/TabBar.jsx` | 78 | 6-tab sticky navigation with accent underlines | — |
+| MsftVestingChart | `charts/MsftVestingChart.jsx` | 78 | Vesting payout bars with price growth slider | — |
+| PlanTab | `panels/tabs/PlanTab.jsx` | 76 | Plan workspace orchestrator (5 sections) | memo |
+| HelpDrawer | `components/help/HelpDrawer.jsx` | 62 | Collapsible help section with toggle | — |
+| AppShell | `components/layout/AppShell.jsx` | 57 | Layout: summary + tabs + workspace + rail | memo |
+| ActiveTogglePills | `components/ActiveTogglePills.jsx` | 54 | Inline badges for active plan toggles | — |
+| DataTable | `panels/DataTable.jsx` | 54 | Quarterly projection table with colored cells | — |
+| SurfaceCard | `components/ui/SurfaceCard.jsx` | 53 | Toned container: default/featured/compare/success | — |
+| HelpPopover | `components/help/HelpPopover.jsx` | 45 | Styled help card: title, short, body, footer | — |
+| ComparisonBanner | `components/ComparisonBanner.jsx` | 40 | Scenario comparison alert with clear button | — |
+| IncomeTab | `panels/tabs/IncomeTab.jsx` | 28 | MSFT + practice + income composition charts | — |
+| DetailsTab | `panels/tabs/DetailsTab.jsx` | 12 | Data table + summary ask | — |
+| OverviewTab | `panels/tabs/OverviewTab.jsx` | 8 | BridgeChart wrapper (overview variant) | memo |
 
 ---
 
-## Shared UI Components (src/components/)
+## Model Modules (17 files)
 
-| Component | Lines | Props | Purpose |
-|-----------|-------|-------|---------|
-| `Header` | 77 | presentMode, onTogglePresentMode, onEnterDadMode, savedScenarios, onReset, onExportJSON | App header with mode buttons |
-| `KeyMetrics` | 80 | netMonthly, breakevenLabel, savingsZeroLabel, advanceNeeded, mcResults, rawMonthlyGap, steadyStateNet | Gap Journey (4 cards) + core metric cards |
-| `SaveLoadPanel` | 107 | showSaveLoad, savedScenarios, scenarioName, save/load/compare/delete callbacks | Scenario persistence UI |
-| `ComparisonBanner` | 35 | compareState, compareName, onClearCompare | Active comparison indicator banner |
-| `Toggle` | 23 | label, checked, onChange, color | iOS-style toggle switch |
-| `Slider` | 16 | label, value, onChange, min, max, step, format, color | Range input with label and formatted value |
+| Module | File | LOC | Key Exports |
+|--------|------|-----|-------------|
+| shillerReturns | `model/shillerReturns.js` | 1900+ | `MONTHLY_REAL_RETURNS` (1871–2025 monthly real returns) |
+| overviewStory | `model/overviewStory.js` | 549 | `buildBridgeStoryModel`, `selectBridgeMarkers`, `groupBridgeDrivers` |
+| pwaStrategies | `model/pwaStrategies.js` | 338 | `selectPwaWithdrawal`, `simulateAdaptivePwaStrategy` |
+| retirementIncome | `model/retirementIncome.js` | 270 | `buildRetirementContext`, `buildSupplementalFlows`, `getRetirementSSInfo` |
+| scenarioLevers | `model/scenarioLevers.js` | 253 | `buildPrimaryLeversModel`, `getEffectiveCuts`, `rankRecurringLevers` |
+| projection | `model/projection.js` | 242 | `runMonthlySimulation`, `computeProjection`, `computeWealthProjection` |
+| monteCarlo | `model/monteCarlo.js` | 160 | `runMonteCarlo`, `runDadMonteCarlo` |
+| checkIn | `model/checkIn.js` | 154 | `computeMonthlyDrift`, `buildReforecast`, `buildStatusSummary` |
+| pwaDistribution | `model/pwaDistribution.js` | 151 | `buildPwaDistribution`, `getPwaSummary`, `getDistributionPercentile` |
+| goalEvaluation | `model/goalEvaluation.js` | 147 | `evaluateGoal`, `evaluateGoalPass`, `evaluateAllGoals` |
+| exportData | `model/exportData.js` | 145 | `exportModelData` |
+| ernWithdrawal | `model/ernWithdrawal.js` | 113 | `computeSWR`, `computePreInhSWR`, `simulatePath` |
+| initialState | `state/initialState.js` | 179 | `INITIAL_STATE`, `MODEL_KEYS` |
+| reducer | `state/reducer.js` | 62 | `reducer` (6 action types) |
+| vesting | `model/vesting.js` | 38 | `getMsftPrice`, `getVestEvents`, `getVestingMonthly/LumpSum` |
+| chartContract | `charts/chartContract.js` | 35 | `formatModelTimeLabel`, `buildLegendItems` |
+| historicalReturns | `model/historicalReturns.js` | 32 | `getBlendedReturns`, `getNumCohorts`, `getCohortLabel` |
+| formatters | `model/formatters.js` | 26 | `fmt`, `fmtFull` |
+| constants | `model/constants.js` | 24 | `MONTHS`, `MONTH_VALUES`, `VEST_SHARES`, `MSFT_FLOOR_PRICE`, `SGA_LIMIT` |
 
 ---
 
-## Feature Panels (src/panels/)
+## Design System Components
 
-| Component | Lines | Key Props | Purpose |
-|-----------|-------|-----------|---------|
-| `GoalPanel` | 174 | goals, goalResults, mcGoalResults, mcRunning, presentMode, onGoalsChange | Goal tracker cards with progress bars + MC success rates; inline add/delete form |
-| `DadMode` | 431 | Full financial state, dad-specific params (dadDebtPct, dadBcsParents, dadMold/Roof/Projects) | 3-step inheritance advance presentation with expense breakdown and solvency gauge |
-| `ScenarioStrip` | 112 | Toggle states, debt/BCS/advance amounts | Major scenario toggles + advance breakdown |
-| `IncomeControls` | 158 | All income params + callbacks | Sliders for Sarah, SSDI, consulting, trust, van, LLC |
-| `ExpenseControls` | 192 | All expense params, cut items, milestones + callbacks | Spending cuts (11 items with progress bars), debt, milestones, capital |
-| `DataTable` | 55 | data, presentMode | Quarterly projection table with color-coded columns |
-| `SummaryAsk` | 67 | MSFT, savings, SSDI, debt, capital, cash flow metrics | Narrative summary with specific ask amount |
+| Component | Props | Tones/Variants |
+|-----------|-------|---------------|
+| SurfaceCard | tone, padding, style | default, featured, compare, success |
+| ActionButton | variant, size, active, accent, disabled | primary, secondary, ghost, destructive, chip |
+| Slider | value, onChange, min, max, step, format, color, commitStrategy | continuous, settled |
+| Toggle | checked, onChange, label, description, color, disabled | — |
 
----
+## Utility Hooks
 
-## Design Patterns
-
-| Pattern | Where Used | Description |
-|---------|-----------|-------------|
-| Props drilling | All components | State passed from FinancialModel root via props, callbacks via `set(field)` |
-| Custom SVG charts | src/charts/ | No charting library — hand-built SVG with computed paths and scales |
-| Presenter mode | Multiple components | `presentMode` prop hides edit controls for clean presentations |
-| State-based tooltips | Charts | `useState` for hover tooltips on data points |
-| Backward compatibility | reducer.js | RESTORE_STATE handles legacy aggregate cuts and missing goals |
-| Seeded PRNG | monteCarlo.js (Dad MC) | Mulberry32 RNG for deterministic slider response |
-| Lump sum + smoothed | projection.js | MSFT vesting: lump sums for balance, smoothed for charts |
+| Hook | File | Purpose |
+|------|------|---------|
+| `useLaggedValue` | `ui/useLaggedValue.js` | Delay value propagation by N ms |
+| `useIsVisible` | `ui/useIsVisible.js` | IntersectionObserver one-way visibility flag |
+| `useRenderMetric` | `testing/perfMetrics.js` | Report component render to test harness |

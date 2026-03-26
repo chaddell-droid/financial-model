@@ -1,51 +1,44 @@
 # Family Financial Planning Model — Documentation Index
 
-**Generated:** 2026-03-15 | **Updated:** 2026-03-21 | **Scan Level:** Deep Scan
+**Generated:** 2026-03-25 | **Scan Level:** Deep Scan
 
 ---
 
 ## Project Overview
 
-- **Type:** Monolith (single-part, client-only)
-- **Primary Language:** JavaScript (JSX)
-- **Framework:** React 18 + Vite 6
-- **Architecture:** Client-side SPA with useReducer state management
+- **Type:** Monolith (React 18 SPA)
+- **Primary Language:** JavaScript/JSX
+- **Architecture:** Component-based with centralized useReducer + pure model layer
+- **Build:** Vite 6
+- **Styling:** Inline CSS with design tokens (dark theme, CSS custom properties)
+- **Charts:** 12 custom SVG components (no charting library)
 
 ## Quick Reference
 
-- **Entry Point:** `src/main.jsx`
-- **Root Component:** `src/FinancialModel.jsx` (state owner, orchestrator)
-- **Computation:** `src/model/projection.js` (72-month simulation engine)
-- **State:** `src/state/initialState.js` (40+ parameters, MODEL_KEYS)
-- **Build:** `npm run build` → `dist/` (~307KB JS, ~88KB gzip)
-- **Dev Server:** `npm run dev` → `http://localhost:5173`
+- **Tech Stack:** React 18, Vite 6, Playwright
+- **Entry Point:** `src/main.jsx` → `<FinancialModel />`
+- **State:** useReducer (~156 keys, 80 MODEL_KEYS)
+- **Source Files:** 70 in `src/`
 
 ## Generated Documentation
 
-- [Project Overview](./project-overview.md) — Executive summary, tech stack, key features
-- [Architecture](./architecture.md) — Component hierarchy, state flow, data flow, computation layer
-- [Source Tree Analysis](./source-tree-analysis.md) — Annotated directory structure, critical folders
-- [Component Inventory](./component-inventory.md) — All 35 source files categorized with props/exports
-- [Development Guide](./development-guide.md) — Setup, build, deploy, conventions, common tasks
-- [Adaptive PWA Guide](./adaptive-pwa-guide.md) — Retirement-mode semantics, model APIs, strategy usage, and common pitfalls
+- [Project Overview](./project-overview.md) — Executive summary, features, tech stack
+- [Architecture](./architecture.md) — State management, data flow, model layer, UI layer, testing
+- [Source Tree Analysis](./source-tree-analysis.md) — Annotated directory tree with critical folders
+- [Component Inventory](./component-inventory.md) — All 70 files: charts, panels, components, model modules
+- [Development Guide](./development-guide.md) — Quick start, scripts, adding features, testing, deploy
 
 ## Existing Documentation
 
-- [README.md](../README.md) — StackBlitz link (minimal)
+- [Adaptive PWA Guide](./adaptive-pwa-guide.md) — Detailed guide for adaptive withdrawal strategies
+- [UI Contract](./ui-contract.md) — UI presentation rules and component contracts
 
 ## Getting Started
 
-1. `npm install` — install dependencies
-2. `npm run dev` — start development server
-3. Open `http://localhost:5173` in browser
-4. Read [Architecture](./architecture.md) for system understanding
-5. Read [Component Inventory](./component-inventory.md) for file-level detail
+```bash
+npm install
+npm run dev
+# Open http://localhost:5173
+```
 
-## AI-Assisted Development Guidance
-
-When working with this codebase:
-- **Model changes** affect everything downstream — edit `src/model/projection.js` carefully
-- **State changes** require updating `INITIAL_STATE` + `MODEL_KEYS` + destructuring in `FinancialModel.jsx`
-- **New features** follow the pattern: state → model → component → wire in root
-- **Backward compatibility** is handled in `reducer.js` RESTORE_STATE — update when adding new state keys
-- The model layer is **pure JavaScript** — test without React
+See [Development Guide](./development-guide.md) for full setup, testing, and deployment instructions.

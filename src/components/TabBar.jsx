@@ -14,7 +14,7 @@ const ACCENT_COLORS = {
   overview: UI_COLORS.primary,
   plan: UI_COLORS.positive,
   track: UI_COLORS.info,
-  income: UI_COLORS.modeDad,
+  income: UI_COLORS.primary,
   risk: UI_COLORS.caution,
   details: UI_COLORS.textMuted,
 };

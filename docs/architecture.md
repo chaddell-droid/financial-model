@@ -1,219 +1,210 @@
 # Architecture Document
 
-**Generated:** 2026-03-15 | **Scan Level:** Deep | **Type:** Web (React SPA)
+**Generated:** 2026-03-25 | **Scan Level:** Deep | **Type:** Web (React SPA)
 
 ---
 
-## 1. Executive Summary
+## 1. Architecture Pattern
 
-A client-side-only React single-page application for interactive family financial planning. All computation (projections, Monte Carlo simulations, goal evaluation) runs in the browser with no backend. State is managed via `useReducer` with props drilling. Scenarios persist to `localStorage`. Charts are rendered as custom SVG without external charting libraries.
-
----
-
-## 2. Technology Stack
-
-| Category | Technology | Version | Notes |
-|----------|-----------|---------|-------|
-| UI Framework | React | 18.3.1 | Functional components + hooks |
-| Build Tool | Vite | 6.x | Fast HMR, ESM-native |
-| Language | JavaScript (JSX) | ES2020+ | No TypeScript |
-| Styling | Inline styles | — | CSS-in-JS objects, no CSS files |
-| Charts | Custom SVG | — | Hand-built, no d3/recharts |
-| State | useReducer | — | Single reducer, no context/Redux |
-| Storage | localStorage | — | Polyfilled via window.storage API |
-| Fonts | Inter + JetBrains Mono | CDN | System fallbacks |
-
----
-
-## 3. Architecture Pattern
-
-### Component Hierarchy
+**Component-based SPA with centralized state and pure model layer.**
 
 ```
-FinancialModel (root — state owner)
-├── Header
-├── SaveLoadPanel
-├── DadMode (conditional)
-├── KeyMetrics
-├── GoalPanel
-├── ComparisonBanner
-├── ScenarioStrip
-├── BridgeChart
-├── SavingsDrawdownChart
-├── NetWorthChart
-├── MonteCarloPanel
-├── SequenceOfReturnsChart
-├── TimelineChart
-├── SarahPracticeChart
-├── IncomeCompositionChart
-├── MonthlyCashFlowChart
-├── MsftVestingChart
-├── IncomeControls + ExpenseControls
-├── DataTable
-└── SummaryAsk
+User Input (sliders, toggles)
+       │
+       ▼
+  ┌─────────────┐
+  │  useReducer  │  ← SET_FIELD, RESTORE_STATE, RESET_ALL, etc.
+  │  (~156 keys) │
+  └──────┬───────┘
+         │
+    useDeferredValue (isolates UI from heavy computation)
+         │
+         ▼
+  ┌──────────────────┐
+  │  Model Layer     │  Pure functions, no React dependency
+  │  (projection,    │
+  │   monteCarlo,    │  → computeProjection(state) → 73-month data
+  │   goals, etc.)   │  → runMonteCarlo(base, params, goals) → bands
+  └──────┬───────────┘
+         │
+    useMemo (stable prop objects)
+         │
+         ▼
+  ┌──────────────────┐
+  │  Tab Routing     │  AppShell → TabBar → active tab
+  │  + Panel Props   │  (PlanTab, RiskTab, IncomeTab, etc.)
+  └──────┬───────────┘
+         │
+         ▼
+  ┌──────────────────┐
+  │  Chart + Panel   │  SVG charts, slider panels, goal cards
+  │  Components      │  All memoized (React.memo / useMemo)
+  └──────────────────┘
 ```
 
-### State Flow
+## 2. State Management
+
+### 2.1 State Shape
+
+`useReducer(reducer, INITIAL_STATE)` in `FinancialModel.jsx`.
+
+**~156 state keys** organized into:
+- Income assumptions (Sarah practice, MSFT, SS/SSDI, trust, Chad job, consulting)
+- Expense assumptions (base, debt service, BCS tuition, spending cuts × 11 categories)
+- Asset assumptions (savings, investment return, 401k, home equity)
+- Scenario toggles (retireDebt, lifestyleCutsApplied, vanSold)
+- Capital projects (mold, roof, other — cost + include flags)
+- Monte Carlo parameters (numSims, volatilities, SSDI denial rate)
+- Goals (array of 3+ goals with type/target/month/color)
+- UI state (activeTab, presentMode, modes, savedScenarios, checkInHistory)
+- Sequence-of-returns shocks (seqBadY1, seqBadY2)
+
+### 2.2 MODEL_KEYS (80 keys)
+
+Subset of state used for scenario save/load and projection input. Excludes UI-only keys (activeTab, savedScenarios, checkInHistory, storageStatus).
+
+### 2.3 Action Types
+
+| Action | Purpose | Preserved on RESET_ALL |
+|--------|---------|----------------------|
+| `SET_FIELD` | Update single key | — |
+| `SET_FIELDS` | Batch update | — |
+| `RESTORE_STATE` | Load saved scenario (backward-compat) | — |
+| `RESET_ALL` | Reset to INITIAL_STATE | savedScenarios, checkInHistory, storageStatus |
+| `RECORD_CHECK_IN` | Add/update monthly check-in | — |
+| `DELETE_CHECK_IN` | Remove check-in by month | — |
+
+### 2.4 Performance Strategy
+
+- **useDeferredValue(state)** — Slider drags update state immediately; projection computation runs in deferred frame
+- **Setter cache** — Ref-based function memoization prevents new callback references per render
+- **Prop bundling** — useMemo'd prop objects for each tab/chart/panel with tight dependency arrays
+- **Lazy rendering** — RetirementIncomeChart wrapped in IntersectionObserver; only mounts when scrolled into view
+- **Seeded PRNG** — Dad Mode uses seed=42 for deterministic Monte Carlo during slider drags
+
+## 3. Model Layer
+
+Pure JavaScript functions with no React dependency. All imported by FinancialModel.jsx or chart components.
+
+### 3.1 Core Simulation
+
+| Module | Purpose | Key Exports |
+|--------|---------|-------------|
+| `projection.js` | 72-month simulation engine | `runMonthlySimulation`, `computeProjection` |
+| `monteCarlo.js` | 500-sim probabilistic analysis | `runMonteCarlo`, `runDadMonteCarlo` |
+| `goalEvaluation.js` | 5-type goal achievement | `evaluateGoal`, `evaluateGoalPass`, `evaluateAllGoals` |
+
+### 3.2 Financial Logic
+
+| Module | Purpose | Key Exports |
+|--------|---------|-------------|
+| `vesting.js` | MSFT stock vesting | `getVestEvents`, `getVestingMonthly`, `getVestingLumpSum` |
+| `scenarioLevers.js` | Lever ranking and impact | `buildPrimaryLeversModel`, `getEffectiveCuts` |
+| `checkIn.js` | Monthly actuals tracking | `computeMonthlyDrift`, `buildReforecast`, `buildStatusSummary` |
+| `exportData.js` | JSON export | `exportModelData` |
+
+### 3.3 Retirement Analysis
+
+| Module | Purpose | Key Exports |
+|--------|---------|-------------|
+| `retirementIncome.js` | SS/survivor modeling | `buildRetirementContext`, `buildSupplementalFlows` |
+| `ernWithdrawal.js` | ERN closed-form SWR | `computeSWR`, `computePreInhSWR`, `simulatePath` |
+| `historicalReturns.js` | Blended returns | `getBlendedReturns`, `getNumCohorts` |
+| `pwaDistribution.js` | Cohort spending distribution | `buildPwaDistribution`, `getPwaSummary` |
+| `pwaStrategies.js` | Adaptive withdrawal | `selectPwaWithdrawal`, `simulateAdaptivePwaStrategy` |
+| `shillerReturns.js` | 1871–2025 raw data | `MONTHLY_REAL_RETURNS` |
+
+### 3.4 Narrative
+
+| Module | Purpose | Key Exports |
+|--------|---------|-------------|
+| `overviewStory.js` | Timeline events and drivers | `buildBridgeStoryModel`, `selectBridgeMarkers` |
+| `formatters.js` | Currency display | `fmt`, `fmtFull` |
+| `constants.js` | Time labels, vesting schedule | `MONTHS`, `VEST_SHARES`, `SGA_LIMIT` |
+
+## 4. UI Layer
+
+### 4.1 Design System (`tokens.js`)
+
+CSS custom properties define the dark theme. JavaScript tokens mirror them for inline styles:
+
+- **Colors:** 16 semantic tokens (page, surface, text × 4, positive, caution, destructive, info, compare, mode accents)
+- **Typography:** 7 sizes (12–24px)
+- **Spacing:** 6 sizes (6–32px)
+- **Radii:** 3 sizes (8, 12, 16px)
+- **Breakpoints:** compact (960), railCollapse (1180), desktop (1400)
+
+### 4.2 Layout
+
+`AppShell` provides a consistent layout:
+- **Summary bar** (KeyMetrics + ActiveTogglePills + ComparisonBanner)
+- **Tab bar** (6 tabs: Overview, Plan, Track, Income, Risk, Details)
+- **Workspace** (active tab content)
+- **Right rail** (SavingsDrawdownChart, NetWorthChart, RetirementIncomeChart — side or stacked based on width)
+
+### 4.3 Help System
+
+Three-tier architecture:
+1. **Content:** `registry.js` + `checkInHelp.js` — structured help objects (title, short, body, footer)
+2. **Trigger:** `HelpTip` (inline ?) and `HelpDrawer` (collapsible section)
+3. **Renderer:** `HelpPopover` — styled card with outside-click/Escape dismissal
+
+## 5. Tab Architecture
+
+| Tab | Component | Contents |
+|-----|-----------|----------|
+| Overview | `OverviewTab` | BridgeChart (overview variant) |
+| Plan | `PlanTab` | ScenarioStrip, IncomeControls, ExpenseControls, MonthlyCashFlowChart, BridgeChart (plan), GoalPanel |
+| Track | `TrackTab` | Monthly check-in form, drift table, reforecast, status card |
+| Income | `IncomeTab` | MsftVestingChart, SarahPracticeChart, IncomeCompositionChart |
+| Risk | `RiskTab` | MonteCarloPanel, SequenceOfReturnsChart, (optional) balance charts |
+| Details | `DetailsTab` | DataTable, SummaryAsk |
+
+**Special modes** (replace tab layout):
+- **Sarah Mode** — Business-focused dashboard with practice metrics, spending capacity, goal progress
+- **Dad Mode** — 3-act narrative: expense breakdown → self-help levers → support ask
+
+## 6. Data Flow
+
+### 6.1 Projection Pipeline
 
 ```
-INITIAL_STATE (40+ params)
-    │
-    ▼
-useReducer(reducer, INITIAL_STATE)
-    │
-    ├── SET_FIELD ──→ individual param updates (slider/toggle changes)
-    ├── RESTORE_STATE ──→ load saved scenario (with backward compat)
-    └── RESET_ALL ──→ return to defaults (preserves saved scenarios)
-    │
-    ▼
-gatherState() → MODEL_KEYS subset
-    │
-    ├──→ computeProjection(state) → { data, savingsData, monthlyData, backPayActual }
-    ├──→ computeWealthProjection(state) → { wealthData }
-    ├──→ evaluateAllGoals(goals, monthlyData, opts) → goalResults[]
-    └──→ runMonteCarlo(state, mcParams, goals) → { bands, solvencyRate, goalSuccessRates, ... }
-    │
-    ▼
-Props drilling to 20+ child components
+state → gatherState(deferredState) → computeProjection(s)
+  → runMonthlySimulation(s)        73-month loop
+    → monthlyData[]                 per-month: income, expenses, balance, 401k, home
+  → data[]                          quarterly aggregation
+  → savingsData[]                   monthly balance series
 ```
 
-### Data Flow
+### 6.2 Monte Carlo Pipeline
 
-1. User adjusts slider/toggle → `dispatch({ type: 'SET_FIELD', field, value })`
-2. State updates → `useMemo` recomputes projection, wealth, goals
-3. New projection data flows down via props to charts and panels
-4. Monte Carlo runs on-demand (button click) via `setTimeout` to avoid blocking UI
-5. Scenario save/load persists MODEL_KEYS subset to localStorage
+```
+base + mcParams + goals → runMonteCarlo(...)
+  → 500 iterations:
+    randomize(investReturn, sarahGrowth, msftGrowth, ssdiDelay, ssdiDenied, cutsDiscipline)
+    → runMonthlySimulation(randomizedState)
+    → evaluateGoalPass(goal, monthlyData) per goal
+  → bands (10/25/50/75/90 percentiles)
+  → solvencyRate, medianTrough, goalSuccessRates
+```
 
----
+### 6.3 Deficit Chain
 
-## 4. Core Computation Layer
+When monthly cash flow is negative:
+1. Draw from **savings** (investment account)
+2. If savings depleted, draw from **401k** (with withdrawal tracking)
+3. If 401k depleted, draw from **home equity** (HELOC)
 
-### Projection Engine (`src/model/projection.js`)
+## 7. Testing Strategy
 
-The heart of the application. `runMonthlySimulation(state)` iterates month-by-month (0-72):
+- **Contract tests** (`__snapshots__.test.js`) — Node `assert`, no framework. Verify model exports, state shape, projection contracts.
+- **UI swarm** (`tests/ui/run-swarm.js`) — Parallel browser-based test runner.
+- **Performance benchmarks** (`tests/ui/perf/run-perf.js`) — Measure render counts, slider responsiveness.
+- **Test harness** (`uiHarness.js`) — `window.__FIN_MODEL_TEST__` API for controlling MC seed, storage, metrics from test scripts.
 
-- **Income:** Sarah's business (rate × clients × days, with growth), MSFT vesting (quarterly lumps smoothed to monthly), LLC distribution, SSDI (with approval delay and denial), trust income (step function), consulting (SGA-limited)
-- **Expenses:** Base expenses, debt service (optional), van savings (optional), BCS tuition (time-limited), lifestyle cuts (11 individual categories × discipline factor), milestone reductions
-- **Balance:** Starting savings + monthly (income - expenses) + investment returns (compound) + SSDI back pay lump sum
+## 8. Storage & Persistence
 
-`computeProjection()` aggregates monthly data into quarterly snapshots for charts.
-
-### Monte Carlo (`src/model/monteCarlo.js`)
-
-- **Full MC:** 500 simulations with Box-Muller normal randomization of: investment returns, business growth, MSFT growth, SSDI delay, SSDI denial, cuts discipline
-- **Dad MC:** 200 simulations with seeded PRNG (mulberry32) for deterministic slider response
-- **Goal integration:** Evaluates each goal per simulation, returns success rates
-
-### Goal Evaluation (`src/model/goalEvaluation.js`)
-
-5 goal types: `savings_floor`, `savings_target`, `income_target`, `net_worth_target`, `debt_free`. Each returns `{ achieved, currentValue, progress, description }`. Fast boolean `evaluateGoalPass()` for MC inner loop.
-
-### Vesting (`src/model/vesting.js`)
-
-MSFT RSU vesting schedule: 10 quarterly vests (May 2026 – Aug 2028), 133→33 shares declining. Price modeled with annual growth from $410.68 floor. Net = 80% of gross (tax withholding).
-
----
-
-## 5. State Architecture
-
-### INITIAL_STATE Structure (src/state/initialState.js)
-
-| Category | Parameters | Count |
-|----------|-----------|-------|
-| Income — Sarah's Business | sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth | 6 |
-| LLC & MSFT | llcAnnual, llcMultiplier, llcDelayMonths, msftGrowth | 4 |
-| SSDI | ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting, ssdiBackPayMonths | 7 |
-| Expenses | baseExpenses, debtService | 2 |
-| BCS Tuition | bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft | 3 |
-| 11 Spending Cuts | cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems, lifestyleCutsApplied | 12 |
-| Trust Income | trustIncomeNow, trustIncomeFuture, trustIncreaseMonth | 3 |
-| Van | vanSold, vanMonthlySavings | 2 |
-| Toggles | retireDebt, llcImproves | 2 |
-| Savings | startingSavings, investmentReturn | 2 |
-| Capital Projects | moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude | 6 |
-| Debt Balances | debtCC, debtPersonal, debtIRS, debtFirstmark | 4 |
-| Monte Carlo | mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline | 7 |
-| Wealth | starting401k, return401k, homeEquity, homeAppreciation | 4 |
-| Sequence of Returns | seqBadY1, seqBadY2 | 2 |
-| Goals | goals (array of goal objects) | 1 |
-| UI State | savedScenarios, scenarioName, showSaveLoad, presentMode, compareState, compareName, dadMode, dadStep, ... | 14 |
-| **Total** | | **~80** |
-
-### MODEL_KEYS (persistable subset)
-
-50 keys representing the financial model (excludes UI state). Used by `gatherState()` for projection input and scenario save/load.
-
-### Reducer Actions
-
-| Action | Description |
-|--------|-------------|
-| `SET_FIELD` | Update single field by name |
-| `RESTORE_STATE` | Load scenario with backward compatibility (legacy aggregate cuts, missing goals) |
-| `RESET_ALL` | Reset to INITIAL_STATE, preserving saved scenarios |
-
----
-
-## 6. UI Component Architecture
-
-### Shared Primitives
-
-| Component | Purpose |
-|-----------|---------|
-| `Toggle` | iOS-style toggle switch with color prop |
-| `Slider` | Range input with label, value display, color theming |
-
-### Chart Components (11 total)
-
-All charts are custom SVG — no external charting library. They use shared utilities from `chartUtils.js`:
-- `createScales()` — linear X/Y mapping to SVG coordinates
-- `generateYTicks()` / `autoTickStep()` — axis tick generation
-- `COLORS` — centralized color palette
-- `INCOME_SOURCES` — income stream definitions (key, label, color)
-
-### Design System
-
-- **Color scheme:** Dark theme (`#0f172a` background, `#1e293b` cards, `#334155` borders)
-- **Typography:** Inter for UI, JetBrains Mono for financial figures
-- **Layout:** Max-width 960px, responsive grid for metrics/controls
-- **Patterns:** Consistent card styling, color-coded positive/negative values
-
----
-
-## 7. Scenario Persistence
-
-### Storage Layer
-
-`main.jsx` polyfills `window.storage` with localStorage:
-- `get(key)` → returns `{ key, value }`
-- `set(key, value)` → stores with `fs_` prefix
-- `delete(key)` / `list(prefix)` — full CRUD
-
-Originally designed for Claude Artifacts' storage API; polyfill enables standalone browser deployment.
-
-### Save/Load Flow
-
-1. **Save:** `gatherState()` extracts MODEL_KEYS → JSON → localStorage (`fin-scenarios`)
-2. **Load:** `dispatch({ type: 'RESTORE_STATE', state })` with backward compatibility
-3. **Compare:** Second projection computed from saved state, overlaid on charts
-4. **Export:** Full model snapshot as downloadable JSON with metrics, trajectory, cuts, goals
-
----
-
-## 8. Testing Strategy
-
-No automated tests are currently implemented. The application relies on:
-- Manual testing via the dev server (`npm run dev`)
-- Vite's production build (`npm run build`) as a smoke test
-- Node.js module-level unit testing for the model layer (ad-hoc)
-
-The model layer (`src/model/`) is pure JavaScript with no React dependencies, making it straightforward to add unit tests.
-
----
-
-## 9. Deployment
-
-- **Build:** `npm run build` → `dist/` (single HTML + JS bundle, ~307KB / ~88KB gzip)
-- **Hosting:** Static file hosting (GitHub Pages via `dist/` folder)
-- **CI/CD:** Manual — `git push origin main` to deploy
-- **No environment variables** — all configuration is in source code
+- **localStorage** via `window.storage` polyfill (prefix `fs_`)
+- **Scenarios:** Saved as JSON objects (name + state snapshot + timestamp)
+- **Check-ins:** Persisted as array of monthly check-in records
+- **Graceful degradation:** Storage unavailable → in-memory only, status message shown

@@ -3,7 +3,7 @@ import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
 import { computeProjection, findOperationalBreakevenIndex } from './model/projection.js';
-import { runMonteCarlo, runDadMonteCarlo } from './model/monteCarlo.js';
+import { runMonteCarlo } from './model/monteCarlo.js';
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
@@ -18,8 +18,6 @@ import AppShell from './components/layout/AppShell.jsx';
 import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
 import NetWorthChart from './charts/NetWorthChart.jsx';
 import RetirementIncomeChart from './charts/RetirementIncomeChart.jsx';
-import DadMode from './panels/DadMode.jsx';
-import SarahMode from './panels/SarahMode.jsx';
 import OverviewTab from './panels/tabs/OverviewTab.jsx';
 import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
@@ -97,8 +95,6 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     compareState, compareName,
-    sarahMode,
-    dadMode, dadStep, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects, dadMcResult, dadBaselineBalance,
     starting401k, return401k, homeEquity, homeAppreciation,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     seqBadY1, seqBadY2,
@@ -320,27 +316,6 @@ export default function FinancialModel() {
   const savingsZeroMonth = savingsData.find(d => d.balance <= 0);
   const savingsZeroLabel = savingsZeroMonth ? `~${Math.round(savingsZeroMonth.month)} months` : "6+ years";
 
-  // Dad Mode
-  const enterDadMode = () => {
-    const baseState = {
-      ...gatherState(),
-      retireDebt: false,
-      debtService: debtService,
-      bcsParentsAnnual: 25000,
-      bcsFamilyMonthly: Math.round(Math.max(0, bcsAnnualTotal - 25000) / 12),
-      lifestyleCutsApplied: false,
-      vanSold: false,
-    };
-    const baseline = computeProjection(baseState);
-    dispatch({ type: 'RESTORE_STATE', state: {
-      dadBaselineBalance: baseline.savingsData,
-      dadDebtPct: 0, dadBcsParents: 25000,
-      dadMold: false, dadRoof: false, dadProjects: false,
-      dadStep: 1, dadMcResult: null, dadMode: true,
-      sarahMode: false, presentMode: false, showSaveLoad: false,
-    }});
-  };
-
   const handleTogglePresentMode = () => {
     if (presentMode) {
       patchUiState({ presentMode: false });
@@ -348,45 +323,9 @@ export default function FinancialModel() {
     }
     patchUiState({
       presentMode: true,
-      sarahMode: false,
-      dadMode: false,
       showSaveLoad: false,
     });
   };
-
-  const handleEnterSarahMode = () => {
-    patchUiState({
-      sarahMode: true,
-      dadMode: false,
-      presentMode: false,
-      showSaveLoad: false,
-    });
-  };
-
-  const dadSupportState = useMemo(() => {
-    if (!dadMode) return null;
-    return {
-      ...gatherState(deferredState),
-      vanSold: true, lifestyleCutsApplied: true,
-      retireDebt: false,
-      debtService: Math.round((deferredState.debtService || 0) * (1 - dadDebtPct / 100)),
-      bcsParentsAnnual: dadBcsParents,
-      bcsFamilyMonthly: Math.round(Math.max(0, (deferredState.bcsAnnualTotal || 0) - dadBcsParents) / 12),
-      moldInclude: dadMold, roofInclude: dadRoof, otherInclude: dadProjects,
-    };
-  }, [deferredState, dadMode, dadDebtPct, dadBcsParents, dadMold, dadRoof, dadProjects]);
-
-  const dadProjection = useMemo(() => {
-    if (!dadSupportState) return null;
-    noteCompute('dadProjection');
-    return computeProjection(dadSupportState);
-  }, [dadSupportState]);
-
-  const dadMcRun = useMemo(() => {
-    if (!dadSupportState || dadStep < 3) return null;
-    noteCompute('dadMcRun');
-    return runDadMonteCarlo(dadSupportState);
-  }, [dadSupportState, dadStep]);
 
   // Raw monthly gap — no toggles, no returns. Matches waterfall "Today" bar.
   const currentMsft = data[0]?.msftVesting || 0;
@@ -689,17 +628,11 @@ export default function FinancialModel() {
   }), [checkInHistory, monthlyDetail, currentModelMonth, savingsData,
        reforecastProjection, goals, goalResults, presentMode]);
 
-  const activeExperience = dadMode
-    ? 'dad'
-    : sarahMode
-      ? 'sarah'
-      : presentMode
-        ? 'present'
-        : 'planner';
+  const activeExperience = presentMode ? 'present' : 'planner';
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
-  const showTopSummary = activeExperience === 'planner' || activeExperience === 'present';
-  const showTabs = activeExperience === 'planner';
-  const showRail = activeExperience === 'planner';
+  const showTopSummary = true;
+  const showTabs = !presentMode;
+  const showRail = !presentMode;
   const railPlacement = !showRail
     ? 'hidden'
     : (effectiveTab === 'overview' || effectiveTab === 'plan' || effectiveTab === 'track')
@@ -708,7 +641,7 @@ export default function FinancialModel() {
       ? 'side'
       : 'below';
   const compactShell = shellWidthBucket === 'compact';
-  const showCompareBanner = activeExperience === 'planner' && Boolean(compareState);
+  const showCompareBanner = !presentMode && Boolean(compareState);
   // Rail charts use useDeferredValue for prioritization — no additional delay needed.
   // A hard debounce here prevents charts from updating at all during slider drag.
   const goalPanelProps = useMemo(() => ({
@@ -920,8 +853,6 @@ export default function FinancialModel() {
           activeExperience={activeExperience}
           presentMode={presentMode}
           onTogglePresentMode={handleTogglePresentMode}
-          onEnterDadMode={enterDadMode}
-          onEnterSarahMode={handleEnterSarahMode}
           showSaveLoad={showSaveLoad}
           onToggleSaveLoad={() => set('showSaveLoad')(!showSaveLoad)}
           savedScenarios={savedScenarios}
@@ -929,7 +860,7 @@ export default function FinancialModel() {
           onExportJSON={handleExportJSON}
         />
 
-        {activeExperience === 'planner' && (
+        {!presentMode && (
           <SaveLoadPanel
             showSaveLoad={showSaveLoad}
             savedScenarios={savedScenarios}
@@ -949,61 +880,15 @@ export default function FinancialModel() {
           />
         )}
 
-        {activeExperience === 'sarah' && (
-          <SarahMode
-            ssType={ssType}
-            sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
-            sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-            lifestyleCutsApplied={lifestyleCutsApplied}
-            cutOliver={cutOliver} cutVacation={cutVacation} cutShopping={cutShopping}
-            cutMedical={cutMedical} cutGym={cutGym} cutAmazon={cutAmazon} cutSaaS={cutSaaS}
-            cutEntertainment={cutEntertainment} cutGroceries={cutGroceries} cutPersonalCare={cutPersonalCare} cutSmallItems={cutSmallItems}
-            mcResults={mcResults} goalResults={goalResults} goals={goals}
-            startingSavings={startingSavings} starting401k={starting401k} homeEquity={homeEquity}
-            monthlyDetail={monthlyDetail} savingsData={savingsData} wealthData={wealthData}
-            onFieldChange={set}
-            onExit={() => patchUiState({ sarahMode: false })}
-          />
-        )}
-
-        {activeExperience === 'dad' && (
-          <DadMode
-            dadMode={dadMode} dadStep={dadStep} dadDebtPct={dadDebtPct}
-            dadBcsParents={dadBcsParents} dadMold={dadMold} dadRoof={dadRoof}
-            dadProjects={dadProjects} dadMcResult={dadMcRun} dadBaselineBalance={dadBaselineBalance}
-            dadProjection={dadProjection}
-            data={data} savingsData={savingsData}
-            debtTotal={debtTotal} debtService={debtService}
-            debtCC={debtCC} debtPersonal={debtPersonal} debtIRS={debtIRS}
-            bcsAnnualTotal={bcsAnnualTotal} bcsYearsLeft={bcsYearsLeft}
-            vanSold={vanSold} vanMonthlySavings={vanMonthlySavings}
-            lifestyleCutsApplied={lifestyleCutsApplied} lifestyleCuts={lifestyleCuts}
-            cutInHalf={cutInHalf} extraCuts={extraCuts}
-            cutOliver={cutOliver} cutVacation={cutVacation} cutShopping={cutShopping}
-            cutMedical={cutMedical} cutGym={cutGym} cutAmazon={cutAmazon} cutSaaS={cutSaaS}
-            cutEntertainment={cutEntertainment} cutGroceries={cutGroceries} cutPersonalCare={cutPersonalCare} cutSmallItems={cutSmallItems}
-            bcsFamilyMonthly={bcsFamilyMonthly} retireDebt={retireDebt}
-            moldCost={moldCost} roofCost={roofCost} otherProjects={otherProjects}
-            startingSavings={startingSavings}
-            sarahMaxRate={sarahMaxRate} sarahMaxClients={sarahMaxClients}
-            ssdiFamilyTotal={ssdiFamilyTotal} ssdiBackPayActual={ssdiBackPayActual}
-            chadConsulting={chadConsulting}
-            savingsZeroMonth={savingsZeroMonth}
-            onFieldChange={set}
-          />
-        )}
-
-        {(activeExperience === 'planner' || activeExperience === 'present') && (
-          <AppShell
-            summary={plannerSummary}
-            tabs={plannerTabs}
-            workspace={plannerWorkspace}
-            rail={plannerRail}
-            showRail={showRail}
-            compact={compactShell}
-            railPlacement={railPlacement}
-          />
-        )}
+        <AppShell
+          summary={plannerSummary}
+          tabs={plannerTabs}
+          workspace={plannerWorkspace}
+          rail={plannerRail}
+          showRail={showRail}
+          compact={compactShell}
+          railPlacement={railPlacement}
+        />
       </div>
     </div>
   );

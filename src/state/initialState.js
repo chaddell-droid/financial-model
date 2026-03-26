@@ -109,20 +109,6 @@ export const INITIAL_STATE = {
   compareState: null,
   compareName: "",
 
-  // UI — Sarah Mode
-  sarahMode: false,
-
-  // UI — Dad Mode
-  dadMode: false,
-  dadStep: 1,
-  dadDebtPct: 0,
-  dadBcsParents: 25000,
-  dadMold: false,
-  dadRoof: false,
-  dadProjects: false,
-  dadMcResult: null,
-  dadBaselineBalance: null,
-
   // Monte Carlo
   mcResults: null,
   mcRunning: false,

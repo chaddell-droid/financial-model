@@ -23,7 +23,7 @@ import {
   getRetirementSSInfo,
   sliceRetirementContext,
 } from './retirementIncome.js';
-import { runDadMonteCarlo, runMonteCarlo } from './monteCarlo.js';
+import { runMonteCarlo } from './monteCarlo.js';
 import { fmt } from './formatters.js';
 import { exportModelData } from './exportData.js';
 import { PRIMARY_LEVERS_BCS_STATUS_QUO, buildPrimaryLeversModel } from './scenarioLevers.js';
@@ -1364,15 +1364,6 @@ test('runMonteCarlo changes when the seed changes', () => {
     'changing the seed should change at least one headline Monte Carlo output'
   );
 });
-test('runDadMonteCarlo stays finite with extreme negative MSFT growth', () => {
-  const result = runDadMonteCarlo({
-    ...base,
-    msftGrowth: -200,
-  });
-  assert.ok(Number.isFinite(result.solvency), 'solvency should be finite');
-  assert.ok(Number.isFinite(result.medianFinal), 'medianFinal should be finite');
-  assert.ok(Number.isFinite(result.p10), 'p10 should be finite');
-});
 
 console.log('\n=== UI Harness Guards ===');
 
@@ -1574,11 +1565,9 @@ test('Slider exposes draft and release-commit performance controls', () => {
 
 test('Hot slider surfaces no longer use raw range inputs outside the shared Slider primitive', () => {
   const expenseSource = fs.readFileSync(new URL('../panels/ExpenseControls.jsx', import.meta.url), 'utf8');
-  const dadSource = fs.readFileSync(new URL('../panels/DadMode.jsx', import.meta.url), 'utf8');
   const goalSource = fs.readFileSync(new URL('../panels/GoalPanel.jsx', import.meta.url), 'utf8');
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
   assert.ok(!expenseSource.includes("type='range'") && !expenseSource.includes('type="range"'), 'ExpenseControls should route hot sliders through Slider');
-  assert.ok(!dadSource.includes("type='range'") && !dadSource.includes('type="range"'), 'DadMode should route hot sliders through Slider');
   assert.ok(!goalSource.includes("type='range'") && !goalSource.includes('type="range"'), 'GoalPanel should route the target-month slider through Slider');
   assert.ok(!retirementSource.includes("type='range'") && !retirementSource.includes('type="range"'), 'RetirementIncomeChart should route the pool draw slider through Slider');
 });
@@ -1619,8 +1608,6 @@ test('FinancialModel and heavy slider surfaces expose performance instrumentatio
   const monteCarloSource = fs.readFileSync(new URL('../charts/MonteCarloPanel.jsx', import.meta.url), 'utf8');
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
   assert.ok(financialSource.includes("noteCompute('projection')"), 'FinancialModel should track projection recomputation');
-  assert.ok(financialSource.includes("noteCompute('dadProjection')"), 'FinancialModel should track Dad projection recomputation');
-  assert.ok(financialSource.includes("noteCompute('dadMcRun')"), 'FinancialModel should track Dad Monte Carlo recomputation');
   assert.ok(goalSource.includes("useRenderMetric('GoalPanel')"), 'GoalPanel should expose render instrumentation');
   assert.ok(monteCarloSource.includes("useRenderMetric('MonteCarloPanel')"), 'MonteCarloPanel should expose render instrumentation');
   assert.ok(retirementSource.includes("useRenderMetric('RetirementIncomeChart')"), 'RetirementIncomeChart should expose render instrumentation');
@@ -1916,17 +1903,6 @@ test('utility panels use shared workflow language', () => {
   assert.ok(goalPanelSource.includes('Track goal'), 'goal panel should use action-oriented goal wording');
 });
 
-test('Sarah and Dad modes use shared cards, actions, and stable selectors', () => {
-  const sarahSource = fs.readFileSync(new URL('../panels/SarahMode.jsx', import.meta.url), 'utf8');
-  const dadSource = fs.readFileSync(new URL('../panels/DadMode.jsx', import.meta.url), 'utf8');
-  assert.ok(sarahSource.includes('SurfaceCard'), 'Sarah mode should use shared card primitives');
-  assert.ok(sarahSource.includes('ActionButton'), 'Sarah mode should use shared action primitives');
-  assert.ok(sarahSource.includes("data-testid='sarah-mode-hero'"), 'Sarah mode should expose a stable hero selector');
-  assert.ok(dadSource.includes('SurfaceCard'), 'Dad mode should use shared card primitives');
-  assert.ok(dadSource.includes('ActionButton'), 'Dad mode should use shared action primitives');
-  assert.ok(dadSource.includes("data-testid='dad-mode-next-act-1'"), 'Dad mode should expose a stable act-1 progression selector');
-  assert.ok(dadSource.includes("testId='dad-mold-toggle'"), 'Dad mode should expose stable support toggle selectors');
-});
 
 test('UI swarm manifest retires alternate modes from the active surface contract', () => {
   const manifest = JSON.parse(fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8'));
@@ -1951,11 +1927,11 @@ test('UI swarm runner supports compact viewport coverage and mode exclusivity ch
   eq(exclusivity.status, 'ready', 'mode exclusivity manifest status');
 });
 
-test('planner, present, Sarah, and Dad experiences stay mutually exclusive in the shell source', () => {
+test('planner and present experiences are the only shell modes', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes("activeExperience === 'sarah'"), 'FinancialModel should isolate Sarah mode rendering');
-  assert.ok(source.includes("activeExperience === 'dad'"), 'FinancialModel should isolate Dad mode rendering');
-  assert.ok(source.includes("(activeExperience === 'planner' || activeExperience === 'present')"), 'FinancialModel should isolate planner/present shell rendering');
+  assert.ok(source.includes('const activeExperience ='), 'FinancialModel should define activeExperience');
+  assert.ok(!source.includes("activeExperience === 'sarah'"), 'Sarah mode should be removed');
+  assert.ok(!source.includes("activeExperience === 'dad'"), 'Dad mode should be removed');
 });
 
 test('shell performance guardrails stay event-driven without polling or observer churn', () => {

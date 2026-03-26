@@ -45,8 +45,6 @@ export const UI_COLORS = {
   destructive: 'var(--ui-destructive)',
   info: 'var(--ui-info)',
   compare: 'var(--ui-compare)',
-  modeSarah: 'var(--ui-mode-sarah)',
-  modeDad: 'var(--ui-mode-dad)',
 };
 
 export const UI_ACTION_VARIANTS = {

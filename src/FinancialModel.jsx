@@ -628,7 +628,6 @@ export default function FinancialModel() {
   }), [checkInHistory, monthlyDetail, currentModelMonth, savingsData,
        reforecastProjection, goals, goalResults, presentMode]);
 
-  const activeExperience = presentMode ? 'present' : 'planner';
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = true;
   const showTabs = !presentMode;
@@ -850,7 +849,6 @@ export default function FinancialModel() {
     }}>
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         <Header
-          activeExperience={activeExperience}
           presentMode={presentMode}
           onTogglePresentMode={handleTogglePresentMode}
           showSaveLoad={showSaveLoad}

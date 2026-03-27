@@ -167,7 +167,6 @@ function RetirementIncomeChart({
   const [chadPassesAge, setChadPassesAge] = useState(82);
   const [inheritanceAmount, setInheritanceAmount] = useState(1000000);
   const [inheritanceSarahAge, setInheritanceSarahAge] = useState(60);
-  const [maxDepletionMonths, setMaxDepletionMonths] = useState(24);
   const [tooltip, setTooltip] = useState(null);
   const [showPwaIntro, setShowPwaIntro] = useState(false);
   const [pwaIntroReady, setPwaIntroReady] = useState(false);
@@ -183,7 +182,6 @@ function RetirementIncomeChart({
   const dPoolFloor = useDeferredValue(poolFloor);
   const dInheritanceAmount = useDeferredValue(inheritanceAmount);
   const dInheritanceSarahAge = useDeferredValue(inheritanceSarahAge);
-  const dMaxDepletionMonths = useDeferredValue(maxDepletionMonths);
   const dBequestTarget = useDeferredValue(bequestTarget);
   const dPwaPercentile = useDeferredValue(pwaPercentile);
   const dPwaToleranceLow = useDeferredValue(pwaToleranceLow);
@@ -1463,11 +1461,6 @@ function RetirementIncomeChart({
                 testId="retirement-inheritance-sarah-age"
                 commitStrategy={commitStrategy}
                 min={55} max={80} step={1} format={(v) => v + ''} color="#4ade80" />
-              <Slider label={<LabelWithHelp label="Max depletion gap" help={HELP.max_depletion_gap} accent="#94a3b8" />} value={maxDepletionMonths} onChange={setMaxDepletionMonths}
-                testId="retirement-max-depletion-gap"
-                ariaLabel="Max depletion gap"
-                commitStrategy={commitStrategy}
-                min={0} max={120} step={6} format={(v) => v === 0 ? 'none' : v + ' mo'} color="#94a3b8" />
             </div>
           </ControlSection>
         </div>

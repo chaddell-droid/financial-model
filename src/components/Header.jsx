@@ -2,19 +2,7 @@ import React from 'react';
 import ActionButton from './ui/ActionButton.jsx';
 import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
-const EXPERIENCE_COPY = {
-  planner: {
-    title: 'Family Financial Plan',
-    subtitle: 'Adjust assumptions, compare scenarios, and evaluate the current plan.',
-  },
-  present: {
-    title: 'Family Financial Plan',
-    subtitle: 'Presentation mode keeps the focus on the core summary and overview story.',
-  },
-};
-
 export default function Header({
-  activeExperience = 'planner',
   presentMode,
   onTogglePresentMode,
   showSaveLoad,
@@ -23,10 +11,6 @@ export default function Header({
   onReset,
   onExportJSON,
 }) {
-  const copy = EXPERIENCE_COPY[activeExperience] || EXPERIENCE_COPY.planner;
-  const isPlanner = activeExperience === 'planner';
-  const isPresent = activeExperience === 'present';
-
   return (
     <div
       data-testid='header-bar'
@@ -42,14 +26,14 @@ export default function Header({
       <div style={{ minWidth: 0 }}>
         <h1
           style={{
-            fontSize: activeExperience === 'present' ? 28 : UI_TEXT.hero,
+            fontSize: presentMode ? 28 : UI_TEXT.hero,
             fontWeight: 700,
             color: UI_COLORS.textStrong,
             margin: 0,
             letterSpacing: '-0.02em',
           }}
         >
-          {copy.title}
+          Family Financial Plan
         </h1>
         <p
           style={{
@@ -59,7 +43,9 @@ export default function Header({
             maxWidth: 720,
           }}
         >
-          {copy.subtitle}
+          {presentMode
+            ? 'Presentation mode keeps the focus on the core summary and overview story.'
+            : 'Adjust assumptions, compare scenarios, and evaluate the current plan.'}
         </p>
       </div>
 
@@ -70,12 +56,12 @@ export default function Header({
           aria-label={presentMode ? 'Exit presentation mode' : 'Enter presentation mode'}
           variant={UI_ACTION_VARIANTS.chip}
           accent={UI_COLORS.positive}
-          active={isPresent}
+          active={presentMode}
         >
           {presentMode ? 'Exit Presentation' : 'Present'}
         </ActionButton>
 
-        {isPlanner ? (
+        {!presentMode ? (
           <ActionButton
             onClick={onToggleSaveLoad}
             data-testid='header-toggle-save-load'
@@ -87,7 +73,7 @@ export default function Header({
           </ActionButton>
         ) : null}
 
-        {isPlanner ? (
+        {!presentMode ? (
           <ActionButton
             onClick={onReset}
             data-testid='header-reset-all'
@@ -98,7 +84,7 @@ export default function Header({
           </ActionButton>
         ) : null}
 
-        {isPlanner && onExportJSON ? (
+        {!presentMode && onExportJSON ? (
           <ActionButton
             onClick={onExportJSON}
             data-testid='header-export-json'

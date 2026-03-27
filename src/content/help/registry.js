@@ -35,14 +35,6 @@ export const HELP = {
       'A cohort can still count here even if it touched the reserve earlier, as long as it finishes above it at the end.',
     ],
   },
-  reserve_never_touched: {
-    title: 'Reserve Never Touched',
-    short: 'This is the stricter safe-rate definition used in Historical Safe mode.',
-    body: [
-      'The reserve is treated as touched if the simulated pool reaches the floor at any point in the path.',
-      'This is stricter than finish-above-reserve and should not be compared directly to Adaptive PWA confidence.',
-    ],
-  },
   probability_no_cut: {
     title: "Won't Need To Cut Later",
     short: 'This is the share of current-state historical samples that support the chosen spending target or more.',
@@ -114,14 +106,6 @@ export const HELP = {
     body: [
       'Historical band and safe-rate calculations use this floor to determine reserve survival outcomes.',
       'Adaptive PWA v1 does not use this as its headline confidence metric.',
-    ],
-  },
-  max_depletion_gap: {
-    title: 'Max Depletion Gap',
-    short: 'This sets how long the pool is allowed to sit at the reserve in the looser ERN-style historical constraint.',
-    body: [
-      'A value of 0 means the reserve gap is not allowed at all.',
-      'Higher values allow the pool to touch the reserve for longer stretches while still counting as acceptable in the finish-above-reserve test.',
     ],
   },
   annual_decision_preview: {

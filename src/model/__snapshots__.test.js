@@ -1297,14 +1297,12 @@ test('Retirement help registry preserves core help keys for both modes', () => {
     'retirement_mode',
     'retirement_overview_historical',
     'retirement_overview_pwa',
-    'reserve_never_touched',
     'finish_above_reserve',
     'probability_no_cut',
     'bequest_target',
     'pwa_strategy',
     'pwa_target_percentile',
     'pwa_tolerance_band',
-    'max_depletion_gap',
     'adaptive_pwa_intro',
   ].forEach((key) => {
     assert.ok(registrySource.includes(`${key}:`), `help registry should include ${key}`);
@@ -1661,7 +1659,6 @@ test('index.css no longer uses style-string typography overrides', () => {
 
 test('FinancialModel uses breakpoint-driven app shell scaffold', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes('const activeExperience ='), 'shell should derive activeExperience');
   assert.ok(source.includes('const [shellWidthBucket, setShellWidthBucket] = useState'), 'shell should track breakpoint buckets');
   assert.ok(source.includes('<AppShell'), 'shell should render AppShell');
   assert.ok(source.includes('showEmbeddedBalanceCharts={!showRail}'), 'risk tab should suppress duplicate balance charts when the rail is visible');
@@ -1927,11 +1924,11 @@ test('UI swarm runner supports compact viewport coverage and mode exclusivity ch
   eq(exclusivity.status, 'ready', 'mode exclusivity manifest status');
 });
 
-test('planner and present experiences are the only shell modes', () => {
+test('planner and present are the only shell modes', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes('const activeExperience ='), 'FinancialModel should define activeExperience');
-  assert.ok(!source.includes("activeExperience === 'sarah'"), 'Sarah mode should be removed');
-  assert.ok(!source.includes("activeExperience === 'dad'"), 'Dad mode should be removed');
+  assert.ok(!source.includes("activeExperience"), 'activeExperience indirection should be removed');
+  assert.ok(!source.includes("'sarah'"), 'Sarah mode should be removed');
+  assert.ok(!source.includes("'dad'"), 'Dad mode should be removed');
 });
 
 test('shell performance guardrails stay event-driven without polling or observer churn', () => {

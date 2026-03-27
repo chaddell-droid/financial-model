@@ -2,6 +2,10 @@ import React, { memo, useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel, getSummaryTimeframeLabel } from './chartContract.js';
+import { COLORS } from './chartUtils.js';
+import { useChartTooltip } from './useChartTooltip.js';
+import ChartYAxis from './ChartYAxis.jsx';
+import ChartXAxis from './ChartXAxis.jsx';
 
 function SavingsDrawdownChart({
   savingsData,
@@ -28,21 +32,21 @@ function SavingsDrawdownChart({
 }) {
   const [savingsTooltip, setSavingsTooltip] = useState(null);
   const comparisonLegend = buildLegendItems(compareProjection ? [
-    { id: 'current', label: 'Current settings', color: '#4ade80' },
-    { id: 'compare', label: `"${compareName}"`, color: '#fbbf24', line: true, dash: true },
+    { id: 'current', label: 'Current settings', color: COLORS.green },
+    { id: 'compare', label: `"${compareName}"`, color: COLORS.yellow, line: true, dash: true },
   ] : []);
 
   return (
         <div data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={{
-          background: "#1e293b", borderRadius: 12, padding: "20px 16px",
-          border: savingsZeroMonth ? "1px solid #f8717133" : "1px solid #334155", marginBottom: 24
+          background: COLORS.bgCard, borderRadius: 12, padding: "20px 16px",
+          border: savingsZeroMonth ? `1px solid ${COLORS.red}33` : `1px solid ${COLORS.border}`, marginBottom: 24
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <h3 style={{ fontSize: 14, color: savingsZeroMonth ? "#f87171" : "#4ade80", margin: 0, fontWeight: 600 }}>
+            <h3 style={{ fontSize: 14, color: savingsZeroMonth ? COLORS.red : COLORS.green, margin: 0, fontWeight: 600 }}>
               Savings Balance Over Time
             </h3>
             {savingsZeroMonth && (
-              <span style={{ fontSize: 12, color: "#f87171", fontWeight: 600 }}>Depleted: {savingsZeroLabel}</span>
+              <span style={{ fontSize: 12, color: COLORS.red, fontWeight: 600 }}>Depleted: {savingsZeroLabel}</span>
             )}
           </div>
 
@@ -59,19 +63,19 @@ function SavingsDrawdownChart({
               const steady = steadyIdx >= 0 ? data[steadyIdx] : data[data.length - 1];
               const steadyLabel = steady.label || "Y6";
               return [
-                { label: "Starting Savings", value: fmtFull(startingSavings), color: "#e2e8f0" },
-                { label: `${getSummaryTimeframeLabel('steady')} income`, value: fmtFull(steady.totalIncome), color: "#4ade80" },
-                { label: `${getSummaryTimeframeLabel('current')} expenses`, value: fmtFull(current.expenses), color: "#f87171" },
-                { label: `${getSummaryTimeframeLabel('steady')} net`, value: (steady.netMonthly >= 0 ? "+" : "") + fmtFull(steady.netMonthly), color: steady.netMonthly >= 0 ? "#4ade80" : "#f87171" },
-                { label: `Annual Return (${investmentReturn}% on savings)`, value: fmtFull(annualReturn) + "/yr", sub: `${fmtFull(data[0].investReturnQtr)}/qtr · ${fmtFull(data[0].investReturn)}/mo`, color: "#22d3ee" },
+                { label: "Starting Savings", value: fmtFull(startingSavings), color: COLORS.textSecondary },
+                { label: `${getSummaryTimeframeLabel('steady')} income`, value: fmtFull(steady.totalIncome), color: COLORS.green },
+                { label: `${getSummaryTimeframeLabel('current')} expenses`, value: fmtFull(current.expenses), color: COLORS.red },
+                { label: `${getSummaryTimeframeLabel('steady')} net`, value: (steady.netMonthly >= 0 ? "+" : "") + fmtFull(steady.netMonthly), color: steady.netMonthly >= 0 ? COLORS.green : COLORS.red },
+                { label: `Annual Return (${investmentReturn}% on savings)`, value: fmtFull(annualReturn) + "/yr", sub: `${fmtFull(data[0].investReturnQtr)}/qtr · ${fmtFull(data[0].investReturn)}/mo`, color: COLORS.cyan },
               ];
             })().map((item, i) => (
               <div key={i} style={{
                 flex: 1, minWidth: 100,
-                background: "#0f172a", borderRadius: 6, padding: "6px 10px",
-                border: "1px solid #1e293b"
+                background: COLORS.bgDeep, borderRadius: 6, padding: "6px 10px",
+                border: `1px solid ${COLORS.bgCard}`
               }}>
-                <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>{item.label}</div>
+                <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>{item.label}</div>
                 <div style={{
                   fontSize: 14, fontWeight: 700, color: item.color,
                   fontFamily: "'JetBrains Mono', monospace"
@@ -79,7 +83,7 @@ function SavingsDrawdownChart({
                   {item.value}
                 </div>
                 {item.sub && (
-                  <div style={{ fontSize: 9, color: "#475569", marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div style={{ fontSize: 9, color: COLORS.borderLight, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
                     {item.sub}
                   </div>
                 )}
@@ -148,36 +152,27 @@ function SavingsDrawdownChart({
                     <rect x={padL} y={zeroY} width={plotW} height={padT + plotH - zeroY} />
                   </clipPath>
                   <linearGradient id="savingsGradGreen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#4ade80" />
+                    <stop offset="0%" stopColor={COLORS.green} />
                     <stop offset="100%" stopColor="transparent" />
                   </linearGradient>
                   <linearGradient id="savingsGradRed" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="transparent" />
-                    <stop offset="100%" stopColor="#f87171" />
+                    <stop offset="100%" stopColor={COLORS.red} />
                   </linearGradient>
                 </defs>
 
                 {/* Grid lines and Y labels */}
-                {yTicks.map((v, i) => (
-                  <g key={i}>
-                    <line x1={padL} x2={svgW - padR} y1={y(v)} y2={y(v)}
-                      stroke={v === 0 ? "#475569" : "#1e293b"} strokeWidth={v === 0 ? 1.5 : 0.5} />
-                    <text x={padL - 6} y={y(v) + 3} textAnchor="end"
-                      fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-                      {fmt(v)}
-                    </text>
-                  </g>
-                ))}
+                <ChartYAxis ticks={yTicks} yOf={y} svgW={svgW} padL={padL} padR={padR} />
 
                 {/* Area fills — green above zero, red below */}
                 <path d={areaPath} fill="url(#savingsGradGreen)" opacity="0.25" clipPath="url(#savAboveZero)" />
                 <path d={areaPath} fill="url(#savingsGradRed)" opacity="0.25" clipPath="url(#savBelowZero)" />
 
                 {/* Line — green above zero */}
-                <path d={linePath} fill="none" stroke="#4ade80" strokeWidth="2.5"
+                <path d={linePath} fill="none" stroke={COLORS.green} strokeWidth="2.5"
                   strokeLinejoin="round" strokeLinecap="round" clipPath="url(#savAboveZero)" />
                 {/* Line — red below zero */}
-                <path d={linePath} fill="none" stroke="#f87171" strokeWidth="2.5"
+                <path d={linePath} fill="none" stroke={COLORS.red} strokeWidth="2.5"
                   strokeLinejoin="round" strokeLinecap="round" clipPath="url(#savBelowZero)" />
 
                 {/* Comparison line overlay */}
@@ -188,19 +183,19 @@ function SavingsDrawdownChart({
                   const compEnd = compSavings[compSavings.length - 1];
                   return (
                     <>
-                      <path d={compLinePath} fill="none" stroke="#fbbf24" strokeWidth="2"
+                      <path d={compLinePath} fill="none" stroke={COLORS.yellow} strokeWidth="2"
                         strokeLinejoin="round" strokeLinecap="round" strokeDasharray="8,4" opacity="0.8" />
                       {compZeroMonth && (
                         <>
                           <line x1={x(compZeroMonth.month)} x2={x(compZeroMonth.month)}
                             y1={padT} y2={padT + plotH}
-                            stroke="#fbbf24" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
+                            stroke={COLORS.yellow} strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
                         </>
                       )}
                       {/* Comparison end-of-line label */}
-                      <circle cx={x(compEnd.month)} cy={y(compEnd.balance)} r="3" fill="#fbbf24" />
+                      <circle cx={x(compEnd.month)} cy={y(compEnd.balance)} r="3" fill={COLORS.yellow} />
                       <text x={x(compEnd.month) - 6} y={y(compEnd.balance) - 8} textAnchor="end"
-                        fill="#fbbf24" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                        fill={COLORS.yellow} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                         {compareName}
                       </text>
                     </>
@@ -210,7 +205,7 @@ function SavingsDrawdownChart({
                 {/* Current line end-of-line label */}
                 {(() => {
                   const curEnd = savingsData[savingsData.length - 1];
-                  const curColor = curEnd.balance >= 0 ? "#4ade80" : "#f87171";
+                  const curColor = curEnd.balance >= 0 ? COLORS.green : COLORS.red;
                   return compSavings ? (
                     <>
                       <circle cx={x(curEnd.month)} cy={y(curEnd.balance)} r="3" fill={curColor} />
@@ -225,31 +220,26 @@ function SavingsDrawdownChart({
                 {/* Hover highlight dot */}
                 {savingsTooltip && (
                   <circle cx={x(savingsTooltip.month)} cy={y(savingsTooltip.balance)} r="5"
-                    fill={savingsTooltip.balance >= 0 ? "#4ade80" : "#f87171"}
-                    stroke="#f8fafc" strokeWidth="2" />
+                    fill={savingsTooltip.balance >= 0 ? COLORS.green : COLORS.red}
+                    stroke={COLORS.textPrimary} strokeWidth="2" />
                 )}
 
                 {/* X-axis labels */}
-                {savingsData.filter(d => d.month % 12 === 0).map((d, i) => (
-                  <text key={i} x={x(d.month)} y={svgH - 5} textAnchor="middle"
-                    fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-                    {formatModelTimeLabel(d.month)}
-                  </text>
-                ))}
+                <ChartXAxis data={savingsData} xOf={x} svgH={svgH} />
 
                 {/* Zero crossing marker */}
                 {savingsZeroMonth && (
                   <g>
                     <line x1={x(savingsZeroMonth.month)} x2={x(savingsZeroMonth.month)}
                       y1={padT} y2={padT + plotH}
-                      stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" />
+                      stroke={COLORS.red} strokeWidth="1" strokeDasharray="4,3" />
                     <text x={x(savingsZeroMonth.month)} y={padT - 14} textAnchor="middle"
-                      fill="#f87171" fontSize="10" fontWeight="700"
+                      fill={COLORS.red} fontSize="10" fontWeight="700"
                       fontFamily="'JetBrains Mono', monospace">
                       Savings
                     </text>
                     <text x={x(savingsZeroMonth.month)} y={padT - 4} textAnchor="middle"
-                      fill="#f87171" fontSize="10" fontWeight="700"
+                      fill={COLORS.red} fontSize="10" fontWeight="700"
                       fontFamily="'JetBrains Mono', monospace">
                       Exhausted
                     </text>
@@ -261,9 +251,9 @@ function SavingsDrawdownChart({
                   <g>
                     <line x1={x(ssdiApprovalMonth + 2)} x2={x(ssdiApprovalMonth + 2)}
                       y1={padT} y2={padT + plotH}
-                      stroke="#4ade80" strokeWidth="1" strokeDasharray="4,3" />
+                      stroke={COLORS.green} strokeWidth="1" strokeDasharray="4,3" />
                     <text x={x(ssdiApprovalMonth + 2)} y={padT + plotH + 14} textAnchor="middle"
-                      fill="#4ade80" fontSize="10" fontWeight="700"
+                      fill={COLORS.green} fontSize="10" fontWeight="700"
                       fontFamily="'JetBrains Mono', monospace">
                       Back pay +{fmtFull(ssdiBackPayActual)}
                     </text>
@@ -281,8 +271,8 @@ function SavingsDrawdownChart({
                     left: `${savingsTooltip.pctX}%`,
                     top: `${savingsTooltip.pctY}%`,
                   transform: "translate(-50%, -120%)",
-                  background: "#0f172a",
-                  border: `1px solid ${savingsTooltip.balance >= 0 ? "#4ade80" : "#f87171"}`,
+                  background: COLORS.bgDeep,
+                  border: `1px solid ${savingsTooltip.balance >= 0 ? COLORS.green : COLORS.red}`,
                   borderRadius: 6,
                   padding: "6px 10px",
                   pointerEvents: "none",
@@ -290,12 +280,12 @@ function SavingsDrawdownChart({
                   whiteSpace: "nowrap",
                     boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
                   }}>
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 2 }}>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 2 }}>
                     {formatModelTimeLabel(savingsTooltip.month)}
                   </div>
                   <div style={{
                     fontSize: 14, fontWeight: 700,
-                    color: savingsTooltip.balance >= 0 ? "#4ade80" : "#f87171",
+                    color: savingsTooltip.balance >= 0 ? COLORS.green : COLORS.red,
                     fontFamily: "'JetBrains Mono', monospace"
                   }}>
                     {fmtFull(savingsTooltip.balance)}
@@ -308,23 +298,23 @@ function SavingsDrawdownChart({
           {!presentMode && <>
           <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Slider label="Starting savings" value={startingSavings} onChange={onFieldChange('startingSavings')} commitStrategy='release'
-              min={50000} max={500000} step={10000} color="#60a5fa" />
+              min={50000} max={500000} step={10000} color={COLORS.blue} />
             <Slider label="Investment return (annual)" value={investmentReturn} onChange={onFieldChange('investmentReturn')} commitStrategy='release'
-              min={0} max={50} format={(v) => v + "%"} color="#60a5fa" />
+              min={0} max={50} format={(v) => v + "%"} color={COLORS.blue} />
           </div>
           <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Slider label="Base living expenses/mo" value={baseExpenses} onChange={onFieldChange('baseExpenses')} commitStrategy='release' min={25000} max={55000} step={500} color="#f87171" />
-            <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} commitStrategy='release' min={3000} max={12000} step={100} color={retireDebt ? "#334155" : "#f87171"} />
+            <Slider label="Base living expenses/mo" value={baseExpenses} onChange={onFieldChange('baseExpenses')} commitStrategy='release' min={25000} max={55000} step={500} color={COLORS.red} />
+            <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} commitStrategy='release' min={3000} max={12000} step={100} color={retireDebt ? COLORS.border : COLORS.red} />
           </div>
           <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, padding: "0 2px" }}>
-            <span style={{ color: "#64748b" }}>
-              Total outflow (now): <span style={{ color: "#f87171", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(data[0].expenses)}/mo</span>
+            <span style={{ color: COLORS.textDim }}>
+              Total outflow (now): <span style={{ color: COLORS.red, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(data[0].expenses)}/mo</span>
             </span>
-            <span style={{ color: "#64748b" }}>
-              Investment returns ({investmentReturn}%): <span style={{ color: "#22d3ee", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1) - 1)))}/yr</span> on initial savings
+            <span style={{ color: COLORS.textDim }}>
+              Investment returns ({investmentReturn}%): <span style={{ color: COLORS.cyan, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(Math.round(startingSavings * (Math.pow(1 + investmentReturn / 100, 1) - 1)))}/yr</span> on initial savings
             </span>
           </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic", lineHeight: 1.5 }}>
+          <div style={{ marginTop: 8, fontSize: 11, color: COLORS.textDim, fontStyle: "italic", lineHeight: 1.5 }}>
             Investment returns compound monthly while balance is positive — but only matter when the monthly deficit is small. At a {fmtFull(Math.abs(data[0].netCashFlow))}/mo burn rate, savings drain before returns can compound meaningfully. Toggle debt retirement and spending cuts to shrink the deficit — that's when returns become a powerful lever.
           </div>
           </>}
@@ -333,7 +323,7 @@ function SavingsDrawdownChart({
               {comparisonLegend.map((item) => (
                 <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ width: item.line ? 20 : 20, height: item.line ? 0 : 3, background: item.line ? undefined : item.color, borderRadius: item.line ? 0 : 1, borderTop: item.line ? `2px dashed ${item.color}` : undefined }} />
-                  <span style={{ color: item.id === 'compare' ? item.color : "#94a3b8" }}>{item.label}</span>
+                  <span style={{ color: item.id === 'compare' ? item.color : COLORS.textMuted }}>{item.label}</span>
                 </div>
               ))}
             </div>

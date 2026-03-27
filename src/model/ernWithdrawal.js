@@ -18,12 +18,23 @@
  * to avoid creating sliced copies per cohort.
  */
 
+// Module-level pooled array for opportunity-cost factors.
+// Eliminates ~924KB of ephemeral Float64Array allocations per render cycle
+// (~260 computeSWR calls × 444 months × 8 bytes). Safe because JS is
+// single-threaded and G is fully written before any read.
+let _pooledG = null;
+let _pooledLen = 0;
+function getG(T) {
+  if (T > _pooledLen) { _pooledG = new Float64Array(T); _pooledLen = T; }
+  return _pooledG;
+}
+
 /**
  * Closed-form SWR for one cohort.
  * Returns monthly consumption w in dollars (can be negative for bad cohorts).
  */
 export function computeSWR(blended, start, T, supplementalFlows, scaling, targetFV, initialPool) {
-  const G = new Float64Array(T);
+  const G = getG(T);
   G[T - 1] = 1 + blended[start + T - 1];
   for (let t = T - 2; t >= 0; t--) {
     G[t] = G[t + 1] * (1 + blended[start + t]);
@@ -45,7 +56,7 @@ export function computeSWR(blended, start, T, supplementalFlows, scaling, target
  * inheritance arrives, given that post-inheritance uses postRate.
  */
 export function computePreInhSWR(blended, start, T, supplementalFlows, scaling, targetFV, initialPool, postRate, inhMonth) {
-  const G = new Float64Array(T);
+  const G = getG(T);
   G[T - 1] = 1 + blended[start + T - 1];
   for (let t = T - 2; t >= 0; t--) {
     G[t] = G[t + 1] * (1 + blended[start + t]);

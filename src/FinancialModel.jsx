@@ -257,7 +257,7 @@ export default function FinancialModel() {
   const saveScenario = async (name) => {
     if (!name.trim()) return;
     const st = gatherState();
-    const entry = { name: name.trim(), state: st, savedAt: new Date().toISOString() };
+    const entry = { name: name.trim(), state: st, schemaVersion: st.schemaVersion, savedAt: new Date().toISOString() };
     const updated = [...savedScenarios.filter(s => s.name !== name.trim()), entry];
     set('savedScenarios')(updated);
     set('scenarioName')("");

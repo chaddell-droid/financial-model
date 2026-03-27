@@ -1,4 +1,5 @@
 import { INITIAL_STATE } from './initialState.js';
+import { migrate, validateAndSanitize } from './schemaValidation.js';
 
 export function reducer(state, action) {
   switch (action.type) {
@@ -7,31 +8,9 @@ export function reducer(state, action) {
     case 'SET_FIELDS':
       return { ...state, ...action.fields };
     case 'RESTORE_STATE': {
-      const s = action.state;
-      // Backward compatibility: if old scenario has aggregate cuts but no individual cuts,
-      // use defaults for individual cuts
-      if (s.lifestyleCuts !== undefined && s.cutOliver === undefined) {
-        const legacy = {
-          ...state,
-          ...s,
-          cutOliver: INITIAL_STATE.cutOliver,
-          cutVacation: INITIAL_STATE.cutVacation,
-          cutShopping: INITIAL_STATE.cutShopping,
-          cutMedical: INITIAL_STATE.cutMedical,
-          cutGym: INITIAL_STATE.cutGym,
-          cutAmazon: INITIAL_STATE.cutAmazon,
-          cutSaaS: INITIAL_STATE.cutSaaS,
-          cutEntertainment: INITIAL_STATE.cutEntertainment,
-          cutGroceries: INITIAL_STATE.cutGroceries,
-          cutPersonalCare: INITIAL_STATE.cutPersonalCare,
-          cutSmallItems: INITIAL_STATE.cutSmallItems,
-        };
-        if (!Array.isArray(legacy.goals)) legacy.goals = INITIAL_STATE.goals;
-        return legacy;
-      }
-      const result = { ...state, ...s };
-      if (!Array.isArray(result.goals)) result.goals = INITIAL_STATE.goals;
-      return result;
+      const migrated = migrate(action.state);
+      const sanitized = validateAndSanitize(migrated);
+      return { ...state, ...sanitized };
     }
     case 'RESET_ALL':
       return {

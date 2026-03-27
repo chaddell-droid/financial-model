@@ -1,4 +1,7 @@
 export const INITIAL_STATE = {
+  // Schema version — for migration framework (not in MODEL_KEYS)
+  schemaVersion: 1,
+
   // Income — Sarah's Business
   sarahRate: 200,
   sarahMaxRate: 250,

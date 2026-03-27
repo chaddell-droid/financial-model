@@ -6,6 +6,7 @@ import assert from 'node:assert';
 import { INITIAL_STATE, MODEL_KEYS } from '../initialState.js';
 import { reducer } from '../reducer.js';
 import { gatherState, gatherStateWithOverrides } from '../gatherState.js';
+import { validateAndSanitize, migrate, CURRENT_SCHEMA_VERSION } from '../schemaValidation.js';
 
 let passed = 0;
 let failed = 0;
@@ -100,7 +101,7 @@ test('RESTORE_STATE fixes corrupted goals (non-array)', () => {
 });
 
 test('RESTORE_STATE preserves valid goals array', () => {
-  const customGoals = [{ id: 1, type: 'savings_target', target: 100000, month: 36 }];
+  const customGoals = [{ id: 'custom-1', name: 'My Goal', type: 'savings_target', targetAmount: 100000, targetMonth: 36, color: '#60a5fa' }];
   const saved = { goals: customGoals };
   const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: saved });
   assert.deepStrictEqual(next.goals, customGoals, 'valid goals should be preserved');
@@ -177,6 +178,100 @@ console.log('\n=== Reducer — Edge Cases ===');
 test('unknown action returns state unchanged', () => {
   const next = reducer(INITIAL_STATE, { type: 'UNKNOWN_ACTION' });
   assert.strictEqual(next, INITIAL_STATE);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Schema Validation + Migration
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Schema Validation ===');
+
+test('validateAndSanitize fills missing fields with defaults', () => {
+  const result = validateAndSanitize({ sarahRate: 300 });
+  assert.strictEqual(result.sarahRate, 300);
+  assert.strictEqual(result.msftGrowth, INITIAL_STATE.msftGrowth, 'missing field gets default');
+  assert.strictEqual(result.baseExpenses, INITIAL_STATE.baseExpenses);
+});
+
+test('validateAndSanitize coerces string numbers to numbers', () => {
+  const result = validateAndSanitize({ sarahRate: '250', investmentReturn: '15' });
+  assert.strictEqual(typeof result.sarahRate, 'number');
+  assert.strictEqual(result.sarahRate, 250);
+  assert.strictEqual(result.investmentReturn, 15);
+});
+
+test('validateAndSanitize clamps out-of-range values', () => {
+  const result = validateAndSanitize({ investmentReturn: 999, chadJobTaxRate: -10 });
+  assert.strictEqual(result.investmentReturn, 100, 'clamped to max 100');
+  assert.strictEqual(result.chadJobTaxRate, 0, 'clamped to min 0');
+});
+
+test('validateAndSanitize validates ssType enum', () => {
+  const valid = validateAndSanitize({ ssType: 'ss' });
+  assert.strictEqual(valid.ssType, 'ss');
+  const invalid = validateAndSanitize({ ssType: 'bogus' });
+  assert.strictEqual(invalid.ssType, INITIAL_STATE.ssType, 'invalid enum falls back to default');
+});
+
+test('validateAndSanitize handles cutsOverride null vs number', () => {
+  const withNull = validateAndSanitize({ cutsOverride: null });
+  assert.strictEqual(withNull.cutsOverride, null);
+  const withZero = validateAndSanitize({ cutsOverride: 0 });
+  assert.strictEqual(withZero.cutsOverride, 0);
+  const withNum = validateAndSanitize({ cutsOverride: 5000 });
+  assert.strictEqual(withNum.cutsOverride, 5000);
+});
+
+test('validateAndSanitize filters corrupt goals entries', () => {
+  const goals = [
+    { id: 'good', name: 'Test', type: 'savings_floor', targetAmount: 1000, targetMonth: 36 },
+    { id: 'bad' }, // missing name, type
+    'not-an-object',
+    { id: 'ok', name: 'Valid', type: 'income_target' }, // missing amounts, should fill defaults
+  ];
+  const result = validateAndSanitize({ goals });
+  assert.strictEqual(result.goals.length, 2, 'only valid goals survive');
+  assert.strictEqual(result.goals[0].id, 'good');
+  assert.strictEqual(result.goals[1].id, 'ok');
+  assert.strictEqual(result.goals[1].targetAmount, 0, 'default targetAmount');
+  assert.strictEqual(result.goals[1].targetMonth, 72, 'default targetMonth');
+});
+
+test('validateAndSanitize sets schemaVersion', () => {
+  const result = validateAndSanitize({});
+  assert.strictEqual(result.schemaVersion, CURRENT_SCHEMA_VERSION);
+});
+
+test('validateAndSanitize coerces NaN and Infinity to defaults', () => {
+  const result = validateAndSanitize({ sarahRate: NaN, msftGrowth: Infinity });
+  assert.strictEqual(result.sarahRate, INITIAL_STATE.sarahRate, 'NaN falls back to default');
+  assert.strictEqual(result.msftGrowth, INITIAL_STATE.msftGrowth, 'Infinity falls back to default');
+});
+
+console.log('\n=== Schema Migration ===');
+
+test('migrate applies v0→v1 legacy cuts migration', () => {
+  const legacy = { lifestyleCuts: 5000 }; // no cutOliver → v0 scenario
+  const result = migrate(legacy);
+  assert.strictEqual(result.schemaVersion, CURRENT_SCHEMA_VERSION);
+  assert.strictEqual(result.cutOliver, INITIAL_STATE.cutOliver);
+  assert.strictEqual(result.cutVacation, INITIAL_STATE.cutVacation);
+});
+
+test('migrate skips legacy migration when cutOliver exists', () => {
+  const modern = { schemaVersion: 1, cutOliver: 999 };
+  const result = migrate(modern);
+  assert.strictEqual(result.cutOliver, 999);
+  assert.strictEqual(result.schemaVersion, CURRENT_SCHEMA_VERSION);
+});
+
+test('RESTORE_STATE integrates validation (end-to-end)', () => {
+  const corrupt = { sarahRate: '500', investmentReturn: 999, ssType: 'invalid', goals: 'not-array' };
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: corrupt });
+  assert.strictEqual(next.sarahRate, 500, 'string coerced to number');
+  assert.strictEqual(next.investmentReturn, 100, 'clamped to max');
+  assert.strictEqual(next.ssType, INITIAL_STATE.ssType, 'invalid enum replaced');
+  assert.ok(Array.isArray(next.goals), 'non-array goals fixed');
+  assert.strictEqual(next.schemaVersion, CURRENT_SCHEMA_VERSION);
 });
 
 // ════════════════════════════════════════════════════════════════════════

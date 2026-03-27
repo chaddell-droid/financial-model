@@ -1,8 +1,10 @@
 import React, { memo, useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
-import { createScales, generateYTicks, autoTickStep } from './chartUtils.js';
+import { createScales, generateYTicks, autoTickStep, COLORS } from './chartUtils.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
+import ChartYAxis from './ChartYAxis.jsx';
+import ChartXAxis from './ChartXAxis.jsx';
 
 function NetWorthChart({
   savingsData, wealthData,
@@ -47,33 +49,33 @@ function NetWorthChart({
   }).join(' L ');
 
   const lines = [
-    { path: `M ${savPath}`, color: '#4ade80', label: 'Savings', endVal: endSavings },
-    { path: `M ${k401Path}`, color: '#60a5fa', label: '401k', endVal: end401k },
-    { path: `M ${homePath}`, color: '#f59e0b', label: 'Home', endVal: endHome },
-    { path: `M ${totalPath}`, color: '#e2e8f0', label: 'Total', endVal: endNetWorth, dashed: true },
+    { path: `M ${savPath}`, color: COLORS.green, label: 'Savings', endVal: endSavings },
+    { path: `M ${k401Path}`, color: COLORS.blue, label: '401k', endVal: end401k },
+    { path: `M ${homePath}`, color: COLORS.amber, label: 'Home', endVal: endHome },
+    { path: `M ${totalPath}`, color: COLORS.textSecondary, label: 'Total', endVal: endNetWorth, dashed: true },
   ];
 
   const k401Change = end401k - (starting401k || 0);
   const homeChange = endHome - (homeEquity || 0);
   const keyCards = [
-    { label: 'Starting Net Worth', value: fmtFull(startNetWorth), color: '#e2e8f0' },
-    { label: '6-Year Net Worth', value: fmtFull(endNetWorth), color: endNetWorth >= startNetWorth ? '#4ade80' : '#f87171' },
-    { label: '401k Growth', value: (k401Change >= 0 ? '+' : '') + fmtFull(k401Change), color: k401Change >= 0 ? '#60a5fa' : '#f87171' },
-    { label: 'Home Appreciation', value: (homeChange >= 0 ? '+' : '') + fmtFull(homeChange), color: '#f59e0b' },
+    { label: 'Starting Net Worth', value: fmtFull(startNetWorth), color: COLORS.textSecondary },
+    { label: '6-Year Net Worth', value: fmtFull(endNetWorth), color: endNetWorth >= startNetWorth ? COLORS.green : COLORS.red },
+    { label: '401k Growth', value: (k401Change >= 0 ? '+' : '') + fmtFull(k401Change), color: k401Change >= 0 ? COLORS.blue : COLORS.red },
+    { label: 'Home Appreciation', value: (homeChange >= 0 ? '+' : '') + fmtFull(homeChange), color: COLORS.amber },
   ];
   const legendItems = buildLegendItems([
-    { id: 'savings', label: 'Liquid Savings', color: '#4ade80' },
-    { id: '401k', label: '401k', color: '#60a5fa' },
-    { id: 'home', label: 'Home Equity', color: '#f59e0b' },
-    { id: 'total', label: 'Total Net Worth', color: '#e2e8f0', line: true, dash: true },
+    { id: 'savings', label: 'Liquid Savings', color: COLORS.green },
+    { id: '401k', label: '401k', color: COLORS.blue },
+    { id: 'home', label: 'Home Equity', color: COLORS.amber },
+    { id: 'total', label: 'Total Net Worth', color: COLORS.textSecondary, line: true, dash: true },
   ]);
 
   return (
     <div data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={{
-      background: '#1e293b', borderRadius: 12, padding: '20px 16px',
-      border: '1px solid #334155', marginBottom: 24,
+      background: COLORS.bgCard, borderRadius: 12, padding: '20px 16px',
+      border: `1px solid ${COLORS.border}`, marginBottom: 24,
     }}>
-      <h3 style={{ fontSize: 14, color: '#e2e8f0', margin: 0, marginBottom: 8, fontWeight: 600 }}>
+      <h3 style={{ fontSize: 14, color: COLORS.textSecondary, margin: 0, marginBottom: 8, fontWeight: 600 }}>
         Net Worth Projection
       </h3>
 
@@ -82,10 +84,10 @@ function NetWorthChart({
         {keyCards.map((item, i) => (
           <div key={i} style={{
             flex: 1, minWidth: 100,
-            background: '#0f172a', borderRadius: 6, padding: '6px 10px',
-            border: '1px solid #1e293b',
+            background: COLORS.bgDeep, borderRadius: 6, padding: '6px 10px',
+            border: `1px solid ${COLORS.bgCard}`,
           }}>
-            <div style={{ fontSize: 9, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>{item.label}</div>
             <div style={{
               fontSize: 14, fontWeight: 700, color: item.color,
               fontFamily: "'JetBrains Mono', monospace",
@@ -117,16 +119,7 @@ function NetWorthChart({
           }}>
 
           {/* Grid lines */}
-          {yTicks.map((v, i) => (
-            <g key={i}>
-              <line x1={padL} x2={svgW - padR} y1={yOf(v)} y2={yOf(v)}
-                stroke={v === 0 ? '#475569' : '#1e293b'} strokeWidth={v === 0 ? 1.5 : 0.5} />
-              <text x={padL - 6} y={yOf(v) + 3} textAnchor="end"
-                fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-                {fmt(v)}
-              </text>
-            </g>
-          ))}
+          <ChartYAxis ticks={yTicks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} />
 
           {/* Lines */}
           {lines.map((l, i) => (
@@ -144,13 +137,13 @@ function NetWorthChart({
             return (
               <g>
                 <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
-                  stroke="#4ade80" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+                  stroke={COLORS.green} strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
                 <text x={xOf(m) + 4} y={padT + 12}
-                  fill="#4ade80" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill={COLORS.green} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   Savings depleted
                 </text>
                 <text x={xOf(m) + 4} y={padT + 22}
-                  fill="#4ade80" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill={COLORS.green} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   → 401k drawdown
                 </text>
               </g>
@@ -165,13 +158,13 @@ function NetWorthChart({
             return (
               <g>
                 <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
-                  stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+                  stroke={COLORS.red} strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
                 <text x={xOf(m) + 4} y={padT + 36}
-                  fill="#f87171" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill={COLORS.red} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   401k depleted
                 </text>
                 <text x={xOf(m) + 4} y={padT + 46}
-                  fill="#f87171" fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  fill={COLORS.red} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   → home equity (HELOC)
                 </text>
               </g>
@@ -186,9 +179,9 @@ function NetWorthChart({
             return (
               <g>
                 <line x1={xOf(m)} x2={xOf(m)} y1={padT} y2={svgH - padB}
-                  stroke="#f87171" strokeWidth="1.5" strokeDasharray="4,3" />
+                  stroke={COLORS.red} strokeWidth="1.5" strokeDasharray="4,3" />
                 <text x={xOf(m) + 4} y={padT + 60}
-                  fill="#f87171" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+                  fill={COLORS.red} fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
                   Home equity depleted
                 </text>
               </g>
@@ -207,16 +200,11 @@ function NetWorthChart({
           {/* Hover dot */}
           {tooltip && (
             <circle cx={xOf(tooltip.month)} cy={yOf(tooltip.total)} r="5"
-              fill="#e2e8f0" stroke="#f8fafc" strokeWidth="2" />
+              fill={COLORS.textSecondary} stroke={COLORS.textPrimary} strokeWidth="2" />
           )}
 
           {/* X-axis labels */}
-          {savingsData.filter(d => d.month % 12 === 0).map((d, i) => (
-            <text key={i} x={xOf(d.month)} y={svgH - 5} textAnchor="middle"
-              fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-              {formatModelTimeLabel(d.month)}
-            </text>
-          ))}
+          <ChartXAxis data={savingsData} xOf={(m) => xOf(m)} svgH={svgH} />
         </svg>
 
         {/* Tooltip */}
@@ -226,8 +214,8 @@ function NetWorthChart({
             left: `${tooltip.pctX}%`,
             top: `${tooltip.pctY}%`,
             transform: 'translate(-50%, -120%)',
-            background: '#0f172a',
-            border: '1px solid #475569',
+            background: COLORS.bgDeep,
+            border: `1px solid ${COLORS.borderLight}`,
             borderRadius: 6,
             padding: '8px 12px',
             pointerEvents: 'none',
@@ -235,14 +223,14 @@ function NetWorthChart({
             whiteSpace: 'nowrap',
             boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           }}>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>
               {formatModelTimeLabel(tooltip.month)}
             </div>
             {[
-              { label: 'Savings', value: tooltip.savings, color: '#4ade80' },
-              { label: '401k', value: tooltip.bal401k, color: '#60a5fa' },
-              { label: 'Home', value: tooltip.home, color: '#f59e0b' },
-              { label: 'Total', value: tooltip.total, color: '#e2e8f0' },
+              { label: 'Savings', value: tooltip.savings, color: COLORS.green },
+              { label: '401k', value: tooltip.bal401k, color: COLORS.blue },
+              { label: 'Home', value: tooltip.home, color: COLORS.amber },
+              { label: 'Total', value: tooltip.total, color: COLORS.textSecondary },
             ].map((row, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 12 }}>
                 <span style={{ color: row.color }}>{row.label}</span>
@@ -265,7 +253,7 @@ function NetWorthChart({
               borderTop: item.line ? `2px dashed ${item.color}` : undefined,
               borderRadius: 1,
             }} />
-            <span style={{ color: '#94a3b8' }}>{item.label}</span>
+            <span style={{ color: COLORS.textMuted }}>{item.label}</span>
           </div>
         ))}
       </div>
@@ -273,19 +261,19 @@ function NetWorthChart({
       {/* Sliders */}
       {!presentMode && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, fontWeight: 600 }}>401k</div>
+          <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 6, fontWeight: 600 }}>401k</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Slider label="Starting 401k balance" value={starting401k} onChange={onFieldChange('starting401k')} commitStrategy='release'
-            min={0} max={1000000} step={10000} color="#60a5fa" />
+            min={0} max={1000000} step={10000} color={COLORS.blue} />
             <Slider label="Annual return" value={return401k} onChange={onFieldChange('return401k')} commitStrategy='release'
-            min={0} max={40} format={(v) => v + '%'} color="#60a5fa" />
+            min={0} max={40} format={(v) => v + '%'} color={COLORS.blue} />
           </div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, marginTop: 8, fontWeight: 600 }}>Home Equity</div>
+          <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 6, marginTop: 8, fontWeight: 600 }}>Home Equity</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Slider label="Home equity" value={homeEquity} onChange={onFieldChange('homeEquity')} commitStrategy='release'
-            min={200000} max={2000000} step={25000} color="#f59e0b" />
+            min={200000} max={2000000} step={25000} color={COLORS.amber} />
             <Slider label="Annual appreciation" value={homeAppreciation} onChange={onFieldChange('homeAppreciation')} commitStrategy='release'
-            min={0} max={10} step={0.5} format={(v) => v + '%'} color="#f59e0b" />
+            min={0} max={10} step={0.5} format={(v) => v + '%'} color={COLORS.amber} />
           </div>
         </div>
       )}

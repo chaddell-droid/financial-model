@@ -11,6 +11,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import { INITIAL_STATE, MODEL_KEYS } from '../state/initialState.js';
 import { reducer } from '../state/reducer.js';
+import { gatherStateWithOverrides } from '../state/gatherState.js';
 import { runMonthlySimulation, computeProjection, computeWealthProjection, findOperationalBreakevenIndex } from './projection.js';
 import { getVestEvents, getTotalRemainingVesting } from './vesting.js';
 import { evaluateGoal, evaluateGoalPass, evaluateAllGoals } from './goalEvaluation.js';
@@ -36,16 +37,8 @@ import { UI_BREAKPOINTS, getShellWidthBucket } from '../ui/tokens.js';
 
 // --- Helpers ---
 
-function gatherState(overrides = {}) {
-  const state = { ...INITIAL_STATE, ...overrides };
-  const s = {};
-  for (const key of MODEL_KEYS) s[key] = state[key];
-  s.bcsFamilyMonthly = Math.round(Math.max(0, state.bcsAnnualTotal - state.bcsParentsAnnual) / 12);
-  s.lifestyleCuts = state.cutOliver + state.cutVacation + state.cutGym;
-  s.cutInHalf = state.cutMedical + state.cutShopping + state.cutSaaS;
-  s.extraCuts = state.cutAmazon + state.cutEntertainment + state.cutGroceries + state.cutPersonalCare + state.cutSmallItems;
-  return s;
-}
+// Use the shared gatherState — alias for backward compat with test call sites
+const gatherState = gatherStateWithOverrides;
 
 function buildPrimaryLeversInput(overrides = {}) {
   const state = { ...INITIAL_STATE, ...overrides };
@@ -1434,7 +1427,7 @@ test('retirement and Monte Carlo surfaces expose test handles for Wave 0', () =>
   assert.ok(sequenceSource.includes('sequence-returns-narrative'), 'sequence-of-returns chart should expose its narrative selector');
 });
 test('retirement empty-state fallback keeps optimal-rate fields numeric', () => {
-  const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  const retirementSource = fs.readFileSync(new URL('../hooks/useRetirementSimulation.js', import.meta.url), 'utf8');
   assert.ok(retirementSource.includes('optimalRate: 0, optimalMonthly: 0'), 'retirement empty fallback should define optimalRate and optimalMonthly');
 });
 test('reset all uses an explicit confirmation before resetting state', () => {

@@ -1,13 +1,13 @@
-import { useReducer, useMemo, useEffect, useState, useDeferredValue, useCallback, useRef } from "react";
+import { useReducer, useMemo, useEffect, useState, useDeferredValue, useCallback, useRef, Suspense, lazy } from "react";
 import { DAYS_PER_MONTH } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
 import { computeProjection, findOperationalBreakevenIndex } from './model/projection.js';
-import { runMonteCarlo } from './model/monteCarlo.js';
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { reducer } from './state/reducer.js';
+import { gatherState as _gatherState } from './state/gatherState.js';
 import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
 import KeyMetrics from './components/KeyMetrics.jsx';
@@ -17,7 +17,7 @@ import ActiveTogglePills from './components/ActiveTogglePills.jsx';
 import AppShell from './components/layout/AppShell.jsx';
 import SavingsDrawdownChart from './charts/SavingsDrawdownChart.jsx';
 import NetWorthChart from './charts/NetWorthChart.jsx';
-import RetirementIncomeChart from './charts/RetirementIncomeChart.jsx';
+const RetirementIncomeChart = lazy(() => import('./charts/RetirementIncomeChart.jsx'));
 import OverviewTab from './panels/tabs/OverviewTab.jsx';
 import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
@@ -30,12 +30,17 @@ import { useIsVisible } from './ui/useIsVisible.js';
 import { noteCompute } from './testing/perfMetrics.js';
 
 // Lazy wrapper: only renders RetirementIncomeChart when scrolled into view.
-// This chart runs 54,000+ simulations per render — skip it while off-screen.
+// React.lazy code-splits the chart + shillerReturns (~162KB) into a separate chunk.
+// useIsVisible defers rendering until the user scrolls to it.
 function LazyRetirementChart(props) {
   const [ref, visible] = useIsVisible();
   return (
     <div ref={ref} style={{ minHeight: visible ? undefined : 400 }}>
-      {visible ? <RetirementIncomeChart {...props} /> : null}
+      {visible ? (
+        <Suspense fallback={<div style={{ padding: 24, color: '#94a3b8', fontSize: 13 }}>Loading retirement analysis...</div>}>
+          <RetirementIncomeChart {...props} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
@@ -122,25 +127,7 @@ export default function FinancialModel() {
   const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
   const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), 9200);
 
-  const gatherState = (src) => {
-    const st = src || state;
-    const s = {};
-    for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
-    s.bcsFamilyMonthly = Math.round(Math.max(0, (st.bcsAnnualTotal || 0) - (st.bcsParentsAnnual || 0)) / 12);
-    // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
-    // Otherwise use the individual item sums
-    const override = st.cutsOverride;
-    if (override != null) {
-      s.lifestyleCuts = override;
-      s.cutInHalf = 0;
-      s.extraCuts = 0;
-    } else {
-      s.lifestyleCuts = (st.cutOliver || 0) + (st.cutVacation || 0) + (st.cutGym || 0);
-      s.cutInHalf = (st.cutMedical || 0) + (st.cutShopping || 0) + (st.cutSaaS || 0);
-      s.extraCuts = (st.cutAmazon || 0) + (st.cutEntertainment || 0) + (st.cutGroceries || 0) + (st.cutPersonalCare || 0) + (st.cutSmallItems || 0);
-    }
-    return s;
-  };
+  const gatherState = (src) => _gatherState(src || state);
 
   // Projections — use deferred state so computation doesn't block slider interaction.
   // React will skip intermediate computations during rapid drag and only compute when idle.
@@ -297,19 +284,21 @@ export default function FinancialModel() {
     }
   };
 
-  // Monte Carlo
+  // Monte Carlo — dynamic import keeps monteCarlo.js out of the main bundle
   const handleRunMonteCarlo = () => {
     set('mcRunning')(true);
-    setTimeout(() => {
-      const base = gatherState();
-      const mcParams = { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline };
-      const mcSeed = typeof window !== 'undefined' && window.__FIN_MODEL_TEST__ && typeof window.__FIN_MODEL_TEST__.getMonteCarloSeed === 'function'
-        ? window.__FIN_MODEL_TEST__.getMonteCarloSeed()
-        : null;
-      const results = runMonteCarlo(base, mcParams, goals, { seed: mcSeed });
-      set('mcResults')(results);
-      set('mcRunning')(false);
-    }, 50);
+    import('./model/monteCarlo.js').then(({ runMonteCarlo }) => {
+      setTimeout(() => {
+        const base = gatherState();
+        const mcParams = { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline };
+        const mcSeed = typeof window !== 'undefined' && window.__FIN_MODEL_TEST__ && typeof window.__FIN_MODEL_TEST__.getMonteCarloSeed === 'function'
+          ? window.__FIN_MODEL_TEST__.getMonteCarloSeed()
+          : null;
+        const results = runMonteCarlo(base, mcParams, goals, { seed: mcSeed });
+        set('mcResults')(results);
+        set('mcRunning')(false);
+      }, 50);
+    });
   };
 
   // Savings zero-crossing

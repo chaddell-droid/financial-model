@@ -1,0 +1,263 @@
+/**
+ * Unit tests for the reducer and gatherState.
+ * Run with: node src/state/__tests__/reducer.test.js
+ */
+import assert from 'node:assert';
+import { INITIAL_STATE, MODEL_KEYS } from '../initialState.js';
+import { reducer } from '../reducer.js';
+import { gatherState, gatherStateWithOverrides } from '../gatherState.js';
+
+let passed = 0;
+let failed = 0;
+
+function test(name, fn) {
+  try {
+    fn();
+    passed++;
+    console.log(`  PASS  ${name}`);
+  } catch (err) {
+    failed++;
+    console.log(`  FAIL  ${name}`);
+    console.log(`        ${err.message}`);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Reducer — SET_FIELD
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — SET_FIELD ===');
+
+test('SET_FIELD updates a single field', () => {
+  const next = reducer(INITIAL_STATE, { type: 'SET_FIELD', field: 'sarahRate', value: 300 });
+  assert.strictEqual(next.sarahRate, 300);
+  assert.strictEqual(next.msftGrowth, INITIAL_STATE.msftGrowth, 'other fields unchanged');
+});
+
+test('SET_FIELD returns a new object (immutable)', () => {
+  const next = reducer(INITIAL_STATE, { type: 'SET_FIELD', field: 'sarahRate', value: 300 });
+  assert.notStrictEqual(next, INITIAL_STATE);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Reducer — SET_FIELDS
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — SET_FIELDS ===');
+
+test('SET_FIELDS updates multiple fields at once', () => {
+  const next = reducer(INITIAL_STATE, {
+    type: 'SET_FIELDS',
+    fields: { sarahRate: 300, msftGrowth: 5 },
+  });
+  assert.strictEqual(next.sarahRate, 300);
+  assert.strictEqual(next.msftGrowth, 5);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Reducer — RESTORE_STATE (backward compatibility)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — RESTORE_STATE ===');
+
+test('RESTORE_STATE merges saved state onto current state', () => {
+  const saved = { sarahRate: 999, msftGrowth: 10 };
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: saved });
+  assert.strictEqual(next.sarahRate, 999);
+  assert.strictEqual(next.msftGrowth, 10);
+  assert.strictEqual(next.baseExpenses, INITIAL_STATE.baseExpenses, 'unsaved fields preserved');
+});
+
+test('RESTORE_STATE migrates legacy aggregate cuts to individual cuts', () => {
+  // Legacy scenario has lifestyleCuts but no cutOliver
+  const legacy = { lifestyleCuts: 5000, sarahRate: 200 };
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: legacy });
+  // Should get INITIAL_STATE defaults for individual cut items
+  assert.strictEqual(next.cutOliver, INITIAL_STATE.cutOliver, 'cutOliver gets default');
+  assert.strictEqual(next.cutVacation, INITIAL_STATE.cutVacation, 'cutVacation gets default');
+  assert.strictEqual(next.cutGym, INITIAL_STATE.cutGym, 'cutGym gets default');
+  assert.strictEqual(next.cutMedical, INITIAL_STATE.cutMedical, 'cutMedical gets default');
+  assert.strictEqual(next.cutShopping, INITIAL_STATE.cutShopping, 'cutShopping gets default');
+  assert.strictEqual(next.cutSaaS, INITIAL_STATE.cutSaaS, 'cutSaaS gets default');
+  assert.strictEqual(next.cutAmazon, INITIAL_STATE.cutAmazon, 'cutAmazon gets default');
+});
+
+test('RESTORE_STATE does NOT apply legacy migration when cutOliver exists', () => {
+  const modern = { lifestyleCuts: 5000, cutOliver: 1000, sarahRate: 200 };
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: modern });
+  assert.strictEqual(next.cutOliver, 1000, 'cutOliver preserved from saved state');
+});
+
+test('RESTORE_STATE ensures goals is always an array', () => {
+  const noGoals = { sarahRate: 200 }; // no goals field
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: noGoals });
+  assert.ok(Array.isArray(next.goals), 'goals should be an array');
+  assert.deepStrictEqual(next.goals, INITIAL_STATE.goals, 'goals should default to INITIAL_STATE.goals');
+});
+
+test('RESTORE_STATE fixes corrupted goals (non-array)', () => {
+  const corruptGoals = { goals: 'not-an-array', sarahRate: 200 };
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: corruptGoals });
+  assert.ok(Array.isArray(next.goals), 'goals should be an array even if saved value was not');
+  assert.deepStrictEqual(next.goals, INITIAL_STATE.goals);
+});
+
+test('RESTORE_STATE preserves valid goals array', () => {
+  const customGoals = [{ id: 1, type: 'savings_target', target: 100000, month: 36 }];
+  const saved = { goals: customGoals };
+  const next = reducer(INITIAL_STATE, { type: 'RESTORE_STATE', state: saved });
+  assert.deepStrictEqual(next.goals, customGoals, 'valid goals should be preserved');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Reducer — RESET_ALL
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — RESET_ALL ===');
+
+test('RESET_ALL returns to initial state', () => {
+  const modified = { ...INITIAL_STATE, sarahRate: 999, msftGrowth: 50 };
+  const next = reducer(modified, { type: 'RESET_ALL' });
+  assert.strictEqual(next.sarahRate, INITIAL_STATE.sarahRate);
+  assert.strictEqual(next.msftGrowth, INITIAL_STATE.msftGrowth);
+});
+
+test('RESET_ALL preserves savedScenarios', () => {
+  const withScenarios = { ...INITIAL_STATE, savedScenarios: [{ name: 'test' }] };
+  const next = reducer(withScenarios, { type: 'RESET_ALL' });
+  assert.deepStrictEqual(next.savedScenarios, [{ name: 'test' }]);
+});
+
+test('RESET_ALL preserves checkInHistory', () => {
+  const withCheckIns = { ...INITIAL_STATE, checkInHistory: [{ month: 0, data: {} }] };
+  const next = reducer(withCheckIns, { type: 'RESET_ALL' });
+  assert.deepStrictEqual(next.checkInHistory, [{ month: 0, data: {} }]);
+});
+
+test('RESET_ALL preserves storageStatus', () => {
+  const withStatus = { ...INITIAL_STATE, storageStatus: 'loaded' };
+  const next = reducer(withStatus, { type: 'RESET_ALL' });
+  assert.strictEqual(next.storageStatus, 'loaded');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Reducer — RECORD_CHECK_IN / DELETE_CHECK_IN
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — Check-In Actions ===');
+
+test('RECORD_CHECK_IN adds a new check-in sorted by month', () => {
+  const state = { ...INITIAL_STATE, checkInHistory: [{ month: 0 }] };
+  const next = reducer(state, { type: 'RECORD_CHECK_IN', checkIn: { month: 2 } });
+  assert.strictEqual(next.checkInHistory.length, 2);
+  assert.strictEqual(next.checkInHistory[0].month, 0);
+  assert.strictEqual(next.checkInHistory[1].month, 2);
+});
+
+test('RECORD_CHECK_IN replaces existing check-in for same month', () => {
+  const state = { ...INITIAL_STATE, checkInHistory: [{ month: 0, data: 'old' }] };
+  const next = reducer(state, { type: 'RECORD_CHECK_IN', checkIn: { month: 0, data: 'new' } });
+  assert.strictEqual(next.checkInHistory.length, 1);
+  assert.strictEqual(next.checkInHistory[0].data, 'new');
+});
+
+test('RECORD_CHECK_IN clears activeCheckInMonth', () => {
+  const state = { ...INITIAL_STATE, activeCheckInMonth: 3, checkInHistory: [] };
+  const next = reducer(state, { type: 'RECORD_CHECK_IN', checkIn: { month: 3 } });
+  assert.strictEqual(next.activeCheckInMonth, null);
+});
+
+test('DELETE_CHECK_IN removes the check-in for a given month', () => {
+  const state = { ...INITIAL_STATE, checkInHistory: [{ month: 0 }, { month: 1 }, { month: 2 }] };
+  const next = reducer(state, { type: 'DELETE_CHECK_IN', month: 1 });
+  assert.strictEqual(next.checkInHistory.length, 2);
+  assert.ok(!next.checkInHistory.some(c => c.month === 1));
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Reducer — Unknown Action
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — Edge Cases ===');
+
+test('unknown action returns state unchanged', () => {
+  const next = reducer(INITIAL_STATE, { type: 'UNKNOWN_ACTION' });
+  assert.strictEqual(next, INITIAL_STATE);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// gatherState
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== gatherState ===');
+
+test('gatherState extracts MODEL_KEYS from state', () => {
+  const result = gatherState(INITIAL_STATE);
+  for (const key of MODEL_KEYS) {
+    assert.ok(key in result, `MODEL_KEY "${key}" should be in gathered state`);
+  }
+});
+
+test('gatherState falls back to INITIAL_STATE for missing keys', () => {
+  const partial = { sarahRate: 500 }; // missing most keys
+  const result = gatherState(partial);
+  assert.strictEqual(result.sarahRate, 500, 'provided value used');
+  assert.strictEqual(result.msftGrowth, INITIAL_STATE.msftGrowth, 'missing key falls back to INITIAL_STATE');
+});
+
+test('gatherState computes bcsFamilyMonthly correctly', () => {
+  const result = gatherState({ ...INITIAL_STATE, bcsAnnualTotal: 41000, bcsParentsAnnual: 25000 });
+  assert.strictEqual(result.bcsFamilyMonthly, Math.round((41000 - 25000) / 12));
+});
+
+test('gatherState bcsFamilyMonthly floors at zero', () => {
+  const result = gatherState({ ...INITIAL_STATE, bcsAnnualTotal: 10000, bcsParentsAnnual: 25000 });
+  assert.strictEqual(result.bcsFamilyMonthly, 0, 'negative should be clamped to 0');
+});
+
+test('gatherState computes individual cuts when cutsOverride is null', () => {
+  const state = {
+    ...INITIAL_STATE,
+    cutsOverride: null,
+    cutOliver: 100, cutVacation: 200, cutGym: 300,
+    cutMedical: 400, cutShopping: 500, cutSaaS: 600,
+    cutAmazon: 10, cutEntertainment: 20, cutGroceries: 30, cutPersonalCare: 40, cutSmallItems: 50,
+  };
+  const result = gatherState(state);
+  assert.strictEqual(result.lifestyleCuts, 100 + 200 + 300, 'lifestyleCuts = oliver + vacation + gym');
+  assert.strictEqual(result.cutInHalf, 400 + 500 + 600, 'cutInHalf = medical + shopping + saas');
+  assert.strictEqual(result.extraCuts, 10 + 20 + 30 + 40 + 50, 'extraCuts = amazon + entertainment + groceries + personalCare + smallItems');
+});
+
+test('gatherState uses cutsOverride when set', () => {
+  const state = {
+    ...INITIAL_STATE,
+    cutsOverride: 5000,
+    cutOliver: 100, cutVacation: 200, cutGym: 300,
+  };
+  const result = gatherState(state);
+  assert.strictEqual(result.lifestyleCuts, 5000, 'lifestyleCuts should be the override value');
+  assert.strictEqual(result.cutInHalf, 0, 'cutInHalf should be zeroed with override');
+  assert.strictEqual(result.extraCuts, 0, 'extraCuts should be zeroed with override');
+});
+
+test('gatherState treats cutsOverride of 0 as set (not null)', () => {
+  const state = { ...INITIAL_STATE, cutsOverride: 0 };
+  const result = gatherState(state);
+  assert.strictEqual(result.lifestyleCuts, 0);
+  assert.strictEqual(result.cutInHalf, 0);
+  assert.strictEqual(result.extraCuts, 0);
+});
+
+test('gatherStateWithOverrides merges overrides onto INITIAL_STATE', () => {
+  const result = gatherStateWithOverrides({ sarahRate: 500 });
+  assert.strictEqual(result.sarahRate, 500);
+  assert.strictEqual(result.msftGrowth, INITIAL_STATE.msftGrowth);
+});
+
+test('gatherStateWithOverrides with no args uses all defaults', () => {
+  const result = gatherStateWithOverrides();
+  assert.strictEqual(result.sarahRate, INITIAL_STATE.sarahRate);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Summary
+// ════════════════════════════════════════════════════════════════════════
+console.log(`\n${'='.repeat(50)}`);
+console.log(`  ${passed} passed, ${failed} failed, ${passed + failed} total`);
+console.log(`${'='.repeat(50)}\n`);
+
+if (failed > 0) process.exit(1);

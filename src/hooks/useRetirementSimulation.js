@@ -47,6 +47,7 @@ export function useRetirementSimulation({
   const dPoolFloor = useDeferredValue(poolFloor);
   const dInheritanceAmount = useDeferredValue(inheritanceAmount);
   const dInheritanceSarahAge = useDeferredValue(inheritanceSarahAge);
+  const dWithdrawalRate = useDeferredValue(withdrawalRate);
   const dBequestTarget = useDeferredValue(bequestTarget);
   const dPwaPercentile = useDeferredValue(pwaPercentile);
   const dPwaToleranceLow = useDeferredValue(pwaToleranceLow);
@@ -69,7 +70,7 @@ export function useRetirementSimulation({
   const homeSaleNet = Math.round(endHome * 0.94);
   const totalPool = Math.max(0, endSavings + end401k + homeSaleNet);
 
-  const monthlyWithdrawal = Math.round(totalPool * (withdrawalRate / 100) / 12);
+  const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
 
   // Chad's SS
   const ssFRA = 4213;

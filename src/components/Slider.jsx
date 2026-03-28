@@ -71,7 +71,6 @@ const Slider = ({
     clearSettle();
     settleRef.current = window.setTimeout(() => {
       settleRef.current = null;
-      if (pointerActiveRef.current) return;
       commitValue(pendingRef.current);
     }, settleMs);
   }, [clearSettle, commitValue, settleMs]);

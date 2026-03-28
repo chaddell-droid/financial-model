@@ -37,7 +37,8 @@ export function useRetirementSimulation({
   const [showPwaIntro, setShowPwaIntro] = useState(false);
   const [pwaIntroReady, setPwaIntroReady] = useState(false);
   const isPwaMode = retirementMode === 'adaptive_pwa';
-  const commitStrategy = 'continuous';
+  // No commitStrategy — sliders default to 'continuous' (Slider.jsx default).
+  // Heavy computations are protected by useDeferredValue on all slider values.
 
   // ── Deferred slider values ───────────────────────────────────────────
   // Slider thumbs + labels use the immediate value; expensive computations
@@ -450,7 +451,7 @@ export function useRetirementSimulation({
   // ── Public API ───────────────────────────────────────────────────────
   return {
     // State + setters
-    retirementMode, setRetirementMode, isPwaMode, commitStrategy,
+    retirementMode, setRetirementMode, isPwaMode,
     pwaStrategy, setPwaStrategy,
     pwaPercentile, setPwaPercentile,
     pwaToleranceLow, setPwaToleranceLow,

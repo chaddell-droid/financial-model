@@ -146,7 +146,7 @@ function RetirementIncomeChart({
   useRenderMetric('RetirementIncomeChart');
 
   const {
-    retirementMode, setRetirementMode, isPwaMode, commitStrategy,
+    retirementMode, setRetirementMode, isPwaMode,
     pwaStrategy, setPwaStrategy,
     pwaPercentile, setPwaPercentile,
     pwaToleranceLow, setPwaToleranceLow,
@@ -896,12 +896,12 @@ function RetirementIncomeChart({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
               <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
                 testId="retirement-equity-allocation"
-                commitStrategy={commitStrategy}
+
                 min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color={COLORS.blue} />
               <Slider label={<LabelWithHelp label="Bequest target" help={HELP.bequest_target} accent={COLORS.green} />} value={bequestTarget} onChange={setBequestTarget}
                 testId="retirement-bequest-target"
                 ariaLabel="Bequest target"
-                commitStrategy={commitStrategy}
+
                 min={0} max={Math.max(totalPool, 1000000)} step={25000} color={COLORS.green} />
 
               <div data-testid="retirement-pwa-strategy-container" style={{ padding: '4px 0' }}>
@@ -931,7 +931,7 @@ function RetirementIncomeChart({
                 <Slider label={<LabelWithHelp label="Target percentile" help={HELP.pwa_target_percentile} accent={COLORS.green} />} value={pwaPercentile} onChange={setPwaPercentile}
                   testId="retirement-pwa-target-percentile"
                   ariaLabel="Target percentile"
-                  commitStrategy={commitStrategy}
+  
                   min={5} max={95} step={5} format={(v) => `${v}th`} color={COLORS.green} />
               )}
             </div>
@@ -945,19 +945,19 @@ function RetirementIncomeChart({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
               <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
                 testId="retirement-chad-passes-age"
-                commitStrategy={commitStrategy}
+
                 min={67} max={95} step={1} format={(v) => v + ''} color={COLORS.amber} />
               {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
                 <>
                   <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent={COLORS.blue} />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
                     testId="retirement-pwa-tolerance-low"
                     ariaLabel="Tolerance low"
-                    commitStrategy={commitStrategy}
+    
                     min={5} max={95} step={5} format={(v) => `${v}th`} color={COLORS.blue} />
                   <Slider label={<LabelWithHelp label="Tolerance high" help={HELP.pwa_tolerance_band} accent={COLORS.blue} />} value={pwaToleranceHigh} onChange={setPwaToleranceHigh}
                     testId="retirement-pwa-tolerance-high"
                     ariaLabel="Tolerance high"
-                    commitStrategy={commitStrategy}
+    
                     min={5} max={95} step={5} format={(v) => `${v}th`} color={COLORS.blue} />
                 </>
               )}
@@ -974,7 +974,7 @@ function RetirementIncomeChart({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
               <Slider label="Equity allocation" value={equityAllocation} onChange={setEquityAllocation}
                 testId="retirement-equity-allocation"
-                commitStrategy={commitStrategy}
+
                 min={0} max={100} step={5} format={(v) => `${v}/${100 - v}`} color={COLORS.blue} />
 
               {/* Withdrawal rate with optimal marker */}
@@ -996,7 +996,7 @@ function RetirementIncomeChart({
                     onChange={setWithdrawalRate}
                     testId="retirement-pool-draw-rate"
                     ariaLabel="Pool draw rate"
-                    commitStrategy={commitStrategy}
+    
                     min={0}
                     max={optimalRates.sliderMax}
                     step={0.1}
@@ -1030,7 +1030,7 @@ function RetirementIncomeChart({
 
               <Slider label="Chad passes at" value={chadPassesAge} onChange={setChadPassesAge}
                 testId="retirement-chad-passes-age"
-                commitStrategy={commitStrategy}
+
                 min={67} max={95} step={1} format={(v) => v + ''} color={COLORS.amber} />
             </div>
           </ControlSection>
@@ -1044,15 +1044,15 @@ function RetirementIncomeChart({
               <Slider label={<LabelWithHelp label="Pool floor (reserve)" help={HELP.reserve_floor} accent={COLORS.amber} />} value={poolFloor} onChange={setPoolFloor}
                 testId="retirement-pool-floor"
                 ariaLabel="Pool floor reserve"
-                commitStrategy={commitStrategy}
+
                 min={0} max={Math.min(totalPool, 500000)} step={25000} color={COLORS.amber} />
               <Slider label="Inheritance amount" value={inheritanceAmount} onChange={setInheritanceAmount}
                 testId="retirement-inheritance-amount"
-                commitStrategy={commitStrategy}
+
                 min={0} max={2000000} step={50000} color={COLORS.green} />
               <Slider label="Sarah's age at inheritance" value={inheritanceSarahAge} onChange={setInheritanceSarahAge}
                 testId="retirement-inheritance-sarah-age"
-                commitStrategy={commitStrategy}
+
                 min={55} max={80} step={1} format={(v) => v + ''} color={COLORS.green} />
             </div>
           </ControlSection>

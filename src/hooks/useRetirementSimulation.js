@@ -37,7 +37,7 @@ export function useRetirementSimulation({
   const [showPwaIntro, setShowPwaIntro] = useState(false);
   const [pwaIntroReady, setPwaIntroReady] = useState(false);
   const isPwaMode = retirementMode === 'adaptive_pwa';
-  const commitStrategy = 'release';
+  const commitStrategy = 'drag';
 
   // ── Deferred slider values ───────────────────────────────────────────
   // Slider thumbs + labels use the immediate value; expensive computations

@@ -85,7 +85,7 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    baseExpenses, debtService,
+    totalMonthlySpend, baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
@@ -483,7 +483,7 @@ export default function FinancialModel() {
   ]);
 
   const expenseControlsProps = useMemo(() => ({
-    baseExpenses, debtService,
+    totalMonthlySpend, baseExpenses, debtService,
     debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
     retireDebt, lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping,
@@ -497,7 +497,7 @@ export default function FinancialModel() {
     otherProjects, otherInclude,
     onFieldChange: set,
   }), [
-    baseExpenses, debtService,
+    totalMonthlySpend, baseExpenses, debtService,
     debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
     retireDebt, lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping,

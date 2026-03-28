@@ -14,6 +14,10 @@ export function gatherState(state) {
   const s = {};
   for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
   s.bcsFamilyMonthly = Math.round(Math.max(0, (st.bcsAnnualTotal || 0) - (st.bcsParentsAnnual || 0)) / 12);
+  // If totalMonthlySpend is set, back-calculate baseExpenses from it
+  if (s.totalMonthlySpend != null) {
+    s.baseExpenses = Math.max(0, s.totalMonthlySpend - (s.debtService || 0) - (s.vanMonthlySavings || 0) - s.bcsFamilyMonthly);
+  }
   // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
   // Otherwise use the individual item sums
   const override = st.cutsOverride;

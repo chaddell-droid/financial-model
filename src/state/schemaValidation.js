@@ -59,6 +59,7 @@ const RANGE = {
   ssPersonal: { min: 0 },
   chadJobSalary: { min: 0 },
   chadJobHealthSavings: { min: 0 },
+  totalMonthlySpend: { min: 0 },
   baseExpenses: { min: 0 },
   debtService: { min: 0 },
   bcsAnnualTotal: { min: 0 },

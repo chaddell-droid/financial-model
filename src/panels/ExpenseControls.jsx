@@ -20,7 +20,7 @@ const CUT_ITEMS = [
 ];
 
 const ExpenseControls = ({
-  baseExpenses, debtService,
+  totalMonthlySpend, baseExpenses, debtService,
   debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
   retireDebt,
   lifestyleCutsApplied,
@@ -49,16 +49,48 @@ const ExpenseControls = ({
               Expense Assumptions
             </h3>
             <div style={{ marginBottom: 12, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 6 }}>
+                <span style={{ color: COLORS.textMuted }}>Actual total spend (all accounts):</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: COLORS.textDim, fontSize: 11 }}>$</span>
+                  <input
+                    type="number"
+                    value={totalMonthlySpend ?? ''}
+                    placeholder={String(Math.round(baseExpenses + debtService + bcsFamilyMonthly + vanMonthlySavings))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      set('totalMonthlySpend')(v === '' ? null : Math.round(Number(v)));
+                    }}
+                    data-testid="expense-total-monthly-spend"
+                    aria-label="Total monthly spend from all accounts"
+                    style={{
+                      width: 80, background: COLORS.bgCard, border: `1px solid ${totalMonthlySpend != null ? COLORS.blue : COLORS.border}`,
+                      borderRadius: 4, color: totalMonthlySpend != null ? COLORS.blue : COLORS.textDim,
+                      padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+                      textAlign: "right", outline: "none",
+                    }}
+                  />
+                  {totalMonthlySpend != null && (
+                    <button
+                      onClick={() => set('totalMonthlySpend')(null)}
+                      aria-label="Clear total monthly spend"
+                      style={{ background: "transparent", border: "none", color: COLORS.textDim, fontSize: 10, cursor: "pointer", padding: "2px 4px" }}
+                    >✕</button>
+                  )}
+                </div>
+              </div>
+              {totalMonthlySpend != null && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4, color: COLORS.textDim }}>
+                  <span>Base living (derived):</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {fmtFull(Math.max(0, totalMonthlySpend - debtService - vanMonthlySavings - bcsFamilyMonthly))}
+                  </span>
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>
                 <span style={{ color: COLORS.textMuted }}>Total monthly outflow:</span>
                 <span style={{ color: COLORS.red, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
                   {fmtFull(baseExpenses + (retireDebt ? 0 : debtService) + ((bcsParentsAnnual >= bcsAnnualTotal ? 0 : bcsFamilyMonthly)) + (vanSold ? 0 : vanMonthlySavings) - (lifestyleCutsApplied ? totalCuts : 0))}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4 }}>
-                <span style={{ color: COLORS.textDim }}>Current (no changes):</span>
-                <span style={{ color: COLORS.textDim, fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtFull(baseExpenses + debtService + bcsFamilyMonthly + vanMonthlySavings)}
                 </span>
               </div>
             </div>

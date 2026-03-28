@@ -36,6 +36,7 @@ export const INITIAL_STATE = {
   chadJobHealthSavings: 4200,  // Monthly health insurance savings from employer coverage
 
   // Expenses
+  totalMonthlySpend: null,   // Actual total spend from all accounts; when set, back-calculates baseExpenses
   baseExpenses: 43818,
   debtService: 6434,
 
@@ -151,7 +152,7 @@ export const MODEL_KEYS = [
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
-  'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
+  'totalMonthlySpend', 'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied', 'cutsOverride',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',
   'cutAmazon', 'cutSaaS', 'cutEntertainment', 'cutGroceries', 'cutPersonalCare', 'cutSmallItems',

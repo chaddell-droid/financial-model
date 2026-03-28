@@ -226,6 +226,7 @@ const ScenarioStrip = ({
   debtTotal,
   debtService,
   baseExpenses,
+  totalMonthlySpend,
   currentExpenses,
   vanSold,
   vanMonthlySavings,
@@ -362,17 +363,17 @@ const ScenarioStrip = ({
               subtitle='Adjust the fixed monthly baseline before layering in discretionary levers.'
             />
             <Slider
-              label='Base living expenses'
+              label={totalMonthlySpend != null ? 'Base living (set via total spend)' : 'Base living expenses'}
               value={baseExpenses}
-              onChange={set('baseExpenses')}
+              onChange={totalMonthlySpend != null ? () => {} : set('baseExpenses')}
               commitStrategy={commitStrategy}
               testId='scenario-base-expenses'
               min={25000}
               max={55000}
               step={500}
-              color={UI_COLORS.destructive}
+              color={totalMonthlySpend != null ? UI_COLORS.muted : UI_COLORS.destructive}
               format={(value) => fmtFull(value)}
-              helperText='This is the starting monthly living load before debt, the van, or BCS tuition are added.'
+              helperText={totalMonthlySpend != null ? 'Derived from total monthly spend override.' : 'This is the starting monthly living load before debt, the van, or BCS tuition are added.'}
             />
           </SurfaceCard>
 

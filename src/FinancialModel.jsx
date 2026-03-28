@@ -121,6 +121,10 @@ export default function FinancialModel() {
   const vestEvents = useMemo(() => getVestEvents(msftGrowth), [msftGrowth]);
   const totalRemainingVesting = useMemo(() => getTotalRemainingVesting(msftGrowth), [msftGrowth]);
   const bcsFamilyMonthly = Math.round(Math.max(0, bcsAnnualTotal - bcsParentsAnnual) / 12);
+  // When totalMonthlySpend is set, derive baseExpenses from it (same logic as gatherState)
+  const effectiveBaseExpenses = totalMonthlySpend != null
+    ? Math.max(0, totalMonthlySpend - debtService - vanMonthlySavings - bcsFamilyMonthly)
+    : baseExpenses;
   const debtTotal = debtCC + debtPersonal + debtIRS + debtFirstmark;
   const oneTimeTotal = (moldInclude ? moldCost : 0) + (roofInclude ? roofCost : 0) + (otherInclude ? otherProjects : 0);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
@@ -322,7 +326,7 @@ export default function FinancialModel() {
   const chadJobNetForGap = chadJobImmediate ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthForGap = chadJobImmediate ? (chadJobHealthSavings || 4200) : 0;
   const rawMonthlyGap = (sarahCurrentNet + currentMsft + trustIncomeNow + chadJobNetForGap)
-    - Math.max(baseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
+    - Math.max(effectiveBaseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
 
   // Steady state net at Y3
   const steadyIdxRaw = data.findIndex(d => d.month >= 36);
@@ -369,7 +373,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssStartMonth,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     milestones, bcsYearsLeft, bcsFamilyMonthly,
-    baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
+    baseExpenses: effectiveBaseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
     lifestyleCuts, cutInHalf, extraCuts,
     startingSavings, investmentReturn, msftGrowth,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
@@ -382,7 +386,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssStartMonth,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     milestones, bcsYearsLeft, bcsFamilyMonthly,
-    baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
+    effectiveBaseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
     lifestyleCuts, cutInHalf, extraCuts,
     startingSavings, investmentReturn, msftGrowth,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
@@ -415,7 +419,8 @@ export default function FinancialModel() {
     retireDebt, lifestyleCutsApplied, cutsOverride,
     lifestyleCuts, cutInHalf, extraCuts,
     debtTotal, debtService,
-    baseExpenses, currentExpenses: data[0].expenses,
+    baseExpenses: effectiveBaseExpenses, currentExpenses: data[0].expenses,
+    totalMonthlySpend,
     vanSold, vanMonthlySavings,
     bcsAnnualTotal, bcsParentsAnnual,
     bcsYearsLeft, bcsFamilyMonthly,
@@ -429,7 +434,7 @@ export default function FinancialModel() {
     retireDebt, lifestyleCutsApplied, cutsOverride,
     lifestyleCuts, cutInHalf, extraCuts,
     debtTotal, debtService,
-    baseExpenses, data,
+    effectiveBaseExpenses, totalMonthlySpend, data,
     vanSold, vanMonthlySavings,
     bcsAnnualTotal, bcsParentsAnnual,
     bcsYearsLeft, bcsFamilyMonthly,
@@ -483,7 +488,7 @@ export default function FinancialModel() {
   ]);
 
   const expenseControlsProps = useMemo(() => ({
-    totalMonthlySpend, baseExpenses, debtService,
+    totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
     debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
     retireDebt, lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping,
@@ -497,7 +502,7 @@ export default function FinancialModel() {
     otherProjects, otherInclude,
     onFieldChange: set,
   }), [
-    totalMonthlySpend, baseExpenses, debtService,
+    totalMonthlySpend, effectiveBaseExpenses, debtService,
     debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
     retireDebt, lifestyleCutsApplied,
     cutOliver, cutVacation, cutShopping,
@@ -549,14 +554,14 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode,
-    onFieldChange: set, baseExpenses,
+    onFieldChange: set, baseExpenses: effectiveBaseExpenses, totalMonthlySpend,
   }), [
     savingsData, savingsZeroMonth, savingsZeroLabel,
     compareProjection, compareName,
     data, startingSavings, investmentReturn,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
-    milestones, retireDebt, presentMode, baseExpenses,
+    milestones, retireDebt, presentMode, effectiveBaseExpenses, totalMonthlySpend,
   ]);
 
   const netWorthProps = useMemo(() => ({

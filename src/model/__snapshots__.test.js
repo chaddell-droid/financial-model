@@ -199,11 +199,11 @@ console.log('\n=== Lifestyle Cuts Applied ===');
 const cutsOn = gatherState({ lifestyleCutsApplied: true });
 const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 
-test('month 0 expenses (cuts reduce)', () => eq(cutsData[0].expenses, 36078));
-test('month 12 balance', () => eq(cutsData[12].balance, 191036));
-test('month 72 balance (positive!)', () => eq(cutsData[72].balance, 0));
-test('expenses lower than default', () => {
-  assert.ok(cutsData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with cuts');
+test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54182));
+test('month 12 balance', () => eq(cutsData[12].balance, 0));
+test('month 72 balance', () => eq(cutsData[72].balance, -141855));
+test('expenses equal default (all cuts are 0)', () => {
+  assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
 
 console.log('\n=== MSFT Vesting ===');
@@ -276,8 +276,8 @@ for (const goal of goals) {
 console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
-test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, true));
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, 0));
+test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -141855));
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -550,8 +550,8 @@ test('buildPrimaryLeversModel computes numeric summary totals at baseline', () =
   eq(model.summary.monthlySavings, 0);
   eq(model.summary.oneTimeAsk, 0);
   eq(model.summary.topLeverId, '');
-  eq(model.summary.availableLeverId, 'spending_cuts');
-  eq(model.summary.availableLeverSavings, 18104);
+  eq(model.summary.availableLeverId, 'retire_debt');
+  eq(model.summary.availableLeverSavings, 6434);
 });
 
 test('buildPrimaryLeversModel keeps BCS delta outputs numeric at baseline and full-support edges', () => {

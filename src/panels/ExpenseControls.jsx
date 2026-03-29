@@ -4,14 +4,12 @@ import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { COLORS } from '../charts/chartUtils.js';
+// Toggle still used for capital needs
 
 const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
-  debtTotal, retireDebt,
-  lifestyleCutsApplied, cutsOverride,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-  vanSold, vanMonthlySavings, vanSaleMonth,
-  chadJob, chadJobStartMonth, chadJobHealthSavings,
+  vanMonthlySavings,
   milestones,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
   onFieldChange,
@@ -19,7 +17,6 @@ const ExpenseControls = ({
   useRenderMetric('ExpenseControls');
   const set = onFieldChange;
   const commitStrategy = 'release';
-  const effectiveCuts = cutsOverride ?? 0;
 
   return (
           <div data-testid="expense-controls" style={{
@@ -61,52 +58,6 @@ const ExpenseControls = ({
                     >✕</button>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* Lifestyle + spending cuts: toggle + single slider */}
-            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${lifestyleCutsApplied ? `${COLORS.green}33` : COLORS.border}` }}>
-              <Toggle
-                label="Lifestyle + spending cuts"
-                description="Reduce monthly expenses by this amount"
-                checked={lifestyleCutsApplied}
-                onChange={set('lifestyleCutsApplied')}
-                color={COLORS.green}
-                testId="expense-cuts-toggle"
-              />
-              <Slider
-                label="Monthly cut amount"
-                value={effectiveCuts}
-                onChange={set('cutsOverride')}
-                commitStrategy={commitStrategy}
-                min={0} max={20000} step={100}
-                color={lifestyleCutsApplied ? COLORS.green : COLORS.border}
-                disabled={!lifestyleCutsApplied}
-                disabledReason="Toggle cuts on to adjust"
-              />
-            </div>
-
-            {/* Retire debt: toggle + debt service slider */}
-            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${retireDebt ? `${COLORS.green}33` : COLORS.border}` }}>
-              <Toggle
-                label="Retire all debt"
-                description={retireDebt ? `Saves ${fmtFull(debtService)}/mo — debt paid off via advance` : `Currently paying ${fmtFull(debtService)}/mo in debt service`}
-                checked={retireDebt}
-                onChange={set('retireDebt')}
-                color={COLORS.green}
-                testId="expense-retire-debt-toggle"
-              />
-              <Slider
-                label="Monthly debt service"
-                value={debtService}
-                onChange={set('debtService')}
-                commitStrategy={commitStrategy}
-                min={0} max={20000} step={100}
-                color={retireDebt ? COLORS.green : COLORS.red}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
-                <span>Total debt balance:</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: retireDebt ? COLORS.green : COLORS.red }}>{fmtFull(debtTotal)}</span>
               </div>
             </div>
 

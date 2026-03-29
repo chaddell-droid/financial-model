@@ -924,9 +924,9 @@ test('ScenarioStrip preserves existing scenario control test ids', () => {
   for (const selector of [
     'scenario-base-expenses',
     'scenario-retire-debt',
+    'scenario-debt-service',
     'scenario-lifestyle-cuts',
     'scenario-total-cuts',
-    'scenario-reset-cuts-override',
     'scenario-van-sold',
     'scenario-bcs-parents-annual',
   ]) {

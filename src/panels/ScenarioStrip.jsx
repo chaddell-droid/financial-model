@@ -399,59 +399,49 @@ const ScenarioStrip = ({
                         color={UI_COLORS.positive}
                         testId='scenario-retire-debt'
                       />
+                      <div style={{ paddingLeft: 58 }}>
+                        <Slider
+                          label='Monthly debt service'
+                          value={debtService}
+                          onChange={set('debtService')}
+                          commitStrategy={commitStrategy}
+                          testId='scenario-debt-service'
+                          min={0}
+                          max={20000}
+                          step={100}
+                          color={retireDebt ? UI_COLORS.positive : UI_COLORS.destructive}
+                          format={(value) => `${fmtFull(value)}/mo`}
+                        />
+                      </div>
                     </LeverRow>
                   );
                 }
 
                 if (lever.id === 'spending_cuts') {
-                  const detailTotal = lifestyleCuts + cutInHalf + extraCuts;
-                  const cutsValue = cutsOverride != null ? cutsOverride : detailTotal;
-
                   return (
                     <LeverRow key={lever.id} lever={lever} testId='primary-levers-lever-spending_cuts'>
                       <Toggle
                         label='Lifestyle + spending cuts'
-                        description={`Detail total is ${fmtFull(detailTotal)}/mo. You can override that total below without changing the itemized assumptions.`}
+                        description='Additional monthly reductions from your current spend level.'
                         checked={lifestyleCutsApplied}
                         onChange={set('lifestyleCutsApplied')}
                         color={UI_COLORS.positive}
                         testId='scenario-lifestyle-cuts'
                       />
-                      {lifestyleCutsApplied ? (
-                        <div style={{ paddingLeft: 58 }}>
-                          <Slider
-                            label='Total cuts'
-                            value={cutsValue}
-                            onChange={(value) => set('cutsOverride')(value)}
-                            commitStrategy={commitStrategy}
-                            testId='scenario-total-cuts'
-                            min={0}
-                            max={25000}
-                            step={500}
-                            color={UI_COLORS.positive}
-                            format={(value) => `${fmtFull(value)}/mo`}
-                            helperText='Use the override when you want to model a different total without changing the underlying detail assumptions.'
-                          />
-                          {cutsOverride != null && cutsOverride !== detailTotal ? (
-                            <button
-                              type='button'
-                              data-testid='scenario-reset-cuts-override'
-                              onClick={() => set('cutsOverride')(null)}
-                              style={{
-                                border: 'none',
-                                background: 'transparent',
-                                color: UI_COLORS.positive,
-                                fontSize: UI_TEXT.micro,
-                                padding: 0,
-                                cursor: 'pointer',
-                                textDecoration: 'underline',
-                              }}
-                            >
-                              Reset to detail total ({fmtFull(detailTotal)}/mo)
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
+                      <div style={{ paddingLeft: 58 }}>
+                        <Slider
+                          label='Monthly cut amount'
+                          value={cutsOverride ?? 0}
+                          onChange={set('cutsOverride')}
+                          commitStrategy={commitStrategy}
+                          testId='scenario-total-cuts'
+                          min={0}
+                          max={20000}
+                          step={100}
+                          color={lifestyleCutsApplied ? UI_COLORS.positive : UI_COLORS.muted}
+                          format={(value) => `${fmtFull(value)}/mo`}
+                        />
+                      </div>
                     </LeverRow>
                   );
                 }

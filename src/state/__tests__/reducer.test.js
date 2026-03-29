@@ -212,13 +212,13 @@ test('validateAndSanitize validates ssType enum', () => {
   assert.strictEqual(invalid.ssType, INITIAL_STATE.ssType, 'invalid enum falls back to default');
 });
 
-test('validateAndSanitize handles cutsOverride null vs number', () => {
-  const withNull = validateAndSanitize({ cutsOverride: null });
-  assert.strictEqual(withNull.cutsOverride, null);
+test('validateAndSanitize handles cutsOverride as number', () => {
   const withZero = validateAndSanitize({ cutsOverride: 0 });
   assert.strictEqual(withZero.cutsOverride, 0);
   const withNum = validateAndSanitize({ cutsOverride: 5000 });
   assert.strictEqual(withNum.cutsOverride, 5000);
+  const withNeg = validateAndSanitize({ cutsOverride: -100 });
+  assert.strictEqual(withNeg.cutsOverride, 0, 'clamped to min 0');
 });
 
 test('validateAndSanitize filters corrupt goals entries', () => {
@@ -303,18 +303,15 @@ test('gatherState bcsFamilyMonthly floors at zero', () => {
   assert.strictEqual(result.bcsFamilyMonthly, 0, 'negative should be clamped to 0');
 });
 
-test('gatherState computes individual cuts when cutsOverride is null', () => {
+test('gatherState uses cutsOverride as total cuts', () => {
   const state = {
     ...INITIAL_STATE,
-    cutsOverride: null,
-    cutOliver: 100, cutVacation: 200, cutGym: 300,
-    cutMedical: 400, cutShopping: 500, cutSaaS: 600,
-    cutAmazon: 10, cutEntertainment: 20, cutGroceries: 30, cutPersonalCare: 40, cutSmallItems: 50,
+    cutsOverride: 5000,
   };
   const result = gatherState(state);
-  assert.strictEqual(result.lifestyleCuts, 100 + 200 + 300, 'lifestyleCuts = oliver + vacation + gym');
-  assert.strictEqual(result.cutInHalf, 400 + 500 + 600, 'cutInHalf = medical + shopping + saas');
-  assert.strictEqual(result.extraCuts, 10 + 20 + 30 + 40 + 50, 'extraCuts = amazon + entertainment + groceries + personalCare + smallItems');
+  assert.strictEqual(result.lifestyleCuts, 5000, 'lifestyleCuts = cutsOverride');
+  assert.strictEqual(result.cutInHalf, 0, 'cutInHalf = 0 when override set');
+  assert.strictEqual(result.extraCuts, 0, 'extraCuts = 0 when override set');
 });
 
 test('gatherState uses cutsOverride when set', () => {
@@ -459,23 +456,11 @@ test('validateAndSanitize preserves valid milestones', () => {
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== gatherState — partial state fallbacks ===');
 
-test('gatherState with missing cutOliver falls back to INITIAL_STATE.cutOliver', () => {
-  const partial = {
-    sarahRate: 200,
-    msftGrowth: 0,
-    baseExpenses: 40000,
-    debtService: 6000,
-    vanMonthlySavings: 2500,
-    bcsAnnualTotal: 41000,
-    bcsParentsAnnual: 25000,
-    cutVacation: 2040,
-    cutGym: 655,
-  };
-  // cutOliver is deliberately omitted — should fall back to INITIAL_STATE.cutOliver
-  const result = gatherState(partial);
-  const expectedLifestyleCuts = INITIAL_STATE.cutOliver + 2040 + 655;
-  assert.strictEqual(result.lifestyleCuts, expectedLifestyleCuts,
-    `lifestyleCuts should include INITIAL_STATE.cutOliver (${INITIAL_STATE.cutOliver}), got ${result.lifestyleCuts}`);
+test('gatherState with cutsOverride=0 results in zero cuts', () => {
+  const result = gatherState({ ...INITIAL_STATE, cutsOverride: 0 });
+  assert.strictEqual(result.lifestyleCuts, 0, 'cutsOverride=0 means zero cuts');
+  assert.strictEqual(result.cutInHalf, 0);
+  assert.strictEqual(result.extraCuts, 0);
 });
 
 // ════════════════════════════════════════════════════════════════════════

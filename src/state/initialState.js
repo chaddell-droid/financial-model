@@ -47,9 +47,9 @@ export const INITIAL_STATE = {
   bcsParentsAnnual: 25000,
   bcsYearsLeft: 3,
 
-  // Spending Cuts — individual items (cutsOverride replaces the sum when set)
+  // Spending Cuts — single slider amount (applied when lifestyleCutsApplied is true)
   lifestyleCutsApplied: false,
-  cutsOverride: null,
+  cutsOverride: 0,
   cutOliver: 0,
   cutVacation: 0,
   cutShopping: 0,

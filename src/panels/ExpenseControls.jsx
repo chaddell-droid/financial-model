@@ -5,28 +5,10 @@ import { fmtFull } from '../model/formatters.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { COLORS } from '../charts/chartUtils.js';
 
-const CUT_ITEMS = [
-  { key: 'cutOliver', label: 'Oliver support', was: 5832, max: 5832, sub: 'Sober living + transfers' },
-  { key: 'cutVacation', label: 'Vacation + travel', was: 2040, max: 2040 },
-  { key: 'cutMedical', label: 'Medical OOP', was: 4666, max: 4666, sub: 'Out-of-pocket (excl premiums)' },
-  { key: 'cutShopping', label: 'Shopping + clothing', was: 2746, max: 2746 },
-  { key: 'cutGroceries', label: 'Groceries', was: 1901, max: 1901, sub: 'Family of 5' },
-  { key: 'cutPersonalCare', label: 'Personal care', was: 1166, max: 1166, sub: 'Salon, nails, cleaning' },
-  { key: 'cutGym', label: 'Gym memberships', was: 655, max: 655 },
-  { key: 'cutAmazon', label: 'Amazon + household', was: 563, max: 563 },
-  { key: 'cutSaaS', label: 'AI / SaaS tools', was: 557, max: 557 },
-  { key: 'cutEntertainment', label: 'Entertainment', was: 500, max: 500 },
-  { key: 'cutSmallItems', label: 'Other small items', was: 2478, max: 2478, sub: 'Internet, dining, coffee, subs, cloud' },
-];
-
 const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
-  debtCC, debtPersonal, debtIRS, debtFirstmark, debtTotal,
-  retireDebt,
-  lifestyleCutsApplied,
-  cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS,
-  cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
-  lifestyleCuts, cutInHalf, extraCuts,
+  debtTotal, retireDebt,
+  lifestyleCutsApplied, cutsOverride,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   vanSold, vanMonthlySavings, vanSaleMonth,
   chadJob, chadJobStartMonth, chadJobHealthSavings,
@@ -36,10 +18,8 @@ const ExpenseControls = ({
 }) => {
   useRenderMetric('ExpenseControls');
   const set = onFieldChange;
-  const totalCuts = lifestyleCuts + cutInHalf + extraCuts;
   const commitStrategy = 'release';
-
-  const cutValues = { cutOliver, cutVacation, cutShopping, cutMedical, cutGym, cutAmazon, cutSaaS, cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems };
+  const effectiveCuts = cutsOverride ?? 0;
 
   return (
           <div data-testid="expense-controls" style={{
@@ -49,6 +29,8 @@ const ExpenseControls = ({
             <h3 style={{ fontSize: 14, color: COLORS.red, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Expense Assumptions
             </h3>
+
+            {/* Total monthly spend input */}
             <div style={{ marginBottom: 12, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 6 }}>
                 <span style={{ color: COLORS.textMuted }}>Actual total spend (all accounts):</span>
@@ -80,89 +62,55 @@ const ExpenseControls = ({
                   )}
                 </div>
               </div>
-              {totalMonthlySpend != null && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4, color: COLORS.textDim }}>
-                  <span>Base living (derived):</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                    {fmtFull(Math.max(0, totalMonthlySpend - debtService - vanMonthlySavings - bcsFamilyMonthly))}
-                  </span>
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>
-                <span style={{ color: COLORS.textMuted }}>Total monthly outflow:</span>
-                <span style={{ color: COLORS.red, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtFull(Math.max(0, baseExpenses + (retireDebt ? 0 : debtService) + ((!vanSold || (vanSaleMonth ?? 12) > 0) ? vanMonthlySavings : 0) + (bcsYearsLeft > 0 ? bcsFamilyMonthly : 0) - (lifestyleCutsApplied ? totalCuts : 0) - (chadJob && (chadJobStartMonth ?? 0) <= 0 ? (chadJobHealthSavings || 0) : 0)))}
-                </span>
+            </div>
+
+            {/* Lifestyle + spending cuts: toggle + single slider */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${lifestyleCutsApplied ? `${COLORS.green}33` : COLORS.border}` }}>
+              <Toggle
+                label="Lifestyle + spending cuts"
+                description="Reduce monthly expenses by this amount"
+                checked={lifestyleCutsApplied}
+                onChange={set('lifestyleCutsApplied')}
+                color={COLORS.green}
+                testId="expense-cuts-toggle"
+              />
+              <Slider
+                label="Monthly cut amount"
+                value={effectiveCuts}
+                onChange={set('cutsOverride')}
+                commitStrategy={commitStrategy}
+                min={0} max={20000} step={100}
+                color={lifestyleCutsApplied ? COLORS.green : COLORS.border}
+                disabled={!lifestyleCutsApplied}
+                disabledReason="Toggle cuts on to adjust"
+              />
+            </div>
+
+            {/* Retire debt: toggle + debt service slider */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${retireDebt ? `${COLORS.green}33` : COLORS.border}` }}>
+              <Toggle
+                label="Retire all debt"
+                description={retireDebt ? `Saves ${fmtFull(debtService)}/mo — debt paid off via advance` : `Currently paying ${fmtFull(debtService)}/mo in debt service`}
+                checked={retireDebt}
+                onChange={set('retireDebt')}
+                color={COLORS.green}
+                testId="expense-retire-debt-toggle"
+              />
+              <Slider
+                label="Monthly debt service"
+                value={debtService}
+                onChange={set('debtService')}
+                commitStrategy={commitStrategy}
+                min={0} max={20000} step={100}
+                color={retireDebt ? COLORS.green : COLORS.red}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
+                <span>Total debt balance:</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: retireDebt ? COLORS.green : COLORS.red }}>{fmtFull(debtTotal)}</span>
               </div>
             </div>
 
-            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
-              <h4 style={{ fontSize: 11, color: COLORS.red, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Debt Service & Balances</h4>
-              <Slider label="Total monthly debt payments" value={debtService} onChange={set('debtService')} commitStrategy={commitStrategy} min={0} max={20000} step={100} color={retireDebt ? COLORS.green : COLORS.red} helperText={retireDebt ? "Retired — not charged monthly" : "All minimum payments across all accounts"} />
-              <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}` }}>
-                <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Balances (for advance calculation)</div>
-                <Slider label="Credit cards (10 accts)" value={debtCC} onChange={set('debtCC')} commitStrategy={commitStrategy} min={0} max={150000} step={1000} color={retireDebt ? COLORS.green : COLORS.red} />
-                <Slider label="Personal loans (Affirm/LC/AP)" value={debtPersonal} onChange={set('debtPersonal')} commitStrategy={commitStrategy} min={0} max={100000} step={1000} color={retireDebt ? COLORS.green : COLORS.red} />
-                <Slider label="IRS back taxes" value={debtIRS} onChange={set('debtIRS')} commitStrategy={commitStrategy} min={0} max={30000} step={500} color={retireDebt ? COLORS.green : COLORS.red} />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
-                  <span>Firstmark student loan (kept):</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(debtFirstmark)} @ $251/mo</span>
-                </div>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
-                <span style={{ color: COLORS.textMuted }}>Total debt:</span>
-                <span style={{ color: retireDebt ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(debtTotal)}</span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
-              <h4 style={{ fontSize: 11, color: lifestyleCutsApplied ? COLORS.green : COLORS.red, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Spending Cuts ({lifestyleCutsApplied ? "Applied" : "Not yet applied"})
-              </h4>
-              <div style={{ opacity: lifestyleCutsApplied ? 1 : 0.5 }}>
-                {CUT_ITEMS.map(item => {
-                  const val = cutValues[item.key];
-                  const keep = item.was - val;
-                  const pctCut = Math.round((val / item.was) * 100);
-                  return (
-                    <div key={item.key} style={{ marginBottom: 6 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 11, color: COLORS.textMuted, flex: 1 }}>{item.label}</span>
-                        <span style={{ fontSize: 9, color: COLORS.borderLight, fontFamily: "'JetBrains Mono', monospace" }}>was {fmtFull(item.was)}</span>
-                      </div>
-                      {/* Mini progress bar */}
-                      <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 2, background: COLORS.bgCard }}>
-                        <div style={{ width: `${100 - pctCut}%`, background: COLORS.borderLight, transition: "width 0.2s" }} />
-                        <div style={{ width: `${pctCut}%`, background: lifestyleCutsApplied ? COLORS.green : COLORS.border, transition: "width 0.2s" }} />
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, marginBottom: 1 }}>
-                        <span style={{ color: COLORS.textDim }}>Keep: {fmtFull(keep)}</span>
-                        <span style={{ color: lifestyleCutsApplied ? COLORS.green : COLORS.textDim }}>Cut: {fmtFull(val)}</span>
-                      </div>
-                      <Slider
-                        label=""
-                        hideHeader
-                        value={val}
-                        onChange={set(item.key)}
-                        commitStrategy={commitStrategy}
-                        min={0}
-                        max={item.was}
-                        step={50}
-                        testId={`expense-cut-${item.key}`}
-                        ariaLabel={`${item.label} cut amount`}
-                        color={lifestyleCutsApplied ? COLORS.green : COLORS.border}
-                      />
-                      {item.sub && <div style={{ fontSize: 8, color: COLORS.borderLight, marginTop: 1 }}>{item.sub}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
-                <span style={{ color: COLORS.textMuted }}>Total if applied:</span>
-                <span style={{ color: lifestyleCutsApplied ? COLORS.green : COLORS.textDim, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(totalCuts)}/mo</span>
-              </div>
-            </div>
-
+            {/* BCS Tuition */}
             <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.purple, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>BCS Tuition</h4>
               <Slider label="Total annual tuition" value={bcsAnnualTotal} onChange={set('bcsAnnualTotal')} commitStrategy={commitStrategy} min={30000} max={50000} step={1000} color={COLORS.purple} />
@@ -176,6 +124,7 @@ const ExpenseControls = ({
               </div>
             </div>
 
+            {/* Expense Milestones */}
             <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.textMuted, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Expense Milestones</h4>
               {milestones.map((ms, i) => (
@@ -218,14 +167,9 @@ const ExpenseControls = ({
                 aria-label="Add milestone"
                 style={{ background: "transparent", border: `1px dashed ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 11, padding: "4px 10px", cursor: "pointer", width: "100%", marginTop: 4, fontFamily: "'Inter', sans-serif" }}
               >+ Add milestone</button>
-              {milestones.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}` }}>
-                  <span style={{ color: COLORS.textDim }}>Total reductions (all active):</span>
-                  <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(milestones.reduce((s, m) => s + m.savings, 0))}/mo</span>
-                </div>
-              )}
             </div>
 
+            {/* Capital needs */}
             <div style={{ marginTop: 12 }}>
               <h4 style={{ fontSize: 12, color: COLORS.yellow, margin: "0 0 8px", textTransform: "uppercase" }}>One-Time Capital Needs (Advance Items)</h4>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

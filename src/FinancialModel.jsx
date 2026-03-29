@@ -1,5 +1,5 @@
 import { useReducer, useMemo, useEffect, useState, useDeferredValue, useCallback, useRef, Suspense, lazy } from "react";
-import { DAYS_PER_MONTH } from './model/constants.js';
+import { DAYS_PER_MONTH, SSDI_ATTORNEY_FEE_CAP } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
 import { computeProjection, findOperationalBreakevenIndex } from './model/projection.js';
@@ -80,7 +80,7 @@ export default function FinancialModel() {
   }, [dispatch]);
 
   const {
-    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
+    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate,
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
@@ -116,8 +116,10 @@ export default function FinancialModel() {
 
   // Derived values
   const daysPerMonth = DAYS_PER_MONTH;
-  const sarahCurrentNet = Math.round(sarahRate * sarahCurrentClients * daysPerMonth);
-  const sarahCeiling = Math.round(sarahMaxRate * sarahMaxClients * daysPerMonth);
+  const sarahCurrentGross = Math.round(sarahRate * sarahCurrentClients * daysPerMonth);
+  const sarahCurrentNet = Math.round(sarahCurrentGross * (1 - (sarahTaxRate ?? 25) / 100));
+  const sarahCeilingGross = Math.round(sarahMaxRate * sarahMaxClients * daysPerMonth);
+  const sarahCeiling = Math.round(sarahCeilingGross * (1 - (sarahTaxRate ?? 25) / 100));
   const vestEvents = useMemo(() => getVestEvents(msftGrowth, msftPrice), [msftGrowth, msftPrice]);
   const totalRemainingVesting = useMemo(() => getTotalRemainingVesting(msftGrowth, msftPrice), [msftGrowth, msftPrice]);
   const bcsFamilyMonthly = Math.round(Math.max(0, bcsAnnualTotal - bcsParentsAnnual) / 12);
@@ -129,7 +131,7 @@ export default function FinancialModel() {
   const oneTimeTotal = (moldInclude ? moldCost : 0) + (roofInclude ? roofCost : 0) + (otherInclude ? otherProjects : 0);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
   const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
-  const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), 9200);
+  const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
 
   const gatherState = (src) => _gatherState(src || state);
 
@@ -367,7 +369,7 @@ export default function FinancialModel() {
   // === PROP BUNDLES for tab components ===
   const bridgeProps = useMemo(() => ({
     monthlyDetail, data,
-    sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     retireDebt, vanSold, lifestyleCutsApplied,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
@@ -380,7 +382,7 @@ export default function FinancialModel() {
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   }), [
     monthlyDetail, data,
-    sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     retireDebt, vanSold, lifestyleCutsApplied,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
@@ -462,7 +464,7 @@ export default function FinancialModel() {
   const incomeControlsProps = useMemo(() => ({
     sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    sarahCurrentNet, sarahCeiling,
+    sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
     ssType, ssdiDenied,
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
     ssdiApprovalMonth, ssdiBackPayMonths,
@@ -476,7 +478,7 @@ export default function FinancialModel() {
   }), [
     sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    sarahCurrentNet, sarahCeiling,
+    sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
     ssType, ssdiDenied,
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
     ssdiApprovalMonth, ssdiBackPayMonths,
@@ -497,7 +499,8 @@ export default function FinancialModel() {
     cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     lifestyleCuts, cutInHalf, extraCuts,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    vanSold, vanMonthlySavings,
+    vanSold, vanMonthlySavings, vanSaleMonth,
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
@@ -511,7 +514,8 @@ export default function FinancialModel() {
     cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
     lifestyleCuts, cutInHalf, extraCuts,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    vanSold, vanMonthlySavings,
+    vanSold, vanMonthlySavings, vanSaleMonth,
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,

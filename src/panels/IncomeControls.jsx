@@ -9,7 +9,7 @@ import { useRenderMetric } from '../testing/perfMetrics.js';
 const IncomeControls = ({
   sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-  sarahCurrentNet, sarahCeiling,
+  sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
   ssType,
   ssdiDenied,
   ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
@@ -53,18 +53,30 @@ const IncomeControls = ({
               <Slider label="Client growth/yr" value={sarahClientGrowth} onChange={set('sarahClientGrowth')} commitStrategy={commitStrategy} min={0} max={30} format={(v) => v + "%"} />
               <Slider label="Max clients/day (ceiling)" value={sarahMaxClients} onChange={set('sarahMaxClients')} commitStrategy={commitStrategy} min={3} max={7} step={0.5} format={(v) => v.toFixed(1)} color={COLORS.textMuted} />
             </div>
+            <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
+              <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sarah's Business — Tax</h4>
+              <Slider label="Effective tax rate (SE + federal)" value={sarahTaxRate} onChange={set('sarahTaxRate')} commitStrategy={commitStrategy} min={15} max={40} color={COLORS.blue} format={(v) => v + "%"} helperText="Self-employment tax (~15%) + federal income tax" />
+            </div>
             <div style={{ padding: "8px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                 <span style={{ color: COLORS.textDim }}>Current gross/mo:</span>
-                <span style={{ color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}</span>
+                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCurrentGross)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                <span style={{ color: COLORS.blue, fontWeight: 600 }}>After tax ({sarahTaxRate}%):</span>
+                <span style={{ color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}/mo</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
                 <span style={{ color: COLORS.textDim }}>Gross ceiling:</span>
+                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeilingGross)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                <span style={{ color: COLORS.textDim }}>Net ceiling ({sarahTaxRate}%):</span>
                 <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeiling)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: COLORS.textDim }}>Gross capacity used:</span>
-                <span style={{ color: sarahCurrentNet / sarahCeiling > 0.8 ? COLORS.yellow : COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentNet / sarahCeiling * 100)}%</span>
+                <span style={{ color: COLORS.textDim }}>Capacity used:</span>
+                <span style={{ color: sarahCurrentGross / sarahCeilingGross > 0.8 ? COLORS.yellow : COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentGross / sarahCeilingGross * 100)}%</span>
               </div>
             </div>
             {/* SS Type Selector */}
@@ -256,7 +268,7 @@ const IncomeControls = ({
                     <span style={{ color: COLORS.blueLight, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(chadConsulting * 12)}/yr</span>
                   </div>
                   <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 4, fontStyle: "italic" }}>
-                    No SGA limit with SS retirement. Earnings are unrestricted.
+                    SS earnings test: benefits reduced $1 for every $2 earned over $22,320/yr before FRA.
                   </div>
                 </div>
               </div>

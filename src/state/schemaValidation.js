@@ -26,6 +26,7 @@ const RANGE = {
   sarahRateGrowth: { min: 0, max: 100 },
   sarahClientGrowth: { min: 0, max: 100 },
   investmentReturn: { min: -50, max: 100 },
+  sarahTaxRate: { min: 0, max: 50 },
   chadJobTaxRate: { min: 0, max: 100 },
   return401k: { min: -50, max: 100 },
   homeAppreciation: { min: -50, max: 100 },

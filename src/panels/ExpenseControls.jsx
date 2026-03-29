@@ -28,7 +28,8 @@ const ExpenseControls = ({
   cutEntertainment, cutGroceries, cutPersonalCare, cutSmallItems,
   lifestyleCuts, cutInHalf, extraCuts,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-  vanSold, vanMonthlySavings,
+  vanSold, vanMonthlySavings, vanSaleMonth,
+  chadJob, chadJobStartMonth, chadJobHealthSavings,
   milestones,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
   onFieldChange,
@@ -90,7 +91,7 @@ const ExpenseControls = ({
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>
                 <span style={{ color: COLORS.textMuted }}>Total monthly outflow:</span>
                 <span style={{ color: COLORS.red, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtFull(baseExpenses + (retireDebt ? 0 : debtService) + ((bcsParentsAnnual >= bcsAnnualTotal ? 0 : bcsFamilyMonthly)) + (vanSold ? 0 : vanMonthlySavings) - (lifestyleCutsApplied ? totalCuts : 0))}
+                  {fmtFull(Math.max(0, baseExpenses + (retireDebt ? 0 : debtService) + ((!vanSold || (vanSaleMonth ?? 12) > 0) ? vanMonthlySavings : 0) + (bcsYearsLeft > 0 ? bcsFamilyMonthly : 0) - (lifestyleCutsApplied ? totalCuts : 0) - (chadJob && (chadJobStartMonth ?? 0) <= 0 ? (chadJobHealthSavings || 0) : 0)))}
                 </span>
               </div>
             </div>

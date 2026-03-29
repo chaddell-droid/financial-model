@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SSDI_ATTORNEY_FEE_CAP } from './constants.js';
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
 export function findOperationalBreakevenIndex(rows) {
@@ -25,7 +25,7 @@ export function runMonthlySimulation(s) {
   // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
   const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
   const backPayGross = (useSS || chadJob) ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
-  const backPayFee = Math.min(Math.round(backPayGross * 0.25), 9200);
+  const backPayFee = Math.min(Math.round(backPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
   const backPayActual = backPayGross - backPayFee;
   const ssStartMonth = s.ssStartMonth ?? 18;
   const ssFamilyTotal = s.ssFamilyTotal || 7099;
@@ -54,7 +54,8 @@ export function runMonthlySimulation(s) {
   for (let m = 0; m <= months; m++) {
     const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
     const clients = Math.min(s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12), s.sarahMaxClients);
-    const sarahIncome = Math.round(rate * clients * DAYS_PER_MONTH);
+    const sarahGross = Math.round(rate * clients * DAYS_PER_MONTH);
+    const sarahIncome = Math.round(sarahGross * (1 - (s.sarahTaxRate ?? 25) / 100));
     const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0, s.msftPrice);
     const msftLump = getVestingLumpSum(m, s.msftGrowth || 0, s.msftPrice);
     const trustLLC = m < trustMonth ? trustNow : trustFuture;
@@ -78,6 +79,12 @@ export function runMonthlySimulation(s) {
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
+    // SS earnings test: before FRA, SS benefits reduced $1 for every $2 over limit
+    if (useSS && consulting > 0 && ssdi > 0) {
+      const annualExcess = Math.max(0, consulting * 12 - SS_EARNINGS_LIMIT_ANNUAL);
+      const monthlyReduction = Math.round(annualExcess / 2 / 12);
+      ssdi = Math.max(0, ssdi - monthlyReduction);
+    }
 
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
 
@@ -196,41 +203,3 @@ export function computeProjection(s) {
   return { data, savingsData, backPayActual, monthlyData };
 }
 
-/**
- * Home equity projection — independent of cash flow.
- * 401k is now tracked in runMonthlySimulation for deficit drawdown.
- */
-export function computeHomeProjection(s) {
-  const months = 72;
-  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation ?? 4) / 100, 1/12) - 1;
-  const homeData = [];
-  let home = s.homeEquity || 0;
-  for (let m = 0; m <= months; m++) {
-    if (m > 0) home *= (1 + monthlyHomeRate);
-    homeData.push({ month: m, homeEquity: Math.round(home) });
-  }
-  return { homeData };
-}
-
-export function computeWealthProjection(s) {
-  const months = 72;
-  const monthly401kRate = Math.pow(1 + (s.return401k ?? 8) / 100, 1/12) - 1;
-  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation ?? 4) / 100, 1/12) - 1;
-  const wealthData = [];
-  let bal401k = s.starting401k || 0;
-  let home = s.homeEquity || 0;
-
-  for (let m = 0; m <= months; m++) {
-    if (m > 0) {
-      bal401k *= (1 + monthly401kRate);
-      home *= (1 + monthlyHomeRate);
-    }
-    wealthData.push({
-      month: m,
-      balance401k: Math.round(bal401k),
-      homeEquity: Math.round(home),
-    });
-  }
-
-  return { wealthData };
-}

@@ -20,4 +20,6 @@ export const VEST_SHARES = [
 ];
 
 export const SGA_LIMIT = 1690;
+export const SS_EARNINGS_LIMIT_ANNUAL = 22320; // 2026 earnings test limit (before FRA)
+export const SSDI_ATTORNEY_FEE_CAP = 7500; // 2026 estimated statutory cap (~$7,200 in 2025 + annual increase)
 export const DAYS_PER_MONTH = 21.5;

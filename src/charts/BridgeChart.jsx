@@ -455,7 +455,7 @@ function getMarkerLineConnector(pointY, marker) {
 
 const BridgeChart = ({
   monthlyDetail, data,
-  sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+  sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
   retireDebt, vanSold, lifestyleCutsApplied,
   ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
@@ -519,7 +519,8 @@ const BridgeChart = ({
       : 0;
     const sarahY3Rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, 3), sarahMaxRate);
     const sarahY3Clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, 3), sarahMaxClients);
-    const sarahGrowth = Math.round(sarahY3Rate * sarahY3Clients * DAYS_PER_MONTH) - sarahCurrentNet;
+    const sarahY3Net = Math.round(sarahY3Rate * sarahY3Clients * DAYS_PER_MONTH * (1 - (sarahTaxRate ?? 25) / 100));
+    const sarahGrowth = sarahY3Net - sarahCurrentNet;
     const postCliffMsft = getVestingMonthly(18, msftGrowth, msftPrice);
     const ssActive = !chadJob && (useSS || !ssdiDenied);
     const ssAmount = ssActive ? (useSS ? ssFamilyTotal : ssdiFamilyTotal) : 0;
@@ -565,7 +566,7 @@ const BridgeChart = ({
     return { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts };
   }, [
     pts, monthlyDetail, data, variant,
-    sarahCurrentNet, sarahRate, sarahMaxRate, sarahRateGrowth,
+    sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     retireDebt, vanSold, lifestyleCutsApplied,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,

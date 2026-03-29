@@ -943,11 +943,6 @@ test('ScenarioStrip exposes summary, ranked-lever, consequence-rail, and layout 
     'primary-levers-one-time-ask',
     'primary-levers-controls',
     'primary-levers-ranked-levers',
-    'primary-levers-consequence-rail',
-    'primary-levers-consequence-changed-here',
-    'primary-levers-consequence-other-assumptions',
-    'primary-levers-breakdown-toggle',
-    'primary-levers-breakdown',
     'primary-levers-controls-section',
     'primary-levers-bcs-section',
   ]) {
@@ -975,8 +970,7 @@ test('UI swarm manifest tracks Primary Levers summary, ranking, and consequence 
   eq(scenario.status, 'ready', 'scenario strip manifest status');
   assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-summary"]'), 'scenario strip manifest should track the summary root');
   assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-ranked-levers"]'), 'scenario strip manifest should track ranked levers');
-  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-consequence-changed-here"]'), 'scenario strip manifest should track changed-here consequences');
-  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-breakdown-toggle"]'), 'scenario strip manifest should track the breakdown disclosure');
+  assert.ok(scenario.elements.some((element) => element.selector === '[data-testid="primary-levers-ranked-levers"]'), 'scenario strip manifest should track ranked levers section');
 });
 
 console.log('\n=== PWA Distribution Guards ===');

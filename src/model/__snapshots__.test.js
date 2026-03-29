@@ -923,7 +923,6 @@ test('ScenarioStrip uses Primary Levers title and no longer leads with Scenarios
 test('ScenarioStrip preserves existing scenario control test ids', () => {
   const source = fs.readFileSync(new URL('../panels/ScenarioStrip.jsx', import.meta.url), 'utf8');
   for (const selector of [
-    'scenario-base-expenses',
     'scenario-retire-debt',
     'scenario-debt-service',
     'scenario-lifestyle-cuts',

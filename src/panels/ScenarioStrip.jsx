@@ -352,36 +352,10 @@ const ScenarioStrip = ({
           data-testid='primary-levers-controls-section'
           style={{ display: 'grid', gap: UI_SPACE.lg }}
         >
-          <SurfaceCard
-            padding='sm'
-            data-testid='primary-levers-controls'
-            style={{ display: 'grid', gap: UI_SPACE.md, background: UI_COLORS.surfaceMuted }}
-          >
-            <SectionHeading
-              eyebrow='Base Expenses'
-              title='Monthly baseline'
-              subtitle='Adjust the fixed monthly baseline before layering in discretionary levers.'
-            />
-            <Slider
-              label={totalMonthlySpend != null ? 'Base living (set via total spend)' : 'Base living expenses'}
-              value={baseExpenses}
-              onChange={totalMonthlySpend != null ? () => {} : set('baseExpenses')}
-              commitStrategy={commitStrategy}
-              testId='scenario-base-expenses'
-              min={25000}
-              max={55000}
-              step={500}
-              color={totalMonthlySpend != null ? UI_COLORS.muted : UI_COLORS.destructive}
-              format={(value) => fmtFull(value)}
-              helperText={totalMonthlySpend != null ? 'Derived from total monthly spend override.' : 'This is the starting monthly living load before debt, the van, or BCS tuition are added.'}
-            />
-          </SurfaceCard>
-
           <div style={{ display: 'grid', gap: UI_SPACE.md }}>
             <SectionHeading
               eyebrow='Major Monthly Levers'
-              title='Ranked by impact'
-              subtitle='These are ordered by current monthly effect. BCS stays separate because it needs a dedicated support slider.'
+              title='Plan adjustments'
             />
             <div
               data-testid='primary-levers-ranked-levers'

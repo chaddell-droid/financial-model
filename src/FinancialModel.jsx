@@ -688,7 +688,7 @@ export default function FinancialModel() {
           lifestyleCutsApplied={lifestyleCutsApplied}
           vanSold={vanSold}
           debtService={debtService}
-          totalCuts={lifestyleCuts + cutInHalf + extraCuts}
+          totalCuts={cutsOverride ?? 0}
         />
 
         {showCompareBanner ? (

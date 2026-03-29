@@ -39,13 +39,8 @@ export function runMonthlySimulation(s) {
 
   // Chad Gets a Job
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
-  const chadJobMonthlyGross = chadJob ? Math.round((s.chadJobSalary || 0) / 12) : 0;
   const chadJobMonthlyNet = chadJob ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
-  // SS earnings test: before FRA (67), SS reduced by $1 per $2 earned above annual limit
-  const ssEarningsLimitAnnual = 22320; // 2026 estimate
-  const ssAnnualExcess = chadJob ? Math.max(0, (s.chadJobSalary || 0) - ssEarningsLimitAnnual) : 0;
-  const ssMonthlyReduction = Math.round(ssAnnualExcess / 2 / 12); // $1 per $2 excess, monthly
 
   // 401k and home equity — tracked alongside savings for deficit drawdown
   const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;

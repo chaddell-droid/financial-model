@@ -92,6 +92,10 @@ const RANGE = {
   cutGroceries: { min: 0 },
   cutPersonalCare: { min: 0 },
   cutSmallItems: { min: 0 },
+  seqBadY1: { min: -50, max: 50 },
+  seqBadY2: { min: -50, max: 50 },
+  msftGrowth: { min: -50, max: 50 },
+  cutsOverride: { min: 0 },
 };
 
 // --- Enum constraints ---
@@ -173,12 +177,21 @@ export function validateAndSanitize(raw) {
       continue;
     }
     if (key === 'milestones') {
-      result[key] = Array.isArray(rawVal) ? rawVal : defaultVal;
+      result[key] = sanitizeMilestones(rawVal, defaultVal);
       continue;
     }
     if (expectedType === 'nullable') {
-      // cutsOverride: null or number
-      result[key] = rawVal === null ? null : coerceNumber(rawVal, defaultVal);
+      if (rawVal === null) {
+        result[key] = null;
+      } else {
+        let v = coerceNumber(rawVal, defaultVal);
+        const range = RANGE[key];
+        if (range) {
+          if (range.min !== undefined && v < range.min) v = range.min;
+          if (range.max !== undefined && v > range.max) v = range.max;
+        }
+        result[key] = v;
+      }
       continue;
     }
 
@@ -229,5 +242,18 @@ function sanitizeGoals(goals) {
     targetAmount: typeof g.targetAmount === 'number' ? g.targetAmount : 0,
     targetMonth: typeof g.targetMonth === 'number' ? g.targetMonth : 72,
     color: typeof g.color === 'string' ? g.color : '#4ade80',
+  }));
+}
+
+function sanitizeMilestones(milestones, fallback) {
+  if (!Array.isArray(milestones)) return fallback;
+  return milestones.filter(m =>
+    m && typeof m === 'object' &&
+    typeof m.month === 'number' && Number.isFinite(m.month) &&
+    typeof m.savings === 'number' && Number.isFinite(m.savings)
+  ).map(m => ({
+    name: typeof m.name === 'string' ? m.name : '',
+    month: m.month,
+    savings: m.savings,
   }));
 }

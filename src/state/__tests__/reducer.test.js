@@ -349,6 +349,136 @@ test('gatherStateWithOverrides with no args uses all defaults', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// totalMonthlySpend in gatherState
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== totalMonthlySpend in gatherState ===');
+
+test('gatherState with totalMonthlySpend=60000 back-calculates baseExpenses', () => {
+  const bcsFamilyMonthly = Math.round(Math.max(0, INITIAL_STATE.bcsAnnualTotal - INITIAL_STATE.bcsParentsAnnual) / 12);
+  const expected = 60000 - INITIAL_STATE.debtService - INITIAL_STATE.vanMonthlySavings - bcsFamilyMonthly;
+  const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 60000 });
+  assert.strictEqual(result.baseExpenses, expected);
+});
+
+test('gatherState with totalMonthlySpend=null leaves baseExpenses unchanged', () => {
+  const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: null });
+  assert.strictEqual(result.baseExpenses, INITIAL_STATE.baseExpenses);
+});
+
+test('gatherState with totalMonthlySpend less than fixed costs clamps baseExpenses to 0', () => {
+  const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 5000 });
+  assert.strictEqual(result.baseExpenses, 0);
+});
+
+test('gatherState with totalMonthlySpend=0 sets baseExpenses to 0', () => {
+  const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 0 });
+  assert.strictEqual(result.baseExpenses, 0);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// msftPrice in gatherState
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== msftPrice in gatherState ===');
+
+test('gatherStateWithOverrides({ msftPrice: 500 }) extracts msftPrice as 500', () => {
+  const result = gatherStateWithOverrides({ msftPrice: 500 });
+  assert.strictEqual(result.msftPrice, 500);
+});
+
+test('gatherStateWithOverrides({}) falls back to INITIAL_STATE.msftPrice', () => {
+  const result = gatherStateWithOverrides({});
+  assert.strictEqual(result.msftPrice, INITIAL_STATE.msftPrice);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Schema validation — nullable clamping
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Schema validation — nullable clamping ===');
+
+test('validateAndSanitize({ totalMonthlySpend: null }) preserves null', () => {
+  const result = validateAndSanitize({ totalMonthlySpend: null });
+  assert.strictEqual(result.totalMonthlySpend, null);
+});
+
+test('validateAndSanitize({ totalMonthlySpend: 0 }) preserves 0', () => {
+  const result = validateAndSanitize({ totalMonthlySpend: 0 });
+  assert.strictEqual(result.totalMonthlySpend, 0);
+});
+
+test('validateAndSanitize({ totalMonthlySpend: -5000 }) clamps to 0', () => {
+  const result = validateAndSanitize({ totalMonthlySpend: -5000 });
+  assert.strictEqual(result.totalMonthlySpend, 0);
+});
+
+test('validateAndSanitize({ totalMonthlySpend: "50000" }) coerces string to number', () => {
+  const result = validateAndSanitize({ totalMonthlySpend: '50000' });
+  assert.strictEqual(result.totalMonthlySpend, 50000);
+});
+
+test('validateAndSanitize({ cutsOverride: -100 }) clamps to 0', () => {
+  const result = validateAndSanitize({ cutsOverride: -100 });
+  assert.strictEqual(result.cutsOverride, 0);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Schema validation — msftPrice
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Schema validation — msftPrice ===');
+
+test('validateAndSanitize({ msftPrice: 0 }) clamps to 1', () => {
+  const result = validateAndSanitize({ msftPrice: 0 });
+  assert.strictEqual(result.msftPrice, 1);
+});
+
+test('validateAndSanitize({ msftPrice: "500" }) coerces string to number', () => {
+  const result = validateAndSanitize({ msftPrice: '500' });
+  assert.strictEqual(result.msftPrice, 500);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Schema validation — milestones
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Schema validation — milestones ===');
+
+test('validateAndSanitize filters out invalid milestones', () => {
+  const result = validateAndSanitize({ milestones: [{ month: 'abc', savings: undefined }] });
+  assert.ok(Array.isArray(result.milestones));
+  assert.strictEqual(result.milestones.length, 0);
+});
+
+test('validateAndSanitize preserves valid milestones', () => {
+  const result = validateAndSanitize({ milestones: [{ name: 'Test', month: 12, savings: 500 }] });
+  assert.strictEqual(result.milestones.length, 1);
+  assert.strictEqual(result.milestones[0].name, 'Test');
+  assert.strictEqual(result.milestones[0].month, 12);
+  assert.strictEqual(result.milestones[0].savings, 500);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// gatherState — partial state fallbacks
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== gatherState — partial state fallbacks ===');
+
+test('gatherState with missing cutOliver falls back to INITIAL_STATE.cutOliver', () => {
+  const partial = {
+    sarahRate: 200,
+    msftGrowth: 0,
+    baseExpenses: 40000,
+    debtService: 6000,
+    vanMonthlySavings: 2500,
+    bcsAnnualTotal: 41000,
+    bcsParentsAnnual: 25000,
+    cutVacation: 2040,
+    cutGym: 655,
+  };
+  // cutOliver is deliberately omitted — should fall back to INITIAL_STATE.cutOliver
+  const result = gatherState(partial);
+  const expectedLifestyleCuts = INITIAL_STATE.cutOliver + 2040 + 655;
+  assert.strictEqual(result.lifestyleCuts, expectedLifestyleCuts,
+    `lifestyleCuts should include INITIAL_STATE.cutOliver (${INITIAL_STATE.cutOliver}), got ${result.lifestyleCuts}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

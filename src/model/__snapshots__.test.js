@@ -1783,8 +1783,7 @@ test('KeyMetrics uses a single compact overview status strip contract', () => {
   const source = fs.readFileSync(new URL('../components/KeyMetrics.jsx', import.meta.url), 'utf8');
   assert.ok(source.includes('buildOverviewStatusModel'), 'KeyMetrics should use the overview story helper');
   assert.ok(source.includes("data-testid='overview-status-strip'"), 'KeyMetrics should expose the overview status strip selector');
-  assert.ok(source.includes("data-testid='overview-primary-question'"), 'KeyMetrics should expose the overview question selector');
-  assert.ok(source.includes("data-testid='overview-primary-answer'"), 'KeyMetrics should expose the overview answer selector');
+  assert.ok(source.includes('data-testid="key-metrics-total-spend"'), 'KeyMetrics should expose the total spend input selector');
   assert.ok(source.includes("overview-status-current-gap"), 'KeyMetrics should expose the current-gap selector');
   assert.ok(source.includes("overview-status-best-gap"), 'KeyMetrics should expose the best-gap selector');
   assert.ok(!source.includes('summaryCards = ['), 'KeyMetrics should not keep the old summaryCards deck');

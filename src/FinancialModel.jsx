@@ -325,8 +325,9 @@ export default function FinancialModel() {
   const chadJobImmediate = chadJob && (chadJobStartMonth ?? 3) === 0;
   const chadJobNetForGap = chadJobImmediate ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthForGap = chadJobImmediate ? (chadJobHealthSavings || 4200) : 0;
-  const rawMonthlyGap = (sarahCurrentNet + currentMsft + trustIncomeNow + chadJobNetForGap)
-    - Math.max(effectiveBaseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
+  const totalCurrentIncome = sarahCurrentNet + currentMsft + trustIncomeNow + chadJobNetForGap;
+  const totalCurrentExpenses = Math.max(effectiveBaseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
+  const rawMonthlyGap = totalCurrentIncome - totalCurrentExpenses;
 
   // Steady state net at Y3
   const steadyIdxRaw = data.findIndex(d => d.month >= 36);
@@ -680,6 +681,10 @@ export default function FinancialModel() {
           steadyLabel={data[steadyIdx]?.label}
           bestProjectedGap={bestProjectedGap}
           bestProjectedLabel={bestProjectedLabel}
+          totalMonthlySpend={totalMonthlySpend}
+          totalCurrentIncome={totalCurrentIncome}
+          totalCurrentExpenses={totalCurrentExpenses}
+          onFieldChange={set}
         />
 
         <ActiveTogglePills
@@ -707,6 +712,9 @@ export default function FinancialModel() {
     savingsZeroLabel,
     savingsZeroMonth,
     advanceNeeded,
+    totalMonthlySpend,
+    totalCurrentIncome,
+    totalCurrentExpenses,
     mcResults,
     rawMonthlyGap,
     steadyStateNet,

@@ -941,6 +941,200 @@ test('58. SS earnings test: does NOT apply under SSDI path', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Chad Gets a Job — numerical trace
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Chad Gets a Job — numerical trace ===');
+
+// ---- Test 59: chadJob=false baseline — print balance at key months ----
+test('59. chadJob=false baseline — balance at months 0, 12, 36, 72', () => {
+  const s = gatherStateWithOverrides({ chadJob: false });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const m of [0, 12, 36, 72]) {
+    console.log(`        [baseline] month ${m}: balance=${monthlyData[m].balance}, ssdi=${monthlyData[m].ssdi}, consulting=${monthlyData[m].consulting}, expenses=${monthlyData[m].expenses}`);
+  }
+  assert.ok(monthlyData.length === 73, 'should have 73 months');
+});
+
+// ---- Test 60: chadJob=true comparison — print balance at key months ----
+test('60. chadJob=true comparison — balance at months 0, 12, 36, 72', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const m of [0, 12, 36, 72]) {
+    console.log(`        [chadJob]  month ${m}: balance=${monthlyData[m].balance}, chadJobIncome=${monthlyData[m].chadJobIncome}, ssdi=${monthlyData[m].ssdi}, consulting=${monthlyData[m].consulting}, expenses=${monthlyData[m].expenses}`);
+  }
+  assert.ok(monthlyData.length === 73, 'should have 73 months');
+});
+
+// ---- Test 61: Verify the DIFFERENCE between chadJob=true and false ----
+test('61. Verify monthly income and expense difference between chadJob=true and false', () => {
+  const sOff = gatherStateWithOverrides({ chadJob: false });
+  const sOn = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+  });
+  const { monthlyData: off } = runMonthlySimulation(sOff);
+  const { monthlyData: on } = runMonthlySimulation(sOn);
+
+  // Expected job net: 80000 * 0.75 / 12 = 5000
+  const expectedJobNet = Math.round(80000 * 0.75 / 12);
+  assert.strictEqual(expectedJobNet, 5000, 'expected monthly net should be $5,000');
+
+  // Print differences at key months for manual inspection
+  for (const m of [0, 12, 36, 72]) {
+    const incomeDiff = on[m].cashIncome - off[m].cashIncome;
+    const expenseDiff = on[m].expenses - off[m].expenses;
+    const balanceDiff = on[m].balance - off[m].balance;
+    console.log(`        month ${m}: income diff=${incomeDiff}, expense diff=${expenseDiff}, balance diff=${balanceDiff}`);
+    console.log(`          OFF: ssdi=${off[m].ssdi}, consulting=${off[m].consulting}, chadJob=${off[m].chadJobIncome}`);
+    console.log(`          ON:  ssdi=${on[m].ssdi}, consulting=${on[m].consulting}, chadJob=${on[m].chadJobIncome}`);
+  }
+
+  // The income difference at month 0 should be:
+  // +chadJobIncome - lostSSDI - lostConsulting
+  // Since defaults: ssdiApprovalMonth=7, at month 0 SSDI is not yet active, consulting is 0
+  // So at month 0 the income diff should just be +5000
+  const m0IncomeDiff = on[0].cashIncome - off[0].cashIncome;
+  const m0ExpenseDiff = on[0].expenses - off[0].expenses;
+  console.log(`        [VERIFY] month 0: income diff = ${m0IncomeDiff}, expense diff = ${m0ExpenseDiff}`);
+
+  // At month 0 with defaults: SSDI not yet approved (approval month 7), consulting = 0
+  // So the only change is +$5,000 income and -$4,200 expenses
+  assert.strictEqual(m0IncomeDiff, 5000, `month 0 income diff should be +5000 (job income only), got ${m0IncomeDiff}`);
+  assert.strictEqual(m0ExpenseDiff, -4200, `month 0 expense diff should be -4200 (health savings), got ${m0ExpenseDiff}`);
+});
+
+// ---- Test 62: Verify SSDI is zeroed when chadJob=true ----
+test('62. SSDI is zeroed for all months when chadJob=true', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
+    ssdiFamilyTotal: 6500, ssdiPersonal: 4166, kidsAgeOutMonths: 36,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    assert.strictEqual(entry.ssdi, 0,
+      `month ${entry.month}: SSDI should be 0 when chadJob=true, got ${entry.ssdi}`);
+  }
+});
+
+// ---- Test 63: Verify consulting is zeroed when chadJob=true ----
+test('63. Consulting is zeroed for all months when chadJob=true', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
+    chadConsulting: 1690,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    assert.strictEqual(entry.consulting, 0,
+      `month ${entry.month}: consulting should be 0 when chadJob=true, got ${entry.consulting}`);
+  }
+});
+
+// ---- Test 64: Verify chadJobIncome appears at correct value ----
+test('64. chadJobIncome is $5,000/mo (80000 * 0.75 / 12) starting at month 0', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobIncome, 5000,
+    `month 0 chadJobIncome should be 5000, got ${monthlyData[0].chadJobIncome}`);
+  // Verify it persists
+  assert.strictEqual(monthlyData[36].chadJobIncome, 5000,
+    `month 36 chadJobIncome should be 5000, got ${monthlyData[36].chadJobIncome}`);
+  assert.strictEqual(monthlyData[72].chadJobIncome, 5000,
+    `month 72 chadJobIncome should be 5000, got ${monthlyData[72].chadJobIncome}`);
+});
+
+// ---- Test 65: Verify health savings reduce expenses ----
+test('65. Health savings reduce expenses by $4,200 when chadJob=true', () => {
+  // Minimal scenario: isolate just the health savings effect on expenses
+  const sOff = gatherStateWithOverrides({
+    chadJob: false,
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: false, bcsYearsLeft: 0, milestones: [],
+    vanLoanBalance: 0, vanSalePrice: 0, ssdiDenied: true,
+  });
+  const sOn = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: false, bcsYearsLeft: 0, milestones: [],
+    vanLoanBalance: 0, vanSalePrice: 0, ssdiDenied: true,
+  });
+  const { monthlyData: offData } = runMonthlySimulation(sOff);
+  const { monthlyData: onData } = runMonthlySimulation(sOn);
+  const expenseDiff = offData[0].expenses - onData[0].expenses;
+  assert.strictEqual(expenseDiff, 4200,
+    `expense difference should be 4200 (health savings), got ${expenseDiff}`);
+  console.log(`        [VERIFY] expenses OFF=${offData[0].expenses}, ON=${onData[0].expenses}, diff=${expenseDiff}`);
+});
+
+// ---- Test 66: Verify savings trajectory diverges at month 72 ----
+test('66. Savings trajectory diverges: balance at month 72 differs between chadJob=true and false', () => {
+  const sOff = gatherStateWithOverrides({ chadJob: false });
+  const sOn = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+  });
+  const { monthlyData: offData } = runMonthlySimulation(sOff);
+  const { monthlyData: onData } = runMonthlySimulation(sOn);
+  const diff = onData[72].balance - offData[72].balance;
+  console.log(`        [VERIFY] month 72 balance: OFF=${offData[72].balance}, ON=${onData[72].balance}, diff=${diff}`);
+  assert.ok(diff !== 0,
+    `balance at month 72 should differ between chadJob=true and false, but both are ${offData[72].balance}`);
+  // Print the sign so Chad can see which scenario is better at the 6-year mark
+  console.log(`        chadJob=true is ${diff > 0 ? 'BETTER' : 'WORSE'} by $${Math.abs(diff).toLocaleString()} at month 72`);
+});
+
+// ---- Test 67: Verify back pay is zeroed when chadJob=true ----
+test('67. Back pay is zeroed when chadJob=true', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    ssType: 'ssdi', ssdiApprovalMonth: 7, ssdiDenied: false,
+    ssdiBackPayMonths: 18, ssdiPersonal: 4166,
+  });
+  const { backPayActual } = runMonthlySimulation(s);
+  assert.strictEqual(backPayActual, 0,
+    `backPayActual should be 0 when chadJob=true, got ${backPayActual}`);
+});
+
+// ---- Test 68: chadJob with delayed start — no income before startMonth ----
+test('68. chadJob with chadJobStartMonth=6 — no job income or health savings before month 6', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 6, chadJobSalary: 80000,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: false, bcsYearsLeft: 0, milestones: [],
+    vanLoanBalance: 0, vanSalePrice: 0, ssdiDenied: true,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Before start month: no job income, no health savings
+  for (let m = 0; m < 6; m++) {
+    assert.strictEqual(monthlyData[m].chadJobIncome, 0,
+      `month ${m}: chadJobIncome should be 0 before startMonth, got ${monthlyData[m].chadJobIncome}`);
+    // expenses should NOT include health savings deduction before start
+    assert.strictEqual(monthlyData[m].expenses, s.baseExpenses,
+      `month ${m}: expenses should be baseExpenses before job starts, got ${monthlyData[m].expenses}`);
+  }
+  // At and after start month: job income and health savings apply
+  assert.strictEqual(monthlyData[6].chadJobIncome, 5000,
+    `month 6: chadJobIncome should be 5000, got ${monthlyData[6].chadJobIncome}`);
+  assert.strictEqual(monthlyData[6].expenses, s.baseExpenses - 4200,
+    `month 6: expenses should reflect health savings, got ${monthlyData[6].expenses}`);
+  // Note: SSDI/consulting are still zeroed for ALL months when chadJob=true, even before job starts
+  assert.strictEqual(monthlyData[0].ssdi, 0, 'SSDI zeroed even before job starts');
+  assert.strictEqual(monthlyData[0].consulting, 0, 'consulting zeroed even before job starts');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

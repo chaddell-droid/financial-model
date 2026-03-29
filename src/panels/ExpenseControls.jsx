@@ -97,13 +97,17 @@ const ExpenseControls = ({
             </div>
 
             <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
-              <h4 style={{ fontSize: 11, color: COLORS.red, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Debt Balances (Scenario C)</h4>
-              <Slider label="Credit cards (10 accts)" value={debtCC} onChange={set('debtCC')} commitStrategy={commitStrategy} min={0} max={150000} step={1000} color={retireDebt ? COLORS.green : COLORS.red} />
-              <Slider label="Personal loans (Affirm/LC/AP)" value={debtPersonal} onChange={set('debtPersonal')} commitStrategy={commitStrategy} min={0} max={100000} step={1000} color={retireDebt ? COLORS.green : COLORS.red} />
-              <Slider label="IRS back taxes" value={debtIRS} onChange={set('debtIRS')} commitStrategy={commitStrategy} min={0} max={30000} step={500} color={retireDebt ? COLORS.green : COLORS.red} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
-                <span>Firstmark student loan (kept):</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(debtFirstmark)} @ $251/mo</span>
+              <h4 style={{ fontSize: 11, color: COLORS.red, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Debt Service & Balances</h4>
+              <Slider label="Total monthly debt payments" value={debtService} onChange={set('debtService')} commitStrategy={commitStrategy} min={0} max={20000} step={100} color={retireDebt ? COLORS.green : COLORS.red} helperText={retireDebt ? "Retired — not charged monthly" : "All minimum payments across all accounts"} />
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Balances (for advance calculation)</div>
+                <Slider label="Credit cards (10 accts)" value={debtCC} onChange={set('debtCC')} commitStrategy={commitStrategy} min={0} max={150000} step={1000} color={retireDebt ? COLORS.green : COLORS.red} />
+                <Slider label="Personal loans (Affirm/LC/AP)" value={debtPersonal} onChange={set('debtPersonal')} commitStrategy={commitStrategy} min={0} max={100000} step={1000} color={retireDebt ? COLORS.green : COLORS.red} />
+                <Slider label="IRS back taxes" value={debtIRS} onChange={set('debtIRS')} commitStrategy={commitStrategy} min={0} max={30000} step={500} color={retireDebt ? COLORS.green : COLORS.red} />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
+                  <span>Firstmark student loan (kept):</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(debtFirstmark)} @ $251/mo</span>
+                </div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
                 <span style={{ color: COLORS.textMuted }}>Total debt:</span>

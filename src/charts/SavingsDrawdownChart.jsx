@@ -300,7 +300,7 @@ function SavingsDrawdownChart({
           </div>
           <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Slider label={totalMonthlySpend != null ? "Base living (set via total spend)" : "Base living expenses/mo"} value={baseExpenses} onChange={totalMonthlySpend != null ? () => {} : onFieldChange('baseExpenses')} commitStrategy='release' min={25000} max={55000} step={500} color={totalMonthlySpend != null ? COLORS.border : COLORS.red} />
-            <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} commitStrategy='release' min={3000} max={12000} step={100} color={retireDebt ? COLORS.border : COLORS.red} />
+            <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} commitStrategy='release' min={0} max={20000} step={100} color={retireDebt ? COLORS.border : COLORS.red} />
           </div>
           <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, padding: "0 2px" }}>
             <span style={{ color: COLORS.textDim }}>

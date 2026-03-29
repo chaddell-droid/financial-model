@@ -24,18 +24,10 @@ export function getEffectiveCuts({
 }
 
 export function rankRecurringLevers(levers) {
-  return levers
-    .map((lever, index) => ({ ...lever, _order: index }))
-    .sort((a, b) => {
-      if (b.monthlyImpact !== a.monthlyImpact) {
-        return b.monthlyImpact - a.monthlyImpact;
-      }
-      return a._order - b._order;
-    })
-    .map(({ _order, ...lever }, index) => ({
-      ...lever,
-      rank: index + 1,
-    }));
+  return levers.map((lever, index) => ({
+    ...lever,
+    rank: index + 1,
+  }));
 }
 
 export function buildPrimaryLeversModel(input) {

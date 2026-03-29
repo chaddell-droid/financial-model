@@ -527,7 +527,7 @@ test('deriveCurrentWithdrawalView converts total target into current draw and re
 
 console.log('\n=== Primary Levers Model Guards ===');
 
-test('buildPrimaryLeversModel ranks recurring levers by descending monthly impact', () => {
+test('buildPrimaryLeversModel keeps recurring levers in stable order', () => {
   const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
     retireDebt: true,
     lifestyleCutsApplied: true,
@@ -535,8 +535,9 @@ test('buildPrimaryLeversModel ranks recurring levers by descending monthly impac
     vanSold: true,
     bcsParentsAnnual: 41000,
   }));
-  eq(model.recurringLevers[0].id, 'spending_cuts');
-  eq(model.recurringLevers[1].id, 'retire_debt');
+  // Order is stable (not sorted by impact) — retire_debt, spending_cuts, sell_van, bcs_support
+  eq(model.recurringLevers[0].id, 'retire_debt');
+  eq(model.recurringLevers[1].id, 'spending_cuts');
   eq(model.recurringLevers[2].id, 'sell_van');
   eq(model.recurringLevers[3].id, 'bcs_support');
 });

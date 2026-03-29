@@ -11,6 +11,7 @@ export const INITIAL_STATE = {
   sarahClientGrowth: 10,
 
   // MSFT
+  msftPrice: 410.68,
   msftGrowth: 0,
 
   // Social Security (SSDI vs SS retirement — mutually exclusive)
@@ -148,7 +149,7 @@ export const INITIAL_STATE = {
 // Keys that constitute the financial model (for save/restore/projection)
 export const MODEL_KEYS = [
   'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth',
-  'msftGrowth',
+  'msftPrice', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',

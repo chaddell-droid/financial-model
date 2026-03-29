@@ -1,10 +1,9 @@
 import React from "react";
-import { MSFT_FLOOR_PRICE } from '../model/constants.js';
 import { getMsftPrice } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 
-const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsftGrowthChange }) => (
+const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange }) => (
   <div data-testid="msft-vesting-chart" style={{
     background: "#1e293b", borderRadius: 12, padding: "16px 20px",
     border: "1px solid #f59e0b33", marginBottom: 24
@@ -50,7 +49,7 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsf
       {vestEvents.map((v, i) => (
         <div key={i} style={{ flex: 1, textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "#64748b" }}>{v.label}</div>
-          <div style={{ fontSize: 9, color: v.price < MSFT_FLOOR_PRICE - 0.5 ? "#f87171" : v.price > MSFT_FLOOR_PRICE + 0.5 ? "#4ade80" : "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: 9, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
             ${Math.round(v.price)}
           </div>
         </div>
@@ -60,18 +59,17 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftGrowth, onMsf
     <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
       Each bar = one quarterly vest (net after 20% tax). Nothing arrives between vests.
     </div>
-    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 16 }}>
-      <div style={{ flex: 1 }}>
-        <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange} commitStrategy='release'
-          min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color="#f59e0b" />
-      </div>
-      <div data-testid="msft-vesting-footer" style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap", textAlign: "right" }}>
-        Floor: <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>${MSFT_FLOOR_PRICE}</span>
-        {msftGrowth !== 0 && (
-          <> → Y5: <span data-testid="msft-vesting-y5-price" style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(getMsftPrice(60, msftGrowth))}</span></>
-        )}
-      </div>
+    <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <Slider label="MSFT current price" value={msftPrice} onChange={onMsftPriceChange} commitStrategy='release'
+        min={200} max={600} step={1} format={(v) => "$" + v} color="#f59e0b" />
+      <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange} commitStrategy='release'
+        min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color="#f59e0b" />
     </div>
+    {msftGrowth !== 0 && (
+      <div style={{ marginTop: 4, fontSize: 11, color: "#64748b", textAlign: "right" }}>
+        Y5 price: <span data-testid="msft-vesting-y5-price" style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(getMsftPrice(60, msftGrowth, msftPrice))}</span>
+      </div>
+    )}
   </div>
 );
 

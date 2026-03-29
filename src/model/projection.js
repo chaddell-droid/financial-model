@@ -60,8 +60,8 @@ export function runMonthlySimulation(s) {
     const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
     const clients = Math.min(s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12), s.sarahMaxClients);
     const sarahIncome = Math.round(rate * clients * DAYS_PER_MONTH);
-    const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0);
-    const msftLump = getVestingLumpSum(m, s.msftGrowth || 0);
+    const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0, s.msftPrice);
+    const msftLump = getVestingLumpSum(m, s.msftGrowth || 0, s.msftPrice);
     const trustLLC = m < trustMonth ? trustNow : trustFuture;
 
     // Chad's job income (after tax)

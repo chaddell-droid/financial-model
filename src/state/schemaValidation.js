@@ -50,6 +50,7 @@ const RANGE = {
   bcsYearsLeft: { min: 0, max: 10 },
   mcNumSims: { min: 10, max: 10000 },
   // Dollar amounts (non-negative)
+  msftPrice: { min: 1 },
   sarahRate: { min: 0 },
   sarahMaxRate: { min: 0 },
   ssdiPersonal: { min: 0 },

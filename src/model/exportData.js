@@ -31,7 +31,7 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
     },
     income: {
       sarah: { rate: s.sarahRate, maxRate: s.sarahMaxRate, rateGrowth: s.sarahRateGrowth, currentClients: s.sarahCurrentClients, maxClients: s.sarahMaxClients, clientGrowth: s.sarahClientGrowth, currentMonthly: sarahCurrentNet },
-      msft: { floorPrice: 410.68, growth: s.msftGrowth, currentMonthly: data[0]?.msftVesting, totalRemaining: totalRemainingVesting },
+      msft: { startPrice: s.msftPrice, growth: s.msftGrowth, currentMonthly: data[0]?.msftVesting, totalRemaining: totalRemainingVesting },
       trustLLC: { currentMonthly: s.trustIncomeNow, futureMonthly: s.trustIncomeFuture, increaseMonth: s.trustIncreaseMonth },
       ssdi: { approvalMonth: s.ssdiApprovalMonth, denied: ssdiDenied, personal: s.ssdiPersonal, familyTotal: s.ssdiFamilyTotal, kidsAgeOutMonths: s.kidsAgeOutMonths, backPayMonths: s.ssdiBackPayMonths, backPayNet: projection.backPayActual },
       consulting: { monthly: s.chadConsulting, sgaLimit: 1690 },

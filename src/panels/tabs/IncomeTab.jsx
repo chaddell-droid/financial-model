@@ -4,7 +4,7 @@ import SarahPracticeChart from '../../charts/SarahPracticeChart.jsx';
 import IncomeCompositionChart from '../../charts/IncomeCompositionChart.jsx';
 
 export default function IncomeTab({
-  vestEvents, totalRemainingVesting, msftGrowth, onMsftGrowthChange,
+  vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange,
   sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
   data, investmentReturn,
@@ -14,7 +14,7 @@ export default function IncomeTab({
     <>
       <MsftVestingChart
         vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
-        msftGrowth={msftGrowth} onMsftGrowthChange={onMsftGrowthChange}
+        msftPrice={msftPrice} msftGrowth={msftGrowth} onMsftGrowthChange={onMsftGrowthChange} onMsftPriceChange={onMsftPriceChange}
       />
       <SarahPracticeChart
         sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}

@@ -81,7 +81,7 @@ export default function FinancialModel() {
 
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    msftGrowth,
+    msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
@@ -118,8 +118,8 @@ export default function FinancialModel() {
   const daysPerMonth = DAYS_PER_MONTH;
   const sarahCurrentNet = Math.round(sarahRate * sarahCurrentClients * daysPerMonth);
   const sarahCeiling = Math.round(sarahMaxRate * sarahMaxClients * daysPerMonth);
-  const vestEvents = useMemo(() => getVestEvents(msftGrowth), [msftGrowth]);
-  const totalRemainingVesting = useMemo(() => getTotalRemainingVesting(msftGrowth), [msftGrowth]);
+  const vestEvents = useMemo(() => getVestEvents(msftGrowth, msftPrice), [msftGrowth, msftPrice]);
+  const totalRemainingVesting = useMemo(() => getTotalRemainingVesting(msftGrowth, msftPrice), [msftGrowth, msftPrice]);
   const bcsFamilyMonthly = Math.round(Math.max(0, bcsAnnualTotal - bcsParentsAnnual) / 12);
   // When totalMonthlySpend is set, derive baseExpenses from it (same logic as gatherState)
   const effectiveBaseExpenses = totalMonthlySpend != null
@@ -755,7 +755,7 @@ export default function FinancialModel() {
       {effectiveTab === 'income' && (
         <IncomeTab
           vestEvents={vestEvents} totalRemainingVesting={totalRemainingVesting}
-          msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')}
+          msftPrice={msftPrice} msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')} onMsftPriceChange={set('msftPrice')}
           sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
           sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
           data={data} investmentReturn={investmentReturn}

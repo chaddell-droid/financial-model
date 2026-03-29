@@ -166,7 +166,6 @@ export function computeProjection(s) {
     const months = monthlyData.filter(d => d.month >= m && d.month < m + 3);
     if (months.length === 0) return null;
 
-    const first = months[0];
     const qtrInvestReturn = months.reduce((sum, d) => sum + d.investReturn, 0);
     const avgInvestReturn = Math.round(qtrInvestReturn / months.length);
     const avgCashIncome = Math.round(months.reduce((sum, d) => sum + d.cashIncome, 0) / months.length);

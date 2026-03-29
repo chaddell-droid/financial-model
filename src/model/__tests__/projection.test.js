@@ -899,6 +899,48 @@ test('55. Chad job with chadJobStartMonth = 0 — job income at month 0 and heal
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// SS Earnings Test (projection.js lines 82-86)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== SS Earnings Test ===');
+
+test('56. SS earnings test: consulting at limit ($1,860/mo) — no reduction', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssStartMonth: 0, ssKidsAgeOutMonths: 72,
+    ssFamilyTotal: 7099, chadConsulting: 1860, // $22,320/yr = exactly at limit
+    chadJob: false, ssdiDenied: false,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].ssdi, 7099,
+    'SS benefits should NOT be reduced when consulting is exactly at the $22,320 annual limit');
+});
+
+test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits reduced', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssStartMonth: 0, ssKidsAgeOutMonths: 72,
+    ssFamilyTotal: 7099, chadConsulting: 3000, // $36,000/yr
+    chadJob: false, ssdiDenied: false,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Annual excess: $36,000 - $22,320 = $13,680
+  // Monthly reduction: round($13,680 / 2 / 12) = round($570) = $570
+  const expectedSS = 7099 - 570;
+  assert.strictEqual(monthlyData[0].ssdi, expectedSS,
+    `SS benefits should be reduced to ${expectedSS} when consulting is $3,000/mo`);
+});
+
+test('58. SS earnings test: does NOT apply under SSDI path', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
+    ssdiFamilyTotal: 6500, kidsAgeOutMonths: 72,
+    chadConsulting: 1690, // at SGA limit
+    chadJob: false,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].ssdi, 6500,
+    'SSDI benefits should NOT be reduced by earnings test (only applies to SS retirement)');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

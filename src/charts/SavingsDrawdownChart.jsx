@@ -146,17 +146,17 @@ function SavingsDrawdownChart({
                 }}>
                 {/* Clip regions for above/below zero */}
                 <defs>
-                  <clipPath id="savAboveZero">
+                  <clipPath id={`sav-above-${instanceId}`}>
                     <rect x={padL} y={padT} width={plotW} height={zeroY - padT} />
                   </clipPath>
-                  <clipPath id="savBelowZero">
+                  <clipPath id={`sav-below-${instanceId}`}>
                     <rect x={padL} y={zeroY} width={plotW} height={padT + plotH - zeroY} />
                   </clipPath>
-                  <linearGradient id="savingsGradGreen" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={`savingsGradGreen-${instanceId}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={COLORS.green} />
                     <stop offset="100%" stopColor="transparent" />
                   </linearGradient>
-                  <linearGradient id="savingsGradRed" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={`savingsGradRed-${instanceId}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="transparent" />
                     <stop offset="100%" stopColor={COLORS.red} />
                   </linearGradient>
@@ -166,15 +166,15 @@ function SavingsDrawdownChart({
                 <ChartYAxis ticks={yTicks} yOf={y} svgW={svgW} padL={padL} padR={padR} />
 
                 {/* Area fills — green above zero, red below */}
-                <path d={areaPath} fill="url(#savingsGradGreen)" opacity="0.25" clipPath="url(#savAboveZero)" />
-                <path d={areaPath} fill="url(#savingsGradRed)" opacity="0.25" clipPath="url(#savBelowZero)" />
+                <path d={areaPath} fill={`url(#savingsGradGreen-${instanceId})`} opacity="0.25" clipPath={`url(#sav-above-${instanceId})`} />
+                <path d={areaPath} fill={`url(#savingsGradRed-${instanceId})`} opacity="0.25" clipPath={`url(#sav-below-${instanceId})`} />
 
                 {/* Line — green above zero */}
                 <path d={linePath} fill="none" stroke={COLORS.green} strokeWidth="2.5"
-                  strokeLinejoin="round" strokeLinecap="round" clipPath="url(#savAboveZero)" />
+                  strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#sav-above-${instanceId})`} />
                 {/* Line — red below zero */}
                 <path d={linePath} fill="none" stroke={COLORS.red} strokeWidth="2.5"
-                  strokeLinejoin="round" strokeLinecap="round" clipPath="url(#savBelowZero)" />
+                  strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#sav-below-${instanceId})`} />
 
                 {/* Comparison line overlay */}
                 {compSavings && (() => {

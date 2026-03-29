@@ -62,7 +62,7 @@ export default function FinancialModel() {
   };
 
   const patchUiState = (patch) => {
-    dispatch({ type: 'RESTORE_STATE', state: patch });
+    dispatch({ type: 'SET_FIELDS', fields: patch });
   };
 
   const setterCache = useRef({});
@@ -376,7 +376,7 @@ export default function FinancialModel() {
     milestones, bcsYearsLeft, bcsFamilyMonthly,
     baseExpenses: effectiveBaseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
     lifestyleCuts, cutInHalf, extraCuts,
-    startingSavings, investmentReturn, msftGrowth,
+    startingSavings, investmentReturn, msftGrowth, msftPrice,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   }), [
     monthlyDetail, data,
@@ -389,7 +389,7 @@ export default function FinancialModel() {
     milestones, bcsYearsLeft, bcsFamilyMonthly,
     effectiveBaseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
     lifestyleCuts, cutInHalf, extraCuts,
-    startingSavings, investmentReturn, msftGrowth,
+    startingSavings, investmentReturn, msftGrowth, msftPrice,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   ]);
 

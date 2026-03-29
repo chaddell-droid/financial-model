@@ -479,6 +479,20 @@ test('gatherState with missing cutOliver falls back to INITIAL_STATE.cutOliver',
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// patchUiState safety
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== patchUiState safety ===');
+
+test('SET_FIELDS does not reset model keys when patching UI state', () => {
+  const customState = { ...INITIAL_STATE, sarahRate: 999, baseExpenses: 50000, msftGrowth: 10 };
+  const next = reducer(customState, { type: 'SET_FIELDS', fields: { presentMode: true, showSaveLoad: false } });
+  assert.strictEqual(next.presentMode, true, 'presentMode should be set');
+  assert.strictEqual(next.sarahRate, 999, 'sarahRate should be preserved');
+  assert.strictEqual(next.baseExpenses, 50000, 'baseExpenses should be preserved');
+  assert.strictEqual(next.msftGrowth, 10, 'msftGrowth should be preserved');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

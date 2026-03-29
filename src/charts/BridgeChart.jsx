@@ -464,7 +464,7 @@ const BridgeChart = ({
   milestones, bcsYearsLeft, bcsFamilyMonthly,
   baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
   lifestyleCuts, cutInHalf, extraCuts,
-  startingSavings, investmentReturn, msftGrowth,
+  startingSavings, investmentReturn, msftGrowth, msftPrice,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   variant = 'overview',
 }) => {
@@ -520,7 +520,7 @@ const BridgeChart = ({
     const sarahY3Rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, 3), sarahMaxRate);
     const sarahY3Clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, 3), sarahMaxClients);
     const sarahGrowth = Math.round(sarahY3Rate * sarahY3Clients * DAYS_PER_MONTH) - sarahCurrentNet;
-    const postCliffMsft = getVestingMonthly(18, msftGrowth);
+    const postCliffMsft = getVestingMonthly(18, msftGrowth, msftPrice);
     const ssActive = !chadJob && (useSS || !ssdiDenied);
     const ssAmount = ssActive ? (useSS ? ssFamilyTotal : ssdiFamilyTotal) : 0;
     const ssMonth = useSS ? ssStartMonth : ssdiApprovalMonth;

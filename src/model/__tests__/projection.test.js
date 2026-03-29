@@ -614,6 +614,55 @@ test('42. Returns correct index when breakeven exists', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Zero-value edge cases (|| vs ??)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Zero-value edge cases (|| vs ??) ===');
+
+test('43. bcsYearsLeft: 0 — expenses at month 0 should NOT include BCS tuition', () => {
+  const s = gatherStateWithOverrides({
+    bcsYearsLeft: 0, bcsAnnualTotal: 41000, bcsParentsAnnual: 25000,
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: false, milestones: [], chadJob: false,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // With bcsYearsLeft=0, no month should include BCS tuition
+  assert.strictEqual(monthlyData[0].expenses, s.baseExpenses,
+    'month 0 should have no BCS tuition when bcsYearsLeft is 0');
+  // Also verify month 1 — the old || bug would have used 3 years = 36 months of tuition
+  assert.strictEqual(monthlyData[1].expenses, s.baseExpenses,
+    'month 1 should have no BCS tuition when bcsYearsLeft is 0');
+});
+
+test('44. ssdiApprovalMonth: 0 — SSDI income should appear at month 0 (not delayed to month 7)', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
+    ssdiFamilyTotal: 6500, kidsAgeOutMonths: 60, chadJob: false,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // With ssdiApprovalMonth=0, SSDI should be active from month 0
+  assert.strictEqual(monthlyData[0].ssdi, 6500,
+    'SSDI should appear at month 0 when ssdiApprovalMonth is 0');
+  // The old || bug would have delayed to month 7
+  assert.strictEqual(monthlyData[6].ssdi, 6500,
+    'SSDI should still be active at month 6 (not starting here)');
+});
+
+test('45. vanSaleMonth: 0 with vanSold: true — van cost should NOT apply at month 0', () => {
+  const s = gatherStateWithOverrides({
+    vanSold: true, vanSaleMonth: 0, vanMonthlySavings: 2597,
+    retireDebt: true, lifestyleCutsApplied: false,
+    bcsAnnualTotal: 0, milestones: [], chadJob: false,
+    vanLoanBalance: 0, vanSalePrice: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // With vanSaleMonth=0, the van is sold at month 0, so no van cost at month 0 or after
+  assert.strictEqual(monthlyData[0].expenses, s.baseExpenses,
+    'no van cost at month 0 when vanSaleMonth is 0');
+  assert.strictEqual(monthlyData[5].expenses, s.baseExpenses,
+    'no van cost at month 5 when van sold at month 0');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

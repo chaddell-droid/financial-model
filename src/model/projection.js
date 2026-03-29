@@ -23,18 +23,18 @@ export function runMonthlySimulation(s) {
   const useSS = s.ssType === 'ss';
   const chadJob = s.chadJob || false;
   // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
-  const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth || 7));
+  const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
   const backPayGross = (useSS || chadJob) ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
   const backPayFee = Math.min(Math.round(backPayGross * 0.25), 9200);
   const backPayActual = backPayGross - backPayFee;
-  const ssStartMonth = s.ssStartMonth || 18;
+  const ssStartMonth = s.ssStartMonth ?? 18;
   const ssFamilyTotal = s.ssFamilyTotal || 7099;
   const ssPersonal = s.ssPersonal || 2933;
-  const ssKidsAgeOutMonths = s.ssKidsAgeOutMonths || 18;
+  const ssKidsAgeOutMonths = s.ssKidsAgeOutMonths ?? 18;
   const ms = s.milestones || [];
   const trustNow = s.trustIncomeNow || 0;
   const trustFuture = s.trustIncomeFuture || 0;
-  const trustMonth = s.trustIncreaseMonth || 11;
+  const trustMonth = s.trustIncreaseMonth ?? 11;
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
   // Chad Gets a Job
@@ -43,8 +43,8 @@ export function runMonthlySimulation(s) {
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
 
   // 401k and home equity — tracked alongside savings for deficit drawdown
-  const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;
-  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation || 4) / 100, 1/12) - 1;
+  const monthly401kRate = Math.pow(1 + (s.return401k ?? 8) / 100, 1/12) - 1;
+  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation ?? 4) / 100, 1/12) - 1;
 
   const monthlyData = [];
   let balance = s.startingSavings || 0;
@@ -84,7 +84,7 @@ export function runMonthlySimulation(s) {
     let expenses = s.baseExpenses;
     if (!s.retireDebt) expenses += s.debtService;
     // Van: if sold, monthly cost stops at sale month; if not sold, cost continues forever
-    const vanSaleMonth = s.vanSaleMonth ?? 6;
+    const vanSaleMonth = s.vanSaleMonth ?? 12;
     if (s.vanSold) {
       if (m < vanSaleMonth) expenses += (s.vanMonthlySavings || 0); // still paying before sale
     } else {
@@ -92,7 +92,7 @@ export function runMonthlySimulation(s) {
     }
     const totalCuts = (s.lifestyleCuts || 0) + (s.cutInHalf || 0) + (s.extraCuts || 0);
     if (s.lifestyleCutsApplied) expenses -= totalCuts * cutsDiscipline;
-    if (m < (s.bcsYearsLeft || 3) * 12) expenses += s.bcsFamilyMonthly;
+    if (m < (s.bcsYearsLeft ?? 3) * 12) expenses += s.bcsFamilyMonthly;
     for (const mi of ms) { if (m >= mi.month) expenses -= mi.savings; }
     // Employer health insurance saves on premiums
     if (chadJob && m >= chadJobStartMonth) expenses -= chadJobHealthSavings;
@@ -202,7 +202,7 @@ export function computeProjection(s) {
  */
 export function computeHomeProjection(s) {
   const months = 72;
-  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation || 4) / 100, 1/12) - 1;
+  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation ?? 4) / 100, 1/12) - 1;
   const homeData = [];
   let home = s.homeEquity || 0;
   for (let m = 0; m <= months; m++) {
@@ -214,8 +214,8 @@ export function computeHomeProjection(s) {
 
 export function computeWealthProjection(s) {
   const months = 72;
-  const monthly401kRate = Math.pow(1 + (s.return401k || 8) / 100, 1/12) - 1;
-  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation || 4) / 100, 1/12) - 1;
+  const monthly401kRate = Math.pow(1 + (s.return401k ?? 8) / 100, 1/12) - 1;
+  const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation ?? 4) / 100, 1/12) - 1;
   const wealthData = [];
   let bal401k = s.starting401k || 0;
   let home = s.homeEquity || 0;

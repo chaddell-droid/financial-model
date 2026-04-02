@@ -85,7 +85,7 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    totalMonthlySpend, baseExpenses, debtService,
+    totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
@@ -328,7 +328,8 @@ export default function FinancialModel() {
   const chadJobNetForGap = chadJobImmediate ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthForGap = chadJobImmediate ? (chadJobHealthSavings || 4200) : 0;
   const totalCurrentIncome = sarahCurrentNet + currentMsft + trustIncomeNow + chadJobNetForGap;
-  const totalCurrentExpenses = Math.max(effectiveBaseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap, 0);
+  const extrasAtMonth0 = (oneTimeExtras || 0) > 0 && (oneTimeMonths || 0) > 0 ? oneTimeExtras : 0;
+  const totalCurrentExpenses = Math.max(effectiveBaseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap + extrasAtMonth0, 0);
   const rawMonthlyGap = totalCurrentIncome - totalCurrentExpenses;
 
   // Steady state net at Y3
@@ -678,6 +679,8 @@ export default function FinancialModel() {
           bestProjectedGap={bestProjectedGap}
           bestProjectedLabel={bestProjectedLabel}
           totalMonthlySpend={totalMonthlySpend}
+          oneTimeExtras={oneTimeExtras}
+          oneTimeMonths={oneTimeMonths}
           totalCurrentIncome={totalCurrentIncome}
           totalCurrentExpenses={totalCurrentExpenses}
           onFieldChange={set}

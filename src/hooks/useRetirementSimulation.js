@@ -139,10 +139,7 @@ export function useRetirementSimulation({
     });
   }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
-  // Closed-form cohort math excludes inheritance. Inheritance is state-dependent in the
-  // simulator: it can arrive as ordinary capital while solvent or rescue the pool once it
-  // has already hit the reserve. Excluding it from the closed form is conservative and
-  // avoids overstating cohort SWRs.
+  // Closed-form cohort math includes inheritance as a future cash event (like SS/trust).
   const formulaSupplementalFlows = useMemo(() => {
     return buildSupplementalFlows({
       horizonMonths,
@@ -153,11 +150,11 @@ export function useRetirementSimulation({
       sarahOwnSS,
       survivorSS,
       trustMonthly,
-      hasInheritance: false,
+      hasInheritance,
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   const pwaStartContext = useMemo(
     () => sliceRetirementContext(retirementContext, 0),
@@ -172,10 +169,10 @@ export function useRetirementSimulation({
       horizonMonths,
       totalPool,
       bequestTarget: dBequestTarget,
-      supplementalFlows: retirementContext.supplementalFlows,
+      supplementalFlows: simulationSupplementalFlows,
       scaling: retirementContext.scaling,
     });
-  }, [blendedReturns, horizonMonths, totalPool, dBequestTarget, retirementContext]);
+  }, [blendedReturns, horizonMonths, totalPool, dBequestTarget, simulationSupplementalFlows, retirementContext]);
 
   const pwaCurrentSelection = useMemo(() => {
     return selectPwaWithdrawal(pwaCurrentDistribution, {
@@ -210,7 +207,7 @@ export function useRetirementSimulation({
       horizonMonths,
       totalPool,
       bequestTarget: dBequestTarget,
-      supplementalFlows: retirementContext.supplementalFlows,
+      supplementalFlows: simulationSupplementalFlows,
       scaling: retirementContext.scaling,
       retirementContext,
       strategyConfig: {
@@ -232,6 +229,7 @@ export function useRetirementSimulation({
     totalPool,
     dBequestTarget,
     retirementContext,
+    simulationSupplementalFlows,
     pwaCurrentDistribution,
     pwaCurrentSelection,
     pwaStrategy,
@@ -251,6 +249,20 @@ export function useRetirementSimulation({
     }
     return swrs;
   }, [blendedReturns, horizonMonths, formulaSupplementalFlows, scaling, dPoolFloor, totalPool]);
+
+  // Per-cohort pre-inheritance SWRs (used for two-phase band simulation)
+  const cohortPreSwrs = useMemo(() => {
+    if (!hasInheritance || inheritanceMonth <= 0 || inheritanceMonth >= horizonMonths) return null;
+    const numCohorts = getNumCohorts(horizonMonths);
+    if (numCohorts <= 0 || totalPool <= 0 || cohortSWRs.length === 0) return null;
+    const preSwrs = new Float64Array(numCohorts);
+    for (let c = 0; c < numCohorts; c++) {
+      preSwrs[c] = computePreInhSWR(blendedReturns, c, horizonMonths,
+        formulaSupplementalFlows, scaling, dPoolFloor, totalPool,
+        cohortSWRs[c], inheritanceMonth);
+    }
+    return preSwrs;
+  }, [hasInheritance, inheritanceMonth, horizonMonths, totalPool, blendedReturns, formulaSupplementalFlows, scaling, dPoolFloor, cohortSWRs]);
 
   // Optimal rates — closed-form percentile extraction from cohortSWRs (no binary search)
   const optimalRates = useMemo(() => {
@@ -279,14 +291,8 @@ export function useRetirementSimulation({
 
     // Pre-inheritance rate via closed-form (if applicable)
     let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
-    if (hasInheritance && inheritanceMonth > 0 && inheritanceMonth < horizonMonths) {
-      const preSwrs = new Float64Array(numCohorts);
-      for (let c = 0; c < numCohorts; c++) {
-        preSwrs[c] = computePreInhSWR(blendedReturns, c, horizonMonths,
-          formulaSupplementalFlows, scaling, dPoolFloor, totalPool,
-          optimalConsumption, inheritanceMonth);
-      }
-      const sortedPre = Float64Array.from(preSwrs).sort();
+    if (cohortPreSwrs && cohortPreSwrs.length > 0) {
+      const sortedPre = Float64Array.from(cohortPreSwrs).sort();
       const preConsumption = Math.max(0, sortedPre[p10idx]);
       const prePoolDraw = Math.max(0, preConsumption - initialIncome);
       optimalPreRate = totalPool > 0
@@ -313,8 +319,7 @@ export function useRetirementSimulation({
       numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
       optimalConsumption, sliderMax,
     };
-  }, [cohortSWRs, totalPool, horizonMonths, startingCoupleIncome,
-    hasInheritance, inheritanceMonth, blendedReturns, formulaSupplementalFlows, scaling, dPoolFloor]);
+  }, [cohortSWRs, cohortPreSwrs, totalPool, horizonMonths, startingCoupleIncome]);
 
   // Bands and finish-above-reserve rate at the user's slider rate
   const bandResult = useMemo(() => {
@@ -327,6 +332,8 @@ export function useRetirementSimulation({
     const pf = dPoolFloor;
     const allYearlyPools = new Array(numCohorts);
     const userConsumption = baseMonthlyConsumption;
+    const useTwoPhase = cohortPreSwrs && cohortPreSwrs.length === numCohorts
+      && inheritanceMonth > 0 && inheritanceMonth < horizonMonths;
 
     // Formula-based survival: cohort survives if its closed-form SWR >= user's consumption
     let survivedCount = 0;
@@ -334,9 +341,20 @@ export function useRetirementSimulation({
       if (cohortSWRs.length > c && cohortSWRs[c] >= userConsumption) survivedCount++;
     }
 
-    // Simulation still needed for chart band rendering (pool trajectory per cohort)
+    // Simulation for chart band rendering — per-cohort two-phase withdrawal when inheritance active
     for (let c = 0; c < numCohorts; c++) {
-      const sim = simulatePath(blendedReturns, c, horizonMonths, userConsumption, simulationSupplementalFlows, scaling, totalPool, pf, rescueFlows);
+      let withdrawal = userConsumption;
+      if (useTwoPhase) {
+        // Build per-cohort schedule: pre-inh rate scaled to user's slider, post-inh at cohort's full SWR
+        const schedule = new Float64Array(horizonMonths);
+        const cohortPreRate = cohortPreSwrs[c];
+        const cohortPostRate = cohortSWRs[c];
+        for (let t = 0; t < horizonMonths; t++) {
+          schedule[t] = t < inheritanceMonth ? cohortPreRate : cohortPostRate;
+        }
+        withdrawal = schedule;
+      }
+      const sim = simulatePath(blendedReturns, c, horizonMonths, withdrawal, simulationSupplementalFlows, scaling, totalPool, pf, rescueFlows);
       allYearlyPools[c] = sim.yearlyPools;
     }
 
@@ -355,7 +373,7 @@ export function useRetirementSimulation({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { finishAboveReserveRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows, cohortSWRs]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows, cohortSWRs, cohortPreSwrs, inheritanceMonth]);
 
   // Deterministic trajectory using average historical return.
   const { deterministicPools, avgAnnualReal } = useMemo(() => {

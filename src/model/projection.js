@@ -103,6 +103,10 @@ export function runMonthlySimulation(s) {
     for (const mi of ms) { if (m >= mi.month) expenses -= mi.savings; }
     // Employer health insurance saves on premiums
     if (chadJob && m >= chadJobStartMonth) expenses -= chadJobHealthSavings;
+    // One-time extras: temporary additional costs for a limited duration
+    const oneTimeExtras = s.oneTimeExtras || 0;
+    const oneTimeMonths = s.oneTimeMonths || 0;
+    if (oneTimeExtras > 0 && m < oneTimeMonths) expenses += oneTimeExtras;
     expenses = Math.max(expenses, 0);
 
     // Canonical monthly cash-flow rows use actual vest timing so they reconcile to

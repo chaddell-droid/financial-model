@@ -40,6 +40,8 @@ export default function KeyMetrics({
   bestProjectedGap,
   bestProjectedLabel,
   totalMonthlySpend,
+  oneTimeExtras,
+  oneTimeMonths,
   totalCurrentIncome,
   totalCurrentExpenses,
   onFieldChange,
@@ -59,7 +61,9 @@ export default function KeyMetrics({
     mcResults,
   });
 
-  const displaySpend = totalMonthlySpend ?? totalCurrentExpenses;
+  const baseSpend = totalMonthlySpend ?? totalCurrentExpenses;
+  const extrasActive = (oneTimeExtras || 0) > 0 && (oneTimeMonths || 0) > 0;
+  const displaySpend = baseSpend + (extrasActive ? oneTimeExtras : 0);
   const savingsBurn = displaySpend - totalCurrentIncome;
 
   return (
@@ -86,7 +90,7 @@ export default function KeyMetrics({
             fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted,
             textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4,
           }}>
-            Total Monthly Spend
+            Base Monthly Spend
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ fontSize: 13, color: UI_COLORS.textDim }}>$</span>
@@ -99,7 +103,7 @@ export default function KeyMetrics({
                 onFieldChange('totalMonthlySpend')(v === '' ? null : Math.round(Number(v)));
               }}
               data-testid="key-metrics-total-spend"
-              aria-label="Total monthly spend"
+              aria-label="Base monthly spend"
               style={{
                 width: 110,
                 background: 'transparent',
@@ -116,7 +120,7 @@ export default function KeyMetrics({
             {totalMonthlySpend != null && (
               <button
                 onClick={() => onFieldChange('totalMonthlySpend')(null)}
-                aria-label="Clear total spend override"
+                aria-label="Clear base spend override"
                 style={{
                   background: 'transparent', border: 'none',
                   color: UI_COLORS.textDim, fontSize: 12, cursor: 'pointer', padding: '2px 4px',
@@ -125,7 +129,71 @@ export default function KeyMetrics({
             )}
           </div>
           <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
-            From all accounts (bank statements)
+            Recurring (bank statements)
+          </div>
+        </div>
+
+        <div style={{ flex: '1 1 180px', minWidth: 150 }}>
+          <div style={{
+            fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted,
+            textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4,
+          }}>
+            One-Time Extras
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ fontSize: 13, color: UI_COLORS.textDim }}>$</span>
+            <input
+              type="number"
+              value={oneTimeExtras || ''}
+              placeholder="0"
+              onChange={(e) => {
+                const v = e.target.value;
+                onFieldChange('oneTimeExtras')(v === '' ? 0 : Math.max(0, Math.round(Number(v))));
+              }}
+              data-testid="key-metrics-one-time-extras"
+              aria-label="One-time extras per month"
+              style={{
+                width: 80,
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${extrasActive ? UI_COLORS.caution : UI_COLORS.border}`,
+                color: extrasActive ? UI_COLORS.caution : UI_COLORS.textDim,
+                padding: '2px 0',
+                fontSize: UI_TEXT.hero,
+                fontWeight: 700,
+                fontFamily: "'JetBrains Mono', monospace",
+                outline: 'none',
+              }}
+            />
+            <span style={{ fontSize: 12, color: UI_COLORS.textDim }}>for</span>
+            <input
+              type="number"
+              value={oneTimeMonths || ''}
+              placeholder="0"
+              onChange={(e) => {
+                const v = e.target.value;
+                onFieldChange('oneTimeMonths')(v === '' ? 0 : Math.min(72, Math.max(0, Math.round(Number(v)))));
+              }}
+              data-testid="key-metrics-one-time-months"
+              aria-label="Duration in months"
+              style={{
+                width: 36,
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${extrasActive ? UI_COLORS.caution : UI_COLORS.border}`,
+                color: extrasActive ? UI_COLORS.caution : UI_COLORS.textDim,
+                padding: '2px 0',
+                fontSize: UI_TEXT.hero,
+                fontWeight: 700,
+                fontFamily: "'JetBrains Mono', monospace",
+                outline: 'none',
+                textAlign: 'center',
+              }}
+            />
+            <span style={{ fontSize: 12, color: UI_COLORS.textDim }}>mo</span>
+          </div>
+          <div style={{ fontSize: UI_TEXT.micro, color: extrasActive ? UI_COLORS.caution : UI_COLORS.textDim, marginTop: 4 }}>
+            {extrasActive ? `Total: ${fmtFull(displaySpend)}/mo for ${oneTimeMonths}mo` : 'Medical, travel, loan payoffs, etc.'}
           </div>
         </div>
 

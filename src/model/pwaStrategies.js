@@ -243,6 +243,10 @@ export function simulateAdaptivePwaStrategy({
   const scopedContext = context.horizonMonths === effectiveHorizon
     ? context
     : truncateRetirementContext(context, effectiveHorizon);
+  // Use passed-in supplementalFlows (may include inheritance) for PWA distribution calculations
+  const effectiveFlows = supplementalFlows && supplementalFlows.length >= effectiveHorizon
+    ? supplementalFlows
+    : scopedContext.supplementalFlows;
 
   if (cohortStart < 0 || cohortStart + effectiveHorizon > blendedReturns.length) {
     throw new Error('simulateAdaptivePwaStrategy requires a realized cohort that fits the remaining blended return history');
@@ -266,7 +270,7 @@ export function simulateAdaptivePwaStrategy({
       horizonMonths: effectiveHorizon,
       totalPool: currentPool,
       bequestTarget,
-      supplementalFlows: scopedContext.supplementalFlows,
+      supplementalFlows: effectiveFlows,
       scaling: scopedContext.scaling,
     });
     const selection = selectPwaWithdrawal(decisionDistribution, {
@@ -278,7 +282,7 @@ export function simulateAdaptivePwaStrategy({
       remainingContext.currentGuaranteedIncome,
     );
     const decisionMonths = Math.min(12, remainingContext.remainingMonths);
-    const yearSupplementalFlows = remainingContext.supplementalFlows.subarray(0, decisionMonths);
+    const yearSupplementalFlows = effectiveFlows.subarray(currentMonth, currentMonth + decisionMonths);
     const yearScaling = remainingContext.scaling.subarray(0, decisionMonths);
     const yearSimulation = simulatePwaMonths({
       blendedReturns,

@@ -1135,6 +1135,41 @@ test('68. chadJob with chadJobStartMonth=6 — no job income or health savings b
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// One-Time Extras
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== One-Time Extras ===');
+
+test('59. oneTimeExtras adds to expenses within duration', () => {
+  const s = gatherStateWithOverrides({ oneTimeExtras: 5000, oneTimeMonths: 6 });
+  const { monthlyData } = runMonthlySimulation(s);
+  const baseline = runMonthlySimulation(gatherStateWithOverrides({ oneTimeExtras: 0, oneTimeMonths: 0 }));
+  assert.strictEqual(monthlyData[0].expenses, baseline.monthlyData[0].expenses + 5000,
+    'month 0: extras should add 5000');
+  assert.strictEqual(monthlyData[5].expenses, baseline.monthlyData[5].expenses + 5000,
+    'month 5: still within duration');
+});
+
+test('60. oneTimeExtras stops after duration expires', () => {
+  const s = gatherStateWithOverrides({ oneTimeExtras: 5000, oneTimeMonths: 6 });
+  const { monthlyData } = runMonthlySimulation(s);
+  const baseline = runMonthlySimulation(gatherStateWithOverrides({ oneTimeExtras: 0, oneTimeMonths: 0 }));
+  assert.strictEqual(monthlyData[6].expenses, baseline.monthlyData[6].expenses,
+    'month 6: extras should stop');
+  assert.strictEqual(monthlyData[12].expenses, baseline.monthlyData[12].expenses,
+    'month 12: no extras');
+});
+
+test('61. oneTimeExtras=0 or oneTimeMonths=0 has no effect', () => {
+  const baseline = runMonthlySimulation(gatherStateWithOverrides({}));
+  const withZeroExtras = runMonthlySimulation(gatherStateWithOverrides({ oneTimeExtras: 0, oneTimeMonths: 6 }));
+  const withZeroMonths = runMonthlySimulation(gatherStateWithOverrides({ oneTimeExtras: 5000, oneTimeMonths: 0 }));
+  assert.strictEqual(withZeroExtras.monthlyData[0].expenses, baseline.monthlyData[0].expenses,
+    'zero extras: no change');
+  assert.strictEqual(withZeroMonths.monthlyData[0].expenses, baseline.monthlyData[0].expenses,
+    'zero months: no change');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

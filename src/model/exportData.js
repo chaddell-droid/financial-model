@@ -45,6 +45,8 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       bcsAnnualTotal: s.bcsAnnualTotal,
       bcsParentsAnnual: s.bcsParentsAnnual,
       bcsYearsLeft: s.bcsYearsLeft,
+      spendSchedule: s.spendSchedule || [],
+      oneTimeExpenses: s.oneTimeExpenses || [],
       totalRaw: s.baseExpenses + s.debtService + s.vanMonthlySavings + bcsFamilyMonthly,
       totalWithPlan: data[0]?.expenses,
     },

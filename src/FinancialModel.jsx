@@ -85,7 +85,7 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    totalMonthlySpend, baseExpenses, debtService,
+    totalMonthlySpend, spendSchedule, oneTimeExpenses, baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
@@ -123,10 +123,15 @@ export default function FinancialModel() {
   const vestEvents = useMemo(() => getVestEvents(msftGrowth, msftPrice), [msftGrowth, msftPrice]);
   const totalRemainingVesting = useMemo(() => getTotalRemainingVesting(msftGrowth, msftPrice), [msftGrowth, msftPrice]);
   const bcsFamilyMonthly = Math.round(Math.max(0, bcsAnnualTotal - bcsParentsAnnual) / 12);
-  // When totalMonthlySpend is set, derive baseExpenses from it (same logic as gatherState)
-  const effectiveBaseExpenses = totalMonthlySpend != null
-    ? Math.max(0, totalMonthlySpend - debtService - vanMonthlySavings - bcsFamilyMonthly)
-    : baseExpenses;
+  // When spend schedule has entries, derive base from month-0 active entry; else fall back to totalMonthlySpend or raw baseExpenses
+  const activeSpend0 = spendSchedule.length > 0
+    ? spendSchedule.reduce((active, e) => (e.month <= 0 ? e : active), null)
+    : null;
+  const effectiveBaseExpenses = activeSpend0
+    ? Math.max(0, activeSpend0.amount - debtService - vanMonthlySavings - bcsFamilyMonthly)
+    : totalMonthlySpend != null
+      ? Math.max(0, totalMonthlySpend - debtService - vanMonthlySavings - bcsFamilyMonthly)
+      : baseExpenses;
   const debtTotal = debtCC + debtPersonal + debtIRS + debtFirstmark;
   const oneTimeTotal = (moldInclude ? moldCost : 0) + (roofInclude ? roofCost : 0) + (otherInclude ? otherProjects : 0);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
@@ -491,23 +496,19 @@ export default function FinancialModel() {
   ]);
 
   const expenseControlsProps = useMemo(() => ({
-    totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
-    debtTotal, retireDebt,
-    lifestyleCutsApplied, cutsOverride,
+    spendSchedule, oneTimeExpenses,
+    baseExpenses: effectiveBaseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    vanSold, vanMonthlySavings, vanSaleMonth,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
+    vanMonthlySavings,
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
     onFieldChange: set,
   }), [
-    totalMonthlySpend, effectiveBaseExpenses, debtService,
-    debtTotal, retireDebt,
-    lifestyleCutsApplied, cutsOverride,
+    spendSchedule, oneTimeExpenses,
+    effectiveBaseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    vanSold, vanMonthlySavings, vanSaleMonth,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
+    vanMonthlySavings,
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,

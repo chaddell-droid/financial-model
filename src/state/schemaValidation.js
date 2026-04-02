@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -132,6 +132,24 @@ const MIGRATIONS = [
       return result;
     },
   },
+  {
+    from: 1,
+    to: 2,
+    fn: (state) => {
+      const result = { ...state };
+      if (result.spendSchedule === undefined) {
+        if (result.totalMonthlySpend != null && result.totalMonthlySpend > 0) {
+          result.spendSchedule = [{ month: 0, amount: result.totalMonthlySpend }];
+        } else {
+          result.spendSchedule = [];
+        }
+      }
+      if (result.oneTimeExpenses === undefined) {
+        result.oneTimeExpenses = [];
+      }
+      return result;
+    },
+  },
 ];
 
 /**
@@ -179,6 +197,14 @@ export function validateAndSanitize(raw) {
     }
     if (key === 'milestones') {
       result[key] = sanitizeMilestones(rawVal, defaultVal);
+      continue;
+    }
+    if (key === 'spendSchedule') {
+      result[key] = sanitizeSpendSchedule(rawVal, defaultVal);
+      continue;
+    }
+    if (key === 'oneTimeExpenses') {
+      result[key] = sanitizeOneTimeExpenses(rawVal, defaultVal);
       continue;
     }
     if (expectedType === 'nullable') {
@@ -256,5 +282,30 @@ function sanitizeMilestones(milestones, fallback) {
     name: typeof m.name === 'string' ? m.name : '',
     month: m.month,
     savings: m.savings,
+  }));
+}
+
+function sanitizeSpendSchedule(schedule, fallback) {
+  if (!Array.isArray(schedule)) return fallback;
+  return schedule.filter(e =>
+    e && typeof e === 'object' &&
+    typeof e.month === 'number' && Number.isFinite(e.month) && e.month >= 0 &&
+    typeof e.amount === 'number' && Number.isFinite(e.amount) && e.amount >= 0
+  ).map(e => ({
+    month: e.month,
+    amount: e.amount,
+  })).sort((a, b) => a.month - b.month);
+}
+
+function sanitizeOneTimeExpenses(expenses, fallback) {
+  if (!Array.isArray(expenses)) return fallback;
+  return expenses.filter(e =>
+    e && typeof e === 'object' &&
+    typeof e.month === 'number' && Number.isFinite(e.month) && e.month >= 0 &&
+    typeof e.amount === 'number' && Number.isFinite(e.amount) && e.amount >= 0
+  ).map(e => ({
+    name: typeof e.name === 'string' ? e.name : '',
+    month: e.month,
+    amount: e.amount,
   }));
 }

@@ -348,28 +348,33 @@ test('gatherStateWithOverrides with no args uses all defaults', () => {
 // ════════════════════════════════════════════════════════════════════════
 // totalMonthlySpend in gatherState
 // ════════════════════════════════════════════════════════════════════════
-console.log('\n=== totalMonthlySpend in gatherState ===');
+console.log('\n=== totalMonthlySpend / spendSchedule in gatherState ===');
 
-test('gatherState with totalMonthlySpend=60000 back-calculates baseExpenses', () => {
-  const bcsFamilyMonthly = Math.round(Math.max(0, INITIAL_STATE.bcsAnnualTotal - INITIAL_STATE.bcsParentsAnnual) / 12);
-  const expected = 60000 - INITIAL_STATE.debtService - INITIAL_STATE.vanMonthlySavings - bcsFamilyMonthly;
+test('gatherState with totalMonthlySpend=60000 converts to spendSchedule entry', () => {
   const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 60000 });
-  assert.strictEqual(result.baseExpenses, expected);
+  assert.deepStrictEqual(result.spendSchedule, [{ month: 0, amount: 60000 }]);
 });
 
-test('gatherState with totalMonthlySpend=null leaves baseExpenses unchanged', () => {
+test('gatherState with totalMonthlySpend=null leaves spendSchedule empty and baseExpenses unchanged', () => {
   const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: null });
+  assert.deepStrictEqual(result.spendSchedule, []);
   assert.strictEqual(result.baseExpenses, INITIAL_STATE.baseExpenses);
 });
 
-test('gatherState with totalMonthlySpend less than fixed costs clamps baseExpenses to 0', () => {
+test('gatherState with totalMonthlySpend=5000 converts to spendSchedule entry', () => {
   const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 5000 });
-  assert.strictEqual(result.baseExpenses, 0);
+  assert.deepStrictEqual(result.spendSchedule, [{ month: 0, amount: 5000 }]);
 });
 
-test('gatherState with totalMonthlySpend=0 sets baseExpenses to 0', () => {
+test('gatherState with totalMonthlySpend=0 converts to spendSchedule entry', () => {
+  // totalMonthlySpend=0 is truthy for != null check, so converts
   const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 0 });
-  assert.strictEqual(result.baseExpenses, 0);
+  assert.deepStrictEqual(result.spendSchedule, [{ month: 0, amount: 0 }]);
+});
+
+test('gatherState with spendSchedule set ignores totalMonthlySpend', () => {
+  const result = gatherState({ ...INITIAL_STATE, totalMonthlySpend: 60000, spendSchedule: [{ month: 0, amount: 40000 }] });
+  assert.deepStrictEqual(result.spendSchedule, [{ month: 0, amount: 40000 }]);
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -449,6 +454,67 @@ test('validateAndSanitize preserves valid milestones', () => {
   assert.strictEqual(result.milestones[0].name, 'Test');
   assert.strictEqual(result.milestones[0].month, 12);
   assert.strictEqual(result.milestones[0].savings, 500);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Schema validation — spendSchedule + oneTimeExpenses
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Schema validation — spendSchedule + oneTimeExpenses ===');
+
+test('validateAndSanitize filters invalid spendSchedule entries and sorts by month', () => {
+  const result = validateAndSanitize({
+    spendSchedule: [
+      { month: 12, amount: 30000 },
+      { month: 'bad', amount: 5000 },
+      { month: 0, amount: 40000 },
+      { month: 6, amount: -1 },
+    ]
+  });
+  assert.strictEqual(result.spendSchedule.length, 2);
+  assert.strictEqual(result.spendSchedule[0].month, 0);
+  assert.strictEqual(result.spendSchedule[1].month, 12);
+});
+
+test('validateAndSanitize preserves valid spendSchedule', () => {
+  const result = validateAndSanitize({ spendSchedule: [{ month: 0, amount: 35000 }] });
+  assert.strictEqual(result.spendSchedule.length, 1);
+  assert.strictEqual(result.spendSchedule[0].amount, 35000);
+});
+
+test('validateAndSanitize filters invalid oneTimeExpenses entries', () => {
+  const result = validateAndSanitize({
+    oneTimeExpenses: [
+      { name: 'Good', month: 3, amount: 5000 },
+      { name: 'Bad', month: -1, amount: 500 },
+      { month: 6, amount: 1000 },
+    ]
+  });
+  assert.strictEqual(result.oneTimeExpenses.length, 2);
+  assert.strictEqual(result.oneTimeExpenses[0].name, 'Good');
+  assert.strictEqual(result.oneTimeExpenses[1].name, '');
+});
+
+test('validateAndSanitize defaults empty spendSchedule and oneTimeExpenses', () => {
+  const result = validateAndSanitize({});
+  assert.deepStrictEqual(result.spendSchedule, []);
+  assert.deepStrictEqual(result.oneTimeExpenses, []);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Schema migration v1 → v2
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Schema migration v1 → v2 ===');
+
+test('migrate v1→v2 converts totalMonthlySpend to spendSchedule', () => {
+  const result = migrate({ schemaVersion: 1, totalMonthlySpend: 55000 });
+  assert.deepStrictEqual(result.spendSchedule, [{ month: 0, amount: 55000 }]);
+  assert.deepStrictEqual(result.oneTimeExpenses, []);
+});
+
+test('migrate v1→v2 with null totalMonthlySpend creates empty spendSchedule', () => {
+  const result = migrate({ schemaVersion: 1, totalMonthlySpend: null });
+  assert.deepStrictEqual(result.spendSchedule, []);
+  assert.deepStrictEqual(result.oneTimeExpenses, []);
 });
 
 // ════════════════════════════════════════════════════════════════════════

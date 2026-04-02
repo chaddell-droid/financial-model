@@ -14,11 +14,10 @@ export function gatherState(state) {
   const s = {};
   for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
   s.bcsFamilyMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - (s.bcsParentsAnnual || 0)) / 12);
-  // Spend schedule supersedes totalMonthlySpend. If spendSchedule has entries,
-  // pass it through to projection (per-month back-calc happens in simulation loop).
-  // Legacy fallback: convert totalMonthlySpend to single-entry schedule.
-  if ((s.spendSchedule || []).length === 0 && s.totalMonthlySpend != null) {
-    s.spendSchedule = [{ month: 0, amount: s.totalMonthlySpend }];
+  // If totalMonthlySpend is set, back-calculate baseExpenses from it.
+  // Cut sliders represent ADDITIONAL reductions from the actual spend level.
+  if (s.totalMonthlySpend != null) {
+    s.baseExpenses = Math.max(0, s.totalMonthlySpend - (s.debtService || 0) - (s.vanMonthlySavings || 0) - s.bcsFamilyMonthly);
   }
   // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
   // Otherwise use the individual item sums

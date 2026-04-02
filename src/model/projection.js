@@ -32,8 +32,6 @@ export function runMonthlySimulation(s) {
   const ssPersonal = s.ssPersonal || 2933;
   const ssKidsAgeOutMonths = s.ssKidsAgeOutMonths ?? 18;
   const ms = s.milestones || [];
-  const spendSchedule = (s.spendSchedule || []).slice().sort((a, b) => a.month - b.month);
-  const oneTimeExpenses = s.oneTimeExpenses || [];
   const trustNow = s.trustIncomeNow || 0;
   const trustFuture = s.trustIncomeFuture || 0;
   const trustMonth = s.trustIncreaseMonth ?? 11;
@@ -90,16 +88,7 @@ export function runMonthlySimulation(s) {
 
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
 
-    // Determine base expenses: spend schedule overrides baseExpenses
-    let baseForMonth = s.baseExpenses;
-    if (spendSchedule.length > 0) {
-      let activeAmount = null;
-      for (const entry of spendSchedule) { if (m >= entry.month) activeAmount = entry.amount; }
-      if (activeAmount != null) {
-        baseForMonth = Math.max(0, activeAmount - (s.debtService || 0) - (s.vanMonthlySavings || 0) - s.bcsFamilyMonthly);
-      }
-    }
-    let expenses = baseForMonth;
+    let expenses = s.baseExpenses;
     if (!s.retireDebt) expenses += s.debtService;
     // Van: if sold, monthly cost stops at sale month; if not sold, cost continues forever
     const vanSaleMonth = s.vanSaleMonth ?? 12;
@@ -128,10 +117,6 @@ export function runMonthlySimulation(s) {
     if (s.vanSold && m === vanSaleMonth) {
       const vanShortfall = Math.max(0, (s.vanLoanBalance || 0) - (s.vanSalePrice || 0));
       balance -= vanShortfall;
-    }
-    // One-time expense events: deduct from savings at their specified month
-    for (const evt of oneTimeExpenses) {
-      if (m === evt.month) balance -= (evt.amount || 0);
     }
 
     // 401k grows (skip month 0 to match standalone behavior)

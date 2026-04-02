@@ -4,10 +4,10 @@ import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { COLORS } from '../charts/chartUtils.js';
+// Toggle still used for capital needs
 
 const ExpenseControls = ({
-  spendSchedule, oneTimeExpenses,
-  baseExpenses, debtService,
+  totalMonthlySpend, baseExpenses, debtService,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   vanMonthlySavings,
   milestones,
@@ -27,57 +27,38 @@ const ExpenseControls = ({
               Expense Assumptions
             </h3>
 
-            {/* Spend Schedule */}
-            <div style={{ marginBottom: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
-              <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Spend Schedule</h4>
-              {spendSchedule.length === 0 && (
-                <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 6 }}>
-                  Using base expenses directly ({fmtFull(baseExpenses)}/mo)
+            {/* Total monthly spend input */}
+            <div style={{ marginBottom: 12, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 6 }}>
+                <span style={{ color: COLORS.textMuted }}>Actual total spend (all accounts):</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: COLORS.textDim, fontSize: 11 }}>$</span>
+                  <input
+                    type="number"
+                    value={totalMonthlySpend ?? ''}
+                    placeholder={String(Math.round(baseExpenses + debtService + bcsFamilyMonthly + vanMonthlySavings))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      set('totalMonthlySpend')(v === '' ? null : Math.round(Number(v)));
+                    }}
+                    data-testid="expense-total-monthly-spend"
+                    aria-label="Total monthly spend from all accounts"
+                    style={{
+                      width: 80, background: COLORS.bgCard, border: `1px solid ${totalMonthlySpend != null ? COLORS.blue : COLORS.border}`,
+                      borderRadius: 4, color: totalMonthlySpend != null ? COLORS.blue : COLORS.textDim,
+                      padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+                      textAlign: "right", outline: "none",
+                    }}
+                  />
+                  {totalMonthlySpend != null && (
+                    <button
+                      onClick={() => set('totalMonthlySpend')(null)}
+                      aria-label="Clear total monthly spend"
+                      style={{ background: "transparent", border: "none", color: COLORS.textDim, fontSize: 10, cursor: "pointer", padding: "2px 4px" }}
+                    >✕</button>
+                  )}
                 </div>
-              )}
-              {spendSchedule.map((entry, i) => (
-                <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-                  <div style={{ flex: 1 }}>
-                    <Slider label="" value={entry.month} onChange={(v) => {
-                      const u = [...spendSchedule]; u[i] = { ...u[i], month: v }; set('spendSchedule')(u);
-                    }} commitStrategy={commitStrategy}
-                      testId={`spend-schedule-month-${i}`}
-                      ariaLabel={`Spend level ${i + 1} start month`}
-                      min={0} max={72} format={(v) => `M${v}+`} color={COLORS.blue} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ color: COLORS.textDim, fontSize: 11 }}>$</span>
-                    <input
-                      type="number"
-                      value={entry.amount}
-                      data-testid={`spend-schedule-amount-${i}`}
-                      aria-label={`Spend level ${i + 1} amount`}
-                      onChange={(e) => {
-                        const v = Math.max(0, Math.round(Number(e.target.value) || 0));
-                        const u = [...spendSchedule]; u[i] = { ...u[i], amount: v }; set('spendSchedule')(u);
-                      }}
-                      style={{
-                        width: 80, background: COLORS.bgCard, border: `1px solid ${COLORS.blue}`,
-                        borderRadius: 4, color: COLORS.blue,
-                        padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
-                        textAlign: "right", outline: "none",
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => set('spendSchedule')(spendSchedule.filter((_, j) => j !== i))}
-                    data-testid={`spend-schedule-delete-${i}`}
-                    aria-label={`Delete spend level ${i + 1}`}
-                    style={{ background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
-                  >✕</button>
-                </div>
-              ))}
-              <button
-                onClick={() => set('spendSchedule')([...spendSchedule, { month: spendSchedule.length > 0 ? (spendSchedule[spendSchedule.length - 1].month + 12) : 0, amount: 0 }])}
-                data-testid="spend-schedule-add"
-                aria-label="Add spend level"
-                style={{ background: "transparent", border: `1px dashed ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 11, padding: "4px 10px", cursor: "pointer", width: "100%", marginTop: 4, fontFamily: "'Inter', sans-serif" }}
-              >+ Add spend level</button>
+              </div>
             </div>
 
             {/* BCS Tuition */}
@@ -137,69 +118,6 @@ const ExpenseControls = ({
                 aria-label="Add milestone"
                 style={{ background: "transparent", border: `1px dashed ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 11, padding: "4px 10px", cursor: "pointer", width: "100%", marginTop: 4, fontFamily: "'Inter', sans-serif" }}
               >+ Add milestone</button>
-            </div>
-
-            {/* One-Time Expenses */}
-            <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
-              <h4 style={{ fontSize: 11, color: COLORS.orange || '#f97316', margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>One-Time Expenses</h4>
-              {oneTimeExpenses.map((evt, i) => (
-                <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-                  <input
-                    type="text" value={evt.name}
-                    data-testid={`onetime-name-${i}`}
-                    aria-label={`One-time expense ${i + 1} name`}
-                    onChange={(e) => { const u = [...oneTimeExpenses]; u[i] = {...u[i], name: e.target.value}; set('oneTimeExpenses')(u); }}
-                    style={{ flex: 2, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.textSecondary, padding: "4px 6px", fontSize: 11, fontFamily: "'Inter', sans-serif", outline: "none" }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <Slider label="" value={evt.month} onChange={(v) => {
-                      const u = [...oneTimeExpenses]; u[i] = {...u[i], month: v}; set('oneTimeExpenses')(u);
-                    }} commitStrategy={commitStrategy}
-                      testId={`onetime-month-${i}`}
-                      ariaLabel={`One-time expense ${i + 1} month`}
-                      min={0} max={72} format={(v) => `M${v}`} color={COLORS.orange || '#f97316'} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ color: COLORS.textDim, fontSize: 11 }}>$</span>
-                    <input
-                      type="number"
-                      value={evt.amount}
-                      data-testid={`onetime-amount-${i}`}
-                      aria-label={`One-time expense ${i + 1} amount`}
-                      onChange={(e) => {
-                        const v = Math.max(0, Math.round(Number(e.target.value) || 0));
-                        const u = [...oneTimeExpenses]; u[i] = {...u[i], amount: v}; set('oneTimeExpenses')(u);
-                      }}
-                      style={{
-                        width: 80, background: COLORS.bgCard, border: `1px solid ${COLORS.orange || '#f97316'}`,
-                        borderRadius: 4, color: COLORS.orange || '#f97316',
-                        padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
-                        textAlign: "right", outline: "none",
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => set('oneTimeExpenses')(oneTimeExpenses.filter((_, j) => j !== i))}
-                    data-testid={`onetime-delete-${i}`}
-                    aria-label={`Delete one-time expense ${i + 1}`}
-                    style={{ background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
-                  >✕</button>
-                </div>
-              ))}
-              {oneTimeExpenses.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, marginBottom: 4, color: COLORS.textDim }}>
-                  <span>Total: </span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.orange || '#f97316', marginLeft: 4 }}>
-                    {fmtFull(oneTimeExpenses.reduce((sum, e) => sum + (e.amount || 0), 0))}
-                  </span>
-                </div>
-              )}
-              <button
-                onClick={() => set('oneTimeExpenses')([...oneTimeExpenses, { name: "New expense", month: 0, amount: 0 }])}
-                data-testid="onetime-add"
-                aria-label="Add one-time expense"
-                style={{ background: "transparent", border: `1px dashed ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 11, padding: "4px 10px", cursor: "pointer", width: "100%", marginTop: 4, fontFamily: "'Inter', sans-serif" }}
-              >+ Add one-time expense</button>
             </div>
 
             {/* Capital needs */}

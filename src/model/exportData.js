@@ -55,8 +55,8 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
     },
     spendingCuts: {
       totalDiscretionary, totalCutting: totalCuts,
-      totalKeeping: totalDiscretionary - totalCuts,
-      cutPercentage: Math.round((totalCuts / totalDiscretionary) * 100),
+      totalKeeping: Math.max(0, totalDiscretionary - totalCuts),
+      cutPercentage: totalDiscretionary > 0 ? Math.round((totalCuts / totalDiscretionary) * 100) : 0,
       items: [
         { category: "Oliver support (sober living + transfers)", current: INITIAL_STATE.cutOliver, cut: cutOliver, keeping: INITIAL_STATE.cutOliver - cutOliver },
         { category: "Medical out-of-pocket (excl insurance)", current: INITIAL_STATE.cutMedical, cut: cutMedical, keeping: INITIAL_STATE.cutMedical - cutMedical },

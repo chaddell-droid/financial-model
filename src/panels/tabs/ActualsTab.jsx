@@ -126,11 +126,12 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
 
   const handleTypeToggle = (txn) => {
     if (txn.amount > 0) return; // income is locked
+    const newType = txn.type === 'core' ? 'onetime' : 'core';
     dispatch({
-      type: 'UPDATE_TRANSACTION_TYPE',
+      type: 'BULK_CLASSIFY_MERCHANT',
       month: selectedMonth,
-      transactionId: txn.id,
-      newType: txn.type === 'core' ? 'onetime' : 'core',
+      merchant: txn.merchant,
+      newType,
     });
   };
 

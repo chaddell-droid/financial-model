@@ -77,6 +77,20 @@ export function reducer(state, action) {
         merchantClassifications: newClassifications,
       };
     }
+    case 'BULK_CLASSIFY_MERCHANT': {
+      // action.month, action.merchant, action.newType
+      // Updates ALL transactions from this merchant across ALL months
+      const newClassifications = { ...state.merchantClassifications, [action.merchant]: action.newType };
+      const newActuals = {};
+      for (const [month, data] of Object.entries(state.monthlyActuals)) {
+        newActuals[month] = {
+          transactions: data.transactions.map(t =>
+            t.merchant === action.merchant && t.amount < 0 ? { ...t, type: action.newType } : t
+          ),
+        };
+      }
+      return { ...state, monthlyActuals: newActuals, merchantClassifications: newClassifications };
+    }
     default:
       return state;
   }

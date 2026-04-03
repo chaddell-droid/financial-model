@@ -8,6 +8,7 @@ import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState } from './state/gatherState.js';
+import { saveModelState, loadModelState } from './state/autoSave.js';
 import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
 import KeyMetrics from './components/KeyMetrics.jsx';
@@ -210,6 +211,28 @@ export default function FinancialModel() {
       }
     })();
   }, []);
+
+  // Restore model state on mount
+  useEffect(() => {
+    if (!storageAvailable) return;
+    (async () => {
+      try {
+        const saved = await loadModelState(window.storage);
+        if (saved) dispatch({ type: 'RESTORE_STATE', state: saved });
+      } catch (e) { /* no saved model state */ }
+    })();
+  }, []);
+
+  // Auto-save model state (debounced — waits 500ms after last change)
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    if (!storageAvailable) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveModelState(window.storage, state);
+    }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [state, storageAvailable]);
 
   useEffect(() => {
     if (!storageAvailable) return;

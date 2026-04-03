@@ -125,7 +125,17 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
   };
 
   const handleTypeToggle = (txn) => {
-    if (txn.amount > 0) return; // income is locked
+    if (txn.amount > 0) return;
+    dispatch({
+      type: 'UPDATE_TRANSACTION_TYPE',
+      month: selectedMonth,
+      transactionId: txn.id,
+      newType: txn.type === 'core' ? 'onetime' : 'core',
+    });
+  };
+
+  const handleMerchantBulk = (txn) => {
+    if (txn.amount > 0) return;
     const newType = txn.type === 'core' ? 'onetime' : 'core';
     dispatch({
       type: 'BULK_CLASSIFY_MERCHANT',
@@ -292,9 +302,18 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
                     {t.amount > 0 ? '+' : ''}{t.amount.toFixed(2)}
                   </td>
                   <td style={{ padding: '6px' }}>
-                    <button onClick={() => handleTypeToggle(t)} style={typePillStyle(t.type)} data-testid={`actuals-type-${t.id}`}>
-                      {t.type === 'core' ? 'Core' : t.type === 'onetime' ? 'One-Time' : 'Income'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                      <button onClick={() => handleTypeToggle(t)} style={typePillStyle(t.type)} data-testid={`actuals-type-${t.id}`}>
+                        {t.type === 'core' ? 'Core' : t.type === 'onetime' ? 'One-Time' : 'Income'}
+                      </button>
+                      {t.amount < 0 && (
+                        <button onClick={() => handleMerchantBulk(t)}
+                          title={`Set all ${t.merchant} to ${t.type === 'core' ? 'One-Time' : 'Core'}`}
+                          style={{ background: 'transparent', border: `1px solid ${UI_COLORS.border}`, borderRadius: 6, color: UI_COLORS.textDim, fontSize: 8, padding: '1px 4px', cursor: 'pointer' }}>
+                          all
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

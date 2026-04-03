@@ -48,14 +48,15 @@ function parseCSVRow(line) {
   return fields;
 }
 
-export function classifyTransaction(amount, category) {
+export function classifyTransaction(amount, category, merchant, merchantClassifications) {
   if (amount > 0) return 'income';
+  if (merchantClassifications && merchantClassifications[merchant]) return merchantClassifications[merchant];
   if (CORE_CATEGORIES.has(category)) return 'core';
   if (ONETIME_CATEGORIES.has(category)) return 'onetime';
   return 'core';
 }
 
-export function parseTransactionCSV(csvString) {
+export function parseTransactionCSV(csvString, merchantClassifications) {
   if (!csvString || typeof csvString !== 'string') return [];
   const lines = csvString.split(/\r?\n/).filter(l => l.trim());
   if (lines.length <= 1) return [];
@@ -75,7 +76,7 @@ export function parseTransactionCSV(csvString) {
 
     const id = `${date}|${merchant}|${amount}`;
     const month = date.slice(0, 7);
-    const type = classifyTransaction(amount, category);
+    const type = classifyTransaction(amount, category, merchant, merchantClassifications);
 
     transactions.push({ id, date, month, merchant, category, account, amount, type });
   }

@@ -150,6 +150,7 @@ export const INITIAL_STATE = {
 
   // Actuals — transaction import (persisted separately, not in MODEL_KEYS)
   monthlyActuals: {},
+  merchantClassifications: {},  // { "TacoTime": "core", "Delta Air Lines": "onetime" } — learned overrides
 };
 
 // Keys that constitute the financial model (for save/restore/projection)

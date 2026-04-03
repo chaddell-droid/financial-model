@@ -19,6 +19,7 @@ export function reducer(state, action) {
         savedScenarios: state.savedScenarios,
         checkInHistory: state.checkInHistory,
         monthlyActuals: state.monthlyActuals,
+        merchantClassifications: state.merchantClassifications,
         storageStatus: state.storageStatus,
       };
     case 'RECORD_CHECK_IN': {
@@ -43,6 +44,7 @@ export function reducer(state, action) {
     case 'UPDATE_TRANSACTION_TYPE': {
       const monthData = state.monthlyActuals[action.month];
       if (!monthData) return state;
+      const targetTxn = monthData.transactions.find(t => t.id === action.transactionId);
       const updatedTxns = monthData.transactions.map(t =>
         t.id === action.transactionId ? { ...t, type: action.newType } : t
       );
@@ -52,6 +54,27 @@ export function reducer(state, action) {
           ...state.monthlyActuals,
           [action.month]: { transactions: updatedTxns },
         },
+        merchantClassifications: targetTxn
+          ? { ...state.merchantClassifications, [targetTxn.merchant]: action.newType }
+          : state.merchantClassifications,
+      };
+    }
+    case 'BULK_CLASSIFY': {
+      // action.month, action.category, action.newType
+      const md = state.monthlyActuals[action.month];
+      if (!md) return state;
+      const newClassifications = { ...state.merchantClassifications };
+      const updatedTxns = md.transactions.map(t => {
+        if (t.category === action.category && t.amount < 0) {
+          newClassifications[t.merchant] = action.newType;
+          return { ...t, type: action.newType };
+        }
+        return t;
+      });
+      return {
+        ...state,
+        monthlyActuals: { ...state.monthlyActuals, [action.month]: { transactions: updatedTxns } },
+        merchantClassifications: newClassifications,
       };
     }
     default:

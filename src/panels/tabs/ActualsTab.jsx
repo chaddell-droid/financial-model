@@ -4,7 +4,7 @@ import { parseTransactionCSV, mergeTransactions, groupByMonth, getCurrentMonth }
 import { UI_COLORS, UI_SPACE, UI_TEXT, UI_RADII } from '../../ui/tokens.js';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 
-function ActualsTab({ monthlyActuals, currentTotalMonthlySpend, currentOneTimeExtras, dispatch }) {
+function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonthlySpend, currentOneTimeExtras, dispatch }) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
@@ -65,12 +65,25 @@ function ActualsTab({ monthlyActuals, currentTotalMonthlySpend, currentOneTimeEx
     return Object.entries(cats).sort((a, b) => (b[1].core + b[1].onetime + b[1].income) - (a[1].core + a[1].onetime + a[1].income));
   }, [transactions]);
 
+  // Month-over-month trending
+  const trending = useMemo(() => {
+    const sortedMonths = Object.keys(monthlyActuals).sort();
+    if (sortedMonths.length < 2) return null;
+    return sortedMonths.map(m => {
+      const txns = monthlyActuals[m]?.transactions || [];
+      const core = Math.round(Math.abs(txns.filter(t => t.type === 'core').reduce((s, t) => s + t.amount, 0)));
+      const onetime = Math.round(Math.abs(txns.filter(t => t.type === 'onetime').reduce((s, t) => s + t.amount, 0)));
+      const income = Math.round(txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
+      return { month: m, core, onetime, income };
+    });
+  }, [monthlyActuals]);
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const parsed = parseTransactionCSV(e.target.result);
+      const parsed = parseTransactionCSV(e.target.result, merchantClassifications);
       if (parsed.length === 0) {
         setUploadFeedback('No valid transactions found in file.');
         setTimeout(() => setUploadFeedback(null), 5000);
@@ -194,6 +207,20 @@ function ActualsTab({ monthlyActuals, currentTotalMonthlySpend, currentOneTimeEx
         </SurfaceCard>
       )}
 
+      {/* Month-over-month trending */}
+      {trending && trending.length >= 2 && (
+        <div style={{ marginBottom: UI_SPACE.sm, padding: '8px 12px', background: UI_COLORS.surfaceMuted, borderRadius: UI_RADII.sm, fontSize: 12 }}>
+          <span style={{ color: UI_COLORS.textMuted, fontWeight: 600 }}>Trend: </span>
+          <span style={{ color: UI_COLORS.primary, fontFamily: "'JetBrains Mono', monospace" }}>
+            Core {trending.map(t => `${fmtFull(t.core)} (${t.month.slice(5)})`).join(' → ')}
+          </span>
+          <span style={{ margin: '0 8px', color: UI_COLORS.textDim }}>|</span>
+          <span style={{ color: UI_COLORS.caution, fontFamily: "'JetBrains Mono', monospace" }}>
+            One-Time {trending.map(t => `${fmtFull(t.onetime)} (${t.month.slice(5)})`).join(' → ')}
+          </span>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: UI_SPACE.sm, marginBottom: UI_SPACE.md }}>
         <SurfaceCard padding="sm">
@@ -293,6 +320,7 @@ function ActualsTab({ monthlyActuals, currentTotalMonthlySpend, currentOneTimeEx
                     <th style={{ padding: '6px', textAlign: 'right', color: UI_COLORS.caution, fontSize: 10 }}>One-Time</th>
                     <th style={{ padding: '6px', textAlign: 'right', color: UI_COLORS.positive, fontSize: 10 }}>Income</th>
                     <th style={{ padding: '6px', textAlign: 'right', color: UI_COLORS.textDim, fontSize: 10 }}>#</th>
+                    <th style={{ padding: '6px', textAlign: 'right', color: UI_COLORS.textDim, fontSize: 10 }}>Bulk</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,6 +331,16 @@ function ActualsTab({ monthlyActuals, currentTotalMonthlySpend, currentOneTimeEx
                       <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: vals.onetime > 0 ? UI_COLORS.caution : UI_COLORS.textDim }}>{vals.onetime > 0 ? fmtFull(Math.round(vals.onetime)) : '—'}</td>
                       <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: vals.income > 0 ? UI_COLORS.positive : UI_COLORS.textDim }}>{vals.income > 0 ? fmtFull(Math.round(vals.income)) : '—'}</td>
                       <td style={{ padding: '4px 6px', textAlign: 'right', color: UI_COLORS.textDim }}>{vals.count}</td>
+                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>
+                        {vals.income === 0 && (
+                          <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                            <button onClick={() => dispatch({ type: 'BULK_CLASSIFY', month: selectedMonth, category: cat, newType: 'core' })}
+                              style={{ ...typePillStyle('core'), fontSize: 9, padding: '1px 5px' }}>All Core</button>
+                            <button onClick={() => dispatch({ type: 'BULK_CLASSIFY', month: selectedMonth, category: cat, newType: 'onetime' })}
+                              style={{ ...typePillStyle('onetime'), fontSize: 9, padding: '1px 5px' }}>All 1x</button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

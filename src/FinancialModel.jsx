@@ -110,7 +110,7 @@ export default function FinancialModel() {
     storageStatus,
     activeTab,
     checkInHistory, activeCheckInMonth,
-    monthlyActuals,
+    monthlyActuals, merchantClassifications,
   } = state;
 
   // Backward-compatible computed totals from individual cuts
@@ -247,6 +247,13 @@ export default function FinancialModel() {
             dispatch({ type: 'SET_FIELD', field: 'monthlyActuals', value: parsed });
           }
         }
+        const mcResult = await window.storage.get("fin-merchant-classifications");
+        if (mcResult && mcResult.value) {
+          const parsed = JSON.parse(mcResult.value);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            dispatch({ type: 'SET_FIELD', field: 'merchantClassifications', value: parsed });
+          }
+        }
       } catch (e) { /* no saved actuals */ }
     })();
   }, []);
@@ -257,9 +264,10 @@ export default function FinancialModel() {
     (async () => {
       try {
         await window.storage.set("fin-actuals", JSON.stringify(monthlyActuals));
+        await window.storage.set("fin-merchant-classifications", JSON.stringify(merchantClassifications));
       } catch (e) { /* storage write failed */ }
     })();
-  }, [monthlyActuals, storageAvailable]);
+  }, [monthlyActuals, merchantClassifications, storageAvailable]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -820,6 +828,7 @@ export default function FinancialModel() {
       {effectiveTab === 'actuals' && (
         <ActualsTab
           monthlyActuals={monthlyActuals}
+          merchantClassifications={merchantClassifications}
           currentTotalMonthlySpend={totalMonthlySpend}
           currentOneTimeExtras={oneTimeExtras}
           dispatch={dispatch}

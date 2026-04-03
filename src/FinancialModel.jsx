@@ -24,6 +24,8 @@ import IncomeTab from './panels/tabs/IncomeTab.jsx';
 import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
 import TrackTab from './panels/tabs/TrackTab.jsx';
+import ActualsTab from './panels/tabs/ActualsTab.jsx';
+import { sanitizeMonthlyActuals } from './model/csvParser.js';
 import { getCurrentModelMonth, buildReforecast } from './model/checkIn.js';
 import { getShellWidthBucket } from './ui/tokens.js';
 import { useIsVisible } from './ui/useIsVisible.js';
@@ -108,6 +110,7 @@ export default function FinancialModel() {
     storageStatus,
     activeTab,
     checkInHistory, activeCheckInMonth,
+    monthlyActuals,
   } = state;
 
   // Backward-compatible computed totals from individual cuts
@@ -231,6 +234,32 @@ export default function FinancialModel() {
       } catch (e) { /* storage write failed */ }
     })();
   }, [checkInHistory, storageAvailable]);
+
+  // Restore monthlyActuals from storage
+  useEffect(() => {
+    if (!storageAvailable) return;
+    (async () => {
+      try {
+        const result = await window.storage.get("fin-actuals");
+        if (result && result.value) {
+          const parsed = sanitizeMonthlyActuals(JSON.parse(result.value));
+          if (Object.keys(parsed).length > 0) {
+            dispatch({ type: 'SET_FIELD', field: 'monthlyActuals', value: parsed });
+          }
+        }
+      } catch (e) { /* no saved actuals */ }
+    })();
+  }, []);
+
+  // Persist monthlyActuals to storage
+  useEffect(() => {
+    if (!storageAvailable || !Object.keys(monthlyActuals).length) return;
+    (async () => {
+      try {
+        await window.storage.set("fin-actuals", JSON.stringify(monthlyActuals));
+      } catch (e) { /* storage write failed */ }
+    })();
+  }, [monthlyActuals, storageAvailable]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -786,6 +815,15 @@ export default function FinancialModel() {
 
       {effectiveTab === 'track' && (
         <TrackTab {...trackTabProps} />
+      )}
+
+      {effectiveTab === 'actuals' && (
+        <ActualsTab
+          monthlyActuals={monthlyActuals}
+          currentTotalMonthlySpend={totalMonthlySpend}
+          currentOneTimeExtras={oneTimeExtras}
+          dispatch={dispatch}
+        />
       )}
 
       {effectiveTab === 'income' && (

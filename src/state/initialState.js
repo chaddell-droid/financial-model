@@ -147,6 +147,9 @@ export const INITIAL_STATE = {
   // Monthly Check-In
   checkInHistory: [],
   activeCheckInMonth: null,
+
+  // Actuals — transaction import (persisted separately, not in MODEL_KEYS)
+  monthlyActuals: {},
 };
 
 // Keys that constitute the financial model (for save/restore/projection)

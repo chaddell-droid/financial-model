@@ -18,6 +18,7 @@ export function reducer(state, action) {
         // Preserve UI-only state that shouldn't reset
         savedScenarios: state.savedScenarios,
         checkInHistory: state.checkInHistory,
+        monthlyActuals: state.monthlyActuals,
         storageStatus: state.storageStatus,
       };
     case 'RECORD_CHECK_IN': {
@@ -32,6 +33,25 @@ export function reducer(state, action) {
       return {
         ...state,
         checkInHistory: state.checkInHistory.filter(c => c.month !== action.month),
+      };
+    }
+    case 'MERGE_ACTUALS': {
+      const newActuals = { ...state.monthlyActuals };
+      newActuals[action.month] = { transactions: action.transactions };
+      return { ...state, monthlyActuals: newActuals };
+    }
+    case 'UPDATE_TRANSACTION_TYPE': {
+      const monthData = state.monthlyActuals[action.month];
+      if (!monthData) return state;
+      const updatedTxns = monthData.transactions.map(t =>
+        t.id === action.transactionId ? { ...t, type: action.newType } : t
+      );
+      return {
+        ...state,
+        monthlyActuals: {
+          ...state.monthlyActuals,
+          [action.month]: { transactions: updatedTxns },
+        },
       };
     }
     default:

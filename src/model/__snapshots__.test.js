@@ -2019,11 +2019,11 @@ await asyncTest('RESET_ALL preserves checkInHistory', async () => {
   assert.strictEqual(s2.checkInHistory.length, 1, 'RESET_ALL should preserve check-in history');
 });
 
-test('TabBar includes Track tab', () => {
+test('TabBar includes Track and Actuals tabs', () => {
   const source = fs.readFileSync(new URL('../components/TabBar.jsx', import.meta.url), 'utf8');
   assert.ok(source.includes("id: 'track'"), 'TabBar should have a track tab');
-  assert.ok(source.includes("label: 'Track'"), 'track tab should be labeled Track');
-  assert.ok(source.includes('repeat(6'), 'TabBar grid should have 6 columns');
+  assert.ok(source.includes("id: 'actuals'"), 'TabBar should have an actuals tab');
+  assert.ok(source.includes('repeat(7'), 'TabBar grid should have 7 columns');
 });
 
 // --- Summary ---

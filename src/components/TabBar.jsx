@@ -5,6 +5,7 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'plan', label: 'Plan', icon: '📝' },
   { id: 'track', label: 'Track', icon: '📋' },
+  { id: 'actuals', label: 'Actuals', icon: '📑' },
   { id: 'income', label: 'Income', icon: '💰' },
   { id: 'risk', label: 'Risk', icon: '🛡️' },
   { id: 'details', label: 'Details', icon: '🔍' },
@@ -14,6 +15,7 @@ const ACCENT_COLORS = {
   overview: UI_COLORS.primary,
   plan: UI_COLORS.positive,
   track: UI_COLORS.info,
+  actuals: UI_COLORS.caution,
   income: UI_COLORS.primary,
   risk: UI_COLORS.caution,
   details: UI_COLORS.textMuted,
@@ -25,7 +27,7 @@ export default function TabBar({ activeTab, onChange, compact = false }) {
       data-testid='tab-bar'
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
         gap: UI_SPACE.xs,
         marginBottom: 20,
         padding: UI_SPACE.xs,

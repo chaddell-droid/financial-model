@@ -53,6 +53,7 @@ function getInitialShellWidthBucket() {
 export default function FinancialModel() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [shellWidthBucket, setShellWidthBucket] = useState(getInitialShellWidthBucket);
+  const [retirementSpendingTargets, setRetirementSpendingTargets] = useState(null);
   const handleResetAll = () => {
     const confirmed = typeof window === 'undefined'
       ? true
@@ -623,14 +624,14 @@ export default function FinancialModel() {
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = true;
   const showTabs = !presentMode;
-  const showRail = !presentMode;
+  const showRail = !presentMode && effectiveTab !== 'plan';
   const railPlacement = !showRail
     ? 'hidden'
-    : (effectiveTab === 'overview' || effectiveTab === 'plan' || effectiveTab === 'track')
+    : (effectiveTab === 'overview' || effectiveTab === 'track')
       ? 'below'
       : shellWidthBucket === 'desktop'
-      ? 'side'
-      : 'below';
+        ? 'side'
+        : 'below';
   const compactShell = shellWidthBucket === 'compact';
   const showCompareBanner = !presentMode && Boolean(compareState);
   // Rail charts use useDeferredValue for prioritization — no additional delay needed.
@@ -656,6 +657,7 @@ export default function FinancialModel() {
     ssPersonal,
     chadJob,
     trustIncomeFuture,
+    onSpendingTargets: setRetirementSpendingTargets,
   }), [savingsData, wealthData, ssType, ssPersonal, chadJob, trustIncomeFuture]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
@@ -683,6 +685,7 @@ export default function FinancialModel() {
           oneTimeMonths={oneTimeMonths}
           totalCurrentIncome={totalCurrentIncome}
           totalCurrentExpenses={totalCurrentExpenses}
+          retirementSpendingTargets={retirementSpendingTargets}
           onFieldChange={set}
         />
 
@@ -730,6 +733,7 @@ export default function FinancialModel() {
     showCompareBanner,
     compareState,
     compareName,
+    retirementSpendingTargets,
   ]);
 
   const plannerTabs = useMemo(() => (
@@ -739,20 +743,45 @@ export default function FinancialModel() {
   const plannerWorkspace = useMemo(() => (
     <>
       {effectiveTab === 'overview' && (
-        <OverviewTab bridgeProps={bridgeProps} />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(320px, 420px)' : '1fr',
+          gap: 24,
+          alignItems: 'start',
+        }}>
+          <div>
+            <SavingsDrawdownChart {...savingsDrawdownProps} instanceId='overview' />
+            <OverviewTab bridgeProps={bridgeProps} />
+          </div>
+          {shellWidthBucket === 'desktop' && (
+            <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
+              <LazyRetirementChart {...deferredRetirementRailProps} />
+            </div>
+          )}
+        </div>
       )}
 
       {effectiveTab === 'plan' && (
-        <PlanTab
-          bridgeProps={deferredPlanBridgeProps}
-          cashFlowProps={deferredCashFlowProps}
-          incomeControlsProps={incomeControlsProps}
-          expenseControlsProps={expenseControlsProps}
-          scenarioStripProps={scenarioStripProps}
-          goalPanelProps={deferredGoalPanelProps}
-          shellWidthBucket={shellWidthBucket}
-          presentMode={presentMode}
-        />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(320px, 420px)' : '1fr',
+          gap: 24,
+          alignItems: 'start',
+        }}>
+          <PlanTab
+            incomeControlsProps={incomeControlsProps}
+            expenseControlsProps={expenseControlsProps}
+            scenarioStripProps={scenarioStripProps}
+            shellWidthBucket={shellWidthBucket}
+            presentMode={presentMode}
+          />
+          {shellWidthBucket === 'desktop' && (
+            <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
+              <SavingsDrawdownChart {...savingsDrawdownProps} instanceId='plan' />
+              <LazyRetirementChart {...deferredRetirementRailProps} />
+            </div>
+          )}
+        </div>
       )}
 
       {effectiveTab === 'track' && (

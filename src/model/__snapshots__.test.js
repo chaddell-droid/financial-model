@@ -596,7 +596,7 @@ test('buildPrimaryLeversModel separates changed-here and other-assumption conseq
 
 console.log('\n=== Overview Story Model Guards ===');
 
-test('buildOverviewStatusModel returns exactly four compact strip entries', () => {
+test('buildOverviewStatusModel returns exactly three compact strip entries', () => {
   const status = buildOverviewStatusModel({
     rawMonthlyGap: -22659,
     netMonthly: -20530,
@@ -614,12 +614,11 @@ test('buildOverviewStatusModel returns exactly four compact strip entries', () =
 
   eq(status.question, 'How far are we from monthly breakeven?');
   eq(status.answer, 'Not reached in current projection');
-  eq(status.items.length, 4);
-  eq(status.items[0].id, 'current_gap');
-  eq(status.items[1].id, 'breakeven');
-  eq(status.items[2].id, 'best_projected_gap');
-  eq(status.items[3].id, 'runway');
-  eq(status.items[2].detail, 'Q2\'27');
+  eq(status.items.length, 3);
+  eq(status.items[0].id, 'breakeven');
+  eq(status.items[1].id, 'best_projected_gap');
+  eq(status.items[2].id, 'runway');
+  eq(status.items[1].detail, 'Q2\'27');
 });
 
 test('selectBridgeMarkers caps overview markers at ten and plan markers at nine', () => {
@@ -1729,17 +1728,15 @@ test('Monthly and rail charts adopt the shared chart contract helpers', () => {
   assert.ok(pwaSource.includes('buildLegendItems'), 'PWA distribution chart should use shared legend helpers');
 });
 
-test('PlanTab owns ScenarioStrip and GoalPanel instead of the global shell', () => {
+test('PlanTab owns ScenarioStrip and exposes workspace selector', () => {
   const planSource = fs.readFileSync(new URL('../panels/tabs/PlanTab.jsx', import.meta.url), 'utf8');
   assert.ok(planSource.includes('<ScenarioStrip {...scenarioStripProps} />'), 'PlanTab should render ScenarioStrip');
-  assert.ok(planSource.includes('<GoalPanel {...goalPanelProps} />'), 'PlanTab should render GoalPanel');
   assert.ok(planSource.includes("data-testid='plan-workspace'"), 'PlanTab should expose a stable workspace selector');
 });
 
 test('FinancialModel passes planning workflow props into PlanTab', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
   assert.ok(source.includes('scenarioStripProps={scenarioStripProps}'), 'FinancialModel should pass scenarioStripProps into PlanTab');
-  assert.ok(source.includes('goalPanelProps={deferredGoalPanelProps}'), 'FinancialModel should pass deferred goalPanelProps into PlanTab');
   assert.ok(source.includes('showCompareBanner'), 'FinancialModel should keep compare state in the compact summary zone');
 });
 
@@ -1749,9 +1746,10 @@ test('FinancialModel passes best-projected-gap inputs into KeyMetrics', () => {
   assert.ok(source.includes('bestProjectedLabel={bestProjectedLabel}'), 'FinancialModel should pass bestProjectedLabel into KeyMetrics');
 });
 
-test('Overview and Plan force the rail below the first workspace viewport', () => {
+test('Overview forces the rail below and Plan hides it', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes("effectiveTab === 'overview'") && source.includes("effectiveTab === 'plan'"), 'overview and plan should force below-rail placement');
+  assert.ok(source.includes("effectiveTab === 'overview'"), 'overview should force below-rail placement');
+  assert.ok(source.includes("effectiveTab !== 'plan'"), 'plan should hide the shared rail');
 });
 
 test('AppShell narrows the side rail width contract', () => {
@@ -1824,12 +1822,9 @@ test('UI swarm manifest tracks the new risk workflow and retirement identity sel
 
 console.log('\n=== Wave 4 UI Contract Guards ===');
 
-test('Overview and Plan wire the simplified bridge variants explicitly', () => {
+test('Overview wires the simplified bridge variant explicitly', () => {
   const overviewSource = fs.readFileSync(new URL('../panels/tabs/OverviewTab.jsx', import.meta.url), 'utf8');
-  const planSource = fs.readFileSync(new URL('../panels/tabs/PlanTab.jsx', import.meta.url), 'utf8');
   assert.ok(overviewSource.includes("variant='overview'"), 'OverviewTab should pass the overview bridge variant');
-  assert.ok(planSource.includes("variant='plan'"), 'PlanTab should pass the plan bridge variant');
-  assert.ok(planSource.includes("data-testid='plan-bridge-feedback'"), 'PlanTab should keep a stable bridge feedback selector');
 });
 
 test('BridgeChart uses the single-card monthly gap path contract', () => {

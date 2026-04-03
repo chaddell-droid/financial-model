@@ -88,14 +88,6 @@ export function buildOverviewStatusModel({
 
   const items = [
     {
-      id: 'current_gap',
-      label: 'Current gap',
-      rawValue: currentGap,
-      valueLabel: formatMonthlyCurrency(currentGap),
-      tone: currentGap >= 0 ? 'positive' : 'destructive',
-      detail: 'Current assumptions',
-    },
-    {
       id: 'breakeven',
       label: 'Breakeven',
       rawValue: breakevenIdx,

@@ -44,6 +44,7 @@ export default function KeyMetrics({
   oneTimeMonths,
   totalCurrentIncome,
   totalCurrentExpenses,
+  retirementSpendingTargets,
   onFieldChange,
 }) {
   const status = buildOverviewStatusModel({
@@ -234,6 +235,29 @@ export default function KeyMetrics({
             {savingsBurn > 0 ? 'Drawing from savings' : 'Adding to savings'}
           </div>
         </div>
+
+        {retirementSpendingTargets && retirementSpendingTargets.preInheritance > 0 && (
+          <div style={{ flex: '1 1 180px', minWidth: 150 }}>
+            <div style={{
+              fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted,
+              textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4,
+            }}>
+              {retirementSpendingTargets.inhDuringCouple
+                ? `Pre-Inheritance Target (67-${retirementSpendingTargets.inheritanceChadAge})`
+                : 'Retirement Spending Target'}
+            </div>
+            <div style={{
+              fontSize: UI_TEXT.hero, fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: UI_COLORS.primary,
+            }}>
+              {fmtFull(retirementSpendingTargets.preInheritance)}/mo
+            </div>
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
+              Historical safe (10th pct)
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Secondary: Status items */}

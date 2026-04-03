@@ -5,7 +5,7 @@
  * Amount: negative = expense, positive = income
  */
 
-const CORE_CATEGORIES = new Set([
+export const ALWAYS_CORE = new Set([
   'Mortgage', 'Rent', 'Groceries', 'Insurance', 'Phone',
   'Internet & Cable', 'Gas & Electric', 'Fitness', 'Gas',
   'Auto Payment', 'Restaurants & Bars', 'Coffee Shops', 'Dentist',
@@ -17,12 +17,21 @@ const CORE_CATEGORIES = new Set([
   'Entertainment & Recreation',
 ]);
 
-const ONETIME_CATEGORIES = new Set([
-  'Travel & Vacation', 'Medical', 'Education', 'Loan Payment',
-  'Check', 'Electronics', 'Shopping', 'Clothing',
-  'Home Improvement', 'Employee Wages & Contract Labor',
-  'Taxes', 'Charity', 'Financial & Legal Services',
+export const ALWAYS_ONETIME = new Set([
+  'Travel & Vacation', 'Home Improvement',
+  'Employee Wages & Contract Labor', 'Check',
+  'Charity', 'Financial & Legal Services',
 ]);
+
+export const MIXED_CATEGORY_THRESHOLDS = {
+  Medical: -500,
+  'Loan Payment': -200,
+  Shopping: -100,
+  Electronics: -50,
+  Clothing: -75,
+  Taxes: -200,
+  Education: -200,
+};
 
 /**
  * Parse a single CSV row, handling quoted fields and empty fields.
@@ -48,15 +57,67 @@ function parseCSVRow(line) {
   return fields;
 }
 
-export function classifyTransaction(amount, category, merchant, merchantClassifications) {
+/**
+ * Count how many distinct months each merchant appears in (expenses only).
+ */
+export function analyzeMerchantFrequency(monthlyActuals) {
+  const merchantMonths = {};
+  if (!monthlyActuals) return merchantMonths;
+  for (const data of Object.values(monthlyActuals)) {
+    const seen = new Set();
+    for (const txn of (data.transactions || [])) {
+      if (txn.amount < 0 && !seen.has(txn.merchant)) {
+        seen.add(txn.merchant);
+        merchantMonths[txn.merchant] = (merchantMonths[txn.merchant] || 0) + 1;
+      }
+    }
+  }
+  return merchantMonths;
+}
+
+/**
+ * Check if an amount is consistent with a merchant's historical amounts.
+ * Returns true if within 3x of the average (i.e. not an unusual spike).
+ */
+export function isAmountConsistent(amount, merchantAmounts) {
+  if (!merchantAmounts || merchantAmounts.length === 0) return true;
+  const avg = merchantAmounts.reduce((s, a) => s + Math.abs(a), 0) / merchantAmounts.length;
+  return Math.abs(amount) < avg * 3;
+}
+
+/**
+ * Get all historical amounts for a merchant across all months.
+ */
+export function getMerchantAmounts(merchant, monthlyActuals) {
+  const amounts = [];
+  if (!monthlyActuals) return amounts;
+  for (const data of Object.values(monthlyActuals)) {
+    for (const txn of (data.transactions || [])) {
+      if (txn.merchant === merchant && txn.amount < 0) amounts.push(txn.amount);
+    }
+  }
+  return amounts;
+}
+
+export function classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals) {
   if (amount > 0) return 'income';
   if (merchantClassifications && merchantClassifications[merchant]) return merchantClassifications[merchant];
-  if (CORE_CATEGORIES.has(category)) return 'core';
-  if (ONETIME_CATEGORIES.has(category)) return 'onetime';
+  // Frequency-based: merchant in 2+ prior months with consistent amount → core
+  if (monthlyActuals) {
+    const freq = analyzeMerchantFrequency(monthlyActuals);
+    if (freq[merchant] >= 2) {
+      const amounts = getMerchantAmounts(merchant, monthlyActuals);
+      if (isAmountConsistent(amount, amounts)) return 'core';
+    }
+  }
+  if (ALWAYS_CORE.has(category)) return 'core';
+  if (ALWAYS_ONETIME.has(category)) return 'onetime';
+  const threshold = MIXED_CATEGORY_THRESHOLDS[category];
+  if (threshold !== undefined) return amount > threshold ? 'core' : 'onetime';
   return 'core';
 }
 
-export function parseTransactionCSV(csvString, merchantClassifications) {
+export function parseTransactionCSV(csvString, merchantClassifications, monthlyActuals) {
   if (!csvString || typeof csvString !== 'string') return [];
   const lines = csvString.split(/\r?\n/).filter(l => l.trim());
   if (lines.length <= 1) return [];
@@ -76,7 +137,7 @@ export function parseTransactionCSV(csvString, merchantClassifications) {
 
     const id = `${date}|${merchant}|${amount}`;
     const month = date.slice(0, 7);
-    const type = classifyTransaction(amount, category, merchant, merchantClassifications);
+    const type = classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals);
 
     transactions.push({ id, date, month, merchant, category, account, amount, type });
   }

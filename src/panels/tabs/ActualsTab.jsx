@@ -1,8 +1,17 @@
 import React, { memo, useState, useMemo, useRef } from 'react';
 import { fmtFull } from '../../model/formatters.js';
-import { parseTransactionCSV, mergeTransactions, groupByMonth, getCurrentMonth } from '../../model/csvParser.js';
+import { parseTransactionCSV, mergeTransactions, groupByMonth, getCurrentMonth, analyzeMerchantFrequency, ALWAYS_CORE, ALWAYS_ONETIME, MIXED_CATEGORY_THRESHOLDS } from '../../model/csvParser.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT, UI_RADII } from '../../ui/tokens.js';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
+
+function getConfidence(txn, merchantClassifications, merchantFreq) {
+  if (txn.amount > 0) return 'high';
+  if (merchantClassifications && merchantClassifications[txn.merchant]) return 'high';
+  if (merchantFreq && merchantFreq[txn.merchant] >= 2) return 'high';
+  if (ALWAYS_CORE.has(txn.category) || ALWAYS_ONETIME.has(txn.category)) return 'high';
+  if (MIXED_CATEGORY_THRESHOLDS[txn.category] !== undefined) return 'medium';
+  return 'low';
+}
 
 function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonthlySpend, currentOneTimeExtras, dispatch }) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
@@ -32,13 +41,31 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
       txns = txns.filter(t => t.merchant.toLowerCase().includes(q) || t.category.toLowerCase().includes(q));
     }
     const dir = sortDir === 'asc' ? 1 : -1;
+    const confidenceOrder = { low: 0, medium: 1, high: 2 };
     return [...txns].sort((a, b) => {
       if (sortBy === 'amount') return (a.amount - b.amount) * dir;
       if (sortBy === 'merchant') return a.merchant.localeCompare(b.merchant) * dir;
       if (sortBy === 'category') return a.category.localeCompare(b.category) * dir;
+      if (sortBy === 'confidence') {
+        const ca = getConfidence(a, merchantClassifications);
+        const cb = getConfidence(b, merchantClassifications);
+        return (confidenceOrder[ca] - confidenceOrder[cb]) * dir;
+      }
       return a.date.localeCompare(b.date) * dir;
     });
-  }, [transactions, searchQuery, sortBy, sortDir]);
+  }, [transactions, searchQuery, sortBy, sortDir, merchantClassifications]);
+
+  const merchantFreq = useMemo(() => analyzeMerchantFrequency(monthlyActuals), [monthlyActuals]);
+
+  const transactionsWithConfidence = useMemo(() =>
+    filteredTransactions.map(t => ({ ...t, confidence: getConfidence(t, merchantClassifications, merchantFreq) })),
+    [filteredTransactions, merchantClassifications, merchantFreq]
+  );
+
+  const reviewCount = useMemo(() =>
+    transactions.filter(t => getConfidence(t, merchantClassifications, merchantFreq) !== 'high').length,
+    [transactions, merchantClassifications, merchantFreq]
+  );
 
   // Running totals always from full month (not filtered)
   const totals = useMemo(() => {
@@ -83,7 +110,7 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const parsed = parseTransactionCSV(e.target.result, merchantClassifications);
+      const parsed = parseTransactionCSV(e.target.result, merchantClassifications, monthlyActuals);
       if (parsed.length === 0) {
         setUploadFeedback('No valid transactions found in file.');
         setTimeout(() => setUploadFeedback(null), 5000);
@@ -147,10 +174,12 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
 
   const sortArrow = (col) => sortBy === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  const typePillStyle = (type) => ({
-    padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: type === 'income' ? 'default' : 'pointer', border: 'none', userSelect: 'none',
+  const typePillStyle = (type, confidence) => ({
+    padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: type === 'income' ? 'default' : 'pointer', userSelect: 'none',
     background: type === 'core' ? `${UI_COLORS.primary}22` : type === 'onetime' ? `${UI_COLORS.caution}22` : `${UI_COLORS.positive}22`,
     color: type === 'core' ? UI_COLORS.primary : type === 'onetime' ? UI_COLORS.caution : UI_COLORS.positive,
+    opacity: confidence === 'high' ? 0.7 : 1,
+    border: confidence === 'low' ? `1px dashed ${type === 'core' ? UI_COLORS.primary : type === 'onetime' ? UI_COLORS.caution : UI_COLORS.positive}` : 'none',
   });
 
   return (
@@ -251,6 +280,18 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
         </SurfaceCard>
       </div>
 
+      {/* Review count */}
+      {reviewCount > 0 && (
+        <div style={{
+          marginBottom: UI_SPACE.sm, padding: '6px 12px', borderRadius: UI_RADII.sm,
+          background: `${UI_COLORS.caution}15`, color: UI_COLORS.caution,
+          fontSize: 12, fontWeight: 600,
+        }}
+          data-testid="actuals-review-count">
+          {reviewCount} transaction{reviewCount !== 1 ? 's' : ''} need{reviewCount === 1 ? 's' : ''} review
+        </div>
+      )}
+
       {/* Search */}
       <div style={{ marginBottom: UI_SPACE.sm }}>
         <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
@@ -276,7 +317,7 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${UI_COLORS.border}` }}>
-                {[['date', 'Date'], ['merchant', 'Merchant'], ['category', 'Category'], ['account', 'Account'], ['amount', 'Amount'], ['type', 'Type']].map(([col, label]) => (
+                {[['date', 'Date'], ['merchant', 'Merchant'], ['category', 'Category'], ['account', 'Account'], ['amount', 'Amount'], ['type', 'Type'], ['confidence', 'Conf.']].map(([col, label]) => (
                   <th key={col} onClick={() => col !== 'type' && handleSort(col)}
                     style={{
                       padding: '8px 6px', textAlign: col === 'amount' ? 'right' : 'left',
@@ -289,13 +330,18 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((t) => (
+              {transactionsWithConfidence.map((t) => (
                 <tr key={t.id} style={{
                   borderBottom: `1px solid ${UI_COLORS.border}22`,
                   borderLeft: `3px solid ${t.type === 'core' ? UI_COLORS.primary : t.type === 'onetime' ? UI_COLORS.caution : UI_COLORS.positive}`,
                 }}>
                   <td style={{ padding: '6px', color: UI_COLORS.textDim, whiteSpace: 'nowrap' }}>{t.date}</td>
-                  <td style={{ padding: '6px', color: UI_COLORS.textSecondary }}>{t.merchant}</td>
+                  <td style={{ padding: '6px', color: UI_COLORS.textSecondary }}>
+                    {t.merchant}
+                    {merchantFreq[t.merchant] >= 2 && t.amount < 0 && (
+                      <span title={`Seen in ${merchantFreq[t.merchant]} months`} style={{ marginLeft: 4, fontSize: 10, color: UI_COLORS.primary, opacity: 0.6 }}>↻</span>
+                    )}
+                  </td>
                   <td style={{ padding: '6px', color: UI_COLORS.textDim }}>{t.category}</td>
                   <td style={{ padding: '6px', color: UI_COLORS.textDim, fontSize: 10 }}>{t.account}</td>
                   <td style={{ padding: '6px', textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, color: t.amount > 0 ? UI_COLORS.positive : UI_COLORS.destructive }}>
@@ -303,8 +349,8 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
                   </td>
                   <td style={{ padding: '6px' }}>
                     <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                      <button onClick={() => handleTypeToggle(t)} style={typePillStyle(t.type)} data-testid={`actuals-type-${t.id}`}>
-                        {t.type === 'core' ? 'Core' : t.type === 'onetime' ? 'One-Time' : 'Income'}
+                      <button onClick={() => handleTypeToggle(t)} style={typePillStyle(t.type, t.confidence)} data-testid={`actuals-type-${t.id}`}>
+                        {(t.type === 'core' ? 'Core' : t.type === 'onetime' ? 'One-Time' : 'Income') + (t.confidence !== 'high' ? ' ?' : '')}
                       </button>
                       {t.amount < 0 && (
                         <button onClick={() => handleMerchantBulk(t)}
@@ -314,6 +360,9 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
                         </button>
                       )}
                     </div>
+                  </td>
+                  <td style={{ padding: '6px', fontSize: 9, color: t.confidence === 'high' ? UI_COLORS.positive : t.confidence === 'medium' ? UI_COLORS.caution : UI_COLORS.destructive }}>
+                    {t.confidence === 'high' ? '●' : t.confidence === 'medium' ? '◐' : '○'}
                   </td>
                 </tr>
               ))}

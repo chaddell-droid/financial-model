@@ -8,27 +8,29 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
 
   const handleRefreshPrice = useCallback(async () => {
     setFetching(true);
-    try {
-      // Try Yahoo Finance chart API (CORS-friendly, no key needed)
-      const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/MSFT?range=1d&interval=1d');
-      const data = await res.json();
-      const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (price && price > 0) {
-        onMsftPriceChange(Math.round(price * 100) / 100);
-        setFetching(false);
-        return;
-      }
-    } catch (e) { /* Yahoo failed, try fallback */ }
-    try {
-      // Fallback: Google Finance page scrape via allorigins proxy
-      const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.google.com/finance/quote/MSFT:NASDAQ'));
-      const html = await res.text();
-      const match = html.match(/data-last-price="([0-9.]+)"/);
-      if (match) {
-        const price = parseFloat(match[1]);
-        if (price > 0) onMsftPriceChange(Math.round(price * 100) / 100);
-      }
-    } catch (e) { /* all fetches failed */ }
+    // Use corsproxy.io to bypass CORS restrictions on Yahoo Finance
+    const endpoints = [
+      {
+        url: 'https://corsproxy.io/?' + encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/MSFT?range=1d&interval=1d'),
+        parse: (data) => data?.chart?.result?.[0]?.meta?.regularMarketPrice,
+      },
+      {
+        url: 'https://corsproxy.io/?' + encodeURIComponent('https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=MSFT&apikey=TNLBGSM5GKK3GEAT&datatype=json'),
+        parse: (data) => parseFloat(data?.['Global Quote']?.['05. price']),
+      },
+    ];
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep.url);
+        const data = await res.json();
+        const price = ep.parse(data);
+        if (price && price > 0) {
+          onMsftPriceChange(Math.round(price * 100) / 100);
+          setFetching(false);
+          return;
+        }
+      } catch (e) { /* try next */ }
+    }
     setFetching(false);
   }, [onMsftPriceChange]);
 

@@ -1,9 +1,23 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { getMsftPrice } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 
-const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange }) => (
+function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange }) {
+  const [fetching, setFetching] = useState(false);
+
+  const handleRefreshPrice = useCallback(async () => {
+    setFetching(true);
+    try {
+      const res = await fetch('https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=MSFT&apikey=demo&datatype=json');
+      const data = await res.json();
+      const price = parseFloat(data?.['Global Quote']?.['05. price']);
+      if (price && price > 0) onMsftPriceChange(Math.round(price * 100) / 100);
+    } catch (e) { /* fetch failed — silent */ }
+    setFetching(false);
+  }, [onMsftPriceChange]);
+
+  return (
   <div data-testid="msft-vesting-chart" style={{
     background: "#1e293b", borderRadius: 12, padding: "16px 20px",
     border: "1px solid #f59e0b33", marginBottom: 24
@@ -60,8 +74,21 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftPrice, msftGr
       Each bar = one quarterly vest (net after 20% tax). Nothing arrives between vests.
     </div>
     <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <Slider label="MSFT current price" value={msftPrice} onChange={onMsftPriceChange} commitStrategy='release'
-        min={200} max={600} step={1} format={(v) => "$" + v} color="#f59e0b" />
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <Slider label="MSFT current price" value={msftPrice} onChange={onMsftPriceChange} commitStrategy='release'
+            min={200} max={600} step={1} format={(v) => "$" + v} color="#f59e0b" />
+          <button onClick={handleRefreshPrice} disabled={fetching}
+            title="Fetch current MSFT price"
+            style={{
+              background: 'transparent', border: '1px solid #334155', borderRadius: 4,
+              color: fetching ? '#64748b' : '#f59e0b', fontSize: 10, padding: '2px 6px',
+              cursor: fetching ? 'wait' : 'pointer', whiteSpace: 'nowrap', marginTop: 12,
+            }}>
+            {fetching ? '...' : '↻ Live'}
+          </button>
+        </div>
+      </div>
       <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange} commitStrategy='release'
         min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color="#f59e0b" />
     </div>
@@ -71,6 +98,7 @@ const MsftVestingChart = ({ vestEvents, totalRemainingVesting, msftPrice, msftGr
       </div>
     )}
   </div>
-);
+  );
+}
 
 export default MsftVestingChart;

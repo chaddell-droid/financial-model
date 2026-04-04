@@ -12,7 +12,7 @@ export const INITIAL_STATE = {
   sarahTaxRate: 25,
 
   // MSFT
-  msftPrice: 410.68,
+  msftPrice: 373.46,
   msftGrowth: 0,
 
   // Social Security (SSDI vs SS retirement — mutually exclusive)

@@ -524,9 +524,6 @@ export default function FinancialModel() {
   ]);
 
   const incomeControlsProps = useMemo(() => ({
-    sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
     ssType, ssdiDenied,
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
     ssdiApprovalMonth, ssdiBackPayMonths,
@@ -538,9 +535,6 @@ export default function FinancialModel() {
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     onFieldChange: set,
   }), [
-    sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
     ssType, ssdiDenied,
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
     ssdiApprovalMonth, ssdiBackPayMonths,
@@ -864,6 +858,9 @@ export default function FinancialModel() {
           msftPrice={msftPrice} msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')} onMsftPriceChange={set('msftPrice')}
           sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
           sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
+          sarahTaxRate={sarahTaxRate} sarahCurrentGross={sarahCurrentGross} sarahCurrentNet={sarahCurrentNet}
+          sarahCeilingGross={sarahCeilingGross} sarahCeiling={sarahCeiling}
+          onFieldChange={set}
           data={data} investmentReturn={investmentReturn}
           vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
           bcsYearsLeft={bcsYearsLeft} milestones={milestones}

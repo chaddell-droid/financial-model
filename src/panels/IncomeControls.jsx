@@ -7,9 +7,6 @@ import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 
 const IncomeControls = ({
-  sarahRate, sarahMaxRate, sarahRateGrowth,
-  sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-  sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
   ssType,
   ssdiDenied,
   ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
@@ -41,44 +38,6 @@ const IncomeControls = ({
             <h3 style={{ fontSize: 14, color: COLORS.blue, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Income Assumptions
             </h3>
-            <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
-              <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sarah's Business — Rate</h4>
-              <Slider label="Current hourly rate" value={sarahRate} onChange={set('sarahRate')} commitStrategy={commitStrategy} min={150} max={300} step={10} format={(v) => "$" + v + "/hr"} />
-              <Slider label="Rate growth/yr" value={sarahRateGrowth} onChange={set('sarahRateGrowth')} commitStrategy={commitStrategy} min={0} max={20} format={(v) => v + "%"} />
-              <Slider label="Max hourly rate (ceiling)" value={sarahMaxRate} onChange={set('sarahMaxRate')} commitStrategy={commitStrategy} min={200} max={400} step={10} format={(v) => "$" + v + "/hr"} color={COLORS.textMuted} />
-            </div>
-            <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
-              <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sarah's Business — Clients</h4>
-              <Slider label="Current clients/day" value={sarahCurrentClients} onChange={set('sarahCurrentClients')} commitStrategy={commitStrategy} min={1} max={5} step={0.1} format={(v) => v.toFixed(1)} />
-              <Slider label="Client growth/yr" value={sarahClientGrowth} onChange={set('sarahClientGrowth')} commitStrategy={commitStrategy} min={0} max={30} format={(v) => v + "%"} />
-              <Slider label="Max clients/day (ceiling)" value={sarahMaxClients} onChange={set('sarahMaxClients')} commitStrategy={commitStrategy} min={3} max={7} step={0.5} format={(v) => v.toFixed(1)} color={COLORS.textMuted} />
-            </div>
-            <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
-              <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sarah's Business — Tax</h4>
-              <Slider label="Effective tax rate (SE + federal)" value={sarahTaxRate} onChange={set('sarahTaxRate')} commitStrategy={commitStrategy} min={15} max={40} color={COLORS.blue} format={(v) => v + "%"} helperText="Self-employment tax (~15%) + federal income tax" />
-            </div>
-            <div style={{ padding: "8px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ color: COLORS.textDim }}>Current gross/mo:</span>
-                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCurrentGross)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: COLORS.blue, fontWeight: 600 }}>After tax ({sarahTaxRate}%):</span>
-                <span style={{ color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}/mo</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
-                <span style={{ color: COLORS.textDim }}>Gross ceiling:</span>
-                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeilingGross)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: COLORS.textDim }}>Net ceiling ({sarahTaxRate}%):</span>
-                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeiling)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: COLORS.textDim }}>Capacity used:</span>
-                <span style={{ color: sarahCurrentGross / sarahCeilingGross > 0.8 ? COLORS.yellow : COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentGross / sarahCeilingGross * 100)}%</span>
-              </div>
-            </div>
             {/* SS Type Selector */}
             <div style={{ marginBottom: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, opacity: chadJob ? 0.3 : 1, pointerEvents: chadJob ? 'none' : 'auto' }}>
               <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Social Security Type</h4>

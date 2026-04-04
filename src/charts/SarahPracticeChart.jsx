@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { fmtFull } from "../model/formatters.js";
 import { DAYS_PER_MONTH } from "../model/constants.js";
+import Slider from '../components/Slider.jsx';
 
 export default function SarahPracticeChart({
   sarahRate,
@@ -9,7 +10,15 @@ export default function SarahPracticeChart({
   sarahCurrentClients,
   sarahMaxClients,
   sarahClientGrowth,
+  sarahTaxRate,
+  sarahCurrentGross,
+  sarahCurrentNet,
+  sarahCeilingGross,
+  sarahCeiling,
+  onFieldChange,
 }) {
+  const set = onFieldChange;
+  const commitStrategy = 'release';
   const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
 
@@ -259,6 +268,46 @@ export default function SarahPracticeChart({
           </div>
         ))}
       </div>
+
+      {/* Sliders */}
+      {set && (
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Rate</div>
+            <Slider label="Current hourly rate" value={sarahRate} onChange={set('sarahRate')} commitStrategy={commitStrategy} min={150} max={300} step={10} format={(v) => "$" + v + "/hr"} />
+            <Slider label="Rate growth/yr" value={sarahRateGrowth} onChange={set('sarahRateGrowth')} commitStrategy={commitStrategy} min={0} max={20} format={(v) => v + "%"} />
+            <Slider label="Max rate (ceiling)" value={sarahMaxRate} onChange={set('sarahMaxRate')} commitStrategy={commitStrategy} min={200} max={400} step={10} format={(v) => "$" + v + "/hr"} color="#64748b" />
+          </div>
+          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Clients</div>
+            <Slider label="Current clients/day" value={sarahCurrentClients} onChange={set('sarahCurrentClients')} commitStrategy={commitStrategy} min={1} max={5} step={0.1} format={(v) => v.toFixed(1)} />
+            <Slider label="Client growth/yr" value={sarahClientGrowth} onChange={set('sarahClientGrowth')} commitStrategy={commitStrategy} min={0} max={30} format={(v) => v + "%"} />
+            <Slider label="Max clients/day (ceiling)" value={sarahMaxClients} onChange={set('sarahMaxClients')} commitStrategy={commitStrategy} min={3} max={7} step={0.5} format={(v) => v.toFixed(1)} color="#64748b" />
+          </div>
+          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tax</div>
+            <Slider label="Effective tax rate (SE + federal)" value={sarahTaxRate} onChange={set('sarahTaxRate')} commitStrategy={commitStrategy} min={15} max={40} color="#60a5fa" format={(v) => v + "%"} />
+          </div>
+          <div style={{ padding: "8px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+              <span style={{ color: "#64748b" }}>Current gross:</span>
+              <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCurrentGross)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+              <span style={{ color: "#60a5fa", fontWeight: 600 }}>After tax ({sarahTaxRate}%):</span>
+              <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}/mo</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
+              <span style={{ color: "#64748b" }}>Net ceiling ({sarahTaxRate}%):</span>
+              <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeiling)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+              <span style={{ color: "#64748b" }}>Capacity used:</span>
+              <span style={{ color: sarahCurrentGross / sarahCeilingGross > 0.8 ? "#eab308" : "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentGross / sarahCeilingGross * 100)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

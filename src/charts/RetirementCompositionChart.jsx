@@ -1,208 +1,260 @@
 import { useState, memo } from 'react';
-import { fmtFull } from '../model/formatters.js';
-import { COLORS } from './chartUtils.js';
-import SurfaceCard from '../components/ui/SurfaceCard.jsx';
+import { fmt, fmtFull } from '../model/formatters.js';
+import { buildLegendItems } from './chartContract.js';
 
-const INCOME_LAYERS = [
+const SOURCES = [
   { key: 'poolDraw', label: 'Pool Draw', color: '#60a5fa' },
   { key: 'ssIncome', label: 'Social Security', color: '#34d399' },
-  { key: 'trustIncome', label: 'Trust', color: '#a78bfa' },
+  { key: 'trustIncome', label: 'Trust LLC', color: '#a78bfa' },
 ];
-
-const PHASE_COLORS = {
-  chad: '#94a3b822',
-  postInheritance: '#34d39922',
-  survivor: '#f9731622',
-};
 
 function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChadAge, inhDuringCouple, hasInheritance }) {
   const [tooltip, setTooltip] = useState(null);
 
   if (!yearlyData || yearlyData.length === 0) return null;
 
-  const svgW = 800, svgH = 320;
-  const padL = 60, padR = 20, padT = 20, padB = 50;
-  const plotW = svgW - padL - padR;
-  const plotH = svgH - padT - padB;
+  const stackH = 300;
+  const stackYPad = 60;
 
-  const years = yearlyData.length;
-  const barW = Math.max(2, (plotW / years) - 1);
+  // Derive trust income from guaranteedIncome - ssIncome for each year
+  const enriched = yearlyData.map(d => ({
+    ...d,
+    trustIncome: Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0)),
+  }));
 
-  // Find max for scale
-  const maxVal = Math.max(
-    ...yearlyData.map(d => d.totalTarget || 0),
-    ...yearlyData.map(d => (d.poolDraw || 0) + (d.ssIncome || 0) + (d.guaranteedIncome - d.ssIncome || 0)),
-    1
-  ) * 1.1;
+  const maxIncome = Math.max(...enriched.map(d => (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome));
+  const maxExpense = Math.max(...enriched.map(d => d.totalTarget || 0));
+  const stackMax = Math.max(maxIncome, maxExpense) * 1.1 || 1;
 
-  const yScale = (v) => padT + plotH - (v / maxVal) * plotH;
-  const xOf = (i) => padL + (i / years) * plotW;
+  // Summary metrics
+  const startYear = enriched[0];
+  const survivorIdx = enriched.findIndex(d => !d.chadAlive);
+  const survivorYear = survivorIdx >= 0 ? enriched[survivorIdx] : enriched[enriched.length - 1];
 
-  // Y-axis ticks
-  const tickStep = maxVal > 20000 ? 5000 : maxVal > 10000 ? 2000 : 1000;
-  const yTicks = [];
-  for (let v = 0; v <= maxVal; v += tickStep) yTicks.push(v);
-
-  const handleMouseMove = (e, i) => {
-    const d = yearlyData[i];
-    if (!d) return;
-    const rect = e.currentTarget.closest('svg').getBoundingClientRect();
-    setTooltip({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      data: d,
-    });
-  };
+  const legendItems = buildLegendItems([
+    ...SOURCES.map(s => ({ id: s.key, label: s.label, color: s.color })),
+    { id: 'target', label: 'Spending Target', color: '#f87171', line: true },
+  ]);
 
   return (
-    <SurfaceCard data-testid="retirement-composition-chart" padding="sm" style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.textSecondary, marginBottom: 4 }}>
+    <div data-testid="retirement-composition-chart" style={{
+      background: "#1e293b", borderRadius: 12, padding: "20px 16px",
+      border: "1px solid #334155", marginBottom: 24
+    }}>
+      <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 4px", fontWeight: 600 }}>
         Retirement Income vs Spending
+      </h3>
+      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 12px" }}>
+        Income sources stacked vs spending target across the full {enriched.length}-year retirement horizon. Hover for detail.
+      </p>
+
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 12 }}>
+        {[
+          { label: `Age ${startYear.age} income`, value: fmtFull((startYear.poolDraw || 0) + (startYear.ssIncome || 0) + startYear.trustIncome), color: '#4ade80' },
+          { label: `Age ${startYear.age} target`, value: fmtFull(startYear.totalTarget), color: '#f87171' },
+          { label: `Survivor (${survivorYear.age}+) target`, value: fmtFull(survivorYear.totalTarget), color: '#fbbf24' },
+        ].map(item => (
+          <div key={item.label} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 10px', border: '1px solid #334155' }}>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>{item.value}</div>
+          </div>
+        ))}
       </div>
-      <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 12 }}>
-        Income sources stacked vs spending target across the full retirement horizon
+
+      {/* Chart area */}
+      <div data-testid="retirement-composition-hover-surface"
+        style={{ position: "relative", height: stackH + 40, paddingLeft: stackYPad }}
+        onMouseLeave={() => setTooltip(null)}>
+
+        {/* Y-axis labels + grid lines */}
+        {(() => {
+          const ticks = [];
+          const tickCount = 6;
+          for (let i = 0; i <= tickCount; i++) {
+            const val = stackMax - (i * stackMax / tickCount);
+            const yPos = (i / tickCount) * stackH;
+            ticks.push(
+              <div key={`rl-${i}`} style={{ position: "absolute", left: 0, top: yPos - 7, width: stackYPad - 8, textAlign: "right" }}>
+                <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {fmt(val)}
+                </span>
+              </div>
+            );
+            ticks.push(
+              <div key={`rg-${i}`} style={{
+                position: "absolute", left: stackYPad, right: 0, top: yPos,
+                height: 1, background: "#1e293b80", zIndex: 0
+              }} />
+            );
+          }
+          return ticks;
+        })()}
+
+        {/* Stacked bars */}
+        <div style={{ display: "flex", alignItems: "flex-end", height: stackH, gap: 0, position: "relative" }}>
+          {enriched.map((d, i) => {
+            const vals = [d.poolDraw || 0, d.ssIncome || 0, d.trustIncome];
+            const total = vals.reduce((a, b) => a + b, 0);
+            const n = enriched.length;
+            const pctX = ((i + 0.5) / n) * 100;
+            const isPhaseStart = i === 0
+              || (inhDuringCouple && d.age === inheritanceChadAge)
+              || d.age === chadPassesAge;
+
+            return (
+              <div key={i} style={{
+                flex: 1, height: "100%", position: "relative",
+                display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center",
+                cursor: "default",
+                background: d.phase === 'survivor' ? '#f9731608' : d.phase === 'postInheritance' ? '#34d39908' : 'transparent',
+                borderLeft: isPhaseStart && i > 0 ? '1px dashed #64748b44' : 'none',
+              }}
+                onMouseEnter={() => setTooltip({
+                  pctX,
+                  data: d,
+                  trustIncome: d.trustIncome,
+                  total,
+                })}>
+                {/* Stacked segments */}
+                <div style={{ width: "80%", display: "flex", flexDirection: "column-reverse" }}>
+                  {SOURCES.map((s, si) => {
+                    const segH = (vals[si] / stackMax) * stackH;
+                    return segH > 0 ? (
+                      <div key={si} style={{
+                        height: segH,
+                        background: s.color,
+                        opacity: tooltip?.data?.age === d.age ? 0.9 : 0.7,
+                        borderRadius: si === SOURCES.length - 1 ? "3px 3px 0 0" :
+                          (vals.slice(si + 1).every(v => v === 0)) ? "3px 3px 0 0" : 0,
+                        transition: "height 0.3s ease, opacity 0.15s ease"
+                      }} />
+                    ) : null;
+                  })}
+                </div>
+
+                {/* Age label (every 5 years) */}
+                {d.age % 5 === 0 && (
+                  <div style={{
+                    position: "absolute", bottom: -20, fontSize: 9, color: "#64748b",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {d.age}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Spending target line */}
+          <svg viewBox={`0 0 ${enriched.length * 100} ${stackH}`} preserveAspectRatio="none"
+            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
+            <path d={`M ${enriched.map((d, i) =>
+              `${i * 100 + 50},${stackH - ((d.totalTarget || 0) / stackMax) * stackH}`
+            ).join(' L ')}`}
+              fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
+
+          {/* Phase labels */}
+          {chadPassesAge && (() => {
+            const idx = chadPassesAge - 67;
+            if (idx <= 0 || idx >= enriched.length) return null;
+            const pctX = ((idx + 0.5) / enriched.length) * 100;
+            return (
+              <div style={{
+                position: 'absolute', left: `${pctX}%`, top: -2, transform: 'translateX(-50%)',
+                background: '#0f172a', border: '1px solid #334155', borderRadius: 4,
+                padding: '1px 5px', pointerEvents: 'none', zIndex: 6, whiteSpace: 'nowrap',
+              }}>
+                <div style={{ fontSize: 8, fontWeight: 600, color: '#fbbf24' }}>Sarah survivor</div>
+              </div>
+            );
+          })()}
+          {inhDuringCouple && inheritanceChadAge && (() => {
+            const idx = inheritanceChadAge - 67;
+            if (idx <= 0 || idx >= enriched.length) return null;
+            const pctX = ((idx + 0.5) / enriched.length) * 100;
+            return (
+              <div style={{
+                position: 'absolute', left: `${pctX}%`, top: 14, transform: 'translateX(-50%)',
+                background: '#0f172a', border: '1px solid #334155', borderRadius: 4,
+                padding: '1px 5px', pointerEvents: 'none', zIndex: 6, whiteSpace: 'nowrap',
+              }}>
+                <div style={{ fontSize: 8, fontWeight: 600, color: '#34d399' }}>Inheritance</div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Tooltip */}
+        {tooltip && tooltip.data && (
+          <div style={{
+            position: "absolute",
+            left: `${tooltip.pctX}%`,
+            top: 10,
+            transform: "translateX(-50%)",
+            background: "#0f172a",
+            border: "1px solid #475569",
+            borderRadius: 8,
+            padding: "10px 14px",
+            pointerEvents: "none",
+            zIndex: 10,
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            minWidth: 200,
+          }}>
+            <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 700, marginBottom: 6, borderBottom: "1px solid #334155", paddingBottom: 4 }}>
+              Chad {tooltip.data.age} / Sarah {tooltip.data.sarahAge}
+              {tooltip.data.phase === 'survivor' ? ' (survivor)' : ''}
+              {tooltip.data.isInheritanceYear ? ' — Inheritance' : ''}
+            </div>
+            {[
+              { label: 'Pool Draw', color: SOURCES[0].color, value: tooltip.data.poolDraw || 0 },
+              { label: 'Social Security', color: SOURCES[1].color, value: tooltip.data.ssIncome || 0, detail: tooltip.data.ssLabel },
+              { label: 'Trust LLC', color: SOURCES[2].color, value: tooltip.trustIncome },
+            ].filter(s => s.value > 0).map((s, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, fontSize: 11, marginTop: 3 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                  <span style={{ color: "#94a3b8" }}>{s.label}{s.detail ? ` (${s.detail})` : ''}</span>
+                </div>
+                <span style={{ color: s.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(s.value)}</span>
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid #334155", marginTop: 6, paddingTop: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                <span style={{ color: "#94a3b8" }}>Total income</span>
+                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(tooltip.total)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                <span style={{ color: "#94a3b8" }}>Spending target</span>
+                <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(tooltip.data.totalTarget)}</span>
+              </div>
+              {tooltip.data.savedToPool > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                  <span style={{ color: "#94a3b8" }}>Reinvested to pool</span>
+                  <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>+{fmtFull(tooltip.data.savedToPool)}</span>
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
+                <span style={{ color: "#94a3b8" }}>Pool balance</span>
+                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(tooltip.data.pool)}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8, fontSize: 10 }}>
-        {INCOME_LAYERS.map(l => (
-          <span key={l.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, display: 'inline-block' }} />
-            <span style={{ color: COLORS.textMuted }}>{l.label}</span>
-          </span>
-        ))}
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 10, height: 2, background: '#f87171', display: 'inline-block' }} />
-          <span style={{ color: COLORS.textMuted }}>Spending Target</span>
-        </span>
-      </div>
-
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto' }}
-        onMouseLeave={() => setTooltip(null)}>
-
-        {/* Phase backgrounds */}
-        {yearlyData.map((d, i) => (
-          <rect key={`phase-${i}`}
-            x={xOf(i)} y={padT}
-            width={barW + 1} height={plotH}
-            fill={PHASE_COLORS[d.phase] || 'transparent'}
-          />
-        ))}
-
-        {/* Y-axis grid + labels */}
-        {yTicks.map(v => (
-          <g key={v}>
-            <line x1={padL} x2={svgW - padR} y1={yScale(v)} y2={yScale(v)}
-              stroke={COLORS.border} strokeWidth={0.5} opacity={0.3} />
-            <text x={padL - 6} y={yScale(v) + 4} textAnchor="end"
-              fill={COLORS.textDim} fontSize={9} fontFamily="'JetBrains Mono', monospace">
-              ${Math.round(v / 1000)}K
-            </text>
-          </g>
-        ))}
-
-        {/* Stacked income bars */}
-        {yearlyData.map((d, i) => {
-          const trustIncome = Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0));
-          const layers = [
-            { key: 'poolDraw', value: d.poolDraw || 0, color: INCOME_LAYERS[0].color },
-            { key: 'ssIncome', value: d.ssIncome || 0, color: INCOME_LAYERS[1].color },
-            { key: 'trustIncome', value: trustIncome, color: INCOME_LAYERS[2].color },
-          ];
-          let cumulative = 0;
-          return (
-            <g key={`bar-${i}`}
-              onMouseMove={(e) => handleMouseMove(e, i)}
-              style={{ cursor: 'crosshair' }}>
-              {layers.map(layer => {
-                const y0 = yScale(cumulative + layer.value);
-                const h = yScale(cumulative) - y0;
-                cumulative += layer.value;
-                if (layer.value <= 0) return null;
-                return (
-                  <rect key={layer.key}
-                    x={xOf(i)} y={y0}
-                    width={barW} height={Math.max(0, h)}
-                    fill={layer.color} opacity={0.85}
-                  />
-                );
-              })}
-            </g>
-          );
-        })}
-
-        {/* Spending target line */}
-        <path
-          d={yearlyData.map((d, i) =>
-            `${i === 0 ? 'M' : 'L'}${xOf(i) + barW / 2},${yScale(d.totalTarget || 0)}`
-          ).join(' ')}
-          fill="none" stroke="#f87171" strokeWidth={2} opacity={0.9}
-        />
-
-        {/* Phase labels */}
-        {chadPassesAge && (
-          <line x1={xOf(chadPassesAge - 67)} y1={padT}
-            x2={xOf(chadPassesAge - 67)} y2={padT + plotH}
-            stroke={COLORS.textDim} strokeWidth={1} strokeDasharray="4,3" />
-        )}
-        {inhDuringCouple && inheritanceChadAge && (
-          <line x1={xOf(inheritanceChadAge - 67)} y1={padT}
-            x2={xOf(inheritanceChadAge - 67)} y2={padT + plotH}
-            stroke="#34d399" strokeWidth={1} strokeDasharray="4,3" />
-        )}
-
-        {/* X-axis labels */}
-        {yearlyData.map((d, i) => (
-          i % 5 === 0 ? (
-            <text key={`x-${i}`} x={xOf(i) + barW / 2} y={svgH - padB + 16}
-              textAnchor="middle" fill={COLORS.textDim} fontSize={9}
-              fontFamily="'JetBrains Mono', monospace">
-              {d.age}
-            </text>
-          ) : null
-        ))}
-        <text x={padL + plotW / 2} y={svgH - 4} textAnchor="middle"
-          fill={COLORS.textDim} fontSize={10}>
-          Chad's Age
-        </text>
-      </svg>
-
-      {/* Tooltip */}
-      {tooltip && tooltip.data && (
-        <div style={{
-          position: 'absolute',
-          left: Math.min(tooltip.x + 12, svgW - 180),
-          top: tooltip.y - 10,
-          background: '#0f172aee',
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 6,
-          padding: '8px 10px',
-          fontSize: 11,
-          color: COLORS.textSecondary,
-          pointerEvents: 'none',
-          zIndex: 10,
-          fontFamily: "'JetBrains Mono', monospace",
-          lineHeight: 1.6,
-          minWidth: 160,
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>
-            Chad {tooltip.data.age} / Sarah {tooltip.data.sarahAge}
-            {tooltip.data.phase === 'survivor' ? ' (survivor)' : ''}
-            {tooltip.data.isInheritanceYear ? ' — Inheritance' : ''}
+      <div style={{ display: "flex", gap: 14, marginTop: 32, justifyContent: "center", flexWrap: "wrap" }}>
+        {legendItems.map(item => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: item.line ? 16 : 12, height: item.line ? 2 : 12, borderRadius: item.line ? 0 : 2, background: item.line ? undefined : item.color, borderTop: item.line ? `2px solid ${item.color}` : undefined, opacity: item.line ? 1 : 0.7 }} />
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{item.label}</span>
           </div>
-          <div style={{ color: '#f87171' }}>Target: {fmtFull(tooltip.data.totalTarget)}/mo</div>
-          <div style={{ color: INCOME_LAYERS[0].color }}>Pool draw: {fmtFull(tooltip.data.poolDraw)}/mo</div>
-          <div style={{ color: INCOME_LAYERS[1].color }}>SS: {fmtFull(tooltip.data.ssIncome)}/mo ({tooltip.data.ssLabel})</div>
-          <div style={{ color: INCOME_LAYERS[2].color }}>Trust: {fmtFull(Math.max(0, (tooltip.data.guaranteedIncome || 0) - (tooltip.data.ssIncome || 0)))}/mo</div>
-          {tooltip.data.savedToPool > 0 && (
-            <div style={{ color: COLORS.textDim, marginTop: 4 }}>
-              +{fmtFull(tooltip.data.savedToPool)}/mo reinvested
-            </div>
-          )}
-          <div style={{ color: COLORS.textDim, marginTop: 4 }}>Pool: {fmtFull(tooltip.data.pool)}</div>
-        </div>
-      )}
-    </SurfaceCard>
+        ))}
+      </div>
+    </div>
   );
 }
 

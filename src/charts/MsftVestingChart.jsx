@@ -9,11 +9,26 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
   const handleRefreshPrice = useCallback(async () => {
     setFetching(true);
     try {
-      const res = await fetch('https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=MSFT&apikey=demo&datatype=json');
+      // Try Yahoo Finance chart API (CORS-friendly, no key needed)
+      const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/MSFT?range=1d&interval=1d');
       const data = await res.json();
-      const price = parseFloat(data?.['Global Quote']?.['05. price']);
-      if (price && price > 0) onMsftPriceChange(Math.round(price * 100) / 100);
-    } catch (e) { /* fetch failed — silent */ }
+      const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if (price && price > 0) {
+        onMsftPriceChange(Math.round(price * 100) / 100);
+        setFetching(false);
+        return;
+      }
+    } catch (e) { /* Yahoo failed, try fallback */ }
+    try {
+      // Fallback: Google Finance page scrape via allorigins proxy
+      const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.google.com/finance/quote/MSFT:NASDAQ'));
+      const html = await res.text();
+      const match = html.match(/data-last-price="([0-9.]+)"/);
+      if (match) {
+        const price = parseFloat(match[1]);
+        if (price > 0) onMsftPriceChange(Math.round(price * 100) / 100);
+      }
+    } catch (e) { /* all fetches failed */ }
     setFetching(false);
   }, [onMsftPriceChange]);
 

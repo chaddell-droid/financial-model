@@ -104,7 +104,8 @@ function SavingsDrawdownChart({
             const minBal = Math.min(dataMin, -startingSavings);
             const range = maxBal - minBal || 1;
 
-            const x = (m) => padL + (m / 72) * plotW;
+            const maxMonth = savingsData[savingsData.length - 1]?.month || 72;
+            const x = (m) => padL + (m / maxMonth) * plotW;
             const y = (b) => padT + (1 - (b - minBal) / range) * plotH;
 
             // Build SVG path
@@ -243,7 +244,7 @@ function SavingsDrawdownChart({
                 )}
 
                 {/* SSDI back pay arrival marker */}
-                {ssdiBackPayActual > 0 && (ssdiApprovalMonth + 2) <= 72 && (
+                {ssdiBackPayActual > 0 && (ssdiApprovalMonth + 2) <= maxMonth && (
                   <g>
                     <line x1={x(ssdiApprovalMonth + 2)} x2={x(ssdiApprovalMonth + 2)}
                       y1={padT} y2={padT + plotH}

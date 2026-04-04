@@ -23,8 +23,9 @@ export default function TimelineChart({
   kidsAgeOutMonths,
   msftGrowth,
   currentMsftVesting,
+  sarahWorkYears,
 }) {
-  const totalMonths = 60;
+  const totalMonths = (sarahWorkYears || 6) * 12;
   const padL = 60; // px padding left for cards
   const padR = 60; // px padding right for cards
   const pct = (m) => (m / totalMonths) * 100;
@@ -144,7 +145,7 @@ export default function TimelineChart({
         }} />
 
         {/* Year ticks + labels */}
-        {[0, 12, 24, 36, 48, 60].map(m => (
+        {Array.from({ length: Math.floor(totalMonths / 12) + 1 }, (_, i) => i * 12).map(m => (
           <div key={m} style={{
             position: "absolute", left: `${pct(m)}%`, top: lineY - 3,
             transform: "translateX(-1px)"
@@ -155,7 +156,7 @@ export default function TimelineChart({
               fontSize: 9, color: "#64748b", whiteSpace: "nowrap",
               fontFamily: "'JetBrains Mono', monospace"
             }}>
-              {m === 0 ? "Now" : m === 60 ? "'31" : `'${26 + Math.floor((2 + m) / 12)}`}
+              {m === 0 ? "Now" : `'${26 + Math.floor((2 + m) / 12)}`}
             </div>
           </div>
         ))}

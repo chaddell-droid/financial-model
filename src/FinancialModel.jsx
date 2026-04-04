@@ -84,7 +84,7 @@ export default function FinancialModel() {
   }, [dispatch]);
 
   const {
-    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate,
+    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate, sarahWorkYears,
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
@@ -370,7 +370,7 @@ export default function FinancialModel() {
 
   // Savings zero-crossing
   const savingsZeroMonth = savingsData.find(d => d.balance <= 0);
-  const savingsZeroLabel = savingsZeroMonth ? `~${Math.round(savingsZeroMonth.month)} months` : "6+ years";
+  const savingsZeroLabel = savingsZeroMonth ? `~${Math.round(savingsZeroMonth.month)} months` : `${sarahWorkYears || 6}+ years`;
 
   const handleTogglePresentMode = () => {
     if (presentMode) {
@@ -468,6 +468,7 @@ export default function FinancialModel() {
     vanSold, vanMonthlySavings,
     kidsAgeOutMonths, msftGrowth,
     currentMsftVesting: data[0].msftVesting,
+    sarahWorkYears,
   }), [
     retireDebt, debtService,
     ssType, ssdiApprovalMonth, ssdiFamilyTotal,
@@ -477,7 +478,7 @@ export default function FinancialModel() {
     bcsYearsLeft, bcsFamilyMonthly,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings,
-    kidsAgeOutMonths, msftGrowth, data,
+    kidsAgeOutMonths, msftGrowth, data, sarahWorkYears,
   ]);
 
   const scenarioStripProps = useMemo(() => ({
@@ -858,7 +859,8 @@ export default function FinancialModel() {
           msftPrice={msftPrice} msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')} onMsftPriceChange={set('msftPrice')}
           sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
           sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-          sarahTaxRate={sarahTaxRate} sarahCurrentGross={sarahCurrentGross} sarahCurrentNet={sarahCurrentNet}
+          sarahTaxRate={sarahTaxRate} sarahWorkYears={sarahWorkYears}
+          sarahCurrentGross={sarahCurrentGross} sarahCurrentNet={sarahCurrentNet}
           sarahCeilingGross={sarahCeilingGross} sarahCeiling={sarahCeiling}
           onFieldChange={set}
           data={data} investmentReturn={investmentReturn}
@@ -873,6 +875,7 @@ export default function FinancialModel() {
           seqReturnsProps={seqReturnsProps}
           savingsDrawdownProps={riskSavingsDrawdownProps}
           netWorthProps={riskNetWorthProps}
+          sarahWorkYears={sarahWorkYears}
           showEmbeddedBalanceCharts={!showRail}
         />
       )}

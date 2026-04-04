@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SSDI_ATTORNEY_FEE_CAP } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SSDI_ATTORNEY_FEE_CAP, CHAD_RETIREMENT_MONTH, buildQuarterlySchedule } from './constants.js';
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
 export function findOperationalBreakevenIndex(rows) {
@@ -18,7 +18,7 @@ export function findOperationalBreakevenIndex(rows) {
  * Returns { monthlyData, backPayActual }.
  */
 export function runMonthlySimulation(s) {
-  const months = 72;
+  const months = s.totalProjectionMonths || 72;
   const cutsDiscipline = s.cutsDiscipline ?? 1.0;
   const useSS = s.ssType === 'ss';
   const chadJob = s.chadJob || false;
@@ -61,7 +61,7 @@ export function runMonthlySimulation(s) {
     const trustLLC = m < trustMonth ? trustNow : trustFuture;
 
     // Chad's job income (after tax)
-    const chadJobIncome = (chadJob && m >= chadJobStartMonth) ? chadJobMonthlyNet : 0;
+    const chadJobIncome = (chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH) ? chadJobMonthlyNet : 0;
 
     // SS/SSDI: fully skipped when Chad has a job — mutually exclusive paths
     let ssdi = 0;
@@ -75,7 +75,8 @@ export function runMonthlySimulation(s) {
       }
     }
     // Consulting: only when not employed full-time
-    const consulting = chadJob ? 0
+    const consulting = (m > CHAD_RETIREMENT_MONTH) ? 0
+      : chadJob ? 0
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
@@ -102,7 +103,7 @@ export function runMonthlySimulation(s) {
     if (m < (s.bcsYearsLeft ?? 3) * 12) expenses += s.bcsFamilyMonthly;
     for (const mi of ms) { if (m >= mi.month) expenses -= mi.savings; }
     // Employer health insurance saves on premiums
-    if (chadJob && m >= chadJobStartMonth) expenses -= chadJobHealthSavings;
+    if (chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH) expenses -= chadJobHealthSavings;
     // One-time extras: temporary additional costs for a limited duration
     const oneTimeExtras = s.oneTimeExtras || 0;
     const oneTimeMonths = s.oneTimeMonths || 0;
@@ -166,7 +167,8 @@ export function computeProjection(s) {
   const { monthlyData, backPayActual } = runMonthlySimulation(s);
 
   // Aggregate to quarterly snapshots for charts (every 3rd month starting at 0)
-  const data = MONTH_VALUES.map((m, i) => {
+  const { labels: qLabels, monthValues: qMonthValues } = buildQuarterlySchedule(s.totalProjectionMonths || 72);
+  const data = qMonthValues.map((m, i) => {
     const months = monthlyData.filter(d => d.month >= m && d.month < m + 3);
     if (months.length === 0) return null;
 
@@ -178,7 +180,7 @@ export function computeProjection(s) {
     const avgNetMonthly = Math.round(months.reduce((sum, d) => sum + d.netMonthly, 0) / months.length);
 
     return {
-      label: MONTHS[i], month: m,
+      label: qLabels[i], month: m,
       sarahIncome: Math.round(months.reduce((sum, d) => sum + d.sarahIncome, 0) / months.length),
       msftVesting: Math.round(months.reduce((sum, d) => sum + d.msftLump, 0) / months.length),
       trustLLC: Math.round(months.reduce((sum, d) => sum + d.trustLLC, 0) / months.length),

@@ -7,7 +7,7 @@ export default function IncomeTab({
   vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange,
   sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-  sarahTaxRate, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
+  sarahTaxRate, sarahWorkYears, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
   onFieldChange,
   data, investmentReturn,
   vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
@@ -23,6 +23,7 @@ export default function IncomeTab({
         sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
         sarahTaxRate={sarahTaxRate} sarahCurrentGross={sarahCurrentGross} sarahCurrentNet={sarahCurrentNet}
         sarahCeilingGross={sarahCeilingGross} sarahCeiling={sarahCeiling}
+        sarahWorkYears={sarahWorkYears}
         onFieldChange={onFieldChange}
       />
       <IncomeCompositionChart data={data} investmentReturn={investmentReturn}

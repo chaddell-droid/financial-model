@@ -33,7 +33,8 @@ function NetWorthChart({
   const yMax = maxVal * 1.05;
   const yMin = Math.min(minVal, 0);
 
-  const { xOf, yOf } = createScales(padL, padR, padT, padB, svgW, svgH, [0, 72], [yMin, yMax]);
+  const maxMonth = savingsData[savingsData.length - 1]?.month || 72;
+  const { xOf, yOf } = createScales(padL, padR, padT, padB, svgW, svgH, [0, maxMonth], [yMin, yMax]);
 
   const yRange = yMax - yMin;
   const tickStep = autoTickStep(yRange);
@@ -59,7 +60,7 @@ function NetWorthChart({
   const homeChange = endHome - (homeEquity || 0);
   const keyCards = [
     { label: 'Starting Net Worth', value: fmtFull(startNetWorth), color: COLORS.textSecondary },
-    { label: '6-Year Net Worth', value: fmtFull(endNetWorth), color: endNetWorth >= startNetWorth ? COLORS.green : COLORS.red },
+    { label: `${Math.round(maxMonth / 12)}-Year Net Worth`, value: fmtFull(endNetWorth), color: endNetWorth >= startNetWorth ? COLORS.green : COLORS.red },
     { label: '401k Growth', value: (k401Change >= 0 ? '+' : '') + fmtFull(k401Change), color: k401Change >= 0 ? COLORS.blue : COLORS.red },
     { label: 'Home Appreciation', value: (homeChange >= 0 ? '+' : '') + fmtFull(homeChange), color: COLORS.amber },
   ];

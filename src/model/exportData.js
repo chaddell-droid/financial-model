@@ -26,7 +26,8 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       steadyStateMonth: 36,
       steadyStateNet: data[data.findIndex(d => d.month >= 36)]?.netMonthly,
       cashFlowBreakevenMonth: findOperationalBreakevenIndex(md),
-      savingsRunway: md.every(d => d.balance >= 0) ? "6+ years" : `${md.findIndex(d => d.balance < 0)} months`,
+      sarahWorkYears: s.sarahWorkYears || 6,
+      savingsRunway: md.every(d => d.balance >= 0) ? `${s.sarahWorkYears || 6}+ years` : `${md.findIndex(d => d.balance < 0)} months`,
       advanceAsk: advanceNeeded,
     },
     income: {

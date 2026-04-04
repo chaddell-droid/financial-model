@@ -13,6 +13,7 @@ export function gatherState(state) {
   const st = state || INITIAL_STATE;
   const s = {};
   for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
+  s.totalProjectionMonths = (s.sarahWorkYears || 6) * 12;
   s.bcsFamilyMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - (s.bcsParentsAnnual || 0)) / 12);
   // If totalMonthlySpend is set, back-calculate baseExpenses from it.
   // Cut sliders represent ADDITIONAL reductions from the actual spend level.

@@ -15,6 +15,7 @@ export default function SarahPracticeChart({
   sarahCurrentNet,
   sarahCeilingGross,
   sarahCeiling,
+  sarahWorkYears,
   onFieldChange,
 }) {
   const set = onFieldChange;
@@ -22,7 +23,7 @@ export default function SarahPracticeChart({
   const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
 
-  const months = 60;
+  const months = (sarahWorkYears || 6) * 12;
   const chartW = 800;
   const chartH = 240;
   const padL = 55;
@@ -128,10 +129,10 @@ export default function SarahPracticeChart({
           ))}
 
           {/* Year markers on X axis */}
-          {[0, 12, 24, 36, 48, 60].map(m => (
+          {Array.from({ length: Math.floor(months / 12) + 1 }, (_, i) => i * 12).map(m => (
             <text key={m} x={xOf(m)} y={chartH - 4} textAnchor="middle"
               fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-              {m === 0 ? "Now" : m === 60 ? "'31" : `'${26 + Math.floor((2+m)/12)}`}
+              {m === 0 ? "Now" : `'${26 + Math.floor((2+m)/12)}`}
             </text>
           ))}
 
@@ -287,6 +288,10 @@ export default function SarahPracticeChart({
           <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
             <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tax</div>
             <Slider label="Effective tax rate (SE + federal)" value={sarahTaxRate} onChange={set('sarahTaxRate')} commitStrategy={commitStrategy} min={15} max={40} color="#60a5fa" format={(v) => v + "%"} />
+          </div>
+          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Working Duration</div>
+            <Slider label="Years Sarah works" value={sarahWorkYears || 6} onChange={set('sarahWorkYears')} commitStrategy='release' min={3} max={12} step={1} color="#a78bfa" format={(v) => v + " years"} />
           </div>
           <div style={{ padding: "8px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>

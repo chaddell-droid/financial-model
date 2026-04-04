@@ -22,7 +22,7 @@ function createRandomSource(seed) {
  */
 export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
   const { mcNumSims: N, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline } = mcParams;
-  const months = 72;
+  const months = base.totalProjectionMonths || 72;
   const clampGrowth = (value) => Math.max(-99.9, value);
   const rng = createRandomSource(options.seed);
   const drawDelayMonths = (maxDelay) => Math.floor(rng() * (Math.max(0, maxDelay) + 1));

@@ -14,18 +14,27 @@ export default function SequenceOfReturnsChart({
   const set = onParamChange;
   const annualReturn = investmentReturn;
 
-  // Auto-compute recovery years to maintain same 6-year average
-  const targetSum = annualReturn * 6;
+  // Derive horizon from projection data
+  const months = (monthlyDetail.length > 1) ? monthlyDetail.length - 1 : 30;
+  const years = Math.ceil(months / 12);
+
+  // Auto-compute recovery years to maintain same N-year average
+  const targetSum = annualReturn * years;
   const earlySum = seqBadY1 + seqBadY2;
   const remainingSum = targetSum - earlySum;
-  const baseRecovery = remainingSum / 4;
-  const spread = [seqBadY1, seqBadY2, Math.round(baseRecovery - 3), Math.round(baseRecovery), Math.round(baseRecovery + 1), Math.round(baseRecovery + 2)];
+  const recoveryYears = Math.max(1, years - 2);
+  const baseRecovery = remainingSum / recoveryYears;
+  const spread = [seqBadY1, seqBadY2];
+  for (let y = 0; y < recoveryYears; y++) {
+    const offset = y - Math.floor(recoveryYears / 2);
+    spread.push(Math.round(baseRecovery + offset));
+  }
   const currentSum = spread.reduce((a, b) => a + b, 0);
-  spread[5] += (targetSum - currentSum);
+  spread[spread.length - 1] += (targetSum - currentSum);
 
   const badEarly = spread;
   const goodEarly = [...spread].reverse();
-  const steady = Array(6).fill(annualReturn);
+  const steady = Array(years).fill(annualReturn);
 
   const scenarios = [
     { name: "Steady returns", schedule: steady, color: "#94a3b8", dash: "6,4" },
@@ -33,13 +42,11 @@ export default function SequenceOfReturnsChart({
     { name: "Good luck early", schedule: goodEarly, color: "#4ade80", dash: "" },
   ];
 
-  // Zoom to 0-30 months — the vulnerability window through MSFT end
-  const months = 30;
   const scenarioData = scenarios.map(sc => {
     let bal = startingSavings;
     const pts = [];
     for (let m = 0; m <= months; m++) {
-      const yr = Math.min(Math.floor(m / 12), 5);
+      const yr = Math.min(Math.floor(m / 12), years - 1);
       const mRate = Math.pow(1 + sc.schedule[yr] / 100, 1/12) - 1;
       const md = monthlyDetail[m];
       if (!md) { pts.push(Math.round(bal)); continue; }
@@ -95,7 +102,7 @@ export default function SequenceOfReturnsChart({
         What if bad returns arrive before the plan reaches stability?
       </div>
       <div style={{ fontSize: 10, color: "#475569", marginBottom: 10 }}>
-        Months 0-30 are the vulnerable window. This keeps the same average six-year return and changes only the order that returns arrive.
+        Months 0-30 are the vulnerable window. This keeps the same average {years}-year return and changes only the order that returns arrive.
       </div>
 
       <div data-testid="sequence-returns-summary" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 12 }}>
@@ -136,7 +143,7 @@ export default function SequenceOfReturnsChart({
             {spread.slice(2).map(v => (v >= 0 ? "+" : "") + v + "%").join(", ")}
           </div>
           <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>
-            6yr avg: {Math.round(spread.reduce((a, b) => a + b, 0) / 6 * 10) / 10}% = base {annualReturn}%
+            {years}yr avg: {Math.round(spread.reduce((a, b) => a + b, 0) / years * 10) / 10}% = base {annualReturn}%
           </div>
         </div>
       </div>
@@ -178,7 +185,7 @@ export default function SequenceOfReturnsChart({
       ))}
 
         {/* X-axis labels */}
-        {[0, 6, 12, 18, 24, 30].map(m => (
+        {Array.from({ length: Math.floor(months / 12) + 1 }, (_, i) => i * 12).map(m => (
           <text key={m} x={seqX(m)} y={seqH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
             {formatModelTimeLabel(m)}
           </text>
@@ -246,7 +253,7 @@ export default function SequenceOfReturnsChart({
       {/* Narrative */}
       <div data-testid="sequence-returns-narrative" style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
         With {seqBadY1}% and {seqBadY2}% returns in years 1-2, <strong style={{ color: "#f87171" }}>bad early returns</strong> reach the MSFT cliff with {fmtFull(cliffGap)} less cash than
-        <strong style={{ color: "#4ade80" }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1-2), even though the six-year average return is identical.
+        <strong style={{ color: "#4ade80" }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1-2), even though the {years}-year average return is identical.
         {" "}<span style={{ color: "#fbbf24" }}>That difference is the sequence-risk cost of taking losses before the plan reaches stability. The inheritance advance reduces the deficit during this window and preserves more runway regardless of market direction.</span>
       </div>
     </div>

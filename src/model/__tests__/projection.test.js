@@ -3,7 +3,7 @@
  * Run with: node src/model/__tests__/projection.test.js
  */
 import assert from 'node:assert';
-import { runMonthlySimulation, findOperationalBreakevenIndex } from '../projection.js';
+import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import { DAYS_PER_MONTH, SGA_LIMIT } from '../constants.js';
 
@@ -1167,6 +1167,72 @@ test('61. oneTimeExtras=0 or oneTimeMonths=0 has no effect', () => {
     'zero extras: no change');
   assert.strictEqual(withZeroMonths.monthlyData[0].expenses, baseline.monthlyData[0].expenses,
     'zero months: no change');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Variable Horizon Tests (Epic 5 — Story 5.4)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Variable Horizon — projection at 4yr, 8yr, 10yr ===');
+
+test('VH1. sarahWorkYears=4 produces 49 months (0-48)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkYears: 4 });
+  assert.strictEqual(s.totalProjectionMonths, 48);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 49, `expected 49, got ${monthlyData.length}`);
+  assert.strictEqual(monthlyData[48].month, 48);
+});
+
+test('VH2. sarahWorkYears=8 produces 97 months (0-96)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkYears: 8 });
+  assert.strictEqual(s.totalProjectionMonths, 96);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 97, `expected 97, got ${monthlyData.length}`);
+  assert.strictEqual(monthlyData[96].month, 96);
+});
+
+test('VH3. sarahWorkYears=10 produces 121 months (0-120)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkYears: 10 });
+  assert.strictEqual(s.totalProjectionMonths, 120);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 121, `expected 121, got ${monthlyData.length}`);
+});
+
+test('VH4. Post-retirement months (73+) have zero chadJobIncome and consulting', () => {
+  const s = gatherStateWithOverrides({ sarahWorkYears: 8 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const m of [73, 80, 96]) {
+    assert.strictEqual(monthlyData[m].chadJobIncome, 0,
+      `month ${m} chadJobIncome should be 0, got ${monthlyData[m].chadJobIncome}`);
+    assert.strictEqual(monthlyData[m].consulting, 0,
+      `month ${m} consulting should be 0, got ${monthlyData[m].consulting}`);
+  }
+});
+
+test('VH5. Post-retirement months have positive sarahIncome', () => {
+  const s = gatherStateWithOverrides({ sarahWorkYears: 8 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const m of [73, 80, 96]) {
+    assert.ok(monthlyData[m].sarahIncome > 0,
+      `month ${m} sarahIncome should be positive, got ${monthlyData[m].sarahIncome}`);
+  }
+});
+
+test('VH6. Default sarahWorkYears=6 produces identical 73-element output', () => {
+  const s = gatherStateWithOverrides({});
+  assert.strictEqual(s.totalProjectionMonths, 72);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 73);
+});
+
+test('VH7. Quarterly data adapts to variable horizon', () => {
+  const s4 = gatherStateWithOverrides({ sarahWorkYears: 4 });
+  const s8 = gatherStateWithOverrides({ sarahWorkYears: 8 });
+  const s10 = gatherStateWithOverrides({ sarahWorkYears: 10 });
+  const p4 = computeProjection(s4);
+  const p8 = computeProjection(s8);
+  const p10 = computeProjection(s10);
+  assert.ok(p4.data.length < p8.data.length, `4yr (${p4.data.length}) should have fewer quarters than 8yr (${p8.data.length})`);
+  assert.ok(p8.data.length < p10.data.length, `8yr (${p8.data.length}) should have fewer quarters than 10yr (${p10.data.length})`);
 });
 
 // ════════════════════════════════════════════════════════════════════════

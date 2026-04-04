@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -49,6 +49,7 @@ const RANGE = {
   sarahCurrentClients: { min: 0, max: 50 },
   sarahMaxClients: { min: 0, max: 50 },
   bcsYearsLeft: { min: 0, max: 10 },
+  sarahWorkYears: { min: 3, max: 12 },
   mcNumSims: { min: 10, max: 10000 },
   // Dollar amounts (non-negative)
   msftPrice: { min: 1 },
@@ -130,6 +131,17 @@ const MIGRATIONS = [
         result.cutGroceries = INITIAL_STATE.cutGroceries;
         result.cutPersonalCare = INITIAL_STATE.cutPersonalCare;
         result.cutSmallItems = INITIAL_STATE.cutSmallItems;
+      }
+      return result;
+    },
+  },
+  {
+    from: 1,
+    to: 2,
+    fn: (state) => {
+      const result = { ...state };
+      if (result.sarahWorkYears === undefined) {
+        result.sarahWorkYears = 6;
       }
       return result;
     },

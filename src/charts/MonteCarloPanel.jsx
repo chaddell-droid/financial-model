@@ -33,7 +33,7 @@ export default function MonteCarloPanel({
     if (!mcResults || !gatherState) return null;
     const base = gatherState();
     const baseProj = computeProjection(base);
-    const baseFinalBal = baseProj.savingsData.find(d => d.month === 72)?.balance || 0;
+    const baseFinalBal = baseProj.savingsData[baseProj.savingsData.length - 1]?.balance || 0;
     const disciplineSigma = (mcCutsDiscipline || 0) / 100;
     const baseDiscipline = base.cutsDiscipline ?? 1;
 
@@ -54,8 +54,10 @@ export default function MonteCarloPanel({
     ];
 
     return sensVars.map(sv => {
-      const upFinal = computeProjection(sv.upState).savingsData.find(d => d.month === 72)?.balance || 0;
-      const downFinal = computeProjection(sv.downState).savingsData.find(d => d.month === 72)?.balance || 0;
+      const upProj = computeProjection(sv.upState);
+      const upFinal = upProj.savingsData[upProj.savingsData.length - 1]?.balance || 0;
+      const downProj = computeProjection(sv.downState);
+      const downFinal = downProj.savingsData[downProj.savingsData.length - 1]?.balance || 0;
       return {
         name: sv.name,
         upside: upFinal - baseFinalBal,
@@ -72,7 +74,7 @@ export default function MonteCarloPanel({
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
-              <h3 style={{ fontSize: 15, color: COLORS.textPrimary, margin: "0 0 2px", fontWeight: 700 }}>Will the plan stay solvent through the 6-year outlook?</h3>
+              <h3 style={{ fontSize: 15, color: COLORS.textPrimary, margin: "0 0 2px", fontWeight: 700 }}>Will the plan stay solvent through the {mcResults ? Math.round((mcResults.bands[0].series.length - 1) / 12) : savingsData.length > 0 ? Math.round((savingsData[savingsData.length - 1]?.month || 72) / 12) : 6}-year outlook?</h3>
               <p style={{ fontSize: 11, color: COLORS.textDim, margin: 0 }}>
                 {mcResults
                   ? `${mcResults.numSims} randomized paths answering the solvency question`
@@ -194,7 +196,7 @@ export default function MonteCarloPanel({
                   {[
                     { label: "Chance of staying solvent", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} paths never dip below zero`, color: solvColor },
                     { label: "Typical lowest point", value: fmtFull(medianTrough), sub: "Median trough across paths", color: medianTrough >= 0 ? COLORS.green : COLORS.red },
-                    { label: "Typical finish", value: fmtFull(medianFinal), sub: "Median balance at Y6", color: medianFinal >= 0 ? COLORS.green : COLORS.red },
+                    { label: "Typical finish", value: fmtFull(medianFinal), sub: `Median balance at Y${Math.round(months / 12)}`, color: medianFinal >= 0 ? COLORS.green : COLORS.red },
                     { label: "Bad-luck finish", value: fmtFull(p10Final), sub: "10th percentile ending balance", color: p10Final >= 0 ? COLORS.yellow : COLORS.red },
                     { label: "Good-luck finish", value: fmtFull(p90Final), sub: "90th percentile ending balance", color: COLORS.green },
                   ].map((item, i) => (
@@ -244,7 +246,7 @@ export default function MonteCarloPanel({
                     )}
 
                     {/* X-axis labels */}
-                    {[0, 12, 24, 36, 48, 60, 72].map(m => (
+                    {Array.from({ length: Math.round(months / 12) + 1 }, (_, i) => i * 12).map(m => (
                       <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill={COLORS.borderLight} fontSize="9" fontFamily="'JetBrains Mono', monospace">
                         {m === 0 ? "M0" : `Y${m/12}`}
                       </text>
@@ -347,7 +349,7 @@ export default function MonteCarloPanel({
                           Which assumption moves the result most?
                         </div>
                         <div style={{ fontSize: 10, color: COLORS.borderLight, marginBottom: 8 }}>
-                          Approximate change in the year-6 balance from a one-sigma move in each assumption
+                          Approximate change in the year-{Math.round(months / 12)} balance from a one-sigma move in each assumption
                         </div>
                       <svg viewBox={`0 0 ${tornadoW} ${tornado.length * (barH + 4) + 20}`} style={{ width: "100%", height: "auto" }}>
                         {/* Center line */}

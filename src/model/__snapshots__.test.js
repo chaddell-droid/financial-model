@@ -1804,7 +1804,7 @@ test('Risk tab is sequenced around questions instead of flat widgets', () => {
 test('Risk charts use decision-oriented wording and reduced sequence clutter', () => {
   const monteCarloSource = fs.readFileSync(new URL('../charts/MonteCarloPanel.jsx', import.meta.url), 'utf8');
   const sequenceSource = fs.readFileSync(new URL('../charts/SequenceOfReturnsChart.jsx', import.meta.url), 'utf8');
-  assert.ok(monteCarloSource.includes('Will the plan stay solvent through the 6-year outlook?'), 'Monte Carlo should lead with the decision question');
+  assert.ok(monteCarloSource.includes('Will the plan stay solvent through the'), 'Monte Carlo should lead with the decision question');
   assert.ok(monteCarloSource.includes('Which assumption moves the result most?'), 'Monte Carlo should frame sensitivity by question');
   assert.ok(sequenceSource.includes('buildLegendItems'), 'sequence chart should use shared legend helpers');
   assert.ok(sequenceSource.includes('data-testid="sequence-returns-summary"'), 'sequence chart should expose its summary strip');

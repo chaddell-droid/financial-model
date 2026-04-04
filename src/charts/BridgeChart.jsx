@@ -468,7 +468,7 @@ const BridgeChart = ({
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   variant = 'overview',
 }) => {
-  const months = 60;
+  const months = (monthlyDetail?.length > 1) ? monthlyDetail.length - 1 : 60;
   const svgW = 800;
   const svgH = variant === 'plan' ? 240 : 290;
   const padL = 60;
@@ -492,7 +492,7 @@ const BridgeChart = ({
     const xOf = (month) => padL + (month / months) * plotW;
     const yOf = (value) => padT + ((maxNet - value) / range) * plotH;
     const zeroY = yOf(0);
-    const xTicks = [0, 12, 24, 36, 48, 60];
+    const xTicks = Array.from({ length: Math.floor(months / 12) + 1 }, (_, i) => i * 12);
     const tickStep = getTickStep(minNet, maxNet);
     const yTicks = [];
     for (let value = Math.ceil(minNet / tickStep) * tickStep; value <= maxNet; value += tickStep) {

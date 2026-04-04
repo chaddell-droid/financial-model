@@ -1,5 +1,6 @@
 import React, { memo, useState, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
+import RetirementCompositionChart from './RetirementCompositionChart.jsx';
 import Slider from '../components/Slider.jsx';
 import HelpDrawer from '../components/help/HelpDrawer.jsx';
 import HelpTip from '../components/help/HelpTip.jsx';
@@ -569,6 +570,14 @@ function RetirementIncomeChart({
         </div>
       </div>
       )}
+
+      <RetirementCompositionChart
+        yearlyData={yearlyData}
+        chadPassesAge={chadPassesAge}
+        inheritanceChadAge={inheritanceChadAge}
+        inhDuringCouple={inhDuringCouple}
+        hasInheritance={hasInheritance}
+      />
 
       {isPwaMode && (
         <>

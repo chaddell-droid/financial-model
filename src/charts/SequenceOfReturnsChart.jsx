@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 export default function SequenceOfReturnsChart({
   seqBadY1, seqBadY2, onParamChange,
@@ -9,6 +10,9 @@ export default function SequenceOfReturnsChart({
   ssStartMonth,
   monthlyDetail, presentMode
 }) {
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
+
   if (presentMode) return null;
 
   const set = onParamChange;
@@ -68,7 +72,7 @@ export default function SequenceOfReturnsChart({
   const cliffGap = balAtCliff[2] - balAtCliff[1]; // good minus bad at cliff
 
   // Chart dimensions
-  const seqW = 700, seqH = 220;
+  const seqW = svgW, seqH = 220;
   const spl = 55, spr = 90, spt = 15, spb = 25;
   const spw = seqW - spl - spr, sph = seqH - spt - spb;
   const allPts = scenarioData.flatMap(s => s.pts);
@@ -97,7 +101,7 @@ export default function SequenceOfReturnsChart({
   })();
 
   return (
-    <div style={{ marginTop: 16, padding: "14px 16px", background: "#1e293b", borderRadius: 12, border: "1px solid #334155", marginBottom: 24 }}>
+    <div ref={containerRef} style={{ marginTop: 16, padding: "14px 16px", background: "#1e293b", borderRadius: 12, border: "1px solid #334155", marginBottom: 24 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", marginBottom: 2 }}>
         What if bad returns arrive before the plan reaches stability?
       </div>

@@ -91,6 +91,21 @@ export function reducer(state, action) {
       }
       return { ...state, monthlyActuals: newActuals, merchantClassifications: newClassifications };
     }
+    case 'RESET_ACTUALS_MONTH': {
+      const { [action.month]: _, ...remaining } = state.monthlyActuals;
+      return {
+        ...state,
+        monthlyActuals: remaining,
+        ...(action.clearClassifications ? { merchantClassifications: {} } : {}),
+      };
+    }
+    case 'RESET_ACTUALS_ALL': {
+      return {
+        ...state,
+        monthlyActuals: {},
+        ...(action.clearClassifications ? { merchantClassifications: {} } : {}),
+      };
+    }
     default:
       return state;
   }

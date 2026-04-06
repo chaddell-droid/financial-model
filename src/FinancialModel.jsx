@@ -806,7 +806,14 @@ export default function FinancialModel() {
         }}>
           <div>
             <SavingsDrawdownChart {...savingsDrawdownProps} instanceId='overview' />
-            <OverviewTab bridgeProps={bridgeProps} />
+            <OverviewTab
+              bridgeProps={bridgeProps}
+              rawMonthlyGap={rawMonthlyGap}
+              savingsZeroLabel={savingsZeroLabel}
+              savingsZeroMonth={savingsZeroMonth}
+              mcResults={mcResults}
+              onTabChange={set('activeTab')}
+            />
           </div>
           {shellWidthBucket === 'desktop' && (
             <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
@@ -829,6 +836,7 @@ export default function FinancialModel() {
             scenarioStripProps={scenarioStripProps}
             shellWidthBucket={shellWidthBucket}
             presentMode={presentMode}
+            gatherState={stableGatherState}
           />
           {shellWidthBucket === 'desktop' && (
             <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
@@ -849,6 +857,10 @@ export default function FinancialModel() {
           merchantClassifications={merchantClassifications}
           currentTotalMonthlySpend={totalMonthlySpend}
           currentOneTimeExtras={oneTimeExtras}
+          baseExpenses={effectiveBaseExpenses}
+          debtService={debtService}
+          vanMonthlySavings={vanMonthlySavings}
+          bcsFamilyMonthly={bcsFamilyMonthly}
           dispatch={dispatch}
         />
       )}
@@ -923,6 +935,10 @@ export default function FinancialModel() {
     dataTableProps,
     summaryAskProps,
     trackTabProps,
+    rawMonthlyGap,
+    savingsZeroLabel,
+    savingsZeroMonth,
+    mcResults,
   ]);
 
   const plannerRail = useMemo(() => (
@@ -973,6 +989,7 @@ export default function FinancialModel() {
             compareName={compareName}
             onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
             onDelete={deleteScenario}
+            onApplyTemplate={(overrides) => dispatch({ type: 'SET_FIELDS', fields: overrides })}
             storageStatus={storageStatus}
             storageAvailable={storageAvailable}
           />

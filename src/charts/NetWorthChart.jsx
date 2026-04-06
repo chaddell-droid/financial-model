@@ -1,10 +1,11 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { createScales, generateYTicks, autoTickStep, COLORS } from './chartUtils.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 import ChartYAxis from './ChartYAxis.jsx';
 import ChartXAxis from './ChartXAxis.jsx';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 function NetWorthChart({
   savingsData, wealthData,
@@ -12,6 +13,8 @@ function NetWorthChart({
   presentMode, onFieldChange,
   instanceId = 'default',
 }) {
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
   const [tooltip, setTooltip] = useState(null);
 
   const startingSavings = savingsData[0]?.balance || 0;
@@ -21,7 +24,7 @@ function NetWorthChart({
   const startNetWorth = startingSavings + (starting401k || 0) + (homeEquity || 0);
   const endNetWorth = endSavings + end401k + endHome;
 
-  const svgW = 800, svgH = 340;
+  const svgH = 340;
   const padL = 60, padR = 80, padT = 20, padB = 30;
 
   // Compute total net worth at each month for scaling
@@ -72,7 +75,7 @@ function NetWorthChart({
   ]);
 
   return (
-    <div data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={{
+    <div ref={containerRef} data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={{
       background: COLORS.bgCard, borderRadius: 12, padding: '20px 16px',
       border: `1px solid ${COLORS.border}`, marginBottom: 24,
     }}>

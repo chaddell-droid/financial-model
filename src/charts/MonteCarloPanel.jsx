@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { computeProjection } from '../model/projection.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 import { COLORS } from './chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 export default function MonteCarloPanel({
   mcResults,
@@ -24,6 +25,8 @@ export default function MonteCarloPanel({
   mcParams,
 }) {
   useRenderMetric('MonteCarloPanel');
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
   const [mcTooltip, setMcTooltip] = useState(null);
 
   if (presentMode) return null;
@@ -68,7 +71,7 @@ export default function MonteCarloPanel({
   }, [mcResults, gatherState, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcCutsDiscipline]);
 
   return (
-        <div data-testid="monte-carlo-panel" style={{
+        <div ref={containerRef} data-testid="monte-carlo-panel" style={{
           background: COLORS.bgCard, borderRadius: 12, padding: "20px 16px",
           border: `1px solid ${COLORS.border}`, marginBottom: 24
         }}>
@@ -122,7 +125,6 @@ export default function MonteCarloPanel({
           {mcResults && (() => {
             const { bands, solvencyRate, medianTrough, medianFinal, p10Final, p90Final } = mcResults;
             const months = bands[0].series.length - 1;
-            const svgW = 800;
             const svgH = 260;
             const padL = 60;
             const padR = 20;

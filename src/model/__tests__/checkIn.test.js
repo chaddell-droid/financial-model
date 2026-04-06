@@ -8,6 +8,7 @@ import {
   getMonthLabel,
   getPlanSnapshot,
   computeMonthlyDrift,
+  computeActualsDrift,
   computeCumulativeDrift,
   buildReforecast,
   buildStatusSummary,
@@ -438,6 +439,44 @@ test('includes correct monthLabel, actualBalance, and plannedBalance', () => {
   assert.strictEqual(result.monthLabel, 'April 2026');
   assert.strictEqual(result.actualBalance, 51000);
   assert.strictEqual(result.plannedBalance, 50000);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// computeActualsDrift
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== computeActualsDrift ===');
+
+test('exact match returns on-track with 0% delta', () => {
+  // model: 4000 + 1500 + 300 + 200 = 6000
+  const result = computeActualsDrift(6000, 500, 4000, 1500, 300, 200);
+  assert.strictEqual(result.status, 'on-track');
+  assert.strictEqual(result.pctDelta, 0);
+  assert.strictEqual(result.delta, 0);
+  assert.strictEqual(result.modelTotal, 6000);
+  assert.strictEqual(result.actualCore, 6000);
+});
+
+test('5% drift returns on-track (within threshold)', () => {
+  // model total = 6000, actual = 6300 -> +5%
+  const result = computeActualsDrift(6300, 0, 4000, 1500, 300, 200);
+  assert.strictEqual(result.status, 'on-track');
+  assert.strictEqual(result.pctDelta, 5);
+});
+
+test('15% over model returns behind (spending more than planned)', () => {
+  // model total = 6000, actual = 6900 -> +15%
+  const result = computeActualsDrift(6900, 0, 4000, 1500, 300, 200);
+  assert.strictEqual(result.status, 'behind');
+  assert.strictEqual(result.pctDelta, 15);
+  assert.strictEqual(result.delta, 900);
+});
+
+test('15% under model returns ahead (spending less than planned)', () => {
+  // model total = 6000, actual = 5100 -> -15%
+  const result = computeActualsDrift(5100, 0, 4000, 1500, 300, 200);
+  assert.strictEqual(result.status, 'ahead');
+  assert.strictEqual(result.pctDelta, -15);
+  assert.strictEqual(result.delta, -900);
 });
 
 // ════════════════════════════════════════════════════════════════════════

@@ -126,6 +126,30 @@ export function buildReforecast(gatherState, latestCheckIn) {
 }
 
 /**
+ * Compute drift between actual core spending (from CSV actuals) and the model's
+ * assumed total monthly spend.  Returns an object with comparison details.
+ *
+ * @param {number} coreTotal - actual core (recurring) spend from CSV
+ * @param {number} onetimeTotal - actual one-time spend from CSV (informational)
+ * @param {number} modelBaseExpenses - model baseExpenses (or effectiveBaseExpenses)
+ * @param {number} modelDebtService - model debtService
+ * @param {number} modelVanSavings - model vanMonthlySavings
+ * @param {number} modelBcsFamilyMonthly - model bcsFamilyMonthly
+ * @returns {{ modelTotal: number, actualCore: number, delta: number, pctDelta: number, status: string }}
+ */
+export function computeActualsDrift(coreTotal, onetimeTotal, modelBaseExpenses, modelDebtService, modelVanSavings, modelBcsFamilyMonthly) {
+  const modelTotal = (modelBaseExpenses || 0) + (modelDebtService || 0) + (modelVanSavings || 0) + (modelBcsFamilyMonthly || 0);
+  const actualCore = coreTotal || 0;
+  const delta = actualCore - modelTotal;
+  const pctDelta = modelTotal !== 0 ? Math.round((delta / Math.abs(modelTotal)) * 100) : 0;
+  const isClose = Math.abs(pctDelta) <= 10;
+  // For expenses, lower actual is "ahead" (spending less than planned)
+  const isGood = delta <= 0;
+  const status = isClose ? 'on-track' : isGood ? 'ahead' : 'behind';
+  return { modelTotal, actualCore, delta, pctDelta, status };
+}
+
+/**
  * Build a shareable status summary from the latest check-in.
  */
 export function buildStatusSummary(checkIn, drift, savingsData) {

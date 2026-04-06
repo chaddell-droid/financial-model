@@ -2,12 +2,14 @@ import React, { memo, useMemo } from "react";
 import IncomeControls from '../IncomeControls.jsx';
 import ExpenseControls from '../ExpenseControls.jsx';
 import ScenarioStrip from '../ScenarioStrip.jsx';
+import TopMovesPanel from '../TopMovesPanel.jsx';
 import { useRenderMetric } from '../../testing/perfMetrics.js';
 
 function PlanTab({
   incomeControlsProps, expenseControlsProps,
   scenarioStripProps,
   shellWidthBucket = 'desktop', presentMode,
+  gatherState,
 }) {
   useRenderMetric('PlanTab');
   const stackedControls = shellWidthBucket !== 'desktop';
@@ -31,6 +33,9 @@ function PlanTab({
           <IncomeControls {...incomeControlsProps} />
           <ExpenseControls {...expenseControlsProps} />
         </div>
+      )}
+      {!presentMode && (
+        <TopMovesPanel gatherState={gatherState} />
       )}
     </div>
   );

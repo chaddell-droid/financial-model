@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ActionButton from './ui/ActionButton.jsx';
 import SurfaceCard from './ui/SurfaceCard.jsx';
-import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_RADII, UI_TEXT } from '../ui/tokens.js';
+import { SCENARIO_TEMPLATES } from '../model/scenarioTemplates.js';
 
 function getStorageMessage(storageStatus) {
   if (storageStatus === 'saved') return { text: 'Checkpoint saved locally.', color: UI_COLORS.positive };
@@ -22,9 +23,12 @@ export default function SaveLoadPanel({
   compareName,
   onClearCompare,
   onDelete,
+  onApplyTemplate,
   storageStatus,
   storageAvailable,
 }) {
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+
   if (!showSaveLoad) return null;
 
   const storageMessage = getStorageMessage(storageStatus);
@@ -83,6 +87,62 @@ export default function SaveLoadPanel({
           {storageMessage.text}
         </div>
       ) : null}
+
+      {onApplyTemplate && (
+        <div style={{ marginBottom: UI_SPACE.md }}>
+          <button
+            onClick={() => setTemplatesOpen(!templatesOpen)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', gap: UI_SPACE.xs, width: '100%',
+            }}
+          >
+            <span style={{
+              fontSize: UI_TEXT.micro, color: UI_COLORS.caution, fontWeight: 700,
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>
+              Quick Templates
+            </span>
+            <span style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim }}>
+              {templatesOpen ? '\u25B4' : '\u25BE'}
+            </span>
+          </button>
+
+          {templatesOpen && (
+            <div style={{ display: 'grid', gap: UI_SPACE.xs, marginTop: UI_SPACE.xs }}>
+              {SCENARIO_TEMPLATES.map((t) => (
+                <div
+                  key={t.id}
+                  data-testid={`template-${t.id}`}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    gap: UI_SPACE.sm, padding: `${UI_SPACE.xs}px ${UI_SPACE.sm}px`,
+                    background: '#0f172a', borderRadius: UI_RADII.sm,
+                    border: '1px solid #334155',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textStrong, fontWeight: 600 }}>
+                      {t.name}
+                    </div>
+                    <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, lineHeight: 1.3 }}>
+                      {t.description}
+                    </div>
+                  </div>
+                  <ActionButton
+                    onClick={() => onApplyTemplate(t.overrides)}
+                    variant={UI_ACTION_VARIANTS.ghost}
+                    size='sm'
+                    accent={UI_COLORS.caution}
+                  >
+                    Apply
+                  </ActionButton>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {savedScenarios.length === 0 ? (
         <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textDim, fontStyle: 'italic' }}>

@@ -1,6 +1,7 @@
 import { useState, memo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildLegendItems } from './chartContract.js';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 const LAYERS = [
   { key: 'ssIncome', label: 'Social Security', color: '#34d399' },
@@ -11,6 +12,8 @@ const LAYERS = [
 function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChadAge, inhDuringCouple, hasInheritance }) {
   const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
 
   if (!yearlyData || yearlyData.length === 0) return null;
 
@@ -20,7 +23,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   }));
 
   const n = enriched.length;
-  const svgW = 800, svgH = 260;
+  const svgH = 260;
   const padL = 48, padR = 8, padT = 12, padB = 28;
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
@@ -78,7 +81,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   ]);
 
   return (
-    <div data-testid="retirement-composition-chart" style={{
+    <div ref={containerRef} data-testid="retirement-composition-chart" style={{
       background: "#1e293b", borderRadius: 12, padding: "16px 12px 12px",
       border: "1px solid #334155", marginBottom: 16,
     }}>

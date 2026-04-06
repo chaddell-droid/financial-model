@@ -86,6 +86,19 @@ export const COLORS = {
   negative: "#f87171",
 };
 
+/**
+ * Compute responsive padding that scales with container width.
+ */
+export function responsivePadding(containerW) {
+  const scale = Math.min(1, containerW / 800);
+  return {
+    padL: Math.round(60 * scale),
+    padR: Math.round(20 * scale),
+    padT: 20,
+    padB: 30,
+  };
+}
+
 // Income source definitions — used by Income Composition chart and Dad Mode
 export const INCOME_SOURCES = [
   { key: "sarahIncome", label: "Sarah's Business", color: COLORS.blue },

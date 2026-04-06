@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import { getDistributionPercentile } from '../model/pwaDistribution.js';
 import { buildLegendItems } from './chartContract.js';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 function normalizeSampleValue(sample) {
   return typeof sample === 'number' ? sample : sample?.totalSpendingTarget ?? 0;
@@ -33,6 +34,8 @@ export default function PwaDistributionChart({
   bequestTarget = 0,
   testIdPrefix = 'pwa-distribution',
 }) {
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
   const [tooltip, setTooltip] = useState(null);
 
   const chart = useMemo(() => {
@@ -100,7 +103,6 @@ export default function PwaDistributionChart({
     );
   }
 
-  const svgW = 760;
   const svgH = 220;
   const padL = 48;
   const padR = 24;
@@ -151,6 +153,7 @@ export default function PwaDistributionChart({
 
   return (
     <div
+      ref={containerRef}
       data-testid={`${testIdPrefix}-container`}
       style={{
         background: '#0f172a',

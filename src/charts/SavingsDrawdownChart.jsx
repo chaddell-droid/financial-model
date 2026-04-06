@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel, getSummaryTimeframeLabel } from './chartContract.js';
@@ -6,6 +6,7 @@ import { COLORS } from './chartUtils.js';
 import { useChartTooltip } from './useChartTooltip.js';
 import ChartYAxis from './ChartYAxis.jsx';
 import ChartXAxis from './ChartXAxis.jsx';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 function SavingsDrawdownChart({
   savingsData,
@@ -26,6 +27,8 @@ function SavingsDrawdownChart({
   totalMonthlySpend,
   instanceId = 'default',
 }) {
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
   const [savingsTooltip, setSavingsTooltip] = useState(null);
   const comparisonLegend = buildLegendItems(compareProjection ? [
     { id: 'current', label: 'Current settings', color: COLORS.green },
@@ -33,7 +36,7 @@ function SavingsDrawdownChart({
   ] : []);
 
   return (
-        <div data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={{
+        <div ref={containerRef} data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={{
           background: COLORS.bgCard, borderRadius: 12, padding: "20px 16px",
           border: savingsZeroMonth ? `1px solid ${COLORS.red}33` : `1px solid ${COLORS.border}`, marginBottom: 24
         }}>
@@ -88,7 +91,6 @@ function SavingsDrawdownChart({
           </div>
           {(() => {
             const svgH = 340;
-            const svgW = 800;
             const padL = 60;
             const padR = 20;
             const padT = 20;

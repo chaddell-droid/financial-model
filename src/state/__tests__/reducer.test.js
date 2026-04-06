@@ -171,6 +171,98 @@ test('DELETE_CHECK_IN removes the check-in for a given month', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Reducer — RESET_ACTUALS_MONTH / RESET_ACTUALS_ALL
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Reducer — Actuals Reset ===');
+
+test('RESET_ACTUALS_MONTH removes a single month of transactions', () => {
+  const state = {
+    ...INITIAL_STATE,
+    monthlyActuals: {
+      '2026-01': { transactions: [{ id: 'a', amount: -50 }] },
+      '2026-02': { transactions: [{ id: 'b', amount: -30 }] },
+      '2026-03': { transactions: [{ id: 'c', amount: -20 }] },
+    },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_MONTH', month: '2026-02' });
+  assert.strictEqual(Object.keys(next.monthlyActuals).length, 2);
+  assert.ok(!('2026-02' in next.monthlyActuals), 'target month removed');
+  assert.ok('2026-01' in next.monthlyActuals, 'other months preserved');
+  assert.ok('2026-03' in next.monthlyActuals, 'other months preserved');
+});
+
+test('RESET_ACTUALS_MONTH on non-existent month is a no-op', () => {
+  const state = {
+    ...INITIAL_STATE,
+    monthlyActuals: { '2026-01': { transactions: [{ id: 'a' }] } },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_MONTH', month: '2099-12' });
+  assert.deepStrictEqual(next.monthlyActuals, state.monthlyActuals);
+});
+
+test('RESET_ACTUALS_MONTH with clearClassifications clears merchant data', () => {
+  const state = {
+    ...INITIAL_STATE,
+    monthlyActuals: {
+      '2026-01': { transactions: [{ id: 'a' }] },
+      '2026-02': { transactions: [{ id: 'b' }] },
+    },
+    merchantClassifications: { 'Amazon': 'core' },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_MONTH', month: '2026-01', clearClassifications: true });
+  assert.strictEqual(Object.keys(next.monthlyActuals).length, 1, 'only target month removed');
+  assert.deepStrictEqual(next.merchantClassifications, {}, 'classifications cleared');
+});
+
+test('RESET_ACTUALS_MONTH without clearClassifications preserves merchant data', () => {
+  const state = {
+    ...INITIAL_STATE,
+    monthlyActuals: { '2026-01': { transactions: [{ id: 'a' }] } },
+    merchantClassifications: { 'Amazon': 'core' },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_MONTH', month: '2026-01' });
+  assert.deepStrictEqual(next.merchantClassifications, { 'Amazon': 'core' }, 'classifications preserved');
+});
+
+test('RESET_ACTUALS_ALL with clearClassifications clears everything', () => {
+  const state = {
+    ...INITIAL_STATE,
+    monthlyActuals: {
+      '2026-01': { transactions: [{ id: 'a' }] },
+      '2026-02': { transactions: [{ id: 'b' }] },
+    },
+    merchantClassifications: { 'Amazon': 'core', 'Costco': 'core' },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_ALL', clearClassifications: true });
+  assert.deepStrictEqual(next.monthlyActuals, {}, 'all actuals cleared');
+  assert.deepStrictEqual(next.merchantClassifications, {}, 'all classifications cleared');
+});
+
+test('RESET_ACTUALS_ALL without clearClassifications preserves merchant data', () => {
+  const state = {
+    ...INITIAL_STATE,
+    monthlyActuals: { '2026-01': { transactions: [{ id: 'a' }] } },
+    merchantClassifications: { 'Amazon': 'core' },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_ALL' });
+  assert.deepStrictEqual(next.monthlyActuals, {}, 'actuals cleared');
+  assert.deepStrictEqual(next.merchantClassifications, { 'Amazon': 'core' }, 'classifications preserved');
+});
+
+test('RESET_ACTUALS_ALL preserves model state and scenarios', () => {
+  const state = {
+    ...INITIAL_STATE,
+    sarahRate: 999,
+    savedScenarios: [{ name: 'test' }],
+    monthlyActuals: { '2026-01': { transactions: [] } },
+    merchantClassifications: { 'Foo': 'core' },
+  };
+  const next = reducer(state, { type: 'RESET_ACTUALS_ALL', clearClassifications: true });
+  assert.strictEqual(next.sarahRate, 999, 'model state preserved');
+  assert.deepStrictEqual(next.savedScenarios, [{ name: 'test' }], 'scenarios preserved');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Reducer — Unknown Action
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== Reducer — Edge Cases ===');

@@ -1,6 +1,7 @@
 import React, { memo, useState, useMemo, useRef } from 'react';
 import { fmtFull } from '../../model/formatters.js';
 import { parseTransactionCSV, mergeTransactions, groupByMonth, getCurrentMonth, analyzeMerchantFrequency, ALWAYS_CORE, ALWAYS_ONETIME, MIXED_CATEGORY_THRESHOLDS } from '../../model/csvParser.js';
+import { computeActualsDrift } from '../../model/checkIn.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT, UI_RADII } from '../../ui/tokens.js';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 
@@ -13,7 +14,7 @@ function getConfidence(txn, merchantClassifications, merchantFreq) {
   return 'low';
 }
 
-function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonthlySpend, currentOneTimeExtras, dispatch }) {
+function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonthlySpend, currentOneTimeExtras, baseExpenses, debtService, vanMonthlySavings, bcsFamilyMonthly, dispatch }) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
@@ -21,6 +22,9 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
   const [uploadFeedback, setUploadFeedback] = useState(null);
   const [showPushConfirm, setShowPushConfirm] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(null); // null | 'month' | 'all'
+  const [resetClearClassifications, setResetClearClassifications] = useState(false);
+  const [driftDismissedMonth, setDriftDismissedMonth] = useState(null);
   const fileInputRef = useRef(null);
 
   const currentMonth = getCurrentMonth();
@@ -81,6 +85,13 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
       incomeCount: income.length,
     };
   }, [transactions]);
+
+  const drift = useMemo(() => {
+    if (transactions.length === 0) return null;
+    return computeActualsDrift(totals.coreTotal, totals.onetimeTotal, baseExpenses, debtService, vanMonthlySavings, bcsFamilyMonthly);
+  }, [transactions.length, totals.coreTotal, totals.onetimeTotal, baseExpenses, debtService, vanMonthlySavings, bcsFamilyMonthly]);
+
+  const showDriftBanner = drift && Math.abs(drift.pctDelta) > 10 && driftDismissedMonth !== selectedMonth;
 
   const categoryBreakdown = useMemo(() => {
     const cats = {};
@@ -213,14 +224,36 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
               Upload CSV
             </button>
             {transactions.length > 0 && (
-              <button onClick={() => setShowPushConfirm(true)}
-                data-testid="actuals-push-btn"
+              <>
+                <button onClick={() => setShowPushConfirm(true)}
+                  data-testid="actuals-push-btn"
+                  style={{
+                    padding: '6px 14px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.positive}`,
+                    background: `${UI_COLORS.positive}22`, color: UI_COLORS.positive,
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                  Push to Model
+                </button>
+                <button onClick={() => setShowResetConfirm('month')}
+                  data-testid="actuals-reset-month-btn"
+                  style={{
+                    padding: '6px 14px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.destructive}`,
+                    background: 'transparent', color: UI_COLORS.destructive,
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                  Reset Month
+                </button>
+              </>
+            )}
+            {Object.keys(monthlyActuals).length > 0 && (
+              <button onClick={() => setShowResetConfirm('all')}
+                data-testid="actuals-reset-all-btn"
                 style={{
-                  padding: '6px 14px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.positive}`,
-                  background: `${UI_COLORS.positive}22`, color: UI_COLORS.positive,
+                  padding: '6px 14px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.destructive}`,
+                  background: `${UI_COLORS.destructive}22`, color: UI_COLORS.destructive,
                   fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 }}>
-                Push to Model
+                Reset All
               </button>
             )}
           </div>
@@ -243,6 +276,53 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button onClick={() => setShowPushConfirm(false)} style={{ padding: '5px 12px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.border}`, background: 'transparent', color: UI_COLORS.textMuted, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
             <button onClick={handlePushConfirm} data-testid="actuals-push-confirm" style={{ padding: '5px 12px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.positive}`, background: UI_COLORS.positive, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Push</button>
+          </div>
+        </SurfaceCard>
+      )}
+
+      {/* Reset confirmation */}
+      {showResetConfirm && (
+        <SurfaceCard padding="sm" tone="featured" style={{ marginBottom: UI_SPACE.md, borderColor: UI_COLORS.destructive }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: UI_COLORS.destructive, marginBottom: 8 }}>
+            {showResetConfirm === 'all' ? 'Reset All Actuals?' : `Reset ${selectedMonth}?`}
+          </div>
+          <div style={{ fontSize: 12, color: UI_COLORS.textMuted, lineHeight: 1.6 }}>
+            {showResetConfirm === 'all'
+              ? 'This will delete all imported transactions across every month. Any values already pushed to the model will not be reverted. This cannot be undone.'
+              : `This will delete all imported transactions for ${selectedMonth}. Any values already pushed to the model will not be affected. This cannot be undone.`}
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, cursor: 'pointer', fontSize: 12, color: UI_COLORS.textSecondary }}>
+            <input
+              type="checkbox"
+              checked={resetClearClassifications}
+              onChange={(e) => setResetClearClassifications(e.target.checked)}
+              data-testid="actuals-reset-clear-classifications"
+              style={{ accentColor: UI_COLORS.destructive }}
+            />
+            Also clear learned merchant classifications
+            <span style={{ fontSize: 10, color: UI_COLORS.textDim }}>(affects future CSV imports)</span>
+          </label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button onClick={() => { setShowResetConfirm(null); setResetClearClassifications(false); }}
+              style={{ padding: '5px 12px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.border}`, background: 'transparent', color: UI_COLORS.textMuted, fontSize: 12, cursor: 'pointer' }}>
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (showResetConfirm === 'all') {
+                  dispatch({ type: 'RESET_ACTUALS_ALL', clearClassifications: resetClearClassifications });
+                } else {
+                  dispatch({ type: 'RESET_ACTUALS_MONTH', month: selectedMonth, clearClassifications: resetClearClassifications });
+                  const remaining = Object.keys(monthlyActuals).filter(m => m !== selectedMonth).sort();
+                  if (remaining.length > 0) setSelectedMonth(remaining[remaining.length - 1]);
+                }
+                setShowResetConfirm(null);
+                setResetClearClassifications(false);
+              }}
+              data-testid="actuals-reset-confirm"
+              style={{ padding: '5px 12px', borderRadius: UI_RADII.sm, border: `1px solid ${UI_COLORS.destructive}`, background: UI_COLORS.destructive, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              {showResetConfirm === 'all' ? 'Reset All' : 'Reset Month'}
+            </button>
           </div>
         </SurfaceCard>
       )}
@@ -279,6 +359,40 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
           <div style={{ fontSize: 10, color: UI_COLORS.textDim }}>{totals.incomeCount} transactions</div>
         </SurfaceCard>
       </div>
+
+      {/* Drift suggestion banner */}
+      {showDriftBanner && (
+        <SurfaceCard padding="sm" style={{ marginBottom: UI_SPACE.md, borderColor: UI_COLORS.caution, borderWidth: 1, borderStyle: 'solid' }}>
+          <div style={{ fontSize: 12, color: UI_COLORS.textSecondary, lineHeight: 1.6 }}>
+            Your actual core spending (<strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(drift.actualCore)}/mo</strong>) differs from model assumption (<strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(drift.modelTotal)}/mo</strong>) by <strong>{Math.abs(drift.pctDelta)}%</strong>.
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              onClick={() => {
+                dispatch({ type: 'SET_FIELDS', fields: { totalMonthlySpend: drift.actualCore } });
+                setDriftDismissedMonth(selectedMonth);
+              }}
+              data-testid="drift-update-model"
+              style={{
+                padding: '5px 12px', borderRadius: UI_RADII.sm,
+                border: `1px solid ${UI_COLORS.caution}`, background: UI_COLORS.caution,
+                color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}>
+              Update Model
+            </button>
+            <button
+              onClick={() => setDriftDismissedMonth(selectedMonth)}
+              data-testid="drift-dismiss"
+              style={{
+                padding: '5px 12px', borderRadius: UI_RADII.sm,
+                border: `1px solid ${UI_COLORS.border}`, background: 'transparent',
+                color: UI_COLORS.textMuted, fontSize: 12, cursor: 'pointer',
+              }}>
+              Dismiss
+            </button>
+          </div>
+        </SurfaceCard>
+      )}
 
       {/* Review count */}
       {reviewCount > 0 && (

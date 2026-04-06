@@ -1,4 +1,5 @@
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
+import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH } from '../model/constants.js';
 
 /**
  * Build the projection-ready state object from the full UI state.
@@ -31,6 +32,17 @@ export function gatherState(state) {
     s.lifestyleCuts = (s.cutOliver || 0) + (s.cutVacation || 0) + (s.cutGym || 0);
     s.cutInHalf = (s.cutMedical || 0) + (s.cutShopping || 0) + (s.cutSaaS || 0);
     s.extraCuts = (s.cutAmazon || 0) + (s.cutEntertainment || 0) + (s.cutGroceries || 0) + (s.cutPersonalCare || 0) + (s.cutSmallItems || 0);
+  }
+  // SS Retirement: compute derived fields from ssClaimAge + ssPIA
+  if (s.ssType === 'ss') {
+    const pia = s.ssPIA || 3822;
+    const age = s.ssClaimAge || 67;
+    s.ssPersonal = Math.round(pia * ssAdjustmentFactor(age));
+    s.ssStartMonth = (age - 62) * 12 + 18;
+    s.ssKidsAgeOutMonths = Math.max(0, TWINS_AGE_OUT_MONTH - s.ssStartMonth);
+    s.ssFamilyTotal = s.ssKidsAgeOutMonths > 0
+      ? s.ssPersonal + 2 * Math.round(pia * 0.5)
+      : s.ssPersonal;
   }
   return s;
 }

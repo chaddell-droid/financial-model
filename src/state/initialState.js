@@ -25,11 +25,13 @@ export const INITIAL_STATE = {
   kidsAgeOutMonths: 36,
   chadConsulting: 0,
   ssdiBackPayMonths: 18,
-  // SS retirement at 62
-  ssFamilyTotal: 7099,       // You + twins (each at 50% PIA) while twins <18
-  ssPersonal: 2933,          // You alone after twins age out
-  ssStartMonth: 18,          // Sept 2027 = ~18 months from baseline
-  ssKidsAgeOutMonths: 18,    // Twins turn 18 ~18 months after SS starts (Mar 2029)
+  // SS retirement (configurable claiming age 62–70)
+  ssClaimAge: 67,            // Claiming age (62–70); default FRA
+  ssPIA: 3822,               // Primary Insurance Amount (benefit at FRA)
+  ssFamilyTotal: 7099,       // Computed in gatherState from PIA + claim age
+  ssPersonal: 2933,          // Computed in gatherState from PIA + claim age
+  ssStartMonth: 18,          // Computed in gatherState from claim age
+  ssKidsAgeOutMonths: 18,    // Computed in gatherState from claim age
 
   // Chad Gets a Job
   chadJob: false,
@@ -159,7 +161,7 @@ export const MODEL_KEYS = [
   'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth', 'sarahTaxRate', 'sarahWorkYears',
   'msftPrice', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
-  'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
+  'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied', 'cutsOverride',

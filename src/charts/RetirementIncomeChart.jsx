@@ -148,7 +148,7 @@ function ControlSection({ title, subtitle, children, testId }) {
 
 function RetirementIncomeChart({
   savingsData, wealthData,
-  ssType, ssPersonal,
+  ssType, ssPersonal, ssPIA,
   chadJob,
   trustIncomeFuture,
   onSpendingTargets,
@@ -180,7 +180,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, chadJob, trustIncomeFuture });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, chadJob, trustIncomeFuture });
 
   // Report spending targets to parent
   useEffect(() => {

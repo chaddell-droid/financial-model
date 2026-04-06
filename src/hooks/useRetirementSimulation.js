@@ -19,7 +19,7 @@ import { buildPwaDistribution } from '../model/pwaDistribution.js';
 import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from '../model/pwaStrategies.js';
 
 export function useRetirementSimulation({
-  savingsData, wealthData, ssType, ssPersonal, chadJob, trustIncomeFuture,
+  savingsData, wealthData, ssType, ssPersonal, ssPIA, chadJob, trustIncomeFuture,
 }) {
   // ── State ────────────────────────────────────────────────────────────
   const [retirementMode, setRetirementMode] = useState('historical_safe');
@@ -72,9 +72,9 @@ export function useRetirementSimulation({
 
   const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
 
-  // Chad's SS
-  const ssFRA = 4213;
-  const chadSS = (ssType === 'ss' && !chadJob) ? (ssPersonal || 2933) : ssFRA;
+  // Chad's SS — PIA from state replaces hardcoded value
+  const ssFRA = ssPIA || 3822;
+  const chadSS = (ssType === 'ss' && !chadJob) ? (ssPersonal || Math.round(ssFRA * 0.7)) : ssFRA;
   const sarahOwnSS = 1900;
   const survivorSS = 4186;
   const trustMonthly = trustIncomeFuture || 0;

@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
-import { SGA_LIMIT } from '../model/constants.js';
+import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA } from '../model/constants.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 
@@ -11,9 +11,11 @@ const IncomeControls = ({
   ssdiDenied,
   ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
   ssdiApprovalMonth, ssdiBackPayMonths, ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
+  ssClaimAge, ssPIA,
   ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
   chadConsulting,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+  sarahWorkYears,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   onFieldChange,
@@ -49,7 +51,7 @@ const IncomeControls = ({
               <div style={{ display: "flex", gap: 8 }}>
                 {[
                   { value: 'ssdi', label: 'SSDI (Disability)' },
-                  { value: 'ss', label: 'SS at 62 (Retirement)' },
+                  { value: 'ss', label: 'SS Retirement' },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -195,28 +197,85 @@ const IncomeControls = ({
               </>
             )}
 
-            {ssType === 'ss' && !chadJob && (
+            {ssType === 'ss' && !chadJob && (() => {
+              const pia = ssPIA || 3822;
+              const age = ssClaimAge || 67;
+              const factor = ssAdjustmentFactor(age);
+              const computedPersonal = Math.round(pia * factor);
+              const computedStartMonth = (age - 62) * 12 + 18;
+              const computedKidsMonths = Math.max(0, TWINS_AGE_OUT_MONTH - computedStartMonth);
+              const childBenefitEach = Math.round(pia * 0.5);
+              const computedFamily = computedKidsMonths > 0 ? computedPersonal + 2 * childBenefitEach : computedPersonal;
+              const projMonths = ((sarahWorkYears || 6) * 12);
+              const beyondHorizon = computedStartMonth > projMonths;
+              const ageLabel = age === SS_FRA ? `${age} (FRA)` : `${age}`;
+              const atOrAfterFRA = age >= SS_FRA;
+              return (
               <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
-                <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>SS Retirement at 62</h4>
-                <Slider label="Family total/mo (you + twins)" value={ssFamilyTotal} onChange={set('ssFamilyTotal')} commitStrategy={commitStrategy} min={4000} max={9000} step={50} color={COLORS.green} />
-                <Slider label="Personal/mo (after twins age out)" value={ssPersonal} onChange={set('ssPersonal')} commitStrategy={commitStrategy} min={1500} max={4000} step={50} color={COLORS.green} />
-                <Slider label="Twins age out (months after SS)" value={ssKidsAgeOutMonths} onChange={set('ssKidsAgeOutMonths')} commitStrategy={commitStrategy} min={6} max={36} color={COLORS.green} format={(v) => v + " mo"} />
-                <Slider label="SS starts (months out)" value={ssStartMonth} onChange={set('ssStartMonth')} commitStrategy={commitStrategy} min={1} max={36} color={COLORS.green} format={(v) => v + " mo"} />
-                <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}` }}>
+                <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>SS Retirement</h4>
+                <Slider
+                  label="Claim SS at age"
+                  value={age}
+                  onChange={set('ssClaimAge')}
+                  commitStrategy={commitStrategy}
+                  min={62} max={70} step={1}
+                  color={COLORS.green}
+                  format={(v) => v === SS_FRA ? `${v} (FRA)` : `${v}`}
+                />
+                <Slider
+                  label="Your PIA (benefit at FRA)"
+                  value={pia}
+                  onChange={set('ssPIA')}
+                  commitStrategy={commitStrategy}
+                  min={1000} max={5000} step={10}
+                  color={COLORS.green}
+                />
+
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    Computed Benefits (age {ageLabel})
+                  </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                    <span style={{ color: COLORS.textDim }}>Stage 1 (twins eligible):</span>
-                    <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(ssFamilyTotal)}/mo</span>
+                    <span style={{ color: COLORS.textDim }}>Your monthly benefit:</span>
+                    <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(computedPersonal)}/mo</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                    <span style={{ color: COLORS.textDim }}>Stage 2 (you only):</span>
-                    <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(ssPersonal)}/mo</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                    <span style={{ color: COLORS.textDim }}>Adjustment: {(factor * 100).toFixed(1)}% of PIA</span>
+                    <span style={{ color: COLORS.textDim }}>{age < SS_FRA ? `(${SS_FRA - age}yr early)` : age > SS_FRA ? `(${age - SS_FRA}yr delayed)` : '(full benefit)'}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
-                    <span>Twins: $2,083 each (50% of PIA)</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4 }}>
+                    <span style={{ color: COLORS.textDim }}>SS starts at month:</span>
+                    <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{computedStartMonth}</span>
                   </div>
+                  {computedKidsMonths > 0 && (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 4, borderTop: `1px solid ${COLORS.bgCard}` }}>
+                        <span style={{ color: COLORS.textDim }}>Family total (first {computedKidsMonths} mo):</span>
+                        <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(computedFamily)}/mo</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 2 }}>
+                        Twins: {fmtFull(childBenefitEach)} each (50% of PIA) while under 18
+                      </div>
+                    </>
+                  )}
+                  {computedKidsMonths === 0 && (
+                    <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
+                      Twins already 18 at claim age {age} — no family benefit.
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 6, fontStyle: "italic" }}>
-                  SS retirement begins at age 62 and continues for life. Twins eligible as minor children until 18. No back pay. No SGA earnings limit.
+
+                {beyondHorizon && (
+                  <div style={{ marginTop: 8, padding: "6px 8px", background: `${COLORS.amber}15`, borderRadius: 6, border: `1px solid ${COLORS.amber}33`, fontSize: 11, color: COLORS.amber }}>
+                    SS starts at month {computedStartMonth} but projection is {projMonths} months. Extend Sarah Work Years to see SS impact.
+                  </div>
+                )}
+
+                <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 8, fontStyle: "italic" }}>
+                  {atOrAfterFRA
+                    ? "Claiming at or after FRA — no earnings test applies. No back pay. No SGA limit."
+                    : `Claiming ${SS_FRA - age}yr before FRA — earnings test applies until age ${SS_FRA}. Benefits reduced $1 for every $2 earned over $22,320/yr ($62,160/yr in FRA year).`
+                  }
                 </div>
 
                 <div style={{ marginTop: 12 }}>
@@ -226,12 +285,15 @@ const IncomeControls = ({
                     <span style={{ color: COLORS.textDim }}>Annual:</span>
                     <span style={{ color: COLORS.blueLight, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(chadConsulting * 12)}/yr</span>
                   </div>
-                  <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 4, fontStyle: "italic" }}>
-                    SS earnings test: benefits reduced $1 for every $2 earned over $22,320/yr before FRA.
-                  </div>
+                  {!atOrAfterFRA && (
+                    <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 4, fontStyle: "italic" }}>
+                      SS earnings test: benefits reduced $1 for every $2 earned over $22,320/yr before FRA.
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.purple, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trust / LLC Income</h4>

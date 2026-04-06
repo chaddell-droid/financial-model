@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -35,6 +35,9 @@ const RANGE = {
   mcMsftVol: { min: 0, max: 100 },
   mcSsdiDenialPct: { min: 0, max: 100 },
   mcCutsDiscipline: { min: 0, max: 100 },
+  // SS claiming
+  ssClaimAge: { min: 62, max: 70 },
+  ssPIA: { min: 0, max: 5000 },
   // Month offsets
   ssdiApprovalMonth: { min: 0, max: 120 },
   kidsAgeOutMonths: { min: 0, max: 120 },
@@ -143,6 +146,16 @@ const MIGRATIONS = [
       if (result.sarahWorkYears === undefined) {
         result.sarahWorkYears = 6;
       }
+      return result;
+    },
+  },
+  {
+    from: 2,
+    to: 3,
+    fn: (state) => {
+      const result = { ...state };
+      if (result.ssClaimAge === undefined) result.ssClaimAge = 62;
+      if (result.ssPIA === undefined) result.ssPIA = 3822;
       return result;
     },
   },

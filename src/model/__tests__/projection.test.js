@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, SS_FRA_MONTH } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -146,15 +146,19 @@ test('11. SSDI denied: SSDI stays 0 forever', () => {
   }
 });
 
-test('12. SS retirement path (ssType ss): income starts at ssStartMonth', () => {
-  const startMonth = 18;
+test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth', () => {
+  // ssClaimAge 62 → ssStartMonth 18, PIA 3822 → personal 2675, family 6497
   const s = gatherStateWithOverrides({
-    ssType: 'ss', ssStartMonth: startMonth,
-    ssFamilyTotal: 7099, chadJob: false,
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 3822, chadJob: false,
   });
+  assert.strictEqual(s.ssStartMonth, 18, 'ssStartMonth computed from claim age 62');
+  assert.strictEqual(s.ssPersonal, 2675, 'ssPersonal = round(3822 * 0.70)');
+  assert.strictEqual(s.ssFamilyTotal, 6497, 'ssFamilyTotal = 2675 + 2*1911');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 18, 'kids age out 18 months after SS starts');
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[startMonth - 1].ssdi, 0, 'no SS before start month');
-  assert.strictEqual(monthlyData[startMonth].ssdi, 7099, 'ssFamilyTotal at SS start month');
+  assert.strictEqual(monthlyData[17].ssdi, 0, 'no SS before start month');
+  assert.strictEqual(monthlyData[18].ssdi, 6497, 'ssFamilyTotal at SS start month');
+  assert.strictEqual(monthlyData[36].ssdi, 2675, 'ssPersonal after kids age out at month 36');
 });
 
 test('13. Trust income transitions at trustIncreaseMonth', () => {
@@ -904,27 +908,29 @@ test('55. Chad job with chadJobStartMonth = 0 — job income at month 0 and heal
 console.log('\n=== SS Earnings Test ===');
 
 test('56. SS earnings test: consulting at limit ($1,860/mo) — no reduction', () => {
+  // ssClaimAge 62 → ssStartMonth 18, ssFamilyTotal 6497 (computed from PIA 3822)
   const s = gatherStateWithOverrides({
-    ssType: 'ss', ssStartMonth: 0, ssKidsAgeOutMonths: 72,
-    ssFamilyTotal: 7099, chadConsulting: 1860, // $22,320/yr = exactly at limit
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 3822,
+    chadConsulting: 1860, // $22,320/yr = exactly at limit
     chadJob: false, ssdiDenied: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[0].ssdi, 7099,
+  assert.strictEqual(monthlyData[18].ssdi, 6497,
     'SS benefits should NOT be reduced when consulting is exactly at the $22,320 annual limit');
 });
 
 test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits reduced', () => {
+  // ssClaimAge 62 → ssStartMonth 18, ssFamilyTotal 6497 (computed from PIA 3822)
   const s = gatherStateWithOverrides({
-    ssType: 'ss', ssStartMonth: 0, ssKidsAgeOutMonths: 72,
-    ssFamilyTotal: 7099, chadConsulting: 3000, // $36,000/yr
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 3822,
+    chadConsulting: 3000, // $36,000/yr
     chadJob: false, ssdiDenied: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Annual excess: $36,000 - $22,320 = $13,680
   // Monthly reduction: round($13,680 / 2 / 12) = round($570) = $570
-  const expectedSS = 7099 - 570;
-  assert.strictEqual(monthlyData[0].ssdi, expectedSS,
+  const expectedSS = 6497 - 570;
+  assert.strictEqual(monthlyData[18].ssdi, expectedSS,
     `SS benefits should be reduced to ${expectedSS} when consulting is $3,000/mo`);
 });
 
@@ -938,6 +944,88 @@ test('58. SS earnings test: does NOT apply under SSDI path', () => {
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].ssdi, 6500,
     'SSDI benefits should NOT be reduced by earnings test (only applies to SS retirement)');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SS Claiming Age + PIA Derivation
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== SS Claiming Age + PIA Derivation ===');
+
+test('SS adjustment factor: age 62 = 70% of PIA', () => {
+  assert.strictEqual(Math.round(ssAdjustmentFactor(62) * 1000), 700);
+});
+
+test('SS adjustment factor: age 67 (FRA) = 100% of PIA', () => {
+  assert.strictEqual(ssAdjustmentFactor(67), 1.0);
+});
+
+test('SS adjustment factor: age 70 = 124% of PIA', () => {
+  assert.strictEqual(Math.round(ssAdjustmentFactor(70) * 1000), 1240);
+});
+
+test('gatherState: ssClaimAge 67 → ssStartMonth 78, ssPersonal = PIA', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 67, ssPIA: 3822 });
+  assert.strictEqual(s.ssStartMonth, 78, 'FRA starts at month 78');
+  assert.strictEqual(s.ssPersonal, 3822, 'personal = 100% of PIA at FRA');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 0, 'twins already 18 at claim age 67');
+  assert.strictEqual(s.ssFamilyTotal, 3822, 'no family benefit when kids aged out');
+});
+
+test('gatherState: ssClaimAge 70 → ssStartMonth 114, ssPersonal = 124% PIA', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 70, ssPIA: 3822 });
+  assert.strictEqual(s.ssStartMonth, 114, 'age 70 starts at month 114');
+  assert.strictEqual(s.ssPersonal, 4739, 'personal = round(3822 * 1.24)');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 0, 'no family benefit');
+});
+
+test('gatherState: ssClaimAge 63 → 6 months of family benefits', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 63, ssPIA: 3822 });
+  assert.strictEqual(s.ssStartMonth, 30, 'age 63 starts at month 30');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 6, 'twins age out 6 months after SS starts');
+  assert.strictEqual(s.ssPersonal, 2867, 'personal = round(3822 * 0.75)');
+  assert.ok(s.ssFamilyTotal > s.ssPersonal, 'family total includes child benefits');
+});
+
+test('gatherState: ssClaimAge 64+ → zero family benefit months', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 64, ssPIA: 3822 });
+  assert.strictEqual(s.ssStartMonth, 42, 'age 64 starts at month 42');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 0, 'twins already 18 at month 36');
+  assert.strictEqual(s.ssFamilyTotal, s.ssPersonal, 'no child benefits');
+});
+
+test('gatherState: SSDI path is unaffected by ssClaimAge/ssPIA', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssClaimAge: 70, ssPIA: 5000,
+    ssdiPersonal: 4166, ssdiFamilyTotal: 6500,
+  });
+  // SSDI path should NOT overwrite these values
+  assert.strictEqual(s.ssdiPersonal, 4166, 'SSDI personal unchanged');
+  assert.strictEqual(s.ssdiFamilyTotal, 6500, 'SSDI family unchanged');
+});
+
+test('Projection: SS at FRA (67) — no earnings test applies', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 67, ssPIA: 3822,
+    chadConsulting: 5000, chadJob: false,
+    sarahWorkYears: 8, // extend horizon to 96 months to cover FRA
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // SS starts at month 78, which is at/after FRA → no earnings test
+  assert.strictEqual(monthlyData[78].ssdi, 3822,
+    'Full PIA at FRA with no earnings test reduction despite $5,000/mo consulting');
+});
+
+test('Projection: SS at 62 — earnings test does not apply after FRA month', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 3822,
+    chadConsulting: 3000, chadJob: false,
+    sarahWorkYears: 8, // extend horizon to 96 months
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Before FRA year (month < 66): standard earnings test applies
+  assert.ok(monthlyData[18].ssdi < 6497, 'earnings test reduces benefits before FRA');
+  // At/after FRA (month >= 78): no earnings test
+  assert.strictEqual(monthlyData[78].ssdi, 2675, 'full personal benefit after FRA — no reduction');
 });
 
 // ════════════════════════════════════════════════════════════════════════

@@ -461,7 +461,7 @@ export default function FinancialModel() {
     retireDebt, debtService,
     ssType, ssdiApprovalMonth, ssdiFamilyTotal,
     ssdiPersonal, ssdiBackPayActual,
-    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    ssClaimAge, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting, milestones,
     bcsYearsLeft, bcsFamilyMonthly,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
@@ -473,7 +473,7 @@ export default function FinancialModel() {
     retireDebt, debtService,
     ssType, ssdiApprovalMonth, ssdiFamilyTotal,
     ssdiPersonal, ssdiBackPayActual,
-    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    ssClaimAge, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting, milestones,
     bcsYearsLeft, bcsFamilyMonthly,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
@@ -529,9 +529,11 @@ export default function FinancialModel() {
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
     ssdiApprovalMonth, ssdiBackPayMonths,
     ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
+    ssClaimAge, ssPIA,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    sarahWorkYears,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     onFieldChange: set,
@@ -540,9 +542,11 @@ export default function FinancialModel() {
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
     ssdiApprovalMonth, ssdiBackPayMonths,
     ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
+    ssClaimAge, ssPIA,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    sarahWorkYears,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   ]);
@@ -710,10 +714,11 @@ export default function FinancialModel() {
     wealthData,
     ssType,
     ssPersonal,
+    ssPIA,
     chadJob,
     trustIncomeFuture,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, chadJob, trustIncomeFuture]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, chadJob, trustIncomeFuture]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

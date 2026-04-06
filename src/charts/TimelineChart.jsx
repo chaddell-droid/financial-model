@@ -10,7 +10,7 @@ export default function TimelineChart({
   ssdiFamilyTotal,
   ssdiPersonal,
   ssdiBackPayActual,
-  ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+  ssClaimAge, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
   chadConsulting,
   milestones,
   bcsYearsLeft,
@@ -38,7 +38,7 @@ export default function TimelineChart({
   }
   const useSS = ssType === 'ss';
   if (useSS) {
-    above.push({ m: ssStartMonth, label: "SS at 62 starts", detail: `+${fmtFull(ssFamilyTotal)}/mo (family)` });
+    above.push({ m: ssStartMonth, label: `SS at ${ssClaimAge || 67} starts`, detail: `+${fmtFull(ssFamilyTotal)}/mo${ssKidsAgeOutMonths > 0 ? ' (family)' : ''}` });
     if (chadConsulting > 0) {
       above.push({ m: ssStartMonth + 1, label: "Consulting starts", detail: `+${fmtFull(chadConsulting)}/mo` });
     }

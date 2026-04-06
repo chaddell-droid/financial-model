@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SSDI_ATTORNEY_FEE_CAP, CHAD_RETIREMENT_MONTH, buildQuarterlySchedule } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, CHAD_RETIREMENT_MONTH, buildQuarterlySchedule } from './constants.js';
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
 export function findOperationalBreakevenIndex(rows) {
@@ -80,11 +80,21 @@ export function runMonthlySimulation(s) {
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
-    // SS earnings test: before FRA, SS benefits reduced $1 for every $2 over limit
+    // SS earnings test: three regimes based on proximity to FRA
     if (useSS && consulting > 0 && ssdi > 0) {
-      const annualExcess = Math.max(0, consulting * 12 - SS_EARNINGS_LIMIT_ANNUAL);
-      const monthlyReduction = Math.round(annualExcess / 2 / 12);
-      ssdi = Math.max(0, ssdi - monthlyReduction);
+      if (m >= SS_FRA_MONTH) {
+        // At/after FRA: no earnings test
+      } else if (m >= SS_FRA_MONTH - 12) {
+        // In FRA year: higher limit, $1 per $3 over
+        const annualExcess = Math.max(0, consulting * 12 - SS_EARNINGS_LIMIT_FRA_YEAR);
+        const monthlyReduction = Math.round(annualExcess / 3 / 12);
+        ssdi = Math.max(0, ssdi - monthlyReduction);
+      } else {
+        // Before FRA year: standard limit, $1 per $2 over
+        const annualExcess = Math.max(0, consulting * 12 - SS_EARNINGS_LIMIT_ANNUAL);
+        const monthlyReduction = Math.round(annualExcess / 2 / 12);
+        ssdi = Math.max(0, ssdi - monthlyReduction);
+      }
     }
 
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;

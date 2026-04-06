@@ -21,9 +21,30 @@ export const VEST_SHARES = [
 
 export const SGA_LIMIT = 1690;
 export const SS_EARNINGS_LIMIT_ANNUAL = 22320; // 2026 earnings test limit (before FRA)
+export const SS_EARNINGS_LIMIT_FRA_YEAR = 62160; // 2026 earnings test in FRA year ($1 per $3 over)
 export const SSDI_ATTORNEY_FEE_CAP = 7500; // 2026 estimated statutory cap (~$7,200 in 2025 + annual increase)
 export const DAYS_PER_MONTH = 21.5;
 export const CHAD_RETIREMENT_MONTH = 72;
+export const TWINS_AGE_OUT_MONTH = 36; // Month when twins turn 18 (March 2029)
+export const SS_FRA = 67; // Full Retirement Age for 1960+ birth cohort
+export const SS_FRA_MONTH = 78; // Month when Chad reaches FRA (Sept 2032)
+
+/**
+ * SS benefit adjustment factor based on claiming age vs FRA (67).
+ * Before FRA: 5/9% per month for first 36 months early, 5/12% for additional.
+ * After FRA: 2/3% per month delayed retirement credit (8% per year).
+ */
+export function ssAdjustmentFactor(claimAge) {
+  const monthsFromFRA = (claimAge - SS_FRA) * 12;
+  if (monthsFromFRA >= 0) {
+    return 1 + monthsFromFRA * (2 / 3) / 100;
+  }
+  const monthsEarly = -monthsFromFRA;
+  if (monthsEarly <= 36) {
+    return 1 - monthsEarly * 5 / 9 / 100;
+  }
+  return 1 - 36 * 5 / 9 / 100 - (monthsEarly - 36) * 5 / 12 / 100;
+}
 
 export function buildQuarterlySchedule(totalProjectionMonths = 72) {
   const labels = [];

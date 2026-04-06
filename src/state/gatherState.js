@@ -35,7 +35,7 @@ export function gatherState(state) {
   }
   // SS Retirement: compute derived fields from ssClaimAge + ssPIA
   if (s.ssType === 'ss') {
-    const pia = s.ssPIA || 3822;
+    const pia = s.ssPIA || 4224;
     const age = s.ssClaimAge || 67;
     s.ssPersonal = Math.round(pia * ssAdjustmentFactor(age));
     s.ssStartMonth = (age - 62) * 12 + 18;

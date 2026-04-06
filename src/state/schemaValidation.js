@@ -155,7 +155,7 @@ const MIGRATIONS = [
     fn: (state) => {
       const result = { ...state };
       if (result.ssClaimAge === undefined) result.ssClaimAge = 62;
-      if (result.ssPIA === undefined) result.ssPIA = 3822;
+      if (result.ssPIA === undefined) result.ssPIA = 4224;
       return result;
     },
   },

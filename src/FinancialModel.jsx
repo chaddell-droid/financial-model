@@ -715,10 +715,11 @@ export default function FinancialModel() {
     ssType,
     ssPersonal,
     ssPIA,
+    ssClaimAge,
     chadJob,
     trustIncomeFuture,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, chadJob, trustIncomeFuture]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

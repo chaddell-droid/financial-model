@@ -27,7 +27,7 @@ export const INITIAL_STATE = {
   ssdiBackPayMonths: 18,
   // SS retirement (configurable claiming age 62–70)
   ssClaimAge: 67,            // Claiming age (62–70); default FRA
-  ssPIA: 3822,               // Primary Insurance Amount (benefit at FRA)
+  ssPIA: 4224,               // Primary Insurance Amount (benefit at FRA) — per SSA estimate
   ssFamilyTotal: 7099,       // Computed in gatherState from PIA + claim age
   ssPersonal: 2933,          // Computed in gatherState from PIA + claim age
   ssStartMonth: 18,          // Computed in gatherState from claim age

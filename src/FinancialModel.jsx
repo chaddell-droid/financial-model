@@ -679,7 +679,7 @@ export default function FinancialModel() {
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = true;
   const showTabs = !presentMode;
-  const showRail = !presentMode && effectiveTab !== 'plan';
+  const showRail = !presentMode && effectiveTab !== 'plan' && effectiveTab !== 'overview';
   const railPlacement = !showRail
     ? 'hidden'
     : (effectiveTab === 'overview' || effectiveTab === 'track')
@@ -800,7 +800,7 @@ export default function FinancialModel() {
       {effectiveTab === 'overview' && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(320px, 420px)' : '1fr',
+          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(380px, 520px)' : '1fr',
           gap: 24,
           alignItems: 'start',
         }}>
@@ -814,6 +814,7 @@ export default function FinancialModel() {
               mcResults={mcResults}
               onTabChange={set('activeTab')}
             />
+            <NetWorthChart {...netWorthProps} instanceId='overview' />
           </div>
           {shellWidthBucket === 'desktop' && (
             <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
@@ -826,7 +827,7 @@ export default function FinancialModel() {
       {effectiveTab === 'plan' && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(320px, 420px)' : '1fr',
+          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(380px, 520px)' : '1fr',
           gap: 24,
           alignItems: 'start',
         }}>
@@ -963,7 +964,7 @@ export default function FinancialModel() {
       minHeight: "100vh",
       padding: "24px 16px"
     }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1680, margin: "0 auto" }}>
         <Header
           presentMode={presentMode}
           onTogglePresentMode={handleTogglePresentMode}

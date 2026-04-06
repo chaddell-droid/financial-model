@@ -27,7 +27,7 @@ function AppShell({
         style={{
           display: 'grid',
           gridTemplateColumns: showRail && railPlacement === 'side'
-            ? 'minmax(0, 1fr) minmax(320px, 420px)'
+            ? 'minmax(0, 1fr) minmax(380px, 520px)'
             : 'minmax(0, 1fr)',
           gap: UI_SPACE.xl,
           alignItems: 'start',

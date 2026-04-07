@@ -17,9 +17,11 @@ export function gatherState(state) {
   s.totalProjectionMonths = (s.sarahWorkYears || 6) * 12;
   s.bcsFamilyMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - (s.bcsParentsAnnual || 0)) / 12);
   // If totalMonthlySpend is set, back-calculate baseExpenses from it.
-  // Cut sliders represent ADDITIONAL reductions from the actual spend level.
+  // Use status-quo BCS ($25K parents) so the BCS slider actually changes expenses
+  // rather than being absorbed into baseExpenses (which would persist after BCS ends).
   if (s.totalMonthlySpend != null) {
-    s.baseExpenses = Math.max(0, s.totalMonthlySpend - (s.debtService || 0) - (s.vanMonthlySavings || 0) - s.bcsFamilyMonthly);
+    const statusQuoBcsMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - 25000) / 12);
+    s.baseExpenses = Math.max(0, s.totalMonthlySpend - (s.debtService || 0) - (s.vanMonthlySavings || 0) - statusQuoBcsMonthly);
   }
   // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
   // Otherwise use the individual item sums

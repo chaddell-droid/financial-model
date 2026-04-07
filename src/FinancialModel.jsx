@@ -613,6 +613,7 @@ export default function FinancialModel() {
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode,
     onFieldChange: set, baseExpenses: effectiveBaseExpenses, totalMonthlySpend,
+    monthlyDetail,
   }), [
     savingsData, savingsZeroMonth, savingsZeroLabel,
     compareProjection, compareName,
@@ -620,6 +621,7 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode, effectiveBaseExpenses, totalMonthlySpend,
+    monthlyDetail,
   ]);
 
   const netWorthProps = useMemo(() => ({

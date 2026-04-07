@@ -8,6 +8,65 @@ import ChartYAxis from './ChartYAxis.jsx';
 import ChartXAxis from './ChartXAxis.jsx';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
+/**
+ * Detect structural transitions: income sources starting, stopping, or
+ * shifting by ±30%. Returns annotations with month, label, amount, direction.
+ * Focuses on events (0→nonzero, nonzero→0, large shifts) not recurring patterns.
+ */
+function detectSignificantChanges(monthlyDetail) {
+  if (!monthlyDetail || monthlyDetail.length < 3) return [];
+
+  const annotations = [];
+  const tracked = [
+    { key: 'ssdi', label: 'SS/SSDI' },
+    { key: 'chadJobIncome', label: 'Job income' },
+    { key: 'consulting', label: 'Consulting' },
+  ];
+
+  for (let i = 1; i < monthlyDetail.length; i++) {
+    const curr = monthlyDetail[i];
+    const prev = monthlyDetail[i - 1];
+
+    for (const { key, label } of tracked) {
+      const cv = curr[key] || 0;
+      const pv = prev[key] || 0;
+
+      // Detect start (0 → nonzero)
+      if (pv === 0 && cv > 0) {
+        annotations.push({ month: curr.month, label: `${label} starts`, amount: cv, positive: true });
+      }
+      // Detect stop (nonzero → 0)
+      else if (pv > 0 && cv === 0) {
+        annotations.push({ month: curr.month, label: `${label} ends`, amount: -pv, positive: false });
+      }
+      // Detect ±30% shift in ongoing stream
+      else if (pv > 0 && cv > 0 && Math.abs(cv - pv) / pv > 0.30) {
+        const delta = cv - pv;
+        annotations.push({ month: curr.month, label: `${label} shift`, amount: delta, positive: delta > 0 });
+      }
+    }
+
+    // Detect large expense drops (BCS ending, debt retirement, van sold)
+    const expDelta = curr.expenses - prev.expenses;
+    if (prev.expenses > 0 && Math.abs(expDelta) / prev.expenses > 0.05 && Math.abs(expDelta) > 1000) {
+      annotations.push({
+        month: curr.month,
+        label: expDelta < 0 ? 'Expenses drop' : 'Expenses rise',
+        amount: -expDelta, // inverted: expense drop = positive for savings
+        positive: expDelta < 0,
+      });
+    }
+  }
+
+  // Deduplicate: same label within 2 months → keep first
+  const deduped = [];
+  for (const a of annotations) {
+    const exists = deduped.some(d => d.label === a.label && Math.abs(d.month - a.month) <= 2);
+    if (!exists) deduped.push(a);
+  }
+  return deduped;
+}
+
 function SavingsDrawdownChart({
   savingsData,
   savingsZeroMonth,
@@ -25,6 +84,7 @@ function SavingsDrawdownChart({
   onFieldChange,
   baseExpenses,
   totalMonthlySpend,
+  monthlyDetail,
   instanceId = 'default',
 }) {
   const containerRef = useRef(null);
@@ -90,11 +150,11 @@ function SavingsDrawdownChart({
             ))}
           </div>
           {(() => {
-            const svgH = 340;
+            const svgH = 370;
             const padL = 60;
             const padR = 20;
             const padT = 20;
-            const padB = 30;
+            const padB = 60;
             const plotW = svgW - padL - padR;
             const plotH = svgH - padT - padB;
 
@@ -258,6 +318,38 @@ function SavingsDrawdownChart({
                     </text>
                   </g>
                 )}
+
+                {/* Significant balance change markers */}
+                {(() => {
+                  const changes = detectSignificantChanges(monthlyDetail);
+                  const backPayMonth = ssdiBackPayActual > 0 ? ssdiApprovalMonth + 2 : -1;
+                  const filtered = changes.filter(c => c.month <= maxMonth && c.month !== backPayMonth);
+                  // Stagger labels vertically when close together
+                  const usedSlots = [];
+                  return filtered.map((c, i) => {
+                    const color = c.positive ? COLORS.green : COLORS.red;
+                    const cx = x(c.month);
+                    // Find a vertical slot that doesn't overlap
+                    let row = 0;
+                    for (const slot of usedSlots) {
+                      if (Math.abs(cx - slot.x) < 80) row = Math.max(row, slot.row + 1);
+                    }
+                    usedSlots.push({ x: cx, row });
+                    const labelY = padT + plotH + 14 + row * 12;
+                    return (
+                      <g key={`sig-${i}`}>
+                        <line x1={cx} x2={cx}
+                          y1={padT} y2={padT + plotH}
+                          stroke={color} strokeWidth="1" strokeDasharray="4,3" opacity="0.5" />
+                        <text x={cx} y={labelY} textAnchor="middle"
+                          fill={color} fontSize="9" fontWeight="600"
+                          fontFamily="'JetBrains Mono', monospace">
+                          {c.label} {c.positive ? '+' : ''}{fmtFull(c.amount)}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
 
               </svg>
 

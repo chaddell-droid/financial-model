@@ -25,9 +25,11 @@ export const SS_EARNINGS_LIMIT_FRA_YEAR = 62160; // 2026 earnings test in FRA ye
 export const SSDI_ATTORNEY_FEE_CAP = 7500; // 2026 estimated statutory cap (~$7,200 in 2025 + annual increase)
 export const DAYS_PER_MONTH = 21.5;
 export const CHAD_RETIREMENT_MONTH = 72;
-export const TWINS_AGE_OUT_MONTH = 36; // Month when twins turn 18 (March 2029)
+export const TWINS_AGE_OUT_MONTH = 34; // Last eligible child benefit month (Jan 2029; twins turn 18 Feb 11, 2029)
 export const SS_FRA = 67; // Full Retirement Age for 1960+ birth cohort
-export const SS_FRA_MONTH = 78; // Month when Chad reaches FRA (Sept 2032)
+export const SS_FRA_MONTH = 79; // Month when Chad reaches FRA (Oct 2032; born Sep 17, must be 67 full month)
+// SS start offset: +19 months from baseline for age 62 (Oct 2027, not Sep — mid-month birthday)
+export const SS_START_OFFSET = 19; // Months from baseline (Mar 2026) to first eligible month at age 62
 
 /**
  * SS benefit adjustment factor based on claiming age vs FRA (67).

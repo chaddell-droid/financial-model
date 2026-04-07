@@ -73,7 +73,7 @@ export function useRetirementSimulation({
   const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
 
   // Chad's SS — PIA from state replaces hardcoded value
-  const ssFRA = ssPIA || 4224;
+  const ssFRA = ssPIA || 4214;
   const chadSS = (ssType === 'ss' && !chadJob) ? (ssPersonal || Math.round(ssFRA * 0.7)) : ssFRA;
   const sarahOwnSS = 1900;
   // Survivor benefit: if Chad claimed before FRA, Sarah gets max(his benefit, 82.5% PIA)

@@ -20,14 +20,14 @@ export const INITIAL_STATE = {
   ssType: 'ssdi',            // 'ssdi' or 'ss'
   ssdiApprovalMonth: 7,
   ssdiDenied: false,
-  ssdiPersonal: 4166,
+  ssdiPersonal: 4214,        // Per SSA tool — disability benefit = PIA
   ssdiFamilyTotal: 6500,
   kidsAgeOutMonths: 36,
   chadConsulting: 0,
   ssdiBackPayMonths: 18,
   // SS retirement (configurable claiming age 62–70)
   ssClaimAge: 67,            // Claiming age (62–70); default FRA
-  ssPIA: 4224,               // Primary Insurance Amount (benefit at FRA) — per SSA estimate
+  ssPIA: 4214,               // Primary Insurance Amount (benefit at FRA) — per SSA tool
   ssFamilyTotal: 7099,       // Computed in gatherState from PIA + claim age
   ssPersonal: 2933,          // Computed in gatherState from PIA + claim age
   ssStartMonth: 18,          // Computed in gatherState from claim age

@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
-import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA } from '../model/constants.js';
+import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OFFSET } from '../model/constants.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 
@@ -202,7 +202,7 @@ const IncomeControls = ({
               const age = ssClaimAge || 67;
               const factor = ssAdjustmentFactor(age);
               const computedPersonal = Math.round(pia * factor);
-              const computedStartMonth = (age - 62) * 12 + 18;
+              const computedStartMonth = (age - 62) * 12 + SS_START_OFFSET;
               const computedKidsMonths = Math.max(0, TWINS_AGE_OUT_MONTH - computedStartMonth);
               const childBenefitEach = Math.round(pia * 0.5);
               const computedFamily = computedKidsMonths > 0 ? computedPersonal + 2 * childBenefitEach : computedPersonal;

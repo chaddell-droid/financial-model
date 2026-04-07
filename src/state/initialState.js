@@ -21,7 +21,7 @@ export const INITIAL_STATE = {
   ssdiApprovalMonth: 7,
   ssdiDenied: false,
   ssdiPersonal: 4214,        // Per SSA tool — disability benefit = PIA
-  ssdiFamilyTotal: 6500,
+  ssdiFamilyTotal: 6321,     // SSDI family max = 150% of PIA ($4,214)
   kidsAgeOutMonths: 36,
   chadConsulting: 0,
   ssdiBackPayMonths: 18,

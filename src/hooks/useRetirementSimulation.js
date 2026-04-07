@@ -74,12 +74,12 @@ export function useRetirementSimulation({
 
   // Chad's SS — PIA from state replaces hardcoded value
   const ssFRA = ssPIA || 4214;
-  const chadSS = (ssType === 'ss' && !chadJob) ? (ssPersonal || Math.round(ssFRA * 0.7)) : ssFRA;
+  const chadSS = (ssType === 'ss') ? (ssPersonal || Math.round(ssFRA * 0.7)) : ssFRA;
   const sarahOwnSS = 1900;
   // Survivor benefit: if Chad claimed before FRA, Sarah gets max(his benefit, 82.5% PIA)
   // If Chad claimed at/after FRA (or SSDI which converts at FRA), Sarah gets his full benefit
   const claimAge = ssClaimAge || 67;
-  const claimedEarly = ssType === 'ss' && !chadJob && claimAge < 67;
+  const claimedEarly = ssType === 'ss' && claimAge < 67;
   const survivorSS = claimedEarly
     ? Math.max(chadSS, Math.round(ssFRA * 0.825))
     : chadSS;

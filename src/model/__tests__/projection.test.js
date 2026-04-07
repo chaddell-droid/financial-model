@@ -1030,6 +1030,63 @@ test('Projection: SS at 62 — earnings test does not apply after FRA month', ()
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Job + SS Coexistence
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Job + SS Coexistence ===');
+
+test('Job + SS at 62: SS income flows with earnings test on salary', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 80000, chadJobStartMonth: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // SS starts month 19 with earnings test on $80K salary
+  assert.strictEqual(monthlyData[18].ssdi, 0, 'no SS before start month');
+  assert.ok(monthlyData[19].ssdi > 0, 'SS income flows even with job');
+  // Earnings test: excess = $80K - $22,320 = $57,680; reduction = round($57,680/2/12) = $2,403
+  const expectedReduction = Math.round((80000 - 22320) / 2 / 12);
+  assert.ok(monthlyData[19].ssdi < s.ssFamilyTotal, 'SS reduced by earnings test');
+  assert.strictEqual(monthlyData[19].ssdi, Math.max(0, s.ssFamilyTotal - expectedReduction),
+    'SS reduction matches earnings test formula');
+});
+
+test('Job + SS at 62: full SS after job ends at CHAD_RETIREMENT_MONTH', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 80000, chadJobStartMonth: 0,
+    sarahWorkYears: 8,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // After month 72 (job ends), SS flows without earnings test
+  assert.strictEqual(monthlyData[73].chadJobIncome, 0, 'no job income after retirement');
+  assert.strictEqual(monthlyData[73].ssdi, s.ssPersonal, 'full SS personal after job ends');
+});
+
+test('Job + SSDI: SSDI still zeroed (SGA rules)', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiApprovalMonth: 0,
+    chadJob: true, chadJobSalary: 80000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].ssdi, 0, 'SSDI zeroed with job');
+  assert.strictEqual(monthlyData[12].ssdi, 0, 'SSDI still zeroed at month 12');
+});
+
+test('Job + SS at 62: low salary ($30K) preserves most SS benefit', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 30000, chadJobStartMonth: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Excess = $30K - $22,320 = $7,680; reduction = round($7,680/2/12) = $320
+  const expectedReduction = Math.round((30000 - 22320) / 2 / 12);
+  const expectedSS = s.ssFamilyTotal - expectedReduction;
+  assert.strictEqual(monthlyData[19].ssdi, expectedSS,
+    `Low salary preserves most SS: ${expectedSS}/mo`);
+  assert.ok(monthlyData[19].ssdi > s.ssFamilyTotal * 0.9, 'over 90% of SS preserved at $30K salary');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Chad Gets a Job — numerical trace
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== Chad Gets a Job — numerical trace ===');

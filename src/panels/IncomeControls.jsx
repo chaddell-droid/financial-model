@@ -41,40 +41,40 @@ const IncomeControls = ({
               Income Assumptions
             </h3>
             {/* SS Type Selector */}
-            <div style={{ marginBottom: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}`, opacity: chadJob ? 0.3 : 1, pointerEvents: chadJob ? 'none' : 'auto' }}>
+            <div style={{ marginBottom: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Social Security Type</h4>
-              {chadJob && (
-                <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 8, fontStyle: "italic" }}>
-                  SS/SSDI not applicable while employed full-time.
-                </div>
-              )}
               <div style={{ display: "flex", gap: 8 }}>
                 {[
                   { value: 'ssdi', label: 'SSDI (Disability)' },
                   { value: 'ss', label: 'SS Retirement' },
-                ].map(opt => (
+                ].map(opt => {
+                  const disabled = chadJob && opt.value === 'ssdi';
+                  return (
                   <button
                     key={opt.value}
-                    onClick={() => set('ssType')(opt.value)}
+                    onClick={() => !disabled && set('ssType')(opt.value)}
                     data-testid={`income-ss-type-${opt.value}`}
                     aria-label={`Choose ${opt.label}`}
                     style={{
-                      flex: 1, padding: "8px 12px", borderRadius: 6, cursor: "pointer",
+                      flex: 1, padding: "8px 12px", borderRadius: 6, cursor: disabled ? "not-allowed" : "pointer",
                       fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif",
                       border: ssType === opt.value ? `1px solid ${COLORS.blue}` : `1px solid ${COLORS.border}`,
                       background: ssType === opt.value ? "#1e3a5f" : COLORS.bgDeep,
-                      color: ssType === opt.value ? COLORS.blue : COLORS.textDim,
+                      color: disabled ? COLORS.borderLight : ssType === opt.value ? COLORS.blue : COLORS.textDim,
+                      opacity: disabled ? 0.4 : 1,
                     }}
                   >
                     {opt.label}
                   </button>
-                ))}
+                  );
+                })}
               </div>
-              {!chadJob && (
-                <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 6, fontStyle: "italic" }}>
-                  SSDI and SS retirement cannot be received at the same time.
-                </div>
-              )}
+              <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 6, fontStyle: "italic" }}>
+                {chadJob
+                  ? "SSDI not available while employed (SGA rules). SS retirement can coexist with a job — earnings test applies."
+                  : "SSDI and SS retirement cannot be received at the same time."
+                }
+              </div>
             </div>
 
             {/* Chad Gets a Job */}
@@ -141,7 +141,10 @@ const IncomeControls = ({
                     );
                   })()}
                   <div style={{ marginTop: 8, fontSize: 10, color: COLORS.textDim, fontStyle: "italic", lineHeight: 1.5 }}>
-                    SS/SSDI income and consulting are excluded while employed. This scenario models the go-back-to-work path as an alternative.
+                    {ssType === 'ss'
+                      ? "SS retirement income can coexist with employment — earnings test reduces benefits based on salary. Consulting disabled while employed."
+                      : "SSDI income and consulting are excluded while employed. Switch to SS Retirement to model claiming while working."
+                    }
                   </div>
                 </>
               )}
@@ -197,8 +200,8 @@ const IncomeControls = ({
               </>
             )}
 
-            {ssType === 'ss' && !chadJob && (() => {
-              const pia = ssPIA || 3822;
+            {ssType === 'ss' && (() => {
+              const pia = ssPIA || 4214;
               const age = ssClaimAge || 67;
               const factor = ssAdjustmentFactor(age);
               const computedPersonal = Math.round(pia * factor);
@@ -278,6 +281,36 @@ const IncomeControls = ({
                   }
                 </div>
 
+                {chadJob && !atOrAfterFRA && (() => {
+                  const salary = chadJobSalary || 80000;
+                  const excess = Math.max(0, salary - 22320);
+                  const monthlyReduction = Math.round(excess / 2 / 12);
+                  const netSS = Math.max(0, computedPersonal - monthlyReduction);
+                  return (
+                  <div style={{ marginTop: 12, padding: "8px 10px", background: `${COLORS.amber}10`, borderRadius: 6, border: `1px solid ${COLORS.amber}33` }}>
+                    <div style={{ fontSize: 11, color: COLORS.amber, fontWeight: 600, marginBottom: 4 }}>Earnings Test Impact (salary ${fmtFull(salary)}/yr)</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ color: COLORS.textDim }}>Gross SS benefit:</span>
+                      <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(computedPersonal)}/mo</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                      <span style={{ color: COLORS.textDim }}>Earnings test reduction:</span>
+                      <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(monthlyReduction)}/mo</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
+                      <span style={{ color: netSS > 0 ? COLORS.green : COLORS.red }}>Net SS after test:</span>
+                      <span style={{ color: netSS > 0 ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(netSS)}/mo</span>
+                    </div>
+                    {netSS === 0 && (
+                      <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
+                        Benefits fully withheld — but SSA recalculates at FRA to credit withheld months.
+                      </div>
+                    )}
+                  </div>
+                  );
+                })()}
+
+                {!chadJob && (
                 <div style={{ marginTop: 12 }}>
                   <h4 style={{ fontSize: 11, color: COLORS.blueLight, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chad Consulting (Post-SS)</h4>
                   <Slider label="Monthly consulting income" value={chadConsulting} onChange={set('chadConsulting')} commitStrategy={commitStrategy} min={0} max={5000} step={100} color={COLORS.blueLight} />
@@ -291,6 +324,7 @@ const IncomeControls = ({
                     </div>
                   )}
                 </div>
+                )}
               </div>
               );
             })()}

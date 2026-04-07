@@ -63,16 +63,15 @@ export function runMonthlySimulation(s) {
     // Chad's job income (after tax)
     const chadJobIncome = (chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH) ? chadJobMonthlyNet : 0;
 
-    // SS/SSDI: fully skipped when Chad has a job — mutually exclusive paths
+    // SS/SSDI income — SS retirement can coexist with job (earnings test applies);
+    // SSDI requires no job (SGA rules)
     let ssdi = 0;
-    if (!chadJob) {
-      if (useSS) {
-        if (m >= ssStartMonth) {
-          ssdi = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
-        }
-      } else if (m >= effectiveSsdiApproval) {
-        ssdi = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
+    if (useSS) {
+      if (m >= ssStartMonth) {
+        ssdi = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
       }
+    } else if (!chadJob && m >= effectiveSsdiApproval) {
+      ssdi = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
     }
     // Consulting: only when not employed full-time
     const consulting = (m > CHAD_RETIREMENT_MONTH) ? 0
@@ -80,20 +79,24 @@ export function runMonthlySimulation(s) {
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
-    // SS earnings test: three regimes based on proximity to FRA
-    if (useSS && consulting > 0 && ssdi > 0) {
-      if (m >= SS_FRA_MONTH) {
-        // At/after FRA: no earnings test
-      } else if (m >= SS_FRA_MONTH - 12) {
-        // In FRA year: higher limit, $1 per $3 over
-        const annualExcess = Math.max(0, consulting * 12 - SS_EARNINGS_LIMIT_FRA_YEAR);
-        const monthlyReduction = Math.round(annualExcess / 3 / 12);
-        ssdi = Math.max(0, ssdi - monthlyReduction);
-      } else {
-        // Before FRA year: standard limit, $1 per $2 over
-        const annualExcess = Math.max(0, consulting * 12 - SS_EARNINGS_LIMIT_ANNUAL);
-        const monthlyReduction = Math.round(annualExcess / 2 / 12);
-        ssdi = Math.max(0, ssdi - monthlyReduction);
+    // SS earnings test: applies to total earned income (salary if employed, consulting if not)
+    if (useSS && ssdi > 0) {
+      const isEmployed = chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH;
+      const annualEarned = isEmployed
+        ? (s.chadJobSalary || 0)  // gross salary for earnings test
+        : consulting * 12;        // annualized consulting
+      if (annualEarned > 0) {
+        if (m >= SS_FRA_MONTH) {
+          // At/after FRA: no earnings test
+        } else if (m >= SS_FRA_MONTH - 12) {
+          // In FRA year: higher limit, $1 per $3 over
+          const annualExcess = Math.max(0, annualEarned - SS_EARNINGS_LIMIT_FRA_YEAR);
+          ssdi = Math.max(0, ssdi - Math.round(annualExcess / 3 / 12));
+        } else {
+          // Before FRA year: standard limit, $1 per $2 over
+          const annualExcess = Math.max(0, annualEarned - SS_EARNINGS_LIMIT_ANNUAL);
+          ssdi = Math.max(0, ssdi - Math.round(annualExcess / 2 / 12));
+        }
       }
     }
 

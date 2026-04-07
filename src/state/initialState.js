@@ -50,7 +50,7 @@ export const INITIAL_STATE = {
   // BCS Tuition
   bcsAnnualTotal: 41000,
   bcsParentsAnnual: 25000,
-  bcsYearsLeft: 3,
+  bcsYearsLeft: 3.5,           // Freshmen 2025–2026, graduate June 2029 (~month 39)
 
   // Spending Cuts — single slider amount (applied when lifestyleCutsApplied is true)
   lifestyleCutsApplied: false,

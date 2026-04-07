@@ -66,7 +66,7 @@ const ExpenseControls = ({
               <h4 style={{ fontSize: 11, color: COLORS.purple, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>BCS Tuition</h4>
               <Slider label="Total annual tuition" value={bcsAnnualTotal} onChange={set('bcsAnnualTotal')} commitStrategy={commitStrategy} min={30000} max={50000} step={1000} color={COLORS.purple} />
               <Slider label="Parents pay annually" value={bcsParentsAnnual} onChange={set('bcsParentsAnnual')} commitStrategy={commitStrategy} min={0} max={bcsAnnualTotal} step={1000} color={COLORS.purple} />
-              <Slider label="Years remaining" value={bcsYearsLeft} onChange={set('bcsYearsLeft')} commitStrategy={commitStrategy} min={1} max={5} format={(v) => v + " yrs"} color={COLORS.purple} />
+              <Slider label="Years remaining" value={bcsYearsLeft} onChange={set('bcsYearsLeft')} commitStrategy={commitStrategy} min={0.5} max={5} step={0.5} format={(v) => v + " yrs"} color={COLORS.purple} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
                 <span>Family share:</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", color: bcsFamilyMonthly > 0 ? COLORS.red : COLORS.green }}>

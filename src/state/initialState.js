@@ -48,7 +48,7 @@ export const INITIAL_STATE = {
   debtService: 6434,
 
   // BCS Tuition
-  bcsAnnualTotal: 41000,
+  bcsAnnualTotal: 43400,       // Grades 7-12: $22,720 (1st) + $20,680 (2nd)
   bcsParentsAnnual: 25000,
   bcsYearsLeft: 3.5,           // Freshmen 2025–2026, graduate June 2029 (~month 39)
 

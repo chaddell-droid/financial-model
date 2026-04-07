@@ -127,17 +127,17 @@ const base = gatherState();
 const { monthlyData, backPayActual } = runMonthlySimulation(base);
 
 test('backPayActual', () => eq(backPayActual, 68352));
-test('month 0 balance', () => eq(monthlyData[0].balance, 161088));
+test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -188311));
-test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41255));
-test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -25978));
+test('month 72 balance', () => eq(monthlyData[72].balance, -199268));
+test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
+test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -26178));
 test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -25411));
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -188311);
+  eq(minBal, -199268);
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -165,7 +165,7 @@ const { monthlyData: deniedData } = runMonthlySimulation(denied);
 
 test('month 12 balance', () => eq(deniedData[12].balance, 0));
 test('month 36 balance', () => eq(deniedData[36].balance, 0));
-test('month 72 balance', () => eq(deniedData[72].balance, -680692));
+test('month 72 balance', () => eq(deniedData[72].balance, -690591));
 test('ssdi is always 0', () => {
   assert.ok(deniedData.every(d => d.ssdi === 0), 'SSDI should be 0 for all months when denied');
 });
@@ -187,8 +187,8 @@ console.log('\n=== Retire Debt ===');
 const debtRetired = gatherState({ retireDebt: true });
 const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
-test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47748));
-test('month 12 balance', () => eq(debtData[12].balance, 13809));
+test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948));
+test('month 12 balance', () => eq(debtData[12].balance, 11017));
 test('month 72 balance', () => eq(debtData[72].balance, 0));
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
@@ -199,9 +199,9 @@ console.log('\n=== Lifestyle Cuts Applied ===');
 const cutsOn = gatherState({ lifestyleCutsApplied: true });
 const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 
-test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54182));
+test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
-test('month 72 balance', () => eq(cutsData[72].balance, -188311));
+test('month 72 balance', () => eq(cutsData[72].balance, -199268));
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -235,9 +235,9 @@ const goals = INITIAL_STATE.goals;
 const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDebt: false });
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -188311));
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -199268));
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
-test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -25978));
+test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -26178));
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
 test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, 0));
 test('income target uses operational cash flow, not netMonthly', () => {
@@ -277,7 +277,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -188311));
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -199268));
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -547,7 +547,7 @@ test('buildPrimaryLeversModel computes numeric summary totals at baseline', () =
   assert.ok(Number.isFinite(model.summary.monthlyOutflow), 'monthlyOutflow should be finite');
   assert.ok(Number.isFinite(model.summary.monthlySavings), 'monthlySavings should be finite');
   assert.ok(Number.isFinite(model.summary.oneTimeAsk), 'oneTimeAsk should be finite');
-  eq(model.summary.monthlyOutflow, 54182);
+  eq(model.summary.monthlyOutflow, 54382);
   eq(model.summary.monthlySavings, 0);
   eq(model.summary.oneTimeAsk, 0);
   eq(model.summary.topLeverId, '');
@@ -564,8 +564,8 @@ test('buildPrimaryLeversModel keeps BCS delta outputs numeric at baseline and fu
   eq(baseline.bcs.monthlyDeltaFromStatusQuo, 0);
   eq(baseline.bcs.totalDeltaOverRemainingYears, 0);
   eq(fullSupport.bcs.monthlyFamilyShare, 0);
-  eq(fullSupport.bcs.monthlyDeltaFromStatusQuo, 1333);
-  eq(fullSupport.bcs.totalDeltaOverRemainingYears, 56000);
+  eq(fullSupport.bcs.monthlyDeltaFromStatusQuo, 1533);
+  eq(fullSupport.bcs.totalDeltaOverRemainingYears, 64400);
 });
 
 test('buildPrimaryLeversModel uses the fixed $25K BCS status quo baseline for ranking math', () => {

@@ -13,7 +13,7 @@ export const INITIAL_STATE = {
   sarahWorkYears: 6,
 
   // MSFT
-  msftPrice: 373.46,
+  msftPrice: 374.33,
   msftGrowth: 0,
 
   // Social Security (SSDI vs SS retirement — mutually exclusive)

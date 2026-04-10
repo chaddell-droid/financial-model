@@ -130,14 +130,14 @@ test('backPayActual', () => eq(backPayActual, 67488));
 test('month 0 balance', () => eq(monthlyData[0].balance, 161088));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -174271));
+test('month 72 balance', () => eq(monthlyData[72].balance, -173514));
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41255));
 test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -24466));
 test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -25459));
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -174271);
+  eq(minBal, -173514);
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -165,7 +165,7 @@ const { monthlyData: deniedData } = runMonthlySimulation(denied);
 
 test('month 12 balance', () => eq(deniedData[12].balance, 0));
 test('month 36 balance', () => eq(deniedData[36].balance, 0));
-test('month 72 balance', () => eq(deniedData[72].balance, -672388));
+test('month 72 balance', () => eq(deniedData[72].balance, -671721));
 test('ssdi is always 0', () => {
   assert.ok(deniedData.every(d => d.ssdi === 0), 'SSDI should be 0 for all months when denied');
 });
@@ -188,7 +188,7 @@ const debtRetired = gatherState({ retireDebt: true });
 const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
 test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47748));
-test('month 12 balance', () => eq(debtData[12].balance, 14019));
+test('month 12 balance', () => eq(debtData[12].balance, 14350));
 test('month 72 balance', () => eq(debtData[72].balance, 0));
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
@@ -201,7 +201,7 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54182));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
-test('month 72 balance', () => eq(cutsData[72].balance, -174271));
+test('month 72 balance', () => eq(cutsData[72].balance, -173514));
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -235,7 +235,7 @@ const goals = INITIAL_STATE.goals;
 const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDebt: false });
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -174271));
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -173514));
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
 test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -24466));
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
@@ -277,7 +277,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -174271));
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -173514));
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {

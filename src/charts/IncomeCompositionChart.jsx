@@ -145,8 +145,8 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                   })}
                 </div>
 
-                {/* Month label — show every 6 months */}
-                {(d.month % 6 === 0) && (
+                {/* Month label — show every 12 months for clean spacing */}
+                {(d.month % 12 === 0) && (
                   <div style={{
                     position: "absolute", bottom: -22, fontSize: 9, color: "#64748b",
                     whiteSpace: "nowrap",

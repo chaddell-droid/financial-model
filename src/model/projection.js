@@ -38,12 +38,15 @@ export function runMonthlySimulation(s) {
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
   // Chad Gets a Job
-  // chadJobTaxRate is the ALL-IN effective rate (includes FICA by default).
-  // When chadJobNoFICA is true, the 6.2% SS tax is not withheld — the user
-  // keeps that portion, increasing take-home pay.
+  // chadJobTaxRate is the ALL-IN effective income tax rate.
+  // No-FICA adds 6.2% back (non-SS-covered employer saves that portion).
+  // Pension contribution is deducted automatically from gross.
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
   const ficaSavings = s.chadJobNoFICA ? 0.062 : 0;
-  const chadJobMonthlyNet = chadJob ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100 + ficaSavings) / 12) : 0;
+  const pensionContrib = (s.chadJobPensionContrib || 0) / 100;
+  const chadJobMonthlyNet = chadJob
+    ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100 + ficaSavings - pensionContrib) / 12)
+    : 0;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
 
   // 401k and home equity — tracked alongside savings for deficit drawdown

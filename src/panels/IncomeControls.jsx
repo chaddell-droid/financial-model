@@ -100,7 +100,7 @@ const IncomeControls = ({
                     <div style={{ fontSize: 10, color: COLORS.amber, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Employer Retirement & Tax</div>
                     <Toggle
                       label="No Social Security tax (non-SS employer)"
-                      description={chadJobNoFICA ? `Saves $${Math.round(chadJobSalary * 0.062 / 12).toLocaleString()}/mo — lower your effective tax rate accordingly` : "Most employers withhold 6.2% for SS"}
+                      description={chadJobNoFICA ? `Adds $${Math.round(chadJobSalary * 0.062 / 12).toLocaleString()}/mo to take-home (6.2% SS tax not withheld)` : "Most employers withhold 6.2% for SS"}
                       checked={chadJobNoFICA}
                       onChange={set('chadJobNoFICA')}
                       color={COLORS.amber}

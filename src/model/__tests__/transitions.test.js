@@ -88,6 +88,7 @@ console.log('\n=== 2. Chad Job Start ===');
     ssdiDenied: true, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
 
@@ -128,6 +129,7 @@ console.log('\n=== 3. Chad Job/Consulting End ===');
     ssdiDenied: true, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
 
@@ -273,6 +275,7 @@ console.log('\n=== 6. Health Insurance Savings Window ===');
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0,
     trustIncreaseMonth: 0, investmentReturn: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
 
@@ -313,6 +316,7 @@ console.log('\n=== 7. Van Sale ===');
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0,
     startingSavings: 1000000, investmentReturn: 0, trustIncreaseMonth: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
 
@@ -355,6 +359,7 @@ console.log('\n=== 8. BCS Tuition End ===');
     ssdiDenied: true, chadJob: false, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0, investmentReturn: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
 
@@ -441,6 +446,7 @@ console.log('\n=== 10. One-Time Extras End ===');
     ssdiDenied: true, chadJob: false, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0,
     starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0, investmentReturn: 0,
+    expenseInflation: false,
   };
   const sA = gatherStateWithOverrides({ ...overridesBase, oneTimeExtras: 3000, oneTimeMonths: 12 });
   const sB = gatherStateWithOverrides({ ...overridesBase, oneTimeExtras: 0, oneTimeMonths: 0 });
@@ -485,6 +491,7 @@ console.log('\n=== 11. Milestone Savings ===');
     ssdiDenied: true, chadJob: false, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, oneTimeExtras: 0, bcsYearsLeft: 0,
     starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0, investmentReturn: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
 

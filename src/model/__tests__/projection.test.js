@@ -250,6 +250,7 @@ test('19. Van monthly cost added when vanSold is false', () => {
     vanSold: false, vanMonthlySavings: 2597,
     retireDebt: true, lifestyleCutsApplied: false,
     bcsAnnualTotal: 0, milestones: [], chadJob: false,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].expenses, s.baseExpenses + s.vanMonthlySavings);
@@ -264,6 +265,7 @@ test('20. Van monthly cost stops at vanSaleMonth when vanSold is true', () => {
     retireDebt: true, lifestyleCutsApplied: false,
     bcsAnnualTotal: 0, milestones: [], chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0, // no shortfall to complicate things
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Before sale: still paying van
@@ -282,6 +284,7 @@ test('21. BCS tuition added for first bcsYearsLeft * 12 months only', () => {
     bcsYearsLeft: bcsYears, bcsAnnualTotal: 41000, bcsParentsAnnual: 25000,
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, milestones: [], chadJob: false,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   const lastBcsMonth = bcsYears * 12 - 1; // month 23
@@ -319,6 +322,7 @@ test('24. Milestone savings reduce expenses at specified month', () => {
     milestones: [{ name: 'Test', month: mileMonth, savings: 3000 }],
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, bcsAnnualTotal: 0, chadJob: false,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[mileMonth - 1].expenses, s.baseExpenses,
@@ -334,6 +338,7 @@ test('25. Health savings deducted when chadJob is true, at/after chadJobStartMon
     chadJob: true, chadJobStartMonth: startMonth, chadJobHealthSavings: healthSavings,
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, bcsAnnualTotal: 0, milestones: [],
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[startMonth - 1].expenses, s.baseExpenses,
@@ -392,6 +397,7 @@ test('29. With totalMonthlySpend + vanSold=true and month >= vanSaleMonth, expen
     totalMonthlySpend: spend, vanSold: true, vanSaleMonth: saleMonth,
     retireDebt: false, lifestyleCutsApplied: false, chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Before sale month: van still being paid, so full spend
@@ -631,6 +637,7 @@ test('43. bcsYearsLeft: 0 — expenses at month 0 should NOT include BCS tuition
     bcsYearsLeft: 0, bcsAnnualTotal: 41000, bcsParentsAnnual: 25000,
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, milestones: [], chadJob: false,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // With bcsYearsLeft=0, no month should include BCS tuition
@@ -661,6 +668,7 @@ test('45. vanSaleMonth: 0 with vanSold: true — van cost should NOT apply at mo
     retireDebt: true, lifestyleCutsApplied: false,
     bcsAnnualTotal: 0, milestones: [], chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // With vanSaleMonth=0, the van is sold at month 0, so no van cost at month 0 or after
@@ -726,6 +734,7 @@ test('48. bcsYearsLeft = 0 — no BCS expenses at any month', () => {
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, milestones: [], chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Every single month's expenses should equal baseExpenses (no BCS component)
@@ -766,6 +775,7 @@ test('50. Multiple milestones at same month — both savings apply', () => {
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, bcsYearsLeft: 0, chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Before milestone month: no reduction
@@ -1261,6 +1271,7 @@ test('68. chadJob with chadJobStartMonth=6 — no job income or health savings b
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, bcsYearsLeft: 0, milestones: [],
     vanLoanBalance: 0, vanSalePrice: 0, ssdiDenied: true,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Before start month: no job income, no health savings
@@ -1568,8 +1579,8 @@ test('M4. retireDebt=true: expenses at month 0 lower by debtService (6434)', () 
 });
 
 test('M5. vanSold=true, vanSaleMonth=6: expenses at month 6 lower, balance hit by shortfall', () => {
-  const sBase = gatherStateWithOverrides({});
-  const sVan = gatherStateWithOverrides({ vanSold: true, vanSaleMonth: 6 });
+  const sBase = gatherStateWithOverrides({ expenseInflation: false });
+  const sVan = gatherStateWithOverrides({ vanSold: true, vanSaleMonth: 6, expenseInflation: false });
   const { monthlyData: baseData } = runMonthlySimulation(sBase);
   const { monthlyData: vanData } = runMonthlySimulation(sVan);
   assert.ok(vanData[6].expenses < baseData[6].expenses,
@@ -1815,6 +1826,7 @@ test('M25. bcsYearsLeft=0.5: BCS only for months 0-5, then stops', () => {
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
     lifestyleCutsApplied: false, milestones: [], chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0,
+    expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // BCS should apply for 6 months (0.5 * 12 = 6), months 0-5

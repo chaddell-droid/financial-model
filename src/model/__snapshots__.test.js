@@ -130,14 +130,14 @@ test('backPayActual', () => eq(backPayActual, 68352));
 test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -199268));
+test('month 72 balance', () => eq(monthlyData[72].balance, -521024));
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
-test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -26178));
-test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -25411));
+test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -30241));
+test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -33914));
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -199268);
+  eq(minBal, -521024);
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -165,7 +165,7 @@ const { monthlyData: deniedData } = runMonthlySimulation(denied);
 
 test('month 12 balance', () => eq(deniedData[12].balance, 0));
 test('month 36 balance', () => eq(deniedData[36].balance, 0));
-test('month 72 balance', () => eq(deniedData[72].balance, -690591));
+test('month 72 balance', () => eq(deniedData[72].balance, -1001125));
 test('ssdi is always 0', () => {
   assert.ok(deniedData.every(d => d.ssBenefit === 0), 'SSDI should be 0 for all months when denied');
 });
@@ -188,7 +188,7 @@ const debtRetired = gatherState({ retireDebt: true });
 const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
 test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948));
-test('month 12 balance', () => eq(debtData[12].balance, 11017));
+test('month 12 balance', () => eq(debtData[12].balance, 2135));
 test('month 72 balance', () => eq(debtData[72].balance, 0));
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
@@ -201,7 +201,7 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
-test('month 72 balance', () => eq(cutsData[72].balance, -199268));
+test('month 72 balance', () => eq(cutsData[72].balance, -521024));
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -235,9 +235,9 @@ const goals = INITIAL_STATE.goals;
 const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDebt: false });
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -199268));
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -521024));
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
-test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -26178));
+test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -30241));
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
 test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, 0));
 test('income target uses operational cash flow, not netMonthly', () => {
@@ -277,7 +277,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -199268));
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -521024));
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -2140,7 +2140,7 @@ console.log('\n=== Integration Regression Snapshots ===');
 test('R1: job scenario balance at month 71', () => {
   const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, 0);
+  assert.strictEqual(monthlyData[71].balance, -212198);
 });
 
 // R2 — Month-0 job income
@@ -2168,21 +2168,21 @@ test('R4: SS at FRA benefit at month 79', () => {
 test('R5: denied SSDI balance at month 71', () => {
   const s = gatherState({ ssdiDenied: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -660966);
+  assert.strictEqual(monthlyData[71].balance, -962997);
 });
 
 // R6 — Van sold at month 6
 test('R6: van sold at month 6, balance at month 71', () => {
   const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -51212);
+  assert.strictEqual(monthlyData[71].balance, -367592);
 });
 
 // R7 — Lifestyle cuts active with override
 test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
   const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, 0);
+  assert.strictEqual(monthlyData[71].balance, -58376);
 });
 
 // R8 — Debt retired
@@ -2220,7 +2220,7 @@ test('R11: one-time extras $5000 for 12 months — month 0 expenses', () => {
 test('R12: one-time extras end at month 12 — month 12 expenses', () => {
   const s = gatherState({ oneTimeExtras: 5000, oneTimeMonths: 12 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[12].expenses, 54382);
+  assert.strictEqual(monthlyData[12].expenses, 55697);
 });
 
 // R13 — Extended horizon length

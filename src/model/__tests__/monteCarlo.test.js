@@ -311,7 +311,7 @@ test('11. Easy goal has higher success rate than hard goal', () => {
     { id: 'hard', name: 'Impossible target', type: 'savings_target', targetAmount: 10000000, targetMonth: 72 },
   ];
 
-  const base = gatherStateWithOverrides({});
+  const base = gatherStateWithOverrides({ expenseInflation: false });
   const mc = mcParams({ mcNumSims: 50 });
   const result = runMonteCarlo(base, mc, goals, { seed: 42 });
 

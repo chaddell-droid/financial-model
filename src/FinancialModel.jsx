@@ -787,6 +787,8 @@ export default function FinancialModel() {
             compareState={compareState}
             compareName={compareName}
             onClearCompare={() => { set('compareState')(null); set('compareName')(''); }}
+            projection={projection}
+            compareProjection={compareProjection}
           />
         ) : null}
       </>

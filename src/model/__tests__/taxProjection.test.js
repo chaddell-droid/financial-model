@@ -17,8 +17,10 @@ function makeState(overrides = {}) {
     sarahCurrentClients: 4,
     sarahMaxClients: 4.5,
     sarahClientGrowth: 10,
-    sarahWorkYears: 6,
+    sarahWorkMonths: 72,
+    chadWorkMonths: 72,
     totalProjectionMonths: 72,
+    chadRetirementMonth: 72,
 
     // Chad's job
     chadJob: false,
@@ -97,7 +99,7 @@ describe('buildTaxSchedule', () => {
   });
 
   it('returns correct year count for non-multiple months', () => {
-    const s = makeState({ totalProjectionMonths: 36, sarahWorkYears: 3 });
+    const s = makeState({ totalProjectionMonths: 36, sarahWorkMonths: 36, chadWorkMonths: 36, chadRetirementMonth: 36 });
     const schedule = buildTaxSchedule(s);
     // months 0-36 = 37 months → ceil(37/12) = 4 years (0-11, 12-23, 24-35, 36)
     expect(schedule.length).toBe(4);

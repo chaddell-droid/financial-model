@@ -1298,7 +1298,7 @@ test('Retirement surface wires inline help primitives into the section', () => {
 test('Retirement help layout uses the shared shell rail and responsive retirement grids', () => {
   const shellSource = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
-  assert.ok(shellSource.includes("minmax(320px, 420px)"), 'shared shell should cap rail width for the retirement surface');
+  assert.ok(shellSource.includes("minmax(380px, 520px)"), 'shared shell should cap rail width for the retirement surface');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'retirement controls should use responsive auto-fit grids');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
 });
@@ -1754,7 +1754,7 @@ test('Overview forces the rail below and Plan hides it', () => {
 
 test('AppShell narrows the side rail width contract', () => {
   const source = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes("minmax(320px, 420px)"), 'AppShell should narrow the side rail width');
+  assert.ok(source.includes("minmax(380px, 520px)"), 'AppShell should narrow the side rail width');
   assert.ok(!source.includes("minmax(460px, 560px)"), 'AppShell should drop the old wide side-rail contract');
 });
 

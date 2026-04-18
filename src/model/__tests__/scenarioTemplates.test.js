@@ -93,7 +93,7 @@ test('Chad W-2 Job template sets all job fields', () => {
   assert.strictEqual(next.chadJob, true);
   assert.strictEqual(next.chadJobSalary, 120000);
   assert.strictEqual(next.chadJobStartMonth, 3);
-  assert.strictEqual(next.chadJobHealthSavings, 800);
+  assert.strictEqual(next.chadJobHealthSavings, INITIAL_STATE.chadJobHealthSavings);
   // Unrelated default preserved
   assert.strictEqual(next.sarahRate, INITIAL_STATE.sarahRate);
 });

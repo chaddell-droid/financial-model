@@ -1008,7 +1008,7 @@ test('Projection: SS at FRA (67) — no earnings test applies', () => {
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 67, ssPIA: 3822,
     chadConsulting: 5000, chadJob: false,
-    sarahWorkYears: 8, // extend horizon to 96 months to cover FRA
+    sarahWorkMonths: 96, // extend horizon to 96 months to cover FRA
   });
   const { monthlyData } = runMonthlySimulation(s);
   // SS starts at month 79, which is at/after FRA → no earnings test
@@ -1020,7 +1020,7 @@ test('Projection: SS at 62 — earnings test does not apply after FRA month', ()
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 62, ssPIA: 3822,
     chadConsulting: 3000, chadJob: false,
-    sarahWorkYears: 8, // extend horizon to 96 months
+    sarahWorkMonths: 96, // extend horizon to 96 months
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Before FRA year: standard earnings test applies
@@ -1050,11 +1050,11 @@ test('Job + SS at 62: SS income flows with earnings test on salary', () => {
     'SS reduction matches earnings test formula');
 });
 
-test('Job + SS at 62: full SS after job ends at CHAD_RETIREMENT_MONTH', () => {
+test('Job + SS at 62: full SS after job ends at chadRetirementMonth', () => {
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 80000, chadJobStartMonth: 0,
-    sarahWorkYears: 8,
+    sarahWorkMonths: 96, // extend horizon beyond default chadWorkMonths=72
   });
   const { monthlyData } = runMonthlySimulation(s);
   // After month 72 (job ends), SS flows without earnings test
@@ -1322,31 +1322,31 @@ test('61. oneTimeExtras=0 or oneTimeMonths=0 has no effect', () => {
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== Variable Horizon — projection at 4yr, 8yr, 10yr ===');
 
-test('VH1. sarahWorkYears=4 produces 49 months (0-48)', () => {
-  const s = gatherStateWithOverrides({ sarahWorkYears: 4 });
+test('VH1. sarahWorkMonths=48, chadWorkMonths=48 produces 49 months (0-48)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 48, chadWorkMonths: 48 });
   assert.strictEqual(s.totalProjectionMonths, 48);
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData.length, 49, `expected 49, got ${monthlyData.length}`);
   assert.strictEqual(monthlyData[48].month, 48);
 });
 
-test('VH2. sarahWorkYears=8 produces 97 months (0-96)', () => {
-  const s = gatherStateWithOverrides({ sarahWorkYears: 8 });
+test('VH2. sarahWorkMonths=96 produces 97 months (0-96)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 96 });
   assert.strictEqual(s.totalProjectionMonths, 96);
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData.length, 97, `expected 97, got ${monthlyData.length}`);
   assert.strictEqual(monthlyData[96].month, 96);
 });
 
-test('VH3. sarahWorkYears=10 produces 121 months (0-120)', () => {
-  const s = gatherStateWithOverrides({ sarahWorkYears: 10 });
+test('VH3. sarahWorkMonths=120 produces 121 months (0-120)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 120 });
   assert.strictEqual(s.totalProjectionMonths, 120);
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData.length, 121, `expected 121, got ${monthlyData.length}`);
 });
 
 test('VH4. Post-retirement months (73+) have zero chadJobIncome and consulting', () => {
-  const s = gatherStateWithOverrides({ sarahWorkYears: 8 });
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 96 }); // Chad defaults to 72, Sarah to 96
   const { monthlyData } = runMonthlySimulation(s);
   for (const m of [73, 80, 96]) {
     assert.strictEqual(monthlyData[m].chadJobIncome, 0,
@@ -1357,7 +1357,7 @@ test('VH4. Post-retirement months (73+) have zero chadJobIncome and consulting',
 });
 
 test('VH5. Post-retirement months have positive sarahIncome', () => {
-  const s = gatherStateWithOverrides({ sarahWorkYears: 8 });
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 96 });
   const { monthlyData } = runMonthlySimulation(s);
   for (const m of [73, 80, 96]) {
     assert.ok(monthlyData[m].sarahIncome > 0,
@@ -1365,7 +1365,7 @@ test('VH5. Post-retirement months have positive sarahIncome', () => {
   }
 });
 
-test('VH6. Default sarahWorkYears=6 produces identical 73-element output', () => {
+test('VH6. Default produces identical 73-element output', () => {
   const s = gatherStateWithOverrides({});
   assert.strictEqual(s.totalProjectionMonths, 72);
   const { monthlyData } = runMonthlySimulation(s);
@@ -1373,9 +1373,9 @@ test('VH6. Default sarahWorkYears=6 produces identical 73-element output', () =>
 });
 
 test('VH7. Quarterly data adapts to variable horizon', () => {
-  const s4 = gatherStateWithOverrides({ sarahWorkYears: 4 });
-  const s8 = gatherStateWithOverrides({ sarahWorkYears: 8 });
-  const s10 = gatherStateWithOverrides({ sarahWorkYears: 10 });
+  const s4 = gatherStateWithOverrides({ sarahWorkMonths: 48, chadWorkMonths: 48 });
+  const s8 = gatherStateWithOverrides({ sarahWorkMonths: 96 });
+  const s10 = gatherStateWithOverrides({ sarahWorkMonths: 120 });
   const p4 = computeProjection(s4);
   const p8 = computeProjection(s8);
   const p10 = computeProjection(s10);

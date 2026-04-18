@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node src/state/__tests__/reducer.test.js && node src/state/__tests__/autoSave.test.js && node src/model/__tests__/retirement.test.js && node src/model/__tests__/vesting.test.js && node src/model/__tests__/projection.test.js && node src/model/__tests__/checkIn.test.js && node src/model/__tests__/monteCarlo.test.js && node src/model/__tests__/exportData.test.js && node src/model/__tests__/formatters.test.js && node src/model/__tests__/csvParser.test.js && node src/model/__tests__/sensitivityAnalysis.test.js && node src/model/__snapshots__.test.js && node src/model/__tests__/scenarioTemplates.test.js",
+    "test": "node src/state/__tests__/reducer.test.js && node src/state/__tests__/autoSave.test.js && node src/model/__tests__/retirement.test.js && node src/model/__tests__/vesting.test.js && node src/model/__tests__/projection.test.js && node src/model/__tests__/checkIn.test.js && node src/model/__tests__/monteCarlo.test.js && node src/model/__tests__/exportData.test.js && node src/model/__tests__/formatters.test.js && node src/model/__tests__/csvParser.test.js && node src/model/__tests__/sensitivityAnalysis.test.js && node src/model/__snapshots__.test.js && node src/model/__tests__/scenarioTemplates.test.js && node src/model/__tests__/scenarios.test.js",
     "ui:swarm": "node tests/ui/run-swarm.js",
     "ui:perf": "node tests/ui/perf/run-perf.js",
     "playwright:mcp:recover": "pwsh -NoProfile -File scripts/recover-playwright-mcp.ps1"

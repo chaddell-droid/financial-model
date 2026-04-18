@@ -1025,7 +1025,7 @@ export default function FinancialModel() {
             compareName={compareName}
             onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
             onDelete={deleteScenario}
-            onApplyTemplate={(overrides) => dispatch({ type: 'APPLY_TEMPLATE', overrides })}
+            onApplyTemplate={(name, overrides) => { dispatch({ type: 'APPLY_TEMPLATE', overrides }); set('scenarioName')(name); }}
             onCompareTemplate={(name, overrides) => {
               if (compareState && compareName === name) { set('compareState')(null); set('compareName')(''); }
               else {

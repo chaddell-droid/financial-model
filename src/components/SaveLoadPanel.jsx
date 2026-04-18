@@ -118,13 +118,22 @@ export default function SaveLoadPanel({
                   style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     gap: UI_SPACE.sm, padding: `${UI_SPACE.xs}px ${UI_SPACE.sm}px`,
-                    background: '#0f172a', borderRadius: UI_RADII.sm,
-                    border: '1px solid #334155',
+                    background: scenarioName === t.name ? '#1e3a5f' : compareName === t.name ? '#3b2a1a' : '#0f172a',
+                    borderRadius: UI_RADII.sm,
+                    border: scenarioName === t.name ? `1px solid ${UI_COLORS.primary}` : compareName === t.name ? `1px solid ${UI_COLORS.compare}` : '1px solid #334155',
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textStrong, fontWeight: 600 }}>
-                      {t.name}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: UI_TEXT.caption, color: scenarioName === t.name ? UI_COLORS.primary : UI_COLORS.textStrong, fontWeight: 600 }}>
+                        {t.name}
+                      </span>
+                      {scenarioName === t.name && (
+                        <span style={{ fontSize: 9, color: UI_COLORS.primary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active</span>
+                      )}
+                      {compareName === t.name && (
+                        <span style={{ fontSize: 9, color: UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
+                      )}
                     </div>
                     <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, lineHeight: 1.3 }}>
                       {t.description}
@@ -144,7 +153,7 @@ export default function SaveLoadPanel({
                       </ActionButton>
                     )}
                     <ActionButton
-                      onClick={() => onApplyTemplate(t.overrides)}
+                      onClick={() => onApplyTemplate(t.name, t.overrides)}
                       data-testid={`template-apply-${t.id}`}
                       variant={UI_ACTION_VARIANTS.ghost}
                       size='sm'
@@ -173,12 +182,23 @@ export default function SaveLoadPanel({
               data-scenario-name={scenario.name}
               tone='featured'
               padding='sm'
-              style={{ background: '#0f172a' }}
+              style={{
+                background: scenarioName === scenario.name ? '#1e3a5f' : compareName === scenario.name ? '#3b2a1a' : '#0f172a',
+                border: scenarioName === scenario.name ? `1px solid ${UI_COLORS.primary}` : compareName === scenario.name ? `1px solid ${UI_COLORS.compare}` : undefined,
+              }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: UI_SPACE.md, flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: UI_TEXT.body, color: UI_COLORS.textStrong, fontWeight: 600 }}>
-                    {scenario.name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: UI_TEXT.body, color: scenarioName === scenario.name ? UI_COLORS.primary : UI_COLORS.textStrong, fontWeight: 600 }}>
+                      {scenario.name}
+                    </span>
+                    {scenarioName === scenario.name && (
+                      <span style={{ fontSize: 9, color: UI_COLORS.primary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active</span>
+                    )}
+                    {compareName === scenario.name && (
+                      <span style={{ fontSize: 9, color: UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
+                    )}
                   </div>
                   <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 2 }}>
                     {new Date(scenario.savedAt).toLocaleDateString()} {new Date(scenario.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

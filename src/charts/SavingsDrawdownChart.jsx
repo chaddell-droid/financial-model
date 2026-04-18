@@ -18,7 +18,7 @@ function detectSignificantChanges(monthlyDetail) {
 
   const annotations = [];
   const tracked = [
-    { key: 'ssdi', label: 'SS/SSDI' },
+    { key: 'ssBenefit', label: 'SS/SSDI' },
     { key: 'chadJobIncome', label: 'Job income' },
     { key: 'consulting', label: 'Consulting' },
   ];

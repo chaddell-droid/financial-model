@@ -39,7 +39,11 @@ export function runMonthlySimulation(s) {
 
   // Chad Gets a Job
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
-  const chadJobMonthlyNet = chadJob ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100) / 12) : 0;
+  const ficaRate = s.chadJobNoFICA ? 0 : 0.062;
+  const pensionContribRate = (s.chadJobPensionContrib || 0) / 100;
+  const chadJobMonthlyNet = chadJob
+    ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100 - ficaRate - pensionContribRate) / 12)
+    : 0;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
 
   // 401k and home equity — tracked alongside savings for deficit drawdown

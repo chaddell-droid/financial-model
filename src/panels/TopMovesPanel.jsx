@@ -21,6 +21,7 @@ export default function TopMovesPanel({ gatherState }) {
   };
 
   const formatDelta = (v) => {
+    if (v.unit === 'toggle') return v.label;
     const abs = Math.abs(v.delta);
     const sign = v.delta > 0 ? '+' : '-';
     if (v.unit === '$/hr') return `${sign}$${abs}/hr`;

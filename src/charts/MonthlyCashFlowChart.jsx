@@ -96,7 +96,7 @@ function MonthlyCashFlowChart({
               const areaPath = `M ${points[0].x},${zeroY} L ${areaTop} L ${points[n-1].x},${zeroY} Z`;
               const linePath = `M ${points.map(p => `${p.x},${p.y}`).join(" L ")}`;
 
-              const ssdiIdx = data.findIndex(d => d.ssdi > 0);
+              const ssdiIdx = data.findIndex(d => d.ssBenefit > 0);
               const ssdiX = ssdiIdx >= 0 ? ssdiIdx * colW + colW / 2 : null;
 
               return (
@@ -132,7 +132,7 @@ function MonthlyCashFlowChart({
 
           {/* SSDI starts HTML label */}
           {(() => {
-            const ssdiIdx = data.findIndex(d => d.ssdi > 0);
+            const ssdiIdx = data.findIndex(d => d.ssBenefit > 0);
             if (ssdiIdx < 0) return null;
             const pctX = ((ssdiIdx + 0.5) / data.length) * 100;
             return (

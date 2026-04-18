@@ -43,6 +43,7 @@ export default function KeyMetrics({
   oneTimeExtras,
   oneTimeMonths,
   totalCurrentIncome,
+  steadyStateIncome,
   totalCurrentExpenses,
   retirementSpendingTargets,
   onFieldChange,
@@ -215,6 +216,11 @@ export default function KeyMetrics({
           <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
             Current monthly income
           </div>
+          {steadyStateIncome != null && Math.abs(steadyStateIncome - totalCurrentIncome) > 500 && (
+            <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.info, marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+              {steadyStateIncome > totalCurrentIncome ? '\u2197' : '\u2198'} {fmtFull(steadyStateIncome)} at steady state
+            </div>
+          )}
         </div>
 
         <div style={{ flex: '1 1 180px', minWidth: 150 }}>

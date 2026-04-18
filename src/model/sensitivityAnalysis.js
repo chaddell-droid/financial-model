@@ -10,6 +10,8 @@ const VARIABLES_TO_TEST = [
   { key: 'ssdiApprovalMonth', label: "Earlier SSDI approval", unit: 'months', delta: -3 },
   { key: 'bcsParentsAnnual', label: "Reduce BCS parent contribution", unit: '$/yr', delta: -5000 },
   { key: 'cutsOverride', label: "Increase lifestyle cuts", unit: '$/mo', delta: 200 },
+  { key: 'chadJob', label: 'Get a W-2 job', unit: 'toggle', delta: 0, toggle: true,
+    companions: { chadJobSalary: 120000, chadJobStartMonth: 0, chadJobHealthSavings: 4200 } },
 ];
 
 export function computeTopMoves(baseState, topN = 3) {
@@ -23,10 +25,20 @@ export function computeTopMoves(baseState, topN = 3) {
   const results = [];
   for (const v of VARIABLES_TO_TEST) {
     const baseValue = baseState[v.key];
-    if (baseValue === undefined) continue;
+    if (baseValue === undefined && !v.toggle) continue;
 
-    const testValue = baseValue + v.delta;
-    const testState = { ...baseState, [v.key]: testValue };
+    let testValue;
+    const testState = { ...baseState };
+
+    if (v.toggle) {
+      if (baseValue) continue;
+      testValue = true;
+      testState[v.key] = true;
+      if (v.companions) Object.assign(testState, v.companions);
+    } else {
+      testValue = baseValue + v.delta;
+      testState[v.key] = testValue;
+    }
 
     // cutsOverride changes require lifestyleCutsApplied to be on
     if (v.key === 'cutsOverride') {

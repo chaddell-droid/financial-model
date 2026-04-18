@@ -33,7 +33,7 @@ const DataTable = ({ data, presentMode }) => {
                     </td>
                     <td style={{ padding: "6px", textAlign: "right", color: "#c084fc" }}>{fmt(d.trustLLC)}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.chadJobIncome > 0 ? "#22c55e" : "#334155" }}>{d.chadJobIncome > 0 ? fmt(d.chadJobIncome) : "\u2014"}</td>
-                    <td style={{ padding: "6px", textAlign: "right", color: d.ssdi > 0 ? "#fbbf24" : "#334155" }}>{d.ssdi > 0 ? fmt(d.ssdi) : "\u2014"}</td>
+                    <td style={{ padding: "6px", textAlign: "right", color: d.ssBenefit > 0 ? "#fbbf24" : "#334155" }}>{d.ssBenefit > 0 ? fmt(d.ssBenefit) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.consulting > 0 ? "#38bdf8" : "#334155" }}>{d.consulting > 0 ? fmt(d.consulting) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: d.investReturnQtr > 0 ? "#22d3ee" : "#334155" }}>{d.investReturnQtr > 0 ? fmt(d.investReturnQtr) : "\u2014"}</td>
                     <td style={{ padding: "6px", textAlign: "right", color: "#e2e8f0", fontWeight: 600 }}>{fmt(d.totalIncome)}</td>

@@ -227,7 +227,7 @@ test('8. Different sarahRate produces different income values', () => {
   const result1 = callExportAndCapture(s1, p1, v1, tr1, e1);
 
   const { s: s2, projection: p2, vestEvents: v2, totalRemaining: tr2, extras: e2 } =
-    buildDefaultInputs({ sarahRate: 300 });
+    buildDefaultInputs({ sarahRate: 300, sarahMaxRate: 300 });
   const result2 = callExportAndCapture(s2, p2, v2, tr2, e2);
 
   assert.notStrictEqual(result1.income.sarah.rate, result2.income.sarah.rate,

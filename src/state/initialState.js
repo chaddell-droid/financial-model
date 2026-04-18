@@ -39,6 +39,9 @@ export const INITIAL_STATE = {
   chadJobTaxRate: 25,          // Effective tax rate %
   chadJobStartMonth: 0,        // Months from now (0 = immediate)
   chadJobHealthSavings: 4200,  // Monthly health insurance savings from employer coverage
+  chadJobNoFICA: false,         // No 6.2% SS tax (non-SS-covered employer)
+  chadJobPensionRate: 0,        // Annual pension accrual rate (0=none, 2=PERS Plan 2)
+  chadJobPensionContrib: 0,     // Employee pension contribution % deducted from gross
 
   // Expenses
   totalMonthlySpend: null,   // Actual total spend from all accounts; when set, back-calculates baseExpenses
@@ -163,6 +166,7 @@ export const MODEL_KEYS = [
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
+  'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied', 'cutsOverride',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',

@@ -10,7 +10,8 @@ export function reducer(state, action) {
     case 'RESTORE_STATE': {
       const migrated = migrate(action.state);
       const sanitized = validateAndSanitize(migrated);
-      return { ...state, ...sanitized };
+      const restored = { ...state, ...sanitized };
+      return { ...restored, _templateBaseState: restored };
     }
     case 'RESET_ALL':
       return {
@@ -21,7 +22,23 @@ export function reducer(state, action) {
         monthlyActuals: state.monthlyActuals,
         merchantClassifications: state.merchantClassifications,
         storageStatus: state.storageStatus,
+        _templateBaseState: null,
       };
+    case 'APPLY_TEMPLATE': {
+      const base = state._templateBaseState || state;
+      return {
+        ...base,
+        ...action.overrides,
+        _templateBaseState: base,
+        savedScenarios: state.savedScenarios,
+        checkInHistory: state.checkInHistory,
+        monthlyActuals: state.monthlyActuals,
+        merchantClassifications: state.merchantClassifications,
+        storageStatus: state.storageStatus,
+        showSaveLoad: state.showSaveLoad,
+        activeTab: state.activeTab,
+      };
+    }
     case 'RECORD_CHECK_IN': {
       const existing = state.checkInHistory.filter(c => c.month !== action.checkIn.month);
       return {

@@ -379,7 +379,7 @@ test('gatherState extracts MODEL_KEYS from state', () => {
 });
 
 test('gatherState falls back to INITIAL_STATE for missing keys', () => {
-  const partial = { sarahRate: 500 }; // missing most keys
+  const partial = { sarahRate: 500, sarahMaxRate: 500 }; // missing most keys
   const result = gatherState(partial);
   assert.strictEqual(result.sarahRate, 500, 'provided value used');
   assert.strictEqual(result.msftGrowth, INITIAL_STATE.msftGrowth, 'missing key falls back to INITIAL_STATE');
@@ -427,7 +427,7 @@ test('gatherState treats cutsOverride of 0 as set (not null)', () => {
 });
 
 test('gatherStateWithOverrides merges overrides onto INITIAL_STATE', () => {
-  const result = gatherStateWithOverrides({ sarahRate: 500 });
+  const result = gatherStateWithOverrides({ sarahRate: 500, sarahMaxRate: 500 });
   assert.strictEqual(result.sarahRate, 500);
   assert.strictEqual(result.msftGrowth, INITIAL_STATE.msftGrowth);
 });

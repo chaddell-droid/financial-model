@@ -88,7 +88,7 @@ export default function FinancialModel() {
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobPensionRate,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
     totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
@@ -395,7 +395,10 @@ export default function FinancialModel() {
   const chadJobImmediate = chadJob && (chadJobStartMonth ?? 3) === 0;
   const chadJobNetForGap = chadJobImmediate ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthForGap = chadJobImmediate ? (chadJobHealthSavings || 4200) : 0;
-  const totalCurrentIncome = sarahCurrentNet + currentMsft + trustIncomeNow + chadJobNetForGap;
+  const totalCurrentIncome = sarahCurrentNet + currentMsft + trustIncomeNow
+    + (monthlyDetail[0]?.ssBenefit ?? 0)
+    + (monthlyDetail[0]?.consulting ?? 0)
+    + chadJobNetForGap;
   const extrasAtMonth0 = (oneTimeExtras || 0) > 0 && (oneTimeMonths || 0) > 0 ? oneTimeExtras : 0;
   const totalCurrentExpenses = Math.max(effectiveBaseExpenses + debtService + vanMonthlySavings + bcsFamilyMonthly - chadJobHealthForGap + extrasAtMonth0, 0);
   const rawMonthlyGap = totalCurrentIncome - totalCurrentExpenses;
@@ -404,6 +407,7 @@ export default function FinancialModel() {
   const steadyIdxRaw = data.findIndex(d => d.month >= 36);
   const steadyIdx = steadyIdxRaw >= 0 ? steadyIdxRaw : data.length - 1;
   const steadyStateNet = data[steadyIdx]?.netMonthly || data[data.length - 1].netMonthly;
+  const steadyStateIncome = data[steadyIdx]?.totalIncome || data[data.length - 1]?.totalIncome || 0;
 
   const mcGoalResults = mcResults?.goalSuccessRates || null;
 
@@ -540,6 +544,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
     sarahWorkYears,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -553,6 +558,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
     sarahWorkYears,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -756,6 +762,7 @@ export default function FinancialModel() {
           oneTimeExtras={oneTimeExtras}
           oneTimeMonths={oneTimeMonths}
           totalCurrentIncome={totalCurrentIncome}
+          steadyStateIncome={steadyStateIncome}
           totalCurrentExpenses={totalCurrentExpenses}
           retirementSpendingTargets={retirementSpendingTargets}
           onFieldChange={set}
@@ -1007,7 +1014,7 @@ export default function FinancialModel() {
             compareName={compareName}
             onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
             onDelete={deleteScenario}
-            onApplyTemplate={(overrides) => dispatch({ type: 'SET_FIELDS', fields: overrides })}
+            onApplyTemplate={(overrides) => dispatch({ type: 'APPLY_TEMPLATE', overrides })}
             storageStatus={storageStatus}
             storageAvailable={storageAvailable}
           />

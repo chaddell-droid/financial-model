@@ -693,7 +693,7 @@ const BridgeChart = ({
               const connector = getMarkerLineConnector(pointY, marker);
               const texts = getMarkerTexts(marker, x, markerColor);
               return (
-                <g key={marker.id} data-testid={getMarkerClusterGroupTestId(marker)} opacity={getMarkerGroupOpacity()}>
+                <g key={`${marker.id}-m${marker.month}`} data-testid={getMarkerClusterGroupTestId(marker)} opacity={getMarkerGroupOpacity()}>
                   <line
                     data-testid={markerLine.testId}
                     x1={markerLine.x1}
@@ -803,8 +803,8 @@ const BridgeChart = ({
               </div>
 
               <div style={{ display: 'grid', gap: 6 }}>
-                {group.items.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: UI_SPACE.sm, alignItems: 'baseline' }}>
+                {group.items.map((item, itemIdx) => (
+                  <div key={`${item.id}-${itemIdx}`} style={{ display: 'flex', justifyContent: 'space-between', gap: UI_SPACE.sm, alignItems: 'baseline' }}>
                     <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted }}>
                       {item.label}
                       {item.month > 0 ? (

@@ -65,6 +65,8 @@ const RANGE = {
   ssPersonal: { min: 0 },
   chadJobSalary: { min: 0 },
   chadJobHealthSavings: { min: 0 },
+  chadJobPensionRate: { min: 0, max: 5 },
+  chadJobPensionContrib: { min: 0, max: 15 },
   totalMonthlySpend: { min: 0 },
   oneTimeExtras: { min: 0 },
   oneTimeMonths: { min: 0, max: 72 },

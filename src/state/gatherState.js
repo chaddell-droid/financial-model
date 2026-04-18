@@ -46,6 +46,20 @@ export function gatherState(state) {
       ? s.ssPersonal + 2 * Math.round(pia * 0.5)
       : s.ssPersonal;
   }
+  // Compute projected pension at retirement
+  if (s.chadJob && s.chadJobPensionRate > 0) {
+    const projectedMonthsWorked = Math.max(0, (s.totalProjectionMonths || 72) - (s.chadJobStartMonth || 0));
+    const yearsOfService = projectedMonthsWorked / 12;
+    s.chadJobPensionMonthly = Math.round(
+      (s.chadJobSalary / 12) * (s.chadJobPensionRate / 100) * yearsOfService
+    );
+  } else {
+    s.chadJobPensionMonthly = 0;
+  }
+
+  // Cross-field clamping: ensure sarahRate never exceeds sarahMaxRate.
+  if (s.sarahRate > s.sarahMaxRate) s.sarahRate = s.sarahMaxRate;
+
   return s;
 }
 

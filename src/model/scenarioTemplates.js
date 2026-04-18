@@ -39,6 +39,7 @@ export const SCENARIO_TEMPLATES = [
     description: 'Chad employed with salary + health benefits (no SSDI)',
     overrides: {
       chadJob: true, chadJobSalary: 120000, chadJobStartMonth: 3, chadConsulting: 0,
+      chadJobNoFICA: false, chadJobPensionRate: 0, chadJobPensionContrib: 0,
       ssType: 'ssdi', ssdiDenied: false,
     },
   },
@@ -58,6 +59,7 @@ export const SCENARIO_TEMPLATES = [
     description: 'W-2 job with earnings test on early SS claim',
     overrides: {
       chadJob: true, chadJobSalary: 120000, chadJobStartMonth: 3, chadConsulting: 0,
+      chadJobNoFICA: false, chadJobPensionRate: 0, chadJobPensionContrib: 0,
       ssType: 'ss', ssClaimAge: 62, ssdiDenied: false,
     },
   },
@@ -67,6 +69,7 @@ export const SCENARIO_TEMPLATES = [
     description: 'W-2 job with no earnings test at Full Retirement Age',
     overrides: {
       chadJob: true, chadJobSalary: 120000, chadJobStartMonth: 3, chadConsulting: 0,
+      chadJobNoFICA: false, chadJobPensionRate: 0, chadJobPensionContrib: 0,
       ssType: 'ss', ssClaimAge: 67, ssdiDenied: false,
     },
   },

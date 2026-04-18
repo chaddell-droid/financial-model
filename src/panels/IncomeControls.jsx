@@ -28,7 +28,10 @@ const IncomeControls = ({
   const effectiveSalary = chadJobSalary || 80000;
   const effectiveTaxRate = chadJobTaxRate ?? 25;
   const effectiveHealthSavings = chadJobHealthSavings ?? 4200;
-  const chadJobMonthlyNet = Math.round(effectiveSalary * (1 - effectiveTaxRate / 100) / 12);
+  // Match projection.js formula: tax rate is all-in, FICA adds 6.2% back, pension is deducted
+  const ficaSavings = chadJobNoFICA ? 0.062 : 0;
+  const pensionContribPct = (chadJobPensionContrib || 0) / 100;
+  const chadJobMonthlyNet = Math.round(effectiveSalary * (1 - effectiveTaxRate / 100 + ficaSavings - pensionContribPct) / 12);
   const ssEarningsLimit = 22320;
   const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
   const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
@@ -122,7 +125,7 @@ const IncomeControls = ({
                           );
                         })()}
                         <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
-                          {chadJobPensionRate}% × {((((sarahWorkYears || 6) * 12) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, +3%/yr COLA
+                          {chadJobPensionRate}% × {(Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, +3%/yr COLA
                         </div>
                       </>
                     )}

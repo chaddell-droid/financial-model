@@ -11,7 +11,8 @@ const VARIABLES_TO_TEST = [
   { key: 'bcsParentsAnnual', label: "Reduce BCS parent contribution", unit: '$/yr', delta: -5000 },
   { key: 'cutsOverride', label: "Increase lifestyle cuts", unit: '$/mo', delta: 200 },
   { key: 'chadJob', label: 'Get a W-2 job', unit: 'toggle', delta: 0, toggle: true,
-    companions: { chadJobSalary: 120000, chadJobStartMonth: 0, chadJobHealthSavings: 4200 } },
+    companions: { chadJobSalary: 120000, chadJobStartMonth: 0, chadJobHealthSavings: 4200,
+      chadJobNoFICA: false, chadJobPensionRate: 0, chadJobPensionContrib: 0 } },
 ];
 
 export function computeTopMoves(baseState, topN = 3) {

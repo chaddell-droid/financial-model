@@ -87,7 +87,9 @@ function SectionHeading({ eyebrow, title, subtitle }) {
   );
 }
 
-function SummaryMetric({ label, value, accent = UI_COLORS.textStrong, testId }) {
+function SummaryMetric({ label, value, accent = UI_COLORS.textStrong, testId, children }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetail = !!children;
   return (
     <SurfaceCard
       padding='sm'
@@ -97,14 +99,31 @@ function SummaryMetric({ label, value, accent = UI_COLORS.textStrong, testId }) 
         gap: 6,
         minHeight: 84,
         background: UI_COLORS.surfaceMuted,
+        cursor: hasDetail ? 'pointer' : 'default',
+        transition: 'border-color 0.15s ease',
+        borderColor: expanded ? `${accent}44` : undefined,
       }}
+      onClick={hasDetail ? () => setExpanded(!expanded) : undefined}
     >
-      <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
-        {label}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+          {label}
+        </div>
+        {hasDetail && (
+          <div style={{ fontSize: 10, color: UI_COLORS.textMuted, opacity: 0.6 }}>
+            {expanded ? '▲' : '▼'}
+          </div>
+        )}
       </div>
       <div style={{ fontSize: 22, color: accent, fontWeight: 800, lineHeight: 1.1, fontFamily: "'JetBrains Mono', monospace" }}>
         {value}
       </div>
+      {expanded && children && (
+        <div style={{ borderTop: `1px solid ${UI_COLORS.border}`, paddingTop: 8, marginTop: 2 }}
+          onClick={(e) => e.stopPropagation()}>
+          {children}
+        </div>
+      )}
     </SurfaceCard>
   );
 }
@@ -319,21 +338,111 @@ const ScenarioStrip = ({
           <SummaryMetric
             label='Current monthly outflow'
             value={`${fmtFull(model.summary.monthlyOutflow)}/mo`}
-            accent= {UI_COLORS.destructive}
+            accent={UI_COLORS.destructive}
             testId='primary-levers-monthly-outflow'
-          />
+          >
+            {model.breakdown.map((item) => {
+              if (item.kind === 'total') return null;
+              const isSubtotal = item.kind === 'subtotal';
+              const isSavings = item.kind === 'savings';
+              const isStruck = item.active === false && item.originalAmount > 0;
+              return (
+                <div key={item.id} style={{
+                  display: 'flex', justifyContent: 'space-between', fontSize: 11,
+                  marginTop: 3, color: isSavings ? UI_COLORS.positive : isStruck ? UI_COLORS.textMuted : UI_COLORS.textDim,
+                  fontWeight: isSubtotal ? 600 : 400,
+                  borderTop: isSubtotal ? `1px solid ${UI_COLORS.border}` : undefined,
+                  paddingTop: isSubtotal ? 4 : undefined,
+                  marginTop: isSubtotal ? 6 : 3,
+                }}>
+                  <span style={{ textDecoration: isStruck ? 'line-through' : undefined }}>{item.label}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {isSavings ? `-${fmtFull(item.amount)}` : fmtFull(item.amount)}
+                    {isStruck && item.originalAmount ? ` (was ${fmtFull(item.originalAmount)})` : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </SummaryMetric>
           <SummaryMetric
             label='Savings unlocked'
             value={`${fmtFull(model.summary.monthlySavings)}/mo`}
             accent={UI_COLORS.positive}
             testId='primary-levers-monthly-savings'
-          />
+          >
+            {model.recurringLevers.map((lever) => (
+              <div key={lever.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                fontSize: 11, marginTop: 3, color: lever.active ? UI_COLORS.positive : UI_COLORS.textMuted,
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 9 }}>{lever.active ? '✓' : '○'}</span>
+                  {lever.label}
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                  {lever.active
+                    ? `+${fmtFull(lever.monthlyImpact)}/mo`
+                    : lever.availableMonthlyImpact > 0
+                      ? `+${fmtFull(lever.availableMonthlyImpact)} avail`
+                      : '$0'}
+                </span>
+              </div>
+            ))}
+            {(() => {
+              const totalAvailable = model.recurringLevers.reduce((s, l) => s + Math.max(0, l.availableMonthlyImpact), 0);
+              return totalAvailable > model.summary.monthlySavings ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 6, paddingTop: 4,
+                  borderTop: `1px solid ${UI_COLORS.border}`, color: UI_COLORS.textDim, fontWeight: 600 }}>
+                  <span>If all activated</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: UI_COLORS.positive }}>
+                    +{fmtFull(totalAvailable)}/mo
+                  </span>
+                </div>
+              ) : null;
+            })()}
+          </SummaryMetric>
           <SummaryMetric
             label='One-time ask'
             value={fmtFull(model.summary.oneTimeAsk)}
             accent={UI_COLORS.caution}
             testId='primary-levers-one-time-ask'
-          />
+          >
+            {(() => {
+              const activeItems = model.consequenceItems.filter(i => i.active && i.amount > 0);
+              const inactiveItems = model.consequenceItems.filter(i => !i.active && i.kind === 'one_time');
+              return (
+                <>
+                  {activeItems.length > 0 ? activeItems.map((item) => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 3, color: UI_COLORS.caution }}>
+                      <span>{item.label}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{formatConsequenceValue(item)}</span>
+                    </div>
+                  )) : (
+                    <div style={{ fontSize: 11, color: UI_COLORS.textMuted, marginTop: 3 }}>No one-time costs active.</div>
+                  )}
+                  {inactiveItems.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 10, color: UI_COLORS.textMuted, marginTop: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Available if toggled
+                      </div>
+                      {inactiveItems.map((item) => {
+                        const cost = item.id === 'debt_retirement' ? debtTotal
+                          : item.id === 'mold_remediation' ? moldCost
+                          : item.id === 'roof' ? roofCost
+                          : item.id === 'house_projects' ? otherProjects : 0;
+                        return cost > 0 ? (
+                          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 2, color: UI_COLORS.textMuted }}>
+                            <span>{item.label}</span>
+                            <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(cost)}</span>
+                          </div>
+                        ) : null;
+                      })}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </SummaryMetric>
         </div>
         <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textMuted, lineHeight: 1.5 }}>
           {topLeverCopy}

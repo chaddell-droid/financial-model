@@ -6,7 +6,7 @@
  * monthly tax amounts instead of applying a flat rate.
  */
 
-import { DAYS_PER_MONTH, CHAD_RETIREMENT_MONTH } from './constants.js';
+import { DAYS_PER_MONTH } from './constants.js';
 import { BRACKETS_MFJ_2025, getSaltCapForYear } from './taxConstants.js';
 import { calculateTax } from './taxEngine.js';
 
@@ -92,6 +92,7 @@ export function buildTaxSchedule(s) {
   const expenseRatio = (s.taxSchCExpenseRatio ?? 25) / 100;
   const chadJob = s.chadJob || false;
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
+  const chadRetirementMonth = s.chadRetirementMonth || 72;
   const chadJobSalary = s.chadJobSalary || 0;
   const ssAnnualBenefits = estimateAnnualSSBenefits(s);
   const schedule = [];
@@ -116,7 +117,7 @@ export function buildTaxSchedule(s) {
       );
       annualSarahGross += Math.round(rate * clients * DAYS_PER_MONTH);
 
-      if (chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH) {
+      if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
         chadMonthsEmployed++;
       }
     }

@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, CHAD_RETIREMENT_MONTH, buildQuarterlySchedule } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, buildQuarterlySchedule } from './constants.js';
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
 export function findOperationalBreakevenIndex(rows) {
@@ -37,6 +37,9 @@ export function runMonthlySimulation(s) {
   const trustMonth = s.trustIncreaseMonth ?? 11;
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
+  // Chad's work duration — driven by chadWorkMonths state field (was hardcoded chadRetirementMonth = 72)
+  const chadRetirementMonth = s.chadRetirementMonth || 72;
+
   // Chad Gets a Job
   // chadJobTaxRate is the ALL-IN effective income tax rate.
   // No-FICA adds 6.2% back (non-SS-covered employer saves that portion).
@@ -70,7 +73,7 @@ export function runMonthlySimulation(s) {
     const trustLLC = m < trustMonth ? trustNow : trustFuture;
 
     // Chad's job income (after tax)
-    const chadJobIncome = (chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH) ? chadJobMonthlyNet : 0;
+    const chadJobIncome = (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) ? chadJobMonthlyNet : 0;
 
     // SS/SSDI income — SS retirement can coexist with job (earnings test applies);
     // SSDI requires no job (SGA rules)
@@ -83,7 +86,7 @@ export function runMonthlySimulation(s) {
       ssBenefit = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
     }
     // Consulting: only when not employed full-time
-    const consulting = (m > CHAD_RETIREMENT_MONTH) ? 0
+    const consulting = (m > chadRetirementMonth) ? 0
       : chadJob ? 0
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
@@ -91,7 +94,7 @@ export function runMonthlySimulation(s) {
     // SS earnings test: applies to total earned income (salary if employed, consulting if not)
     const ssPreTestBenefit = ssBenefit;
     if (useSS && ssBenefit > 0) {
-      const isEmployed = chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH;
+      const isEmployed = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
       const annualEarned = isEmployed
         ? (s.chadJobSalary || 0)  // gross salary for earnings test
         : consulting * 12;        // annualized consulting
@@ -130,7 +133,7 @@ export function runMonthlySimulation(s) {
     if (m < (s.bcsYearsLeft ?? 3) * 12) expenses += s.bcsFamilyMonthly;
     for (const mi of ms) { if (m >= mi.month) expenses -= mi.savings; }
     // Employer health insurance saves on premiums
-    if (chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH) expenses -= chadJobHealthSavings;
+    if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) expenses -= chadJobHealthSavings;
     // One-time extras: temporary additional costs for a limited duration
     const oneTimeExtras = s.oneTimeExtras || 0;
     const oneTimeMonths = s.oneTimeMonths || 0;

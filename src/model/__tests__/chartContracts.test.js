@@ -47,60 +47,61 @@ const { data: baseData, savingsData: baseSavingsData, monthlyData: baseMonthlyDa
 
 // ════════════════════════════════════════════════════════════════════════
 // 1. IncomeCompositionChart (C1–C6)
+// Now uses monthlyDetail (raw monthly data) instead of quarterly data.
+// MSFT uses 'msftSmoothed' (not 'msftVesting' or 'msftLump').
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== IncomeCompositionChart ===');
 
-const incomeFields = ['sarahIncome', 'msftVesting', 'ssBenefit', 'trustLLC', 'chadJobIncome', 'consulting', 'investReturn'];
+// Fields the chart reads from monthly data (via getVal mapping: msftVesting → msftSmoothed)
+const monthlyIncomeFields = ['sarahIncome', 'msftSmoothed', 'ssBenefit', 'trustLLC', 'chadJobIncome', 'consulting', 'investReturn'];
 
-test('C1: Every quarterly row has all 7 income fields + expenses + totalIncome + netMonthly, all finite numbers', () => {
-  const allFields = [...incomeFields, 'expenses', 'totalIncome', 'netMonthly'];
-  for (let i = 0; i < baseData.length; i++) {
-    const d = baseData[i];
+test('C1: Every monthly row has all 7 income fields + expenses + netMonthly, all finite numbers', () => {
+  const allFields = [...monthlyIncomeFields, 'expenses', 'netMonthly'];
+  for (let i = 0; i < baseMonthlyData.length; i++) {
+    const d = baseMonthlyData[i];
     for (const field of allFields) {
-      assert.ok(field in d, `Row ${i} missing field '${field}'`);
-      assert.ok(Number.isFinite(d[field]), `Row ${i} field '${field}' is not finite: ${d[field]}`);
+      assert.ok(field in d, `Month ${i} missing field '${field}'`);
+      assert.ok(Number.isFinite(d[field]), `Month ${i} field '${field}' is not finite: ${d[field]}`);
     }
   }
 });
 
-test("C2: Income field names match what chart expects: 'sarahIncome', 'msftVesting' (NOT 'msftLump'), 'ssBenefit', 'trustLLC', 'chadJobIncome', 'consulting', 'investReturn'", () => {
-  const d = baseData[0];
-  for (const field of incomeFields) {
-    assert.ok(field in d, `Missing expected field '${field}' in quarterly data`);
-  }
-  // msftVesting exists but msftLump should NOT be a quarterly field
-  assert.ok('msftVesting' in d, 'msftVesting must be present in quarterly data');
+test("C2: Monthly data has 'msftSmoothed' (used by chart) and 'msftLump' (raw vest), NOT 'msftVesting'", () => {
+  const d = baseMonthlyData[0];
+  assert.ok('msftSmoothed' in d, 'msftSmoothed must be present in monthly data');
+  assert.ok('msftLump' in d, 'msftLump must be present in monthly data');
+  assert.ok(!('msftVesting' in d), 'msftVesting should NOT be in monthly data (that is the quarterly field)');
 });
 
 test('C3: Income values non-negative for all sources except investReturn (which can be negative)', () => {
-  const nonNegFields = incomeFields.filter(f => f !== 'investReturn');
-  for (let i = 0; i < baseData.length; i++) {
-    const d = baseData[i];
+  const nonNegFields = monthlyIncomeFields.filter(f => f !== 'investReturn');
+  for (let i = 0; i < baseMonthlyData.length; i++) {
+    const d = baseMonthlyData[i];
     for (const field of nonNegFields) {
-      assert.ok(d[field] >= 0, `Row ${i} field '${field}' is negative: ${d[field]}`);
+      assert.ok(d[field] >= 0, `Month ${i} field '${field}' is negative: ${d[field]}`);
     }
   }
 });
 
-test('C4: expenses > 0 for every quarter (always have some expenses)', () => {
-  for (let i = 0; i < baseData.length; i++) {
-    assert.ok(baseData[i].expenses > 0, `Row ${i} expenses should be > 0, got ${baseData[i].expenses}`);
+test('C4: expenses > 0 for every month (always have some expenses)', () => {
+  for (let i = 0; i < baseMonthlyData.length; i++) {
+    assert.ok(baseMonthlyData[i].expenses > 0, `Month ${i} expenses should be > 0, got ${baseMonthlyData[i].expenses}`);
   }
 });
 
-test('C5: totalIncome ≈ sum of 7 income fields (within rounding tolerance of 2)', () => {
-  for (let i = 0; i < baseData.length; i++) {
-    const d = baseData[i];
-    const sumFields = incomeFields.reduce((sum, f) => sum + d[f], 0);
-    near(d.totalIncome, sumFields, 2, `Row ${i} totalIncome`);
+test('C5: cashIncome = sum of 6 cash income fields (excluding investReturn)', () => {
+  for (let i = 0; i < baseMonthlyData.length; i++) {
+    const d = baseMonthlyData[i];
+    const expected = d.sarahIncome + d.msftLump + d.trustLLC + d.ssBenefit + d.consulting + d.chadJobIncome;
+    assert.strictEqual(d.cashIncome, expected, `Month ${i} cashIncome mismatch`);
   }
 });
 
-test('C6: With chadJob=true and chadJobStartMonth=0, chadJobIncome > 0 in first quarter', () => {
+test('C6: With chadJob=true and chadJobStartMonth=0, chadJobIncome > 0 at month 0', () => {
   const jobState = gatherStateWithOverrides({ chadJob: true, chadJobStartMonth: 0 });
-  const jobProjection = computeProjection(jobState);
-  assert.ok(jobProjection.data[0].chadJobIncome > 0,
-    `First quarter chadJobIncome should be > 0 when chadJob=true, got ${jobProjection.data[0].chadJobIncome}`);
+  const jobSim = runMonthlySimulation(jobState);
+  assert.ok(jobSim.monthlyData[0].chadJobIncome > 0,
+    `Month 0 chadJobIncome should be > 0 when chadJob=true, got ${jobSim.monthlyData[0].chadJobIncome}`);
 });
 
 // ════════════════════════════════════════════════════════════════════════

@@ -594,6 +594,112 @@ test('buildPrimaryLeversModel separates changed-here and other-assumption conseq
   assert.ok(otherAssumptions.includes('house_projects'), 'other assumptions should include house projects');
 });
 
+console.log('\n=== Decision Console — Lever Impact & Waterfall Math ===');
+
+test('Retiring debt reduces monthlyOutflow by exactly debtService', () => {
+  const off = buildPrimaryLeversModel(buildPrimaryLeversInput({ retireDebt: false }));
+  const on = buildPrimaryLeversModel(buildPrimaryLeversInput({ retireDebt: true }));
+  eq(off.summary.monthlyOutflow - on.summary.monthlyOutflow, INITIAL_STATE.debtService);
+});
+
+test('Lifestyle cuts reduce monthlyOutflow by cutsOverride amount', () => {
+  const off = buildPrimaryLeversModel(buildPrimaryLeversInput({ lifestyleCutsApplied: false }));
+  const on = buildPrimaryLeversModel(buildPrimaryLeversInput({ lifestyleCutsApplied: true, cutsOverride: 4000 }));
+  eq(off.summary.monthlyOutflow - on.summary.monthlyOutflow, 4000);
+});
+
+test('Selling van reduces monthlyOutflow by vanMonthlySavings', () => {
+  const off = buildPrimaryLeversModel(buildPrimaryLeversInput({ vanSold: false }));
+  const on = buildPrimaryLeversModel(buildPrimaryLeversInput({ vanSold: true }));
+  eq(off.summary.monthlyOutflow - on.summary.monthlyOutflow, INITIAL_STATE.vanMonthlySavings);
+});
+
+test('All three levers combined: outflow reduced by sum of all three', () => {
+  const none = buildPrimaryLeversModel(buildPrimaryLeversInput());
+  const all = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true, lifestyleCutsApplied: true, cutsOverride: 3000, vanSold: true,
+  }));
+  const expectedSavings = INITIAL_STATE.debtService + 3000 + INITIAL_STATE.vanMonthlySavings;
+  eq(none.summary.monthlyOutflow - all.summary.monthlyOutflow, expectedSavings);
+});
+
+test('monthlySavings = sum of active lever monthlyImpacts', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true, lifestyleCutsApplied: true, cutsOverride: 5000, vanSold: true,
+  }));
+  const leverSum = model.recurringLevers.reduce((s, l) => s + Math.max(0, l.monthlyImpact), 0);
+  eq(model.summary.monthlySavings, leverSum);
+});
+
+test('monthlySavings = 0 when no levers active', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput());
+  eq(model.summary.monthlySavings, 0);
+});
+
+test('oneTimeAsk = debtTotal when retireDebt is on, no capital projects', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({ retireDebt: true }));
+  const debtTotal = INITIAL_STATE.debtCC + INITIAL_STATE.debtPersonal + INITIAL_STATE.debtIRS + INITIAL_STATE.debtFirstmark;
+  eq(model.summary.oneTimeAsk, debtTotal);
+});
+
+test('oneTimeAsk = debtTotal + capital projects when both active', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true, moldInclude: true, roofInclude: true, otherInclude: true,
+  }));
+  const debtTotal = INITIAL_STATE.debtCC + INITIAL_STATE.debtPersonal + INITIAL_STATE.debtIRS + INITIAL_STATE.debtFirstmark;
+  const projectsTotal = INITIAL_STATE.moldCost + INITIAL_STATE.roofCost + INITIAL_STATE.otherProjects;
+  eq(model.summary.oneTimeAsk, debtTotal + projectsTotal);
+});
+
+test('oneTimeAsk = 0 when nothing toggled', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput());
+  eq(model.summary.oneTimeAsk, 0);
+});
+
+test('Waterfall math: startAmount - active lever savings = monthlyOutflow', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true, lifestyleCutsApplied: true, cutsOverride: 3500, vanSold: true,
+  }));
+  // Compute what the waterfall shows: baseline (no levers) minus active savings = outflow
+  const baseline = buildPrimaryLeversModel(buildPrimaryLeversInput());
+  eq(baseline.summary.monthlyOutflow - model.summary.monthlySavings, model.summary.monthlyOutflow);
+});
+
+test('breakdown items sum to monthlyOutflow', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: true, lifestyleCutsApplied: true, cutsOverride: 2000,
+  }));
+  const total = model.breakdown.find(b => b.kind === 'total');
+  eq(total.amount, model.summary.monthlyOutflow);
+});
+
+test('breakdown: struck items show originalAmount', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({ retireDebt: true, vanSold: true }));
+  const debtItem = model.breakdown.find(b => b.id === 'debt_service');
+  const vanItem = model.breakdown.find(b => b.id === 'van');
+  eq(debtItem.amount, 0);
+  eq(debtItem.originalAmount, INITIAL_STATE.debtService);
+  eq(debtItem.active, false);
+  eq(vanItem.amount, 0);
+  eq(vanItem.originalAmount, INITIAL_STATE.vanMonthlySavings);
+  eq(vanItem.active, false);
+});
+
+test('Edge: cutsOverride=0 with lifestyleCutsApplied=true has zero savings impact', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    lifestyleCutsApplied: true, cutsOverride: 0,
+  }));
+  const cutsLever = model.recurringLevers.find(l => l.id === 'spending_cuts');
+  eq(cutsLever.monthlyImpact, 0);
+});
+
+test('Edge: capital projects without retireDebt only shows project costs in oneTimeAsk', () => {
+  const model = buildPrimaryLeversModel(buildPrimaryLeversInput({
+    retireDebt: false, moldInclude: true,
+  }));
+  eq(model.summary.oneTimeAsk, INITIAL_STATE.moldCost);
+});
+
 console.log('\n=== Overview Story Model Guards ===');
 
 test('buildOverviewStatusModel returns exactly three compact strip entries', () => {

@@ -88,7 +88,7 @@ export default function FinancialModel() {
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobPensionRate,
     totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
@@ -135,6 +135,12 @@ export default function FinancialModel() {
   const debtTotal = debtCC + debtPersonal + debtIRS + debtFirstmark;
   const oneTimeTotal = (moldInclude ? moldCost : 0) + (roofInclude ? roofCost : 0) + (otherInclude ? otherProjects : 0);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
+
+  // Projected PERS pension at retirement — mirrors gatherState.chadJobPensionMonthly
+  const chadJobPensionMonthly = (chadJob && chadJobPensionRate > 0)
+    ? Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * Math.max(0, ((sarahWorkYears || 6) * 12 - (chadJobStartMonth || 0)) / 12))
+    : 0;
+
   const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
   const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
 
@@ -154,6 +160,7 @@ export default function FinancialModel() {
   const savingsData = projection.savingsData;
   const monthlyDetail = projection.monthlyData;
   const ssdiBackPayActual = projection.backPayActual;
+  const ssWithheldSummary = projection.ssWithheldSummary;
 
   // wealthData assembled from monthlyDetail (401k + home equity now both in main simulation)
   const wealthData = useMemo(() =>
@@ -720,8 +727,10 @@ export default function FinancialModel() {
     ssClaimAge,
     chadJob,
     trustIncomeFuture,
+    ssMonthsWithheld: ssWithheldSummary?.monthsFullyWithheld ?? 0,
+    chadJobPensionMonthly,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

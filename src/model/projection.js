@@ -125,7 +125,12 @@ export function runMonthlySimulation(s) {
 
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
 
-    let expenses = s.baseExpenses;
+    // Base living expenses with optional inflation (debt/van/BCS are fixed contracts, not inflated)
+    let inflatedBase = s.baseExpenses;
+    if (s.expenseInflation) {
+      inflatedBase = Math.round(inflatedBase * Math.pow(1 + (s.expenseInflationRate || 0) / 100, m / 12));
+    }
+    let expenses = inflatedBase;
     if (!s.retireDebt) expenses += s.debtService;
     // Van: if sold, monthly cost stops at sale month; if not sold, cost continues forever
     const vanSaleMonth = s.vanSaleMonth ?? 12;

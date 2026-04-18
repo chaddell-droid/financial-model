@@ -50,6 +50,8 @@ export const INITIAL_STATE = {
   oneTimeMonths: 0,          // How many months the extras last
   baseExpenses: 43818,
   debtService: 6434,
+  expenseInflation: true,        // Apply annual inflation to base living expenses
+  expenseInflationRate: 3,       // 3% annual default (CPI approximation)
 
   // BCS Tuition
   bcsAnnualTotal: 43400,       // Grades 7-12: $22,720 (1st) + $20,680 (2nd)
@@ -169,7 +171,9 @@ export const MODEL_KEYS = [
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
-  'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService', 'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
+  'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
+  'expenseInflation', 'expenseInflationRate',
+  'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   'lifestyleCutsApplied', 'cutsOverride',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',
   'cutAmazon', 'cutSaaS', 'cutEntertainment', 'cutGroceries', 'cutPersonalCare', 'cutSmallItems',

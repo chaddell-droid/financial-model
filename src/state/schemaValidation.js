@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -73,6 +73,7 @@ const RANGE = {
   oneTimeMonths: { min: 0, max: 72 },
   baseExpenses: { min: 0 },
   debtService: { min: 0 },
+  expenseInflationRate: { min: 0, max: 15 },
   bcsAnnualTotal: { min: 0 },
   bcsParentsAnnual: { min: 0 },
   trustIncomeNow: { min: 0 },
@@ -174,6 +175,16 @@ const MIGRATIONS = [
       }
       if (result.sarahWorkMonths === undefined) result.sarahWorkMonths = 72;
       if (result.chadWorkMonths === undefined) result.chadWorkMonths = 72;
+      return result;
+    },
+  },
+  {
+    from: 4,
+    to: 5,
+    fn: (state) => {
+      const result = { ...state };
+      if (result.expenseInflation === undefined) result.expenseInflation = true;
+      if (result.expenseInflationRate === undefined) result.expenseInflationRate = 3;
       return result;
     },
   },

@@ -35,7 +35,7 @@ export function getPlanSnapshot(monthlyDetail, month) {
     sarahIncome: row.sarahIncome,
     msftVesting: row.msftLump,
     trustIncome: row.trustLLC,
-    ssdiIncome: row.ssdi,
+    ssdiIncome: row.ssBenefit,
     chadJobIncome: row.chadJobIncome,
     consultingIncome: row.consulting,
     totalIncome: row.cashIncome,

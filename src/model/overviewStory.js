@@ -234,7 +234,7 @@ function buildDynamicBridgeSignals({
     const currentRow = monthlyDetail[index];
     const month = toNumber(currentRow?.month, index);
 
-    const ssDelta = getRowDelta(currentRow, previousRow, 'ssdi');
+    const ssDelta = getRowDelta(currentRow, previousRow, 'ssBenefit');
     if (ssDelta >= BRIDGE_SIGNIFICANT_CHANGE) {
       pushUniqueTimelineItem(events, {
         id: 'ss_income',
@@ -244,7 +244,7 @@ function buildDynamicBridgeSignals({
         priority: 2,
       });
     } else if (ssDelta <= -BRIDGE_SIGNIFICANT_CHANGE) {
-      const stepdownLabel = toNumber(currentRow?.ssdi, 0) > 0 ? 'Kids age out' : `${ssLabel || 'Income'} ends`;
+      const stepdownLabel = toNumber(currentRow?.ssBenefit, 0) > 0 ? 'Kids age out' : `${ssLabel || 'Income'} ends`;
       pushUniqueTimelineItem(events, {
         id: 'ss_stepdown',
         label: stepdownLabel,

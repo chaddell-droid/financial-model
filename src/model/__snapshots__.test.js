@@ -167,7 +167,7 @@ test('month 12 balance', () => eq(deniedData[12].balance, 0));
 test('month 36 balance', () => eq(deniedData[36].balance, 0));
 test('month 72 balance', () => eq(deniedData[72].balance, -690591));
 test('ssdi is always 0', () => {
-  assert.ok(deniedData.every(d => d.ssdi === 0), 'SSDI should be 0 for all months when denied');
+  assert.ok(deniedData.every(d => d.ssBenefit === 0), 'SSDI should be 0 for all months when denied');
 });
 
 console.log('\n=== SSDI Back Pay Cap ===');
@@ -773,13 +773,13 @@ test('buildBridgeStoryModel keeps MSFT end visible in dense bridge states with m
     monthlyDetail: [
       { month: 0, netMonthlySmoothed: 4200 },
       { month: 6, netMonthlySmoothed: 3800, msftSmoothed: 9500 },
-      { month: 7, netMonthlySmoothed: 10100, ssdi: 6500 },
+      { month: 7, netMonthlySmoothed: 10100, ssBenefit: 6500 },
       { month: 11, netMonthlySmoothed: 11200, trustLLC: 2083 },
       { month: 12, netMonthlySmoothed: 12600, expenses: 21000 },
       { month: 18, netMonthlySmoothed: 9400, msftSmoothed: 3300 },
       { month: 30, netMonthlySmoothed: 9300, msftSmoothed: 0 },
-      { month: 36, netMonthlySmoothed: 13700, expenses: 16500, ssdi: 6500 },
-      { month: 43, netMonthlySmoothed: 11400, ssdi: 4166 },
+      { month: 36, netMonthlySmoothed: 13700, expenses: 16500, ssBenefit: 6500 },
+      { month: 43, netMonthlySmoothed: 11400, ssBenefit: 4166 },
     ],
     data: [
       { label: 'Q1\'26', month: 0, netMonthly: 4200, netCashFlow: 4200 },

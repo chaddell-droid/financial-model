@@ -50,6 +50,8 @@ export function runMonthlySimulation(s) {
   let balance = s.startingSavings || 0;
   let bal401k = s.starting401k || 0;
   let homeEquity = s.homeEquity || 0;
+  let ssMonthsWithheld = 0;
+  let ssTotalAmountWithheld = 0;
 
   for (let m = 0; m <= months; m++) {
     const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
@@ -65,13 +67,13 @@ export function runMonthlySimulation(s) {
 
     // SS/SSDI income — SS retirement can coexist with job (earnings test applies);
     // SSDI requires no job (SGA rules)
-    let ssdi = 0;
+    let ssBenefit = 0;
     if (useSS) {
       if (m >= ssStartMonth) {
-        ssdi = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
+        ssBenefit = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
-      ssdi = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
+      ssBenefit = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
     }
     // Consulting: only when not employed full-time
     const consulting = (m > CHAD_RETIREMENT_MONTH) ? 0
@@ -80,7 +82,8 @@ export function runMonthlySimulation(s) {
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
     // SS earnings test: applies to total earned income (salary if employed, consulting if not)
-    if (useSS && ssdi > 0) {
+    const ssPreTestBenefit = ssBenefit;
+    if (useSS && ssBenefit > 0) {
       const isEmployed = chadJob && m >= chadJobStartMonth && m <= CHAD_RETIREMENT_MONTH;
       const annualEarned = isEmployed
         ? (s.chadJobSalary || 0)  // gross salary for earnings test
@@ -91,13 +94,17 @@ export function runMonthlySimulation(s) {
         } else if (m >= SS_FRA_MONTH - 12) {
           // In FRA year: higher limit, $1 per $3 over
           const annualExcess = Math.max(0, annualEarned - SS_EARNINGS_LIMIT_FRA_YEAR);
-          ssdi = Math.max(0, ssdi - Math.round(annualExcess / 3 / 12));
+          ssBenefit = Math.max(0, ssBenefit - Math.round(annualExcess / 3 / 12));
         } else {
           // Before FRA year: standard limit, $1 per $2 over
           const annualExcess = Math.max(0, annualEarned - SS_EARNINGS_LIMIT_ANNUAL);
-          ssdi = Math.max(0, ssdi - Math.round(annualExcess / 2 / 12));
+          ssBenefit = Math.max(0, ssBenefit - Math.round(annualExcess / 2 / 12));
         }
       }
+    }
+    if (useSS && ssPreTestBenefit > 0) {
+      const ssWithheldThisMonth = ssPreTestBenefit - ssBenefit;
+      if (ssWithheldThisMonth > 0) { ssMonthsWithheld++; ssTotalAmountWithheld += ssWithheldThisMonth; }
     }
 
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
@@ -125,8 +132,8 @@ export function runMonthlySimulation(s) {
 
     // Canonical monthly cash-flow rows use actual vest timing so they reconcile to
     // savings balance changes. Keep smoothed MSFT as an explicit secondary series.
-    const cashIncome = sarahIncome + msftLump + trustLLC + ssdi + consulting + chadJobIncome;
-    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssdi + consulting + chadJobIncome;
+    const cashIncome = sarahIncome + msftLump + trustLLC + ssBenefit + consulting + chadJobIncome;
+    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssBenefit + consulting + chadJobIncome;
 
     balance += investReturn;
     balance += (cashIncome - expenses);
@@ -159,9 +166,10 @@ export function runMonthlySimulation(s) {
     // Home equity appreciates (even if partially drawn via HELOC)
     if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
 
+    const ssBenefitType = ssBenefit > 0 ? (useSS ? 'retirement' : 'ssdi') : null;
     monthlyData.push({
       month: m,
-      sarahIncome, msftSmoothed, msftLump, trustLLC, ssdi, consulting, chadJobIncome,
+      sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, consulting, chadJobIncome,
       investReturn, cashIncome, cashIncomeSmoothed, expenses, homeEquity,
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,
@@ -173,11 +181,11 @@ export function runMonthlySimulation(s) {
     });
   }
 
-  return { monthlyData, backPayActual };
+  return { monthlyData, backPayActual, ssWithheldSummary: { monthsFullyWithheld: ssMonthsWithheld, totalAmountWithheld: ssTotalAmountWithheld } };
 }
 
 export function computeProjection(s) {
-  const { monthlyData, backPayActual } = runMonthlySimulation(s);
+  const { monthlyData, backPayActual, ssWithheldSummary } = runMonthlySimulation(s);
 
   // Aggregate to quarterly snapshots for charts (every 3rd month starting at 0)
   const { labels: qLabels, monthValues: qMonthValues } = buildQuarterlySchedule(s.totalProjectionMonths || 72);
@@ -197,7 +205,8 @@ export function computeProjection(s) {
       sarahIncome: Math.round(months.reduce((sum, d) => sum + d.sarahIncome, 0) / months.length),
       msftVesting: Math.round(months.reduce((sum, d) => sum + d.msftLump, 0) / months.length),
       trustLLC: Math.round(months.reduce((sum, d) => sum + d.trustLLC, 0) / months.length),
-      ssdi: Math.round(months.reduce((sum, d) => sum + d.ssdi, 0) / months.length),
+      ssBenefit: Math.round(months.reduce((sum, d) => sum + d.ssBenefit, 0) / months.length),
+      ssBenefitType: months.find(d => d.ssBenefitType)?.ssBenefitType ?? null,
       consulting: Math.round(months.reduce((sum, d) => sum + d.consulting, 0) / months.length),
       chadJobIncome: Math.round(months.reduce((sum, d) => sum + d.chadJobIncome, 0) / months.length),
       investReturn: avgInvestReturn,
@@ -218,6 +227,6 @@ export function computeProjection(s) {
     return { month: d.month, balance: d.balance, label };
   });
 
-  return { data, savingsData, backPayActual, monthlyData };
+  return { data, savingsData, backPayActual, monthlyData, ssWithheldSummary };
 }
 

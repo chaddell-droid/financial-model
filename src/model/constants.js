@@ -48,6 +48,14 @@ export function ssAdjustmentFactor(claimAge) {
   return 1 - 36 * 5 / 9 / 100 - (monthsEarly - 36) * 5 / 12 / 100;
 }
 
+export function ssRecalculatedBenefit(pia, originalClaimAge, monthsWithheld) {
+  if (!monthsWithheld || monthsWithheld <= 0) return Math.round(pia * ssAdjustmentFactor(originalClaimAge));
+  const originalMonthsEarly = Math.max(0, (SS_FRA - originalClaimAge) * 12);
+  const effectiveMonthsEarly = Math.max(0, originalMonthsEarly - monthsWithheld);
+  const effectiveClaimAge = SS_FRA - effectiveMonthsEarly / 12;
+  return Math.round(pia * ssAdjustmentFactor(Math.min(effectiveClaimAge, SS_FRA)));
+}
+
 export function buildQuarterlySchedule(totalProjectionMonths = 72) {
   const labels = [];
   const monthValues = [];

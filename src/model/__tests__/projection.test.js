@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, SS_FRA_MONTH } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -116,8 +116,8 @@ test('9. SSDI income: 0 before approval, ssdiFamilyTotal after', () => {
     ssdiFamilyTotal: 6500, kidsAgeOutMonths: 60, chadJob: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[approvalMonth - 1].ssdi, 0, 'no SSDI before approval');
-  assert.strictEqual(monthlyData[approvalMonth].ssdi, 6500, 'ssdiFamilyTotal at approval');
+  assert.strictEqual(monthlyData[approvalMonth - 1].ssBenefit, 0, 'no SSDI before approval');
+  assert.strictEqual(monthlyData[approvalMonth].ssBenefit, 6500, 'ssdiFamilyTotal at approval');
 });
 
 test('10. SSDI transitions to ssdiPersonal after kidsAgeOutMonths post-approval', () => {
@@ -129,11 +129,11 @@ test('10. SSDI transitions to ssdiPersonal after kidsAgeOutMonths post-approval'
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Family total right at approval
-  assert.strictEqual(monthlyData[approvalMonth].ssdi, 6500);
+  assert.strictEqual(monthlyData[approvalMonth].ssBenefit, 6500);
   // Last family month is approvalMonth + kidsAge - 1
-  assert.strictEqual(monthlyData[approvalMonth + kidsAge - 1].ssdi, 6500, 'still family total before age-out');
+  assert.strictEqual(monthlyData[approvalMonth + kidsAge - 1].ssBenefit, 6500, 'still family total before age-out');
   // Personal starts at approvalMonth + kidsAge
-  assert.strictEqual(monthlyData[approvalMonth + kidsAge].ssdi, 4166, 'personal after age-out');
+  assert.strictEqual(monthlyData[approvalMonth + kidsAge].ssBenefit, 4166, 'personal after age-out');
 });
 
 test('11. SSDI denied: SSDI stays 0 forever', () => {
@@ -142,7 +142,7 @@ test('11. SSDI denied: SSDI stays 0 forever', () => {
   });
   const { monthlyData } = runMonthlySimulation(s);
   for (const entry of monthlyData) {
-    assert.strictEqual(entry.ssdi, 0, `month ${entry.month} should have 0 SSDI when denied`);
+    assert.strictEqual(entry.ssBenefit, 0, `month ${entry.month} should have 0 SSDI when denied`);
   }
 });
 
@@ -157,9 +157,9 @@ test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth
   const childEach = Math.round(4214 * 0.5);
   assert.strictEqual(s.ssFamilyTotal, 2950 + 2 * childEach, 'ssFamilyTotal = personal + 2 × child');
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[18].ssdi, 0, 'no SS before start month');
-  assert.strictEqual(monthlyData[19].ssdi, s.ssFamilyTotal, 'ssFamilyTotal at SS start month');
-  assert.strictEqual(monthlyData[34].ssdi, 2950, 'ssPersonal after kids age out');
+  assert.strictEqual(monthlyData[18].ssBenefit, 0, 'no SS before start month');
+  assert.strictEqual(monthlyData[19].ssBenefit, s.ssFamilyTotal, 'ssFamilyTotal at SS start month');
+  assert.strictEqual(monthlyData[34].ssBenefit, 2950, 'ssPersonal after kids age out');
 });
 
 test('13. Trust income transitions at trustIncreaseMonth', () => {
@@ -648,10 +648,10 @@ test('44. ssdiApprovalMonth: 0 — SSDI income should appear at month 0 (not del
   });
   const { monthlyData } = runMonthlySimulation(s);
   // With ssdiApprovalMonth=0, SSDI should be active from month 0
-  assert.strictEqual(monthlyData[0].ssdi, 6500,
+  assert.strictEqual(monthlyData[0].ssBenefit, 6500,
     'SSDI should appear at month 0 when ssdiApprovalMonth is 0');
   // The old || bug would have delayed to month 7
-  assert.strictEqual(monthlyData[6].ssdi, 6500,
+  assert.strictEqual(monthlyData[6].ssBenefit, 6500,
     'SSDI should still be active at month 6 (not starting here)');
 });
 
@@ -746,13 +746,13 @@ test('49. ssdiApprovalMonth = 0 — SSDI income amount matches ssdiFamilyTotal a
   });
   const { monthlyData } = runMonthlySimulation(s);
   // SSDI should be active from month 0 at the family rate
-  assert.strictEqual(monthlyData[0].ssdi, familyTotal,
-    `month 0 SSDI should be ${familyTotal}, got ${monthlyData[0].ssdi}`);
+  assert.strictEqual(monthlyData[0].ssBenefit, familyTotal,
+    `month 0 SSDI should be ${familyTotal}, got ${monthlyData[0].ssBenefit}`);
   // Should transition to personal after kidsAgeOutMonths
-  assert.strictEqual(monthlyData[kidsAge].ssdi, personal,
-    `month ${kidsAge} SSDI should transition to personal ${personal}, got ${monthlyData[kidsAge].ssdi}`);
+  assert.strictEqual(monthlyData[kidsAge].ssBenefit, personal,
+    `month ${kidsAge} SSDI should transition to personal ${personal}, got ${monthlyData[kidsAge].ssBenefit}`);
   // Month before transition should still be family
-  assert.strictEqual(monthlyData[kidsAge - 1].ssdi, familyTotal,
+  assert.strictEqual(monthlyData[kidsAge - 1].ssBenefit, familyTotal,
     `month ${kidsAge - 1} SSDI should still be family ${familyTotal}`);
 });
 
@@ -899,7 +899,7 @@ test('55. Chad job with chadJobStartMonth = 0 — job income at month 0 and heal
   assert.strictEqual(monthlyData[0].expenses, s.baseExpenses - healthSavings,
     `expenses at month 0 should be baseExpenses - healthSavings = ${s.baseExpenses - healthSavings}, got ${monthlyData[0].expenses}`);
   // SSDI should be 0 (chadJob disables SSDI)
-  assert.strictEqual(monthlyData[0].ssdi, 0,
+  assert.strictEqual(monthlyData[0].ssBenefit, 0,
     'SSDI should be 0 when chadJob is true');
 });
 
@@ -916,7 +916,7 @@ test('56. SS earnings test: consulting at limit ($1,860/mo) — no reduction', (
     chadJob: false, ssdiDenied: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[19].ssdi, s.ssFamilyTotal,
+  assert.strictEqual(monthlyData[19].ssBenefit, s.ssFamilyTotal,
     'SS benefits should NOT be reduced when consulting is exactly at the $22,320 annual limit');
 });
 
@@ -931,7 +931,7 @@ test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits redu
   // Annual excess: $36,000 - $22,320 = $13,680
   // Monthly reduction: round($13,680 / 2 / 12) = round($570) = $570
   const expectedSS = s.ssFamilyTotal - 570;
-  assert.strictEqual(monthlyData[19].ssdi, expectedSS,
+  assert.strictEqual(monthlyData[19].ssBenefit, expectedSS,
     `SS benefits should be reduced to ${expectedSS} when consulting is $3,000/mo`);
 });
 
@@ -943,7 +943,7 @@ test('58. SS earnings test: does NOT apply under SSDI path', () => {
     chadJob: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[0].ssdi, 6500,
+  assert.strictEqual(monthlyData[0].ssBenefit, 6500,
     'SSDI benefits should NOT be reduced by earnings test (only applies to SS retirement)');
 });
 
@@ -1012,7 +1012,7 @@ test('Projection: SS at FRA (67) — no earnings test applies', () => {
   });
   const { monthlyData } = runMonthlySimulation(s);
   // SS starts at month 79, which is at/after FRA → no earnings test
-  assert.strictEqual(monthlyData[79].ssdi, 3822,
+  assert.strictEqual(monthlyData[79].ssBenefit, 3822,
     'Full PIA at FRA with no earnings test reduction despite $5,000/mo consulting');
 });
 
@@ -1024,9 +1024,9 @@ test('Projection: SS at 62 — earnings test does not apply after FRA month', ()
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Before FRA year: standard earnings test applies
-  assert.ok(monthlyData[19].ssdi < s.ssFamilyTotal, 'earnings test reduces benefits before FRA');
+  assert.ok(monthlyData[19].ssBenefit < s.ssFamilyTotal, 'earnings test reduces benefits before FRA');
   // At/after FRA (month >= 79): no earnings test
-  assert.strictEqual(monthlyData[79].ssdi, s.ssPersonal, 'full personal benefit after FRA — no reduction');
+  assert.strictEqual(monthlyData[79].ssBenefit, s.ssPersonal, 'full personal benefit after FRA — no reduction');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1041,12 +1041,12 @@ test('Job + SS at 62: SS income flows with earnings test on salary', () => {
   });
   const { monthlyData } = runMonthlySimulation(s);
   // SS starts month 19 with earnings test on $80K salary
-  assert.strictEqual(monthlyData[18].ssdi, 0, 'no SS before start month');
-  assert.ok(monthlyData[19].ssdi > 0, 'SS income flows even with job');
+  assert.strictEqual(monthlyData[18].ssBenefit, 0, 'no SS before start month');
+  assert.ok(monthlyData[19].ssBenefit > 0, 'SS income flows even with job');
   // Earnings test: excess = $80K - $22,320 = $57,680; reduction = round($57,680/2/12) = $2,403
   const expectedReduction = Math.round((80000 - 22320) / 2 / 12);
-  assert.ok(monthlyData[19].ssdi < s.ssFamilyTotal, 'SS reduced by earnings test');
-  assert.strictEqual(monthlyData[19].ssdi, Math.max(0, s.ssFamilyTotal - expectedReduction),
+  assert.ok(monthlyData[19].ssBenefit < s.ssFamilyTotal, 'SS reduced by earnings test');
+  assert.strictEqual(monthlyData[19].ssBenefit, Math.max(0, s.ssFamilyTotal - expectedReduction),
     'SS reduction matches earnings test formula');
 });
 
@@ -1059,7 +1059,7 @@ test('Job + SS at 62: full SS after job ends at CHAD_RETIREMENT_MONTH', () => {
   const { monthlyData } = runMonthlySimulation(s);
   // After month 72 (job ends), SS flows without earnings test
   assert.strictEqual(monthlyData[73].chadJobIncome, 0, 'no job income after retirement');
-  assert.strictEqual(monthlyData[73].ssdi, s.ssPersonal, 'full SS personal after job ends');
+  assert.strictEqual(monthlyData[73].ssBenefit, s.ssPersonal, 'full SS personal after job ends');
 });
 
 test('Job + SSDI: SSDI still zeroed (SGA rules)', () => {
@@ -1068,8 +1068,8 @@ test('Job + SSDI: SSDI still zeroed (SGA rules)', () => {
     chadJob: true, chadJobSalary: 80000,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[0].ssdi, 0, 'SSDI zeroed with job');
-  assert.strictEqual(monthlyData[12].ssdi, 0, 'SSDI still zeroed at month 12');
+  assert.strictEqual(monthlyData[0].ssBenefit, 0, 'SSDI zeroed with job');
+  assert.strictEqual(monthlyData[12].ssBenefit, 0, 'SSDI still zeroed at month 12');
 });
 
 test('Job + SS at 62: low salary ($30K) preserves most SS benefit', () => {
@@ -1081,9 +1081,9 @@ test('Job + SS at 62: low salary ($30K) preserves most SS benefit', () => {
   // Excess = $30K - $22,320 = $7,680; reduction = round($7,680/2/12) = $320
   const expectedReduction = Math.round((30000 - 22320) / 2 / 12);
   const expectedSS = s.ssFamilyTotal - expectedReduction;
-  assert.strictEqual(monthlyData[19].ssdi, expectedSS,
+  assert.strictEqual(monthlyData[19].ssBenefit, expectedSS,
     `Low salary preserves most SS: ${expectedSS}/mo`);
-  assert.ok(monthlyData[19].ssdi > s.ssFamilyTotal * 0.9, 'over 90% of SS preserved at $30K salary');
+  assert.ok(monthlyData[19].ssBenefit > s.ssFamilyTotal * 0.9, 'over 90% of SS preserved at $30K salary');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1096,7 +1096,7 @@ test('59. chadJob=false baseline — balance at months 0, 12, 36, 72', () => {
   const s = gatherStateWithOverrides({ chadJob: false });
   const { monthlyData } = runMonthlySimulation(s);
   for (const m of [0, 12, 36, 72]) {
-    console.log(`        [baseline] month ${m}: balance=${monthlyData[m].balance}, ssdi=${monthlyData[m].ssdi}, consulting=${monthlyData[m].consulting}, expenses=${monthlyData[m].expenses}`);
+    console.log(`        [baseline] month ${m}: balance=${monthlyData[m].balance}, ssBenefit=${monthlyData[m].ssBenefit}, consulting=${monthlyData[m].consulting}, expenses=${monthlyData[m].expenses}`);
   }
   assert.ok(monthlyData.length === 73, 'should have 73 months');
 });
@@ -1109,7 +1109,7 @@ test('60. chadJob=true comparison — balance at months 0, 12, 36, 72', () => {
   });
   const { monthlyData } = runMonthlySimulation(s);
   for (const m of [0, 12, 36, 72]) {
-    console.log(`        [chadJob]  month ${m}: balance=${monthlyData[m].balance}, chadJobIncome=${monthlyData[m].chadJobIncome}, ssdi=${monthlyData[m].ssdi}, consulting=${monthlyData[m].consulting}, expenses=${monthlyData[m].expenses}`);
+    console.log(`        [chadJob]  month ${m}: balance=${monthlyData[m].balance}, chadJobIncome=${monthlyData[m].chadJobIncome}, ssBenefit=${monthlyData[m].ssBenefit}, consulting=${monthlyData[m].consulting}, expenses=${monthlyData[m].expenses}`);
   }
   assert.ok(monthlyData.length === 73, 'should have 73 months');
 });
@@ -1134,8 +1134,8 @@ test('61. Verify monthly income and expense difference between chadJob=true and 
     const expenseDiff = on[m].expenses - off[m].expenses;
     const balanceDiff = on[m].balance - off[m].balance;
     console.log(`        month ${m}: income diff=${incomeDiff}, expense diff=${expenseDiff}, balance diff=${balanceDiff}`);
-    console.log(`          OFF: ssdi=${off[m].ssdi}, consulting=${off[m].consulting}, chadJob=${off[m].chadJobIncome}`);
-    console.log(`          ON:  ssdi=${on[m].ssdi}, consulting=${on[m].consulting}, chadJob=${on[m].chadJobIncome}`);
+    console.log(`          OFF: ssBenefit=${off[m].ssBenefit}, consulting=${off[m].consulting}, chadJob=${off[m].chadJobIncome}`);
+    console.log(`          ON:  ssBenefit=${on[m].ssBenefit}, consulting=${on[m].consulting}, chadJob=${on[m].chadJobIncome}`);
   }
 
   // The income difference at month 0 should be:
@@ -1162,8 +1162,8 @@ test('62. SSDI is zeroed for all months when chadJob=true', () => {
   });
   const { monthlyData } = runMonthlySimulation(s);
   for (const entry of monthlyData) {
-    assert.strictEqual(entry.ssdi, 0,
-      `month ${entry.month}: SSDI should be 0 when chadJob=true, got ${entry.ssdi}`);
+    assert.strictEqual(entry.ssBenefit, 0,
+      `month ${entry.month}: SSDI should be 0 when chadJob=true, got ${entry.ssBenefit}`);
   }
 });
 
@@ -1276,7 +1276,7 @@ test('68. chadJob with chadJobStartMonth=6 — no job income or health savings b
   assert.strictEqual(monthlyData[6].expenses, s.baseExpenses - 4200,
     `month 6: expenses should reflect health savings, got ${monthlyData[6].expenses}`);
   // Note: SSDI/consulting are still zeroed for ALL months when chadJob=true, even before job starts
-  assert.strictEqual(monthlyData[0].ssdi, 0, 'SSDI zeroed even before job starts');
+  assert.strictEqual(monthlyData[0].ssBenefit, 0, 'SSDI zeroed even before job starts');
   assert.strictEqual(monthlyData[0].consulting, 0, 'consulting zeroed even before job starts');
 });
 
@@ -1379,6 +1379,51 @@ test('VH7. Quarterly data adapts to variable horizon', () => {
   const p10 = computeProjection(s10);
   assert.ok(p4.data.length < p8.data.length, `4yr (${p4.data.length}) should have fewer quarters than 8yr (${p8.data.length})`);
   assert.ok(p8.data.length < p10.data.length, `8yr (${p8.data.length}) should have fewer quarters than 10yr (${p10.data.length})`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// ssBenefitType disambiguation
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== ssBenefitType disambiguation ===');
+
+test('ssBenefitType is "retirement" under SS path', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214 });
+  const { monthlyData } = runMonthlySimulation(s);
+  const active = monthlyData.find(d => d.ssBenefit > 0);
+  assert.ok(active); assert.strictEqual(active.ssBenefitType, 'retirement');
+});
+
+test('ssBenefitType is "ssdi" under SSDI path', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ssdi', ssdiApprovalMonth: 3, ssdiDenied: false, ssdiFamilyTotal: 6500 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[3].ssBenefitType, 'ssdi');
+});
+
+test('ssBenefitType is null before benefits start', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ssdi', ssdiApprovalMonth: 12 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].ssBenefitType, null);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SS FRA recalculation
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== SS FRA recalculation ===');
+
+test('ssRecalculatedBenefit with 0 months = original', () => {
+  assert.strictEqual(ssRecalculatedBenefit(4214, 62, 0), Math.round(4214 * ssAdjustmentFactor(62)));
+});
+
+test('ssRecalculatedBenefit with 24 months increases benefit', () => {
+  const orig = Math.round(4214 * ssAdjustmentFactor(62));
+  const recalc = ssRecalculatedBenefit(4214, 62, 24);
+  assert.ok(recalc > orig);
+});
+
+test('ssWithheldSummary tracks months with job + SS', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214, chadJob: true, chadJobSalary: 80000, chadJobStartMonth: 0 });
+  const result = runMonthlySimulation(s);
+  assert.ok(result.ssWithheldSummary.monthsFullyWithheld > 0);
 });
 
 // ════════════════════════════════════════════════════════════════════════

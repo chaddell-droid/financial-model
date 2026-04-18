@@ -1,4 +1,5 @@
 // Shared chart utilities — scales, ticks, colors, income source definitions
+import { getSsBenefitLabel } from './ssBenefitLabel.js';
 
 /**
  * Create linear scales for SVG charts.
@@ -103,9 +104,13 @@ export function responsivePadding(containerW) {
 export const INCOME_SOURCES = [
   { key: "sarahIncome", label: "Sarah's Business", color: COLORS.blue },
   { key: "msftVesting", label: "MSFT Vesting", color: COLORS.amber },
-  { key: "ssdi", label: "SSDI", color: COLORS.green },
+  { key: "ssBenefit", label: "SS Benefit", color: COLORS.green },
   { key: "chadJobIncome", label: "Chad's Job", color: COLORS.greenDark },
   { key: "consulting", label: "Chad Consulting", color: COLORS.blueLight },
   { key: "trustLLC", label: "Trust / LLC", color: COLORS.purple },
   { key: "investReturn", label: "Invest Returns", color: COLORS.cyan },
 ];
+
+export function buildIncomeSources(ssType) {
+  return INCOME_SOURCES.map(s => s.key === 'ssBenefit' ? { ...s, label: getSsBenefitLabel(ssType) } : s);
+}

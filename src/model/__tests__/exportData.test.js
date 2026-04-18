@@ -187,7 +187,7 @@ test('6. trajectory rows have required fields', () => {
 
   const requiredFields = [
     'month', 'label', 'sarahIncome', 'msftIncome', 'msftIncomeSmoothed',
-    'trustLLCIncome', 'ssdi', 'investReturn', 'totalCashIncome',
+    'trustLLCIncome', 'ssBenefit', 'ssBenefitType', 'investReturn', 'totalCashIncome',
     'totalCashIncomeSmoothed', 'expenses', 'netCashFlow',
     'netCashFlowSmoothed', 'netMonthly', 'netMonthlySmoothed', 'savingsBalance',
   ];

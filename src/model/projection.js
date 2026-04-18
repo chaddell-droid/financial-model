@@ -63,11 +63,17 @@ export function runMonthlySimulation(s) {
   let ssMonthsWithheld = 0;
   let ssTotalAmountWithheld = 0;
 
+  // Sarah's practice stops at her work duration
+  const sarahRetirementMonth = s.sarahWorkMonths || 72;
+
   for (let m = 0; m <= months; m++) {
-    const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
-    const clients = Math.min(s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12), s.sarahMaxClients);
-    const sarahGross = Math.round(rate * clients * DAYS_PER_MONTH);
-    const sarahIncome = Math.round(sarahGross * (1 - (s.sarahTaxRate ?? 25) / 100));
+    let sarahIncome = 0;
+    if (m <= sarahRetirementMonth) {
+      const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
+      const clients = Math.min(s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12), s.sarahMaxClients);
+      const sarahGross = Math.round(rate * clients * DAYS_PER_MONTH);
+      sarahIncome = Math.round(sarahGross * (1 - (s.sarahTaxRate ?? 25) / 100));
+    }
     const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0, s.msftPrice);
     const msftLump = getVestingLumpSum(m, s.msftGrowth || 0, s.msftPrice);
     const trustLLC = m < trustMonth ? trustNow : trustFuture;

@@ -93,6 +93,7 @@ export function buildTaxSchedule(s) {
   const chadJob = s.chadJob || false;
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
   const chadRetirementMonth = s.chadRetirementMonth || 72;
+  const sarahRetirementMonth = s.sarahWorkMonths || 72;
   const chadJobSalary = s.chadJobSalary || 0;
   const ssAnnualBenefits = estimateAnnualSSBenefits(s);
   const schedule = [];
@@ -107,15 +108,17 @@ export function buildTaxSchedule(s) {
     let chadMonthsEmployed = 0;
 
     for (let m = startMonth; m <= endMonth; m++) {
-      const rate = Math.min(
-        s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12),
-        s.sarahMaxRate
-      );
-      const clients = Math.min(
-        s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12),
-        s.sarahMaxClients
-      );
-      annualSarahGross += Math.round(rate * clients * DAYS_PER_MONTH);
+      if (m <= sarahRetirementMonth) {
+        const rate = Math.min(
+          s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12),
+          s.sarahMaxRate
+        );
+        const clients = Math.min(
+          s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12),
+          s.sarahMaxClients
+        );
+        annualSarahGross += Math.round(rate * clients * DAYS_PER_MONTH);
+      }
 
       if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
         chadMonthsEmployed++;

@@ -11,6 +11,7 @@ function NetWorthChart({
   savingsData, wealthData,
   starting401k, return401k, homeEquity, homeAppreciation,
   presentMode, onFieldChange,
+  compareProjection, compareName,
   instanceId = 'default',
 }) {
   const containerRef = useRef(null);
@@ -27,12 +28,24 @@ function NetWorthChart({
   const svgH = 340;
   const padL = 60, padR = 80, padT = 20, padB = 30;
 
-  // Compute total net worth at each month for scaling
-  const maxVal = Math.max(...wealthData.map((w, i) => {
+  // Compute total net worth at each month for scaling (include comparison if active)
+  const primaryTotals = wealthData.map((w, i) => {
     const sav = savingsData[i]?.balance || 0;
     return sav + w.balance401k + w.homeEquity;
-  }));
-  const minVal = Math.min(0, ...savingsData.map(d => d.balance));
+  });
+  let maxVal = Math.max(...primaryTotals);
+  let minVal = Math.min(0, ...savingsData.map(d => d.balance));
+  // Extend scale for comparison data
+  if (compareProjection) {
+    const compSav = compareProjection.savingsData || [];
+    const compWealth = compareProjection.monthlyData || [];
+    for (let i = 0; i < compWealth.length; i++) {
+      const sav = compSav[i]?.balance || 0;
+      const total = sav + (compWealth[i]?.balance401k || 0) + (compWealth[i]?.homeEquity || 0);
+      if (total > maxVal) maxVal = total;
+      if (sav < minVal) minVal = sav;
+    }
+  }
   const yMax = maxVal * 1.05;
   const yMin = Math.min(minVal, 0);
 
@@ -72,6 +85,7 @@ function NetWorthChart({
     { id: '401k', label: '401k', color: COLORS.blue },
     { id: 'home', label: 'Home Equity', color: COLORS.amber },
     { id: 'total', label: 'Total Net Worth', color: COLORS.textSecondary, line: true, dash: true },
+    ...(compareProjection ? [{ id: 'compare', label: `"${compareName}" net worth`, color: COLORS.yellow, line: true, dash: true }] : []),
   ]);
 
   return (
@@ -132,6 +146,36 @@ function NetWorthChart({
               strokeDasharray={l.dashed ? '6,4' : undefined}
               opacity={l.dashed ? 0.7 : 1} />
           ))}
+
+          {/* Comparison total net worth line — dashed yellow (matches SavingsDrawdownChart) */}
+          {compareProjection && (() => {
+            const compSav = compareProjection.savingsData || [];
+            const compWealth = compareProjection.monthlyData || [];
+            const len = Math.min(compSav.length, compWealth.length);
+            if (len === 0) return null;
+            const compTotalPath = Array.from({ length: len }, (_, i) => {
+              const sav = compSav[i]?.balance || 0;
+              const total = sav + (compWealth[i]?.balance401k || 0) + (compWealth[i]?.homeEquity || 0);
+              return `${xOf(compSav[i]?.month || i)},${yOf(total)}`;
+            }).join(' L ');
+            const compEnd = (() => {
+              const lastSav = compSav[len - 1]?.balance || 0;
+              const lastW = compWealth[len - 1];
+              return lastSav + (lastW?.balance401k || 0) + (lastW?.homeEquity || 0);
+            })();
+            const lastMonth = compSav[len - 1]?.month || 0;
+            return (
+              <>
+                <path d={`M ${compTotalPath}`} fill="none" stroke={COLORS.yellow} strokeWidth="2"
+                  strokeLinejoin="round" strokeLinecap="round" strokeDasharray="8,4" opacity="0.8" />
+                <circle cx={xOf(lastMonth)} cy={yOf(compEnd)} r="3" fill={COLORS.yellow} />
+                <text x={xOf(lastMonth) - 6} y={yOf(compEnd) - 8} textAnchor="end"
+                  fill={COLORS.yellow} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  {compareName}
+                </text>
+              </>
+            );
+          })()}
 
           {/* Savings depleted marker */}
           {(() => {

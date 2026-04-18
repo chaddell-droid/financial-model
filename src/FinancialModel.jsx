@@ -646,11 +646,13 @@ export default function FinancialModel() {
     starting401k, return401k,
     homeEquity, homeAppreciation,
     presentMode, onFieldChange: set,
+    compareProjection, compareName,
   }), [
     savingsData, wealthData,
     starting401k, return401k,
     homeEquity, homeAppreciation,
     presentMode,
+    compareProjection, compareName,
   ]);
 
   // Stable risk-tab variants with instanceId baked in (avoids inline spread that defeats memo)
@@ -909,6 +911,7 @@ export default function FinancialModel() {
           chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
           vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
           bcsYearsLeft={bcsYearsLeft} milestones={milestones}
+          compareProjection={compareProjection} compareName={compareName}
         />
       )}
 

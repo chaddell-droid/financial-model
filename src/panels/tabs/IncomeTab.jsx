@@ -12,6 +12,7 @@ export default function IncomeTab({
   monthlyDetail, investmentReturn, ssType, ssBenefitPersonal,
   chadJob, chadJobStartMonth, chadJobHealthSavings,
   vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
+  compareProjection, compareName,
 }) {
   return (
     <>
@@ -31,7 +32,8 @@ export default function IncomeTab({
         ssBenefitPersonal={ssBenefitPersonal}
         chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
         vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
-        bcsYearsLeft={bcsYearsLeft} milestones={milestones} />
+        bcsYearsLeft={bcsYearsLeft} milestones={milestones}
+        compareProjection={compareProjection} compareName={compareName} />
     </>
   );
 }

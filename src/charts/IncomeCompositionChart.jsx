@@ -7,48 +7,92 @@ import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
  * Monthly income composition vs expenses chart.
  * Uses monthlyDetail (raw monthly projection data) for consistent granularity
  * with other Plan-tab charts. MSFT uses smoothed vesting to avoid lump spikes.
+ *
+ * Annotations: dashed vertical lines through chart with labels ABOVE the chart area,
+ * matching the SavingsDrawdownChart visual pattern.
  */
 export default function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
-  // Map monthly data fields to chart sources
-  // Monthly data uses 'msftSmoothed' (averaged over vest period) instead of quarterly 'msftVesting'
-  const MONTHLY_SOURCES_MAP = { msftVesting: 'msftSmoothed' };
-  const getVal = (d, key) => d[MONTHLY_SOURCES_MAP[key] || key] || 0;
+  // Map monthly field names: chart sources use 'msftVesting' key but monthly data has 'msftSmoothed'
+  const getVal = (d, key) => key === 'msftVesting' ? (d.msftSmoothed || 0) : (d[key] || 0);
 
   const data = monthlyDetail;
+  const n = data.length;
   const stackH = 300;
   const maxIncome = Math.max(...data.map(d =>
     d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0)));
   const maxExpense = Math.max(...data.map(d => d.expenses));
   const stackMax = Math.max(maxIncome, maxExpense) * 1.1 || 1;
   const stackYPad = 60;
-  const currentMonth = data[0];
-  const steadyIdx = data.findIndex((row) => row.netMonthly >= 0);
-  const steadyMonth = steadyIdx >= 0 ? data[steadyIdx] : data[data.length - 1];
 
-  // Compute totalIncome for KPI display (monthly data doesn't have it pre-computed)
-  const computeTotal = (d) => d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0);
-
-  // Build display sources with ssType-aware SS label and dynamic invest returns label
+  // Build display sources with ssType-aware SS label
   const sources = buildIncomeSources(ssType).map(s =>
-    s.key === 'investReturn'
-      ? { ...s, label: `${s.label} (${investmentReturn}%/yr)` }
-      : s
+    s.key === 'investReturn' ? { ...s, label: `${s.label} (${investmentReturn}%/yr)` } : s
   );
   const legendItems = buildLegendItems([
     ...sources.map((source) => ({ id: source.key, label: source.label, color: source.color })),
     { id: 'expenses', label: 'Expenses', color: '#f87171', line: true },
   ]);
 
-  // X-axis: show labels every 6 months for readability
+  // Compute totalIncome (smoothed) for a month — consistent with what bars show
+  const computeTotal = (d) => d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0);
+
+  // KPI data
+  const currentMonth = data[0];
+  const steadyIdx = data.findIndex((row) => row.netMonthlySmoothed >= 0);
+  const steadyMonth = steadyIdx >= 0 ? data[steadyIdx] : data[data.length - 1];
+
+  // X-axis label
   const formatMonthLabel = (m) => {
     if (m === 0) return 'Now';
-    if (m < 12) return `M${m}`;
     const yr = Math.floor(m / 12);
     const mo = m % 12;
     return mo === 0 ? `Y${yr}` : `Y${yr}.${Math.round(mo / 12 * 10)}`;
   };
+
+  // --- Build expense event annotations ---
+  const expenseEvents = [];
+  if (chadJob && (chadJobHealthSavings || 0) > 0) {
+    expenseEvents.push({ month: chadJobStartMonth ?? 0, label: 'Health ins. saved', savings: chadJobHealthSavings });
+  }
+  if (vanSold) {
+    expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: vanMonthlySavings || 2597 });
+  }
+  if (bcsYearsLeft) {
+    const bcsEndMonth = bcsYearsLeft * 12;
+    const bcsIdx = data.findIndex(d => d.month >= bcsEndMonth);
+    const bcsDrop = bcsIdx > 0 ? Math.max(0, data[bcsIdx - 1].expenses - data[bcsIdx].expenses) : 0;
+    const milestonesAtSameMonth = (milestones || []).filter(ms => ms.savings > 0 && ms.month === bcsEndMonth);
+    const milestoneSavings = milestonesAtSameMonth.reduce((s, ms) => s + ms.savings, 0);
+    const bcsSavings = Math.max(0, bcsDrop - milestoneSavings);
+    if (bcsSavings > 0) expenseEvents.push({ month: bcsEndMonth, label: 'BCS ends', savings: bcsSavings });
+  }
+  if (milestones) {
+    for (const ms of milestones) {
+      if (ms.savings > 0) expenseEvents.push({ month: ms.month, label: ms.name, savings: ms.savings });
+    }
+  }
+
+  const markers = expenseEvents.filter(ev => ev.savings > 0).map(ev => {
+    const idx = data.findIndex(d => d.month >= ev.month);
+    if (idx < 0) return null;
+    const pctX = ((idx + 0.5) / n) * 100;
+    return { ...ev, idx, pctX };
+  }).filter(Boolean);
+
+  // Stagger annotation rows to prevent horizontal overlap
+  const usedSlots = [];
+  for (const m of markers) {
+    let row = 0;
+    for (const slot of usedSlots) {
+      if (Math.abs(m.pctX - slot.pctX) < 14) row = Math.max(row, slot.row + 1);
+    }
+    usedSlots.push({ pctX: m.pctX, row });
+    m.row = row;
+  }
+  const maxAnnotationRow = markers.length > 0 ? Math.max(...markers.map(m => m.row)) : -1;
+  const annotationRowH = (maxAnnotationRow + 1) * 16 + (markers.length > 0 ? 4 : 0);
 
   return (
     <div data-testid="income-composition-chart" style={{
@@ -57,6 +101,8 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
     }}>
       <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 4px", fontWeight: 600 }}>Income Composition vs Expenses</h3>
       <p style={{ fontSize: 10, color: "#475569", margin: "0 0 12px" }}>Monthly income sources stacked against expenses — hover for detail.</p>
+
+      {/* KPI strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 12 }}>
         {[
           { label: `${getSummaryTimeframeLabel('current')} income`, value: fmtFull(computeTotal(currentMonth)), color: '#4ade80' },
@@ -69,15 +115,41 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
           </div>
         ))}
       </div>
-      <div data-testid="income-composition-hover-surface" style={{ position: "relative", height: stackH + 55, paddingLeft: stackYPad }}
+
+      {/* Chart area: annotation labels above → bars + expense line → X-axis labels below */}
+      <div data-testid="income-composition-hover-surface"
+        style={{ position: "relative", paddingLeft: stackYPad }}
         onMouseLeave={() => setIncomeTooltip(null)}>
-        {/* Y-axis labels */}
+
+        {/* Annotation labels ABOVE the chart */}
+        {markers.length > 0 && (
+          <div style={{ position: 'relative', height: annotationRowH, marginBottom: 2 }}>
+            {markers.map((m, i) => (
+              <div key={`label-${i}`} style={{
+                position: 'absolute',
+                left: `${m.pctX}%`,
+                top: m.row * 16,
+                transform: 'translateX(-50%)',
+                fontSize: 9,
+                fontWeight: 600,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: '#4ade80',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+              }}>
+                {m.label} -{fmtFull(m.savings)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Y-axis labels (positioned relative to bar area) */}
         {(() => {
           const ticks = [];
           const tickCount = 6;
           for (let i = 0; i <= tickCount; i++) {
             const val = stackMax - (i * stackMax / tickCount);
-            const yPos = (i / tickCount) * stackH;
+            const yPos = annotationRowH + (i / tickCount) * stackH;
             ticks.push(
               <div key={`sl-${i}`} style={{ position: "absolute", left: 0, top: yPos - 7, width: stackYPad - 8, textAlign: "right" }}>
                 <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -95,18 +167,18 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
           return ticks;
         })()}
 
-        {/* Stacked bars — monthly, thin, no gap */}
+        {/* Stacked bars + expense line + dashed annotation lines */}
         <div style={{ display: "flex", alignItems: "flex-end", height: stackH, gap: 0, position: "relative" }}>
           {data.map((d, i) => {
             const vals = sources.map(s => getVal(d, s.key));
             const total = vals.reduce((a, b) => a + b, 0);
-            const n = data.length;
             const pctX = ((i + 0.5) / n) * 100;
+            // Consistent net: total income (smoothed) minus expenses
+            const smoothedNet = total - d.expenses;
 
             return (
               <div key={i} style={{ flex: 1, height: "100%", position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", cursor: "default" }}
                 onMouseEnter={() => {
-                  // Build tooltip sources, expanding SS benefit into personal + kids when family benefits are active
                   const tooltipSources = [];
                   for (let si = 0; si < sources.length; si++) {
                     const s = sources[si];
@@ -119,7 +191,6 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                       tooltipSources.push({ label: s.label, color: s.color, value: val });
                     }
                   }
-                  // Build expense breakdown for tooltip
                   const expenseReductions = [];
                   if (chadJob && (chadJobHealthSavings || 0) > 0 && d.month >= (chadJobStartMonth ?? 0)) {
                     expenseReductions.push({ label: 'Health ins. savings', amount: -(chadJobHealthSavings || 0) });
@@ -127,7 +198,8 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                   if (vanSold && d.month >= (vanSaleMonth ?? 6)) {
                     expenseReductions.push({ label: 'Van sold', amount: -(vanMonthlySavings || 0) });
                   }
-                  setIncomeTooltip({ pctX, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseReductions, net: d.netMonthly });
+                  // Use smoothedNet (total - expenses) for consistency with bar heights
+                  setIncomeTooltip({ pctX, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseReductions, net: smoothedNet });
                 }}>
                 {/* Stacked segments */}
                 <div style={{ width: "100%", display: "flex", flexDirection: "column-reverse" }}>
@@ -145,12 +217,9 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                   })}
                 </div>
 
-                {/* Month label — show every 12 months for clean spacing */}
+                {/* Month label — every 12 months */}
                 {(d.month % 12 === 0) && (
-                  <div style={{
-                    position: "absolute", bottom: -22, fontSize: 9, color: "#64748b",
-                    whiteSpace: "nowrap",
-                  }}>
+                  <div style={{ position: "absolute", bottom: -22, fontSize: 9, color: "#64748b", whiteSpace: "nowrap" }}>
                     {formatMonthLabel(d.month)}
                   </div>
                 )}
@@ -158,94 +227,29 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
             );
           })}
 
-          {/* Expense line + dashed vertical annotation lines (matches SavingsDrawdownChart pattern) */}
-          {(() => {
-            const n = data.length;
+          {/* Expense line — black outline + red for visibility */}
+          <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
+            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
+            <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
+              fill="none" stroke="#0f172a" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" />
+            <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
+              fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
 
-            // Build expense events
-            const expenseEvents = [];
-            if (chadJob && (chadJobHealthSavings || 0) > 0) {
-              expenseEvents.push({ month: chadJobStartMonth ?? 0, label: 'Health ins. saved', savings: chadJobHealthSavings });
-            }
-            if (vanSold) expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: data[0]?.expenses > 0 ? (vanMonthlySavings || 2597) : 0 });
-            if (bcsYearsLeft) {
-              const bcsEndMonth = bcsYearsLeft * 12;
-              const bcsIdx = data.findIndex(d => d.month >= bcsEndMonth);
-              const bcsDrop = bcsIdx > 0 ? Math.max(0, data[bcsIdx - 1].expenses - data[bcsIdx].expenses) : 0;
-              const milestonesAtSameMonth = (milestones || []).filter(ms => ms.savings > 0 && ms.month === bcsEndMonth);
-              const milestoneSavings = milestonesAtSameMonth.reduce((s, ms) => s + ms.savings, 0);
-              const bcsSavings = Math.max(0, bcsDrop - milestoneSavings);
-              if (bcsSavings > 0) expenseEvents.push({ month: bcsEndMonth, label: 'BCS ends', savings: bcsSavings });
-            }
-            if (milestones) {
-              for (const ms of milestones) {
-                if (ms.savings > 0) expenseEvents.push({ month: ms.month, label: ms.name, savings: ms.savings });
-              }
-            }
-
-            const markers = expenseEvents.filter(ev => ev.savings > 0).map(ev => {
-              const idx = data.findIndex(d => d.month >= ev.month);
-              if (idx < 0) return null;
-              const pctX = ((idx + 0.5) / n) * 100;
-              return { ...ev, idx, pctX };
-            }).filter(Boolean);
-
-            // Stagger labels: find row for each marker to prevent horizontal overlap
-            const usedSlots = [];
-            for (const m of markers) {
-              let row = 0;
-              for (const slot of usedSlots) {
-                if (Math.abs(m.pctX - slot.pctX) < 14) row = Math.max(row, slot.row + 1);
-              }
-              usedSlots.push({ pctX: m.pctX, row });
-              m.row = row;
-            }
-
-            return (
-              <>
-                {/* Expense path — black outline + red line for visibility against colored bars */}
-                <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
-                  <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-                    fill="none" stroke="#0f172a" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" />
-                  <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-                    fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-                </svg>
-                {/* Dashed vertical lines (HTML divs, not SVG — so they don't get squished) */}
-                {markers.map((m, i) => (
-                  <div key={`line-${i}`} style={{
-                    position: 'absolute',
-                    left: `${m.pctX}%`,
-                    top: 0,
-                    width: 0,
-                    height: stackH,
-                    borderLeft: '1px dashed #4ade80',
-                    opacity: 0.4,
-                    pointerEvents: 'none',
-                    zIndex: 2,
-                  }} />
-                ))}
-                {/* Labels below chart (HTML text — readable, not squished by SVG) */}
-                {markers.map((m, i) => (
-                  <div key={`label-${i}`} style={{
-                    position: 'absolute',
-                    left: `${m.pctX}%`,
-                    top: stackH + 4 + m.row * 14,
-                    transform: 'translateX(-50%)',
-                    fontSize: 9,
-                    fontWeight: 600,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    color: '#4ade80',
-                    whiteSpace: 'nowrap',
-                    pointerEvents: 'none',
-                    zIndex: 4,
-                  }}>
-                    {m.label} -{fmtFull(m.savings)}
-                  </div>
-                ))}
-              </>
-            );
-          })()}
+          {/* Dashed vertical annotation lines through the chart */}
+          {markers.map((m, i) => (
+            <div key={`vline-${i}`} style={{
+              position: 'absolute',
+              left: `${m.pctX}%`,
+              top: 0,
+              width: 0,
+              height: stackH,
+              borderLeft: '1px dashed #4ade80',
+              opacity: 0.4,
+              pointerEvents: 'none',
+              zIndex: 2,
+            }} />
+          ))}
         </div>
 
         {/* Tooltip */}
@@ -253,7 +257,7 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
           <div style={{
             position: "absolute",
             left: `${incomeTooltip.pctX}%`,
-            top: 10,
+            top: annotationRowH + 10,
             transform: "translateX(-50%)",
             background: "#0f172a",
             border: "1px solid #475569",

@@ -24,6 +24,7 @@ export default function SaveLoadPanel({
   onClearCompare,
   onDelete,
   onApplyTemplate,
+  onCompareTemplate,
   storageStatus,
   storageAvailable,
 }) {
@@ -129,14 +130,29 @@ export default function SaveLoadPanel({
                       {t.description}
                     </div>
                   </div>
-                  <ActionButton
-                    onClick={() => onApplyTemplate(t.overrides)}
-                    variant={UI_ACTION_VARIANTS.ghost}
-                    size='sm'
-                    accent={UI_COLORS.caution}
-                  >
-                    Apply
-                  </ActionButton>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    {onCompareTemplate && (
+                      <ActionButton
+                        onClick={() => onCompareTemplate(t.name, t.overrides)}
+                        data-testid={`template-compare-${t.id}`}
+                        variant={UI_ACTION_VARIANTS.secondary}
+                        size='sm'
+                        accent={UI_COLORS.compare}
+                        active={compareName === t.name}
+                      >
+                        {compareName === t.name ? 'Comparing' : 'Compare'}
+                      </ActionButton>
+                    )}
+                    <ActionButton
+                      onClick={() => onApplyTemplate(t.overrides)}
+                      data-testid={`template-apply-${t.id}`}
+                      variant={UI_ACTION_VARIANTS.ghost}
+                      size='sm'
+                      accent={UI_COLORS.caution}
+                    >
+                      Apply
+                    </ActionButton>
+                  </div>
                 </div>
               ))}
             </div>

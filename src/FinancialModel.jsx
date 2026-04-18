@@ -1026,6 +1026,14 @@ export default function FinancialModel() {
             onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
             onDelete={deleteScenario}
             onApplyTemplate={(overrides) => dispatch({ type: 'APPLY_TEMPLATE', overrides })}
+            onCompareTemplate={(name, overrides) => {
+              if (compareState && compareName === name) { set('compareState')(null); set('compareName')(''); }
+              else {
+                // Build a full gathered state from current state + template overrides for comparison
+                const templateState = gatherState({ ...state, ...overrides });
+                set('compareState')(templateState); set('compareName')(name);
+              }
+            }}
             storageStatus={storageStatus}
             storageAvailable={storageAvailable}
           />

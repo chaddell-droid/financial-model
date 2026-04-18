@@ -10,7 +10,8 @@ export const INITIAL_STATE = {
   sarahMaxClients: 4.5,
   sarahClientGrowth: 10,
   sarahTaxRate: 25,
-  sarahWorkYears: 6,
+  chadWorkMonths: 72,         // How long Chad works (months from now)
+  sarahWorkMonths: 72,         // How long Sarah's practice runs (months from now)
 
   // MSFT
   msftPrice: 373.46,
@@ -161,7 +162,8 @@ export const INITIAL_STATE = {
 
 // Keys that constitute the financial model (for save/restore/projection)
 export const MODEL_KEYS = [
-  'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth', 'sarahTaxRate', 'sarahWorkYears',
+  'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth', 'sarahTaxRate',
+  'chadWorkMonths', 'sarahWorkMonths',
   'msftPrice', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',

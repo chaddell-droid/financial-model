@@ -14,7 +14,8 @@ export function gatherState(state) {
   const st = state || INITIAL_STATE;
   const s = {};
   for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
-  s.totalProjectionMonths = (s.sarahWorkYears || 6) * 12;
+  s.chadRetirementMonth = s.chadWorkMonths || 72;
+  s.totalProjectionMonths = Math.max(s.chadWorkMonths || 72, s.sarahWorkMonths || 72);
   s.bcsFamilyMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - (s.bcsParentsAnnual || 0)) / 12);
   // If totalMonthlySpend is set, back-calculate baseExpenses from it.
   // Use status-quo BCS ($25K parents) so the BCS slider actually changes expenses
@@ -48,7 +49,7 @@ export function gatherState(state) {
   }
   // Compute projected pension at retirement
   if (s.chadJob && s.chadJobPensionRate > 0) {
-    const projectedMonthsWorked = Math.max(0, (s.totalProjectionMonths || 72) - (s.chadJobStartMonth || 0));
+    const projectedMonthsWorked = Math.max(0, (s.chadWorkMonths || 72) - (s.chadJobStartMonth || 0));
     const yearsOfService = projectedMonthsWorked / 12;
     s.chadJobPensionMonthly = Math.round(
       (s.chadJobSalary / 12) * (s.chadJobPensionRate / 100) * yearsOfService

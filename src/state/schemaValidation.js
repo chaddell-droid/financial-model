@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -52,7 +52,8 @@ const RANGE = {
   sarahCurrentClients: { min: 0, max: 50 },
   sarahMaxClients: { min: 0, max: 50 },
   bcsYearsLeft: { min: 0, max: 10 },
-  sarahWorkYears: { min: 3, max: 12 },
+  chadWorkMonths: { min: 12, max: 144 },
+  sarahWorkMonths: { min: 36, max: 144 },
   mcNumSims: { min: 10, max: 10000 },
   // Dollar amounts (non-negative)
   msftPrice: { min: 1 },
@@ -158,6 +159,21 @@ const MIGRATIONS = [
       const result = { ...state };
       if (result.ssClaimAge === undefined) result.ssClaimAge = 62;
       if (result.ssPIA === undefined) result.ssPIA = 4214;
+      return result;
+    },
+  },
+  {
+    from: 3,
+    to: 4,
+    fn: (state) => {
+      const result = { ...state };
+      // Convert sarahWorkYears (years) → sarahWorkMonths (months)
+      if (result.sarahWorkYears !== undefined) {
+        result.sarahWorkMonths = (result.sarahWorkYears || 6) * 12;
+        delete result.sarahWorkYears;
+      }
+      if (result.sarahWorkMonths === undefined) result.sarahWorkMonths = 72;
+      if (result.chadWorkMonths === undefined) result.chadWorkMonths = 72;
       return result;
     },
   },

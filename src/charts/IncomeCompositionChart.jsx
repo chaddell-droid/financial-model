@@ -69,75 +69,7 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
           </div>
         ))}
       </div>
-      {/* Expense event annotations — positioned ABOVE the chart in a dedicated row */}
-      {(() => {
-        const n = data.length;
-        const expenseEvents = [];
-        if (chadJob && (chadJobHealthSavings || 0) > 0) {
-          expenseEvents.push({ month: chadJobStartMonth ?? 0, label: 'Health ins. saved', savings: chadJobHealthSavings });
-        }
-        if (vanSold) expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: data[0]?.expenses > 0 ? (vanMonthlySavings || 2597) : 0 });
-        if (bcsYearsLeft) {
-          const bcsEndMonth = bcsYearsLeft * 12;
-          const bcsIdx = data.findIndex(d => d.month >= bcsEndMonth);
-          const bcsDrop = bcsIdx > 0 ? Math.max(0, data[bcsIdx - 1].expenses - data[bcsIdx].expenses) : 0;
-          const milestonesAtSameMonth = (milestones || []).filter(ms => ms.savings > 0 && ms.month === bcsEndMonth);
-          const milestoneSavings = milestonesAtSameMonth.reduce((s, ms) => s + ms.savings, 0);
-          const bcsSavings = Math.max(0, bcsDrop - milestoneSavings);
-          if (bcsSavings > 0) expenseEvents.push({ month: bcsEndMonth, label: 'BCS ends', savings: bcsSavings });
-        }
-        if (milestones) {
-          for (const ms of milestones) {
-            if (ms.savings > 0) expenseEvents.push({ month: ms.month, label: ms.name, savings: ms.savings });
-          }
-        }
-        const markers = expenseEvents.filter(ev => ev.savings > 0).map(ev => {
-          const idx = data.findIndex(d => d.month >= ev.month);
-          if (idx < 0) return null;
-          const pctX = ((idx + 0.5) / n) * 100;
-          return { ...ev, idx, pctX };
-        }).filter(Boolean);
-
-        // Stagger into rows to prevent horizontal overlap (pills ~120px wide → ~16% of chart)
-        const rows = [];
-        for (const m of markers) {
-          let placed = false;
-          for (const row of rows) {
-            const last = row[row.length - 1];
-            if (m.pctX - last.pctX > 16) { row.push(m); placed = true; break; }
-          }
-          if (!placed) rows.push([m]);
-        }
-
-        if (markers.length === 0) return null;
-        return (
-          <div style={{ paddingLeft: stackYPad, marginBottom: 6 }}>
-            {rows.map((row, ri) => (
-              <div key={ri} style={{ position: 'relative', height: 28, marginBottom: 2 }}>
-                {row.map((m, mi) => (
-                  <div key={mi} style={{
-                    position: 'absolute',
-                    left: `${m.pctX}%`,
-                    transform: 'translateX(-50%)',
-                    background: '#0f172a',
-                    border: '1px solid #334155',
-                    borderRadius: 4,
-                    padding: '2px 8px',
-                    whiteSpace: 'nowrap',
-                    display: 'flex',
-                    gap: 6,
-                    alignItems: 'center',
-                  }}>
-                    <span style={{ fontSize: 9, fontWeight: 600, color: '#f87171', lineHeight: 1.3 }}>{m.label}</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.3 }}>-{fmtFull(m.savings)}/mo</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-      <div data-testid="income-composition-hover-surface" style={{ position: "relative", height: stackH + 40, paddingLeft: stackYPad }}
+      <div data-testid="income-composition-hover-surface" style={{ position: "relative", height: stackH + 55, paddingLeft: stackYPad }}
         onMouseLeave={() => setIncomeTooltip(null)}>
         {/* Y-axis labels */}
         {(() => {
@@ -226,15 +158,92 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
             );
           })}
 
-          {/* Expense line only — annotations are above the chart now */}
+          {/* Expense line + dashed vertical annotation lines (matches SavingsDrawdownChart pattern) */}
           {(() => {
             const n = data.length;
+
+            // Build expense events
+            const expenseEvents = [];
+            if (chadJob && (chadJobHealthSavings || 0) > 0) {
+              expenseEvents.push({ month: chadJobStartMonth ?? 0, label: 'Health ins. saved', savings: chadJobHealthSavings });
+            }
+            if (vanSold) expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: data[0]?.expenses > 0 ? (vanMonthlySavings || 2597) : 0 });
+            if (bcsYearsLeft) {
+              const bcsEndMonth = bcsYearsLeft * 12;
+              const bcsIdx = data.findIndex(d => d.month >= bcsEndMonth);
+              const bcsDrop = bcsIdx > 0 ? Math.max(0, data[bcsIdx - 1].expenses - data[bcsIdx].expenses) : 0;
+              const milestonesAtSameMonth = (milestones || []).filter(ms => ms.savings > 0 && ms.month === bcsEndMonth);
+              const milestoneSavings = milestonesAtSameMonth.reduce((s, ms) => s + ms.savings, 0);
+              const bcsSavings = Math.max(0, bcsDrop - milestoneSavings);
+              if (bcsSavings > 0) expenseEvents.push({ month: bcsEndMonth, label: 'BCS ends', savings: bcsSavings });
+            }
+            if (milestones) {
+              for (const ms of milestones) {
+                if (ms.savings > 0) expenseEvents.push({ month: ms.month, label: ms.name, savings: ms.savings });
+              }
+            }
+
+            const markers = expenseEvents.filter(ev => ev.savings > 0).map(ev => {
+              const idx = data.findIndex(d => d.month >= ev.month);
+              if (idx < 0) return null;
+              const pctX = ((idx + 0.5) / n) * 100;
+              return { ...ev, idx, pctX };
+            }).filter(Boolean);
+
+            // Stagger labels: find row for each marker to prevent horizontal overlap
+            const usedSlots = [];
+            for (const m of markers) {
+              let row = 0;
+              for (const slot of usedSlots) {
+                if (Math.abs(m.pctX - slot.pctX) < 14) row = Math.max(row, slot.row + 1);
+              }
+              usedSlots.push({ pctX: m.pctX, row });
+              m.row = row;
+            }
+
             return (
-              <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
-                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
-                <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-                  fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-              </svg>
+              <>
+                {/* Expense path — black outline + red line for visibility against colored bars */}
+                <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
+                  <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
+                    fill="none" stroke="#0f172a" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" />
+                  <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
+                    fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                </svg>
+                {/* Dashed vertical lines (HTML divs, not SVG — so they don't get squished) */}
+                {markers.map((m, i) => (
+                  <div key={`line-${i}`} style={{
+                    position: 'absolute',
+                    left: `${m.pctX}%`,
+                    top: 0,
+                    width: 0,
+                    height: stackH,
+                    borderLeft: '1px dashed #4ade80',
+                    opacity: 0.4,
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                  }} />
+                ))}
+                {/* Labels below chart (HTML text — readable, not squished by SVG) */}
+                {markers.map((m, i) => (
+                  <div key={`label-${i}`} style={{
+                    position: 'absolute',
+                    left: `${m.pctX}%`,
+                    top: stackH + 4 + m.row * 14,
+                    transform: 'translateX(-50%)',
+                    fontSize: 9,
+                    fontWeight: 600,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    color: '#4ade80',
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                    zIndex: 4,
+                  }}>
+                    {m.label} -{fmtFull(m.savings)}
+                  </div>
+                ))}
+              </>
             );
           })()}
         </div>

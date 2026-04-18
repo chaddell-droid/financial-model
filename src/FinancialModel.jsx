@@ -90,7 +90,7 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
-    totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService,
+    totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService, expenseInflation, expenseInflationRate,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
     cutOliver, cutVacation, cutShopping, cutMedical, cutGym,
@@ -568,6 +568,7 @@ export default function FinancialModel() {
 
   const expenseControlsProps = useMemo(() => ({
     totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
+    expenseInflation, expenseInflationRate,
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
@@ -579,6 +580,7 @@ export default function FinancialModel() {
     onFieldChange: set,
   }), [
     totalMonthlySpend, effectiveBaseExpenses, debtService,
+    expenseInflation, expenseInflationRate,
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,

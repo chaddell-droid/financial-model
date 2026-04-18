@@ -8,6 +8,7 @@ import { COLORS } from '../charts/chartUtils.js';
 
 const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
+  expenseInflation, expenseInflationRate,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   vanMonthlySavings,
   milestones,
@@ -59,6 +60,36 @@ const ExpenseControls = ({
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Expense Inflation */}
+            <div style={{ marginBottom: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+              <h4 style={{ fontSize: 11, color: COLORS.cyan, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Expense Inflation</h4>
+              <Toggle
+                label="Apply annual inflation to base expenses"
+                description="Base living expenses grow each year. Debt, van, and BCS are fixed contracts."
+                checked={expenseInflation}
+                onChange={set('expenseInflation')}
+                color={COLORS.cyan}
+                testId="expense-inflation-toggle"
+              />
+              {expenseInflation && (
+                <>
+                  <Slider label="Annual inflation rate" value={expenseInflationRate} onChange={set('expenseInflationRate')} commitStrategy={commitStrategy} min={0} max={10} step={0.5} color={COLORS.cyan} format={(v) => v + '%'} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
+                    <span>Y1 base expenses:</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.cyan }}>
+                      {fmtFull(Math.round(baseExpenses * (1 + expenseInflationRate / 100)))}/mo
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2, color: COLORS.textDim }}>
+                    <span>Y6 base expenses:</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.cyan }}>
+                      {fmtFull(Math.round(baseExpenses * Math.pow(1 + expenseInflationRate / 100, 6)))}/mo
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* BCS Tuition */}

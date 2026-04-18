@@ -1837,6 +1837,64 @@ test('M25. bcsYearsLeft=0.5: BCS only for months 0-5, then stops', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Expense Inflation
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Expense Inflation ===');
+
+test('Inflation OFF: expenses flat at month 0 vs month 12', () => {
+  const s = gatherStateWithOverrides({ expenseInflation: false, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].expenses, monthlyData[12].expenses,
+    `Month 0 (${monthlyData[0].expenses}) should equal month 12 (${monthlyData[12].expenses}) with inflation OFF`);
+});
+
+test('Inflation ON at 3%: month-12 base expenses ≈ base × 1.03', () => {
+  const s = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 3, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const { monthlyData } = runMonthlySimulation(s);
+  const expected = Math.round(s.baseExpenses * 1.03);
+  near(monthlyData[12].expenses, expected, 1, 'Y1 inflated expenses');
+});
+
+test('Inflation: month 0 unchanged (factor = 1.0)', () => {
+  const sOff = gatherStateWithOverrides({ expenseInflation: false, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const sOn = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 3, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const offData = runMonthlySimulation(sOff).monthlyData;
+  const onData = runMonthlySimulation(sOn).monthlyData;
+  assert.strictEqual(offData[0].expenses, onData[0].expenses,
+    'Month 0 should be identical with or without inflation');
+});
+
+test('Inflation: rate 0% equals flat expenses', () => {
+  const sFlat = gatherStateWithOverrides({ expenseInflation: false, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const sZero = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 0, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const flatData = runMonthlySimulation(sFlat).monthlyData;
+  const zeroData = runMonthlySimulation(sZero).monthlyData;
+  assert.strictEqual(flatData[36].expenses, zeroData[36].expenses,
+    'Rate 0% should produce same expenses as inflation OFF');
+});
+
+test('Inflation: only baseExpenses inflates, not debtService', () => {
+  const s = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 5, retireDebt: false, debtService: 5000, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const { monthlyData } = runMonthlySimulation(s);
+  // At month 12, total = inflatedBase + debtService. inflatedBase = round(baseExpenses * 1.05)
+  const expectedInflatedBase = Math.round(s.baseExpenses * 1.05);
+  const expectedTotal = expectedInflatedBase + 5000;
+  near(monthlyData[12].expenses, expectedTotal, 1, 'Debt service should be flat, only base inflates');
+  // Verify delta is only from baseExpenses inflation
+  const baseDelta = expectedInflatedBase - s.baseExpenses;
+  near(monthlyData[12].expenses - monthlyData[0].expenses, baseDelta, 1, 'Expense increase = base inflation only');
+});
+
+test('Inflation ON produces lower final savings balance than OFF', () => {
+  const sOff = gatherStateWithOverrides({ expenseInflation: false });
+  const sOn = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 3 });
+  const offBal = runMonthlySimulation(sOff).monthlyData.slice(-1)[0].balance;
+  const onBal = runMonthlySimulation(sOn).monthlyData.slice(-1)[0].balance;
+  assert.ok(onBal < offBal,
+    `Inflation ON balance (${onBal}) should be lower than OFF (${offBal})`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

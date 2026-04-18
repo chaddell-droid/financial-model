@@ -454,6 +454,62 @@ test('C40: monthlyData has investReturn field at every row (used by SOR calculat
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// 11. Comparison Data Contracts (C41–C45)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Comparison Data Contracts ===');
+
+test('C41: Two projections from different states have the same top-level shape', () => {
+  const stateA = gatherStateWithOverrides({ expenseInflation: false });
+  const stateB = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 5 });
+  const projA = computeProjection(stateA);
+  const projB = computeProjection(stateB);
+  for (const key of ['data', 'savingsData', 'monthlyData']) {
+    assert.ok(Array.isArray(projA[key]), `projA.${key} should be an array`);
+    assert.ok(Array.isArray(projB[key]), `projB.${key} should be an array`);
+  }
+  assert.strictEqual(typeof projA.backPayActual, 'number');
+  assert.strictEqual(typeof projB.backPayActual, 'number');
+});
+
+test('C42: Comparison monthlyData has same fields as primary', () => {
+  const stateA = gatherStateWithOverrides({});
+  const stateB = gatherStateWithOverrides({ chadJob: true, chadJobStartMonth: 0 });
+  const projA = computeProjection(stateA);
+  const projB = computeProjection(stateB);
+  const fieldsA = Object.keys(projA.monthlyData[0]).sort();
+  const fieldsB = Object.keys(projB.monthlyData[0]).sort();
+  assert.deepStrictEqual(fieldsA, fieldsB, 'Both projections should have identical monthly data fields');
+});
+
+test('C43: Different inflation settings produce different final balances', () => {
+  const stateOff = gatherStateWithOverrides({ expenseInflation: false });
+  const stateOn = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 5 });
+  const projOff = computeProjection(stateOff);
+  const projOn = computeProjection(stateOn);
+  const balOff = projOff.savingsData[projOff.savingsData.length - 1].balance;
+  const balOn = projOn.savingsData[projOn.savingsData.length - 1].balance;
+  assert.ok(balOn < balOff, `Inflation ON balance (${balOn}) should be lower than OFF (${balOff})`);
+});
+
+test('C44: savingsData length matches when both use same totalProjectionMonths', () => {
+  const stateA = gatherStateWithOverrides({});
+  const stateB = gatherStateWithOverrides({ chadJob: true });
+  const projA = computeProjection(stateA);
+  const projB = computeProjection(stateB);
+  assert.strictEqual(projA.savingsData.length, projB.savingsData.length,
+    'Same horizon should produce same savingsData length');
+});
+
+test('C45: Comparison with chadJob=true has chadJobIncome > 0 while base does not', () => {
+  const stateBase = gatherStateWithOverrides({ chadJob: false });
+  const stateJob = gatherStateWithOverrides({ chadJob: true, chadJobStartMonth: 0 });
+  const projBase = computeProjection(stateBase);
+  const projJob = computeProjection(stateJob);
+  assert.strictEqual(projBase.monthlyData[0].chadJobIncome, 0, 'Base should have no job income');
+  assert.ok(projJob.monthlyData[0].chadJobIncome > 0, 'Job scenario should have job income');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'═'.repeat(60)}`);

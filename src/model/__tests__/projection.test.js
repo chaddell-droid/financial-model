@@ -1429,6 +1429,402 @@ test('ssWithheldSummary tracks months with job + SS', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// MODEL_KEY Sensitivity
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== MODEL_KEY Sensitivity ===');
+
+function projectionDiffers(baseMonthly, testMonthly) {
+  const len = Math.min(baseMonthly.length, testMonthly.length);
+  for (let i = 0; i < len; i++) {
+    if (baseMonthly[i].balance !== testMonthly[i].balance) return true;
+  }
+  return baseMonthly.length !== testMonthly.length;
+}
+
+const PERTURBATIONS = {
+  sarahRate: 250,
+  sarahMaxRate: 300,
+  sarahRateGrowth: 15,
+  sarahCurrentClients: 4.5,
+  sarahMaxClients: 5,
+  sarahClientGrowth: 20,
+  sarahTaxRate: 30,
+  chadWorkMonths: 96,
+  sarahWorkMonths: 96,
+  msftPrice: 500,
+  msftGrowth: 10,
+  ssType: 'ss',
+  ssdiApprovalMonth: 12,
+  ssdiDenied: true,
+  ssdiPersonal: 3500,
+  ssdiFamilyTotal: 5000,
+  kidsAgeOutMonths: 24,
+  chadConsulting: 1690,
+  ssClaimAge: 62,
+  ssPIA: 3000,
+  chadJob: true,
+  chadJobSalary: 120000,
+  chadJobTaxRate: 30,
+  chadJobStartMonth: 6,
+  chadJobHealthSavings: 6000,
+  chadJobNoFICA: true,
+  chadJobPensionRate: 2,
+  chadJobPensionContrib: 6,
+  totalMonthlySpend: 60000,
+  oneTimeExtras: 5000,
+  oneTimeMonths: 12,
+  baseExpenses: 50000,
+  debtService: 8000,
+  bcsAnnualTotal: 50000,
+  bcsParentsAnnual: 30000,
+  bcsYearsLeft: 2,
+  lifestyleCutsApplied: true,
+  cutsOverride: 5000,
+  trustIncomeNow: 1500,
+  trustIncomeFuture: 3000,
+  trustIncreaseMonth: 6,
+  vanSold: true,
+  vanMonthlySavings: 3500,
+  vanSalePrice: 100000,
+  vanLoanBalance: 250000,
+  vanSaleMonth: 6,
+  retireDebt: true,
+  startingSavings: 500000,
+  investmentReturn: 8,
+  ssdiBackPayMonths: 12,
+  starting401k: 300000,
+  return401k: 8,
+  homeEquity: 500000,
+  homeAppreciation: 2,
+};
+
+const NON_AFFECTING_KEYS = new Set([
+  // Derived in gatherState from ssClaimAge — tested via ssClaimAge directly
+  'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
+  // Display only / SOR only / tested separately
+  'goals', 'seqBadY1', 'seqBadY2', 'milestones',
+  // Only active under ssType='ss' (default is 'ssdi')
+  'ssClaimAge', 'ssPIA',
+  // Only active when chadJob=true (default is false)
+  'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
+  'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
+  // Only active when vanSold=true (default is false)
+  'vanSalePrice', 'vanLoanBalance', 'vanSaleMonth',
+  // Only active when lifestyleCutsApplied=true (default is false)
+  'cutsOverride',
+  // Requires counterpart: oneTimeExtras needs oneTimeMonths>0 and vice versa (both default 0)
+  'oneTimeExtras', 'oneTimeMonths',
+  // lifestyleCutsApplied alone (true) needs a non-zero cuts value to show effect;
+  // tested in Boolean Toggle Matrix with cutsOverride set
+  'lifestyleCutsApplied',
+]);
+
+test('M1. Every MODEL_KEY (except documented exceptions) changes projection output when perturbed', () => {
+  const baseline = computeProjection(gatherStateWithOverrides({}));
+  const noEffect = [];
+  for (const [key, value] of Object.entries(PERTURBATIONS)) {
+    const perturbed = computeProjection(gatherStateWithOverrides({ [key]: value }));
+    if (!projectionDiffers(baseline.monthlyData, perturbed.monthlyData)) {
+      noEffect.push(key);
+    }
+  }
+  const unexpected = noEffect.filter(k => !NON_AFFECTING_KEYS.has(k));
+  assert.strictEqual(unexpected.length, 0,
+    `These MODEL_KEYs had no effect on projection output: ${unexpected.join(', ')}`);
+});
+
+test('M2. milestones field changes output', () => {
+  const baseline = computeProjection(gatherStateWithOverrides({}));
+  const s = gatherStateWithOverrides({ milestones: [{ name: 'X', month: 12, savings: 5000 }] });
+  const perturbed = computeProjection(s);
+  assert.ok(projectionDiffers(baseline.monthlyData, perturbed.monthlyData),
+    'milestones should change projection output');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Boolean Toggle Matrix
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Boolean Toggle Matrix ===');
+
+test('M3. All defaults (booleans off): no NaN in any field, expenses > 0', () => {
+  const s = gatherStateWithOverrides({});
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    for (const [key, val] of Object.entries(entry)) {
+      if (typeof val === 'number') {
+        assert.ok(!Number.isNaN(val), `month ${entry.month} field ${key} is NaN`);
+      }
+    }
+    assert.ok(entry.expenses > 0, `month ${entry.month} expenses should be > 0, got ${entry.expenses}`);
+  }
+});
+
+test('M4. retireDebt=true: expenses at month 0 lower by debtService (6434)', () => {
+  const sBase = gatherStateWithOverrides({});
+  const sDebt = gatherStateWithOverrides({ retireDebt: true });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: debtData } = runMonthlySimulation(sDebt);
+  near(baseData[0].expenses - debtData[0].expenses, sBase.debtService, 1, 'retireDebt reduces expenses by debtService');
+});
+
+test('M5. vanSold=true, vanSaleMonth=6: expenses at month 6 lower, balance hit by shortfall', () => {
+  const sBase = gatherStateWithOverrides({});
+  const sVan = gatherStateWithOverrides({ vanSold: true, vanSaleMonth: 6 });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: vanData } = runMonthlySimulation(sVan);
+  assert.ok(vanData[6].expenses < baseData[6].expenses,
+    `expenses at month 6 should be lower with vanSold=true: ${vanData[6].expenses} vs ${baseData[6].expenses}`);
+  // Balance should be impacted by van shortfall
+  const shortfall = sVan.vanLoanBalance - sVan.vanSalePrice;
+  if (shortfall > 0) {
+    assert.ok(vanData[6].balance < baseData[6].balance,
+      'balance should be impacted by van sale shortfall');
+  }
+});
+
+test('M6. lifestyleCutsApplied=true, cutsOverride=5000: expenses reduced by 5000 at month 0', () => {
+  const sBase = gatherStateWithOverrides({});
+  const sCuts = gatherStateWithOverrides({ lifestyleCutsApplied: true, cutsOverride: 5000 });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: cutsData } = runMonthlySimulation(sCuts);
+  near(baseData[0].expenses - cutsData[0].expenses, 5000, 1, 'cuts reduce expenses by 5000');
+});
+
+test('M7. chadJob=true, chadJobStartMonth=0: chadJobIncome > 0 at month 0, ssBenefit = 0', () => {
+  const s = gatherStateWithOverrides({ chadJob: true, chadJobStartMonth: 0 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.ok(monthlyData[0].chadJobIncome > 0,
+    `chadJobIncome at month 0 should be > 0, got ${monthlyData[0].chadJobIncome}`);
+  assert.strictEqual(monthlyData[0].ssBenefit, 0,
+    `ssBenefit should be 0 when chadJob=true, got ${monthlyData[0].ssBenefit}`);
+});
+
+test('M8. ssdiDenied=true: ssBenefit = 0 for all months, backPayActual = 0', () => {
+  const s = gatherStateWithOverrides({ ssdiDenied: true });
+  const { monthlyData, backPayActual } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    assert.strictEqual(entry.ssBenefit, 0,
+      `month ${entry.month}: ssBenefit should be 0 when denied, got ${entry.ssBenefit}`);
+  }
+  assert.strictEqual(backPayActual, 0, `backPayActual should be 0 when denied, got ${backPayActual}`);
+});
+
+test('M9. ssType=ss, ssClaimAge=62: ssBenefit > 0 after ssStartMonth, ssBenefitType = retirement', () => {
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 62 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.ok(monthlyData[s.ssStartMonth].ssBenefit > 0,
+    `ssBenefit at ssStartMonth (${s.ssStartMonth}) should be > 0`);
+  assert.strictEqual(monthlyData[s.ssStartMonth].ssBenefitType, 'retirement',
+    'ssBenefitType should be retirement under SS path');
+});
+
+test('M10. retireDebt + vanSold + lifestyleCuts: cumulative expense reduction', () => {
+  const sBase = gatherStateWithOverrides({});
+  const sCombined = gatherStateWithOverrides({
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: true, cutsOverride: 5000,
+    vanLoanBalance: 0, vanSalePrice: 0,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: combinedData } = runMonthlySimulation(sCombined);
+  const reduction = baseData[0].expenses - combinedData[0].expenses;
+  assert.ok(reduction > 5000,
+    `cumulative reduction should exceed cuts alone (5000), got ${reduction}`);
+});
+
+test('M11. chadJob + SS: both chadJobIncome > 0 AND ssBenefit > 0 coexist after ssStartMonth', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0,
+    ssType: 'ss', ssClaimAge: 62,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const ssMonth = s.ssStartMonth;
+  assert.ok(monthlyData[ssMonth].chadJobIncome > 0,
+    `chadJobIncome at month ${ssMonth} should be > 0, got ${monthlyData[ssMonth].chadJobIncome}`);
+  assert.ok(monthlyData[ssMonth].ssBenefit > 0,
+    `ssBenefit at month ${ssMonth} should be > 0 (SS coexists with job), got ${monthlyData[ssMonth].ssBenefit}`);
+});
+
+test('M12. chadJob + ssdiDenied: both disable SSDI, ssBenefit = 0', () => {
+  const s = gatherStateWithOverrides({ chadJob: true, ssdiDenied: true });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    assert.strictEqual(entry.ssBenefit, 0,
+      `month ${entry.month}: ssBenefit should be 0, got ${entry.ssBenefit}`);
+  }
+});
+
+test('M13. Additivity: retireDebt + vanSold + cuts combined ~ sum of individual reductions', () => {
+  const sBase = gatherStateWithOverrides({
+    retireDebt: false, vanSold: false, lifestyleCutsApplied: false,
+    cutsOverride: 5000, bcsYearsLeft: 0, milestones: [], chadJob: false,
+  });
+  const sDebt = gatherStateWithOverrides({
+    retireDebt: true, vanSold: false, lifestyleCutsApplied: false,
+    cutsOverride: 5000, bcsYearsLeft: 0, milestones: [], chadJob: false,
+  });
+  const sVan = gatherStateWithOverrides({
+    retireDebt: false, vanSold: true, vanSaleMonth: 0, lifestyleCutsApplied: false,
+    cutsOverride: 5000, bcsYearsLeft: 0, milestones: [], chadJob: false,
+    vanLoanBalance: 0, vanSalePrice: 0,
+  });
+  const sCuts = gatherStateWithOverrides({
+    retireDebt: false, vanSold: false, lifestyleCutsApplied: true,
+    cutsOverride: 5000, bcsYearsLeft: 0, milestones: [], chadJob: false,
+  });
+  const sCombined = gatherStateWithOverrides({
+    retireDebt: true, vanSold: true, vanSaleMonth: 0, lifestyleCutsApplied: true,
+    cutsOverride: 5000, bcsYearsLeft: 0, milestones: [], chadJob: false,
+    vanLoanBalance: 0, vanSalePrice: 0,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: debtData } = runMonthlySimulation(sDebt);
+  const { monthlyData: vanData } = runMonthlySimulation(sVan);
+  const { monthlyData: cutsData } = runMonthlySimulation(sCuts);
+  const { monthlyData: combinedData } = runMonthlySimulation(sCombined);
+  const debtReduction = baseData[0].expenses - debtData[0].expenses;
+  const vanReduction = baseData[0].expenses - vanData[0].expenses;
+  const cutsReduction = baseData[0].expenses - cutsData[0].expenses;
+  const combinedReduction = baseData[0].expenses - combinedData[0].expenses;
+  const sumOfIndividual = debtReduction + vanReduction + cutsReduction;
+  near(combinedReduction, sumOfIndividual, 100, 'combined reduction ~ sum of individual reductions');
+});
+
+test('M14. Max reduction: expenses[0] significantly less than baseline and >= 0', () => {
+  const sBase = gatherStateWithOverrides({});
+  const sMax = gatherStateWithOverrides({
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: true, cutsOverride: 10000,
+    chadJob: true, chadJobStartMonth: 0,
+    vanLoanBalance: 0, vanSalePrice: 0,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: maxData } = runMonthlySimulation(sMax);
+  assert.ok(maxData[0].expenses < baseData[0].expenses,
+    `max reduction expenses (${maxData[0].expenses}) should be less than baseline (${baseData[0].expenses})`);
+  assert.ok(maxData[0].expenses >= 0,
+    `expenses should be >= 0 even with max reduction, got ${maxData[0].expenses}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Extreme Values
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Extreme Values ===');
+
+test('M15. Zero savings/401k/homeEquity: simulation completes, all fields finite', () => {
+  const s = gatherStateWithOverrides({ startingSavings: 0, starting401k: 0, homeEquity: 0 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    for (const [key, val] of Object.entries(entry)) {
+      if (typeof val === 'number') {
+        assert.ok(Number.isFinite(val), `month ${entry.month} field ${key} is not finite: ${val}`);
+      }
+    }
+  }
+});
+
+test('M16. investmentReturn=50: completes without overflow, all fields finite', () => {
+  const s = gatherStateWithOverrides({ investmentReturn: 50 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    for (const [key, val] of Object.entries(entry)) {
+      if (typeof val === 'number') {
+        assert.ok(Number.isFinite(val), `month ${entry.month} field ${key} is not finite: ${val}`);
+      }
+    }
+  }
+});
+
+test('M17. investmentReturn=-20: completes, investReturn values are negative', () => {
+  const s = gatherStateWithOverrides({ investmentReturn: -20, startingSavings: 500000 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.ok(monthlyData[0].investReturn < 0,
+    `investReturn at month 0 should be negative with -20% return, got ${monthlyData[0].investReturn}`);
+});
+
+test('M18. sarahWorkMonths=36, chadWorkMonths=36: monthlyData.length === 37', () => {
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 36, chadWorkMonths: 36 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 37,
+    `expected 37 entries, got ${monthlyData.length}`);
+});
+
+test('M19. sarahWorkMonths=144, chadWorkMonths=144: monthlyData.length === 145', () => {
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 144, chadWorkMonths: 144 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 145,
+    `expected 145 entries, got ${monthlyData.length}`);
+});
+
+test('M20. Massive cutsOverride=100000: all expenses >= 0 (floor enforced)', () => {
+  const s = gatherStateWithOverrides({ lifestyleCutsApplied: true, cutsOverride: 100000 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    assert.ok(entry.expenses >= 0,
+      `month ${entry.month} expenses should be >= 0, got ${entry.expenses}`);
+  }
+});
+
+test('M21. Full long horizon with employment (144 months)', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobStartMonth: 0, chadWorkMonths: 144, sarahWorkMonths: 144,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 145,
+    `expected 145 entries, got ${monthlyData.length}`);
+  for (const entry of monthlyData) {
+    for (const [key, val] of Object.entries(entry)) {
+      if (typeof val === 'number') {
+        assert.ok(Number.isFinite(val), `month ${entry.month} field ${key} is not finite: ${val}`);
+      }
+    }
+  }
+});
+
+test('M22. ssdiApprovalMonth=999: no ssBenefit in any month', () => {
+  const s = gatherStateWithOverrides({ ssdiApprovalMonth: 999 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const entry of monthlyData) {
+    assert.strictEqual(entry.ssBenefit, 0,
+      `month ${entry.month}: ssBenefit should be 0 when approval is at month 999, got ${entry.ssBenefit}`);
+  }
+});
+
+test('M23. Milestone at month 0: expenses reduced from month 0', () => {
+  const sBase = gatherStateWithOverrides({ milestones: [] });
+  const sMile = gatherStateWithOverrides({
+    milestones: [{ name: 'Immediate', month: 0, savings: 5000 }],
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(sBase);
+  const { monthlyData: mileData } = runMonthlySimulation(sMile);
+  assert.ok(mileData[0].expenses < baseData[0].expenses,
+    `expenses at month 0 should be reduced by milestone, got ${mileData[0].expenses} vs baseline ${baseData[0].expenses}`);
+  near(baseData[0].expenses - mileData[0].expenses, 5000, 1, 'milestone reduces expenses by 5000');
+});
+
+test('M24. trustIncreaseMonth=0: trustLLC = trustIncomeFuture from month 0', () => {
+  const s = gatherStateWithOverrides({ trustIncreaseMonth: 0 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].trustLLC, s.trustIncomeFuture,
+    `trustLLC at month 0 should be ${s.trustIncomeFuture} when trustIncreaseMonth=0, got ${monthlyData[0].trustLLC}`);
+});
+
+test('M25. bcsYearsLeft=0.5: BCS only for months 0-5, then stops', () => {
+  const s = gatherStateWithOverrides({
+    bcsYearsLeft: 0.5,
+    retireDebt: true, vanSold: true, vanSaleMonth: 0,
+    lifestyleCutsApplied: false, milestones: [], chadJob: false,
+    vanLoanBalance: 0, vanSalePrice: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // BCS should apply for 6 months (0.5 * 12 = 6), months 0-5
+  assert.ok(monthlyData[5].expenses > s.baseExpenses,
+    `month 5 should include BCS: ${monthlyData[5].expenses} should exceed baseExpenses ${s.baseExpenses}`);
+  assert.strictEqual(monthlyData[6].expenses, s.baseExpenses,
+    `month 6 should have no BCS: expenses ${monthlyData[6].expenses} should equal baseExpenses ${s.baseExpenses}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

@@ -2026,6 +2026,139 @@ test('TabBar includes Track and Actuals tabs', () => {
   assert.ok(source.includes('repeat(7'), 'TabBar grid should have 7 columns');
 });
 
+// === Integration Regression Snapshots ===
+
+console.log('\n=== Integration Regression Snapshots ===');
+
+// R1 — Job balance at month 71 (last month before default retirement)
+test('R1: job scenario balance at month 71', () => {
+  const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[71].balance, 0);
+});
+
+// R2 — Month-0 job income
+test('R2: month-0 chadJobIncome with job', () => {
+  const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobIncome, 5000);
+});
+
+// R3 — SS at 62 first eligible month (month 19 = 7 months after start + offset)
+test('R3: SS at 62 benefit at month 19', () => {
+  const s = gatherState({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[19].ssBenefit, 7164);
+});
+
+// R4 — SS at FRA (67) first month, extended horizon
+test('R4: SS at FRA benefit at month 79', () => {
+  const s = gatherState({ ssType: 'ss', ssClaimAge: 67, ssPIA: 4214, sarahWorkMonths: 96 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[79].ssBenefit, 4214);
+});
+
+// R5 — Denied SSDI: no income support, balance deeply negative
+test('R5: denied SSDI balance at month 71', () => {
+  const s = gatherState({ ssdiDenied: true });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[71].balance, -660966);
+});
+
+// R6 — Van sold at month 6
+test('R6: van sold at month 6, balance at month 71', () => {
+  const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[71].balance, -51212);
+});
+
+// R7 — Lifestyle cuts active with override
+test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
+  const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[71].balance, 0);
+});
+
+// R8 — Debt retired
+test('R8: debt retired, balance at month 71', () => {
+  const s = gatherState({ retireDebt: true });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[71].balance, 0);
+});
+
+// R9 — All toggles on: debt retired + van sold + cuts + job
+test('R9: all toggles on, balance at month 71', () => {
+  const s = gatherState({
+    retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0,
+    lifestyleCutsApplied: true, cutsOverride: 5000, chadJob: true, chadJobStartMonth: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[71].balance, 0);
+});
+
+// R10 — SSDI back pay amount
+test('R10: SSDI back pay with 18 months at PIA $4214', () => {
+  const s = gatherState({ ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7, ssdiBackPayMonths: 18, ssdiPersonal: 4214 });
+  const { backPayActual } = runMonthlySimulation(s);
+  assert.strictEqual(backPayActual, 68352);
+});
+
+// R11 — One-time extras in expenses (month 0)
+test('R11: one-time extras $5000 for 12 months — month 0 expenses', () => {
+  const s = gatherState({ oneTimeExtras: 5000, oneTimeMonths: 12 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].expenses, 59382);
+});
+
+// R12 — One-time extras gone after duration
+test('R12: one-time extras end at month 12 — month 12 expenses', () => {
+  const s = gatherState({ oneTimeExtras: 5000, oneTimeMonths: 12 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[12].expenses, 54382);
+});
+
+// R13 — Extended horizon length
+test('R13: sarahWorkMonths 96 extends projection length', () => {
+  const s = gatherState({ sarahWorkMonths: 96 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData.length, 97);
+});
+
+// R14 — No job income after chad retires (chadJob defaults false)
+test('R14: no chadJobIncome at month 49 (chadJob defaults false)', () => {
+  const s = gatherState({ chadWorkMonths: 48, sarahWorkMonths: 96 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[49].chadJobIncome, 0);
+});
+
+// R15 — FICA savings in take-home pay
+test('R15: chadJobIncome with no-FICA flag at month 0', () => {
+  const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobNoFICA: true, chadJobSalary: 80000, chadJobTaxRate: 25 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobIncome, 5413);
+});
+
+// R16 — Pension deduction reduces take-home
+test('R16: chadJobIncome with 6% pension contribution at month 0', () => {
+  const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobPensionContrib: 6, chadJobSalary: 80000, chadJobTaxRate: 25 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobIncome, 4600);
+});
+
+// R17 — totalMonthlySpend back-calculates baseExpenses
+test('R17: totalMonthlySpend $60000 yields correct month-0 expenses', () => {
+  const s = gatherState({ totalMonthlySpend: 60000 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].expenses, 60000);
+});
+
+// R18 — Employer health savings reduce expenses
+test('R18: chadJobHealthSavings $4200 reduces month-0 expenses', () => {
+  const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25, chadJobHealthSavings: 4200 });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].expenses, 50182);
+});
+
 // --- Summary ---
 console.log('\n' + '='.repeat(50));
 console.log(`  ${passed} passed, ${failed} failed, ${passed + failed} total`);

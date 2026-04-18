@@ -10,6 +10,7 @@ export default function IncomeTab({
   sarahTaxRate, sarahWorkYears, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
   onFieldChange,
   data, investmentReturn, ssType, ssBenefitPersonal,
+  chadJob, chadJobStartMonth, chadJobHealthSavings,
   vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
 }) {
   return (
@@ -28,6 +29,7 @@ export default function IncomeTab({
       />
       <IncomeCompositionChart data={data} investmentReturn={investmentReturn} ssType={ssType}
         ssBenefitPersonal={ssBenefitPersonal}
+        chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
         vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
         bcsYearsLeft={bcsYearsLeft} milestones={milestones} />
     </>

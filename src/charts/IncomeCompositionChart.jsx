@@ -3,7 +3,7 @@ import { fmt, fmtFull } from '../model/formatters.js';
 import { buildIncomeSources } from '../charts/chartUtils.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 
-export default function IncomeCompositionChart({ data, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones }) {
+export default function IncomeCompositionChart({ data, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   const stackH = 300;
@@ -95,7 +95,17 @@ export default function IncomeCompositionChart({ data, investmentReturn, ssType,
                       tooltipSources.push({ label: s.label, color: s.color, value: val });
                     }
                   }
-                  setIncomeTooltip({ pctX, label: d.label, sources: tooltipSources, total, expenses: d.expenses, net: d.netMonthly });
+                  // Build expense breakdown for tooltip
+                  const prevQ = i > 0 ? data[i - 1] : null;
+                  const expDelta = prevQ ? d.expenses - prevQ.expenses : 0;
+                  const expenseReductions = [];
+                  if (chadJob && (chadJobHealthSavings || 0) > 0 && d.month >= (chadJobStartMonth ?? 0)) {
+                    expenseReductions.push({ label: 'Health ins. savings', amount: -(chadJobHealthSavings || 0) });
+                  }
+                  if (vanSold && d.month >= (vanSaleMonth ?? 6)) {
+                    expenseReductions.push({ label: 'Van sold', amount: -(vanMonthlySavings || 0) });
+                  }
+                  setIncomeTooltip({ pctX, label: d.label, sources: tooltipSources, total, expenses: d.expenses, expenseReductions, net: d.netMonthly });
                 }}>
                 {/* Stacked segments */}
                 <div style={{ width: "75%", display: "flex", flexDirection: "column-reverse" }}>
@@ -131,6 +141,9 @@ export default function IncomeCompositionChart({ data, investmentReturn, ssType,
 
             // Build expense events with their KNOWN savings amounts (not derived from data drops)
             const expenseEvents = [];
+            if (chadJob && (chadJobHealthSavings || 0) > 0) {
+              expenseEvents.push({ month: chadJobStartMonth ?? 0, label: 'Health ins. saved', savings: chadJobHealthSavings });
+            }
             if (vanSold) expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: data[0]?.expenses > 0 ? (vanMonthlySavings || 2597) : 0 });
             if (bcsYearsLeft) {
               // BCS family monthly contribution — approximate from expense difference or use known value
@@ -235,6 +248,14 @@ export default function IncomeCompositionChart({ data, investmentReturn, ssType,
                 <span style={{ color: "#94a3b8" }}>Expenses</span>
                 <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.expenses)}</span>
               </div>
+              {incomeTooltip.expenseReductions && incomeTooltip.expenseReductions.length > 0 && (
+                incomeTooltip.expenseReductions.map((r, ri) => (
+                  <div key={ri} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginTop: 1, marginLeft: 13 }}>
+                    <span style={{ color: "#64748b" }}>{r.label}</span>
+                    <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(r.amount)}/mo</span>
+                  </div>
+                ))
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
                 <span style={{ color: incomeTooltip.net >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>
                   {incomeTooltip.net >= 0 ? "Surplus" : "Deficit"}

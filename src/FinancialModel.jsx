@@ -902,6 +902,7 @@ export default function FinancialModel() {
           onFieldChange={set}
           data={data} investmentReturn={investmentReturn} ssType={ssType}
           ssBenefitPersonal={ssType === 'ss' ? ssPersonal : ssdiPersonal}
+          chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
           vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
           bcsYearsLeft={bcsYearsLeft} milestones={milestones}
         />

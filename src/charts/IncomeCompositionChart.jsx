@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
-import { INCOME_SOURCES } from '../charts/chartUtils.js';
+import { buildIncomeSources } from '../charts/chartUtils.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 
-export default function IncomeCompositionChart({ data, investmentReturn, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones }) {
+export default function IncomeCompositionChart({ data, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   const stackH = 300;
@@ -15,8 +15,8 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
   const steadyIdx = data.findIndex((row) => row.netMonthly >= 0);
   const steadyQuarter = steadyIdx >= 0 ? data[steadyIdx] : data[data.length - 1];
 
-  // Build display sources with dynamic invest returns label
-  const sources = INCOME_SOURCES.map(s =>
+  // Build display sources with ssType-aware SS label and dynamic invest returns label
+  const sources = buildIncomeSources(ssType).map(s =>
     s.key === 'investReturn'
       ? { ...s, label: `${s.label} (${investmentReturn}%/yr)` }
       : s
@@ -81,14 +81,22 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
 
             return (
               <div key={i} style={{ flex: 1, height: "100%", position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", cursor: "default" }}
-                onMouseEnter={() => setIncomeTooltip({
-                  pctX,
-                  label: d.label,
-                  sources: sources.map((s, si) => ({ label: s.label, color: s.color, value: vals[si] })).filter(s => s.value > 0),
-                  total,
-                  expenses: d.expenses,
-                  net: d.netMonthly
-                })}>
+                onMouseEnter={() => {
+                  // Build tooltip sources, expanding SS benefit into personal + kids when family benefits are active
+                  const tooltipSources = [];
+                  for (let si = 0; si < sources.length; si++) {
+                    const s = sources[si];
+                    const val = vals[si];
+                    if (val <= 0) continue;
+                    if (s.key === 'ssBenefit' && ssBenefitPersonal > 0 && val > ssBenefitPersonal) {
+                      tooltipSources.push({ label: `${s.label} (personal)`, color: s.color, value: ssBenefitPersonal });
+                      tooltipSources.push({ label: `${s.label} (kids)`, color: s.color, value: val - ssBenefitPersonal, indent: true });
+                    } else {
+                      tooltipSources.push({ label: s.label, color: s.color, value: val });
+                    }
+                  }
+                  setIncomeTooltip({ pctX, label: d.label, sources: tooltipSources, total, expenses: d.expenses, net: d.netMonthly });
+                }}>
                 {/* Stacked segments */}
                 <div style={{ width: "75%", display: "flex", flexDirection: "column-reverse" }}>
                   {sources.map((s, si) => {
@@ -209,12 +217,13 @@ export default function IncomeCompositionChart({ data, investmentReturn, vanSold
               {incomeTooltip.label}
             </div>
             {incomeTooltip.sources.map((s, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, fontSize: 11, marginTop: 3 }}>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, fontSize: s.indent ? 10 : 11, marginTop: 3, marginLeft: s.indent ? 13 : 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                  {!s.indent && <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />}
+                  {s.indent && <div style={{ width: 6, height: 6, borderRadius: 1, background: s.color, flexShrink: 0 }} />}
                   <span style={{ color: "#94a3b8" }}>{s.label}</span>
                 </div>
-                <span style={{ color: s.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(s.value)}</span>
+                <span style={{ color: s.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: s.indent ? 400 : 600 }}>{fmtFull(s.value)}</span>
               </div>
             ))}
             <div style={{ borderTop: "1px solid #334155", marginTop: 6, paddingTop: 4 }}>

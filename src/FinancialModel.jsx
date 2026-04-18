@@ -900,7 +900,8 @@ export default function FinancialModel() {
           sarahCurrentGross={sarahCurrentGross} sarahCurrentNet={sarahCurrentNet}
           sarahCeilingGross={sarahCeilingGross} sarahCeiling={sarahCeiling}
           onFieldChange={set}
-          data={data} investmentReturn={investmentReturn}
+          data={data} investmentReturn={investmentReturn} ssType={ssType}
+          ssBenefitPersonal={ssType === 'ss' ? ssPersonal : ssdiPersonal}
           vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
           bcsYearsLeft={bcsYearsLeft} milestones={milestones}
         />

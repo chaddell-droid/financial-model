@@ -87,8 +87,7 @@ function SectionHeading({ eyebrow, title, subtitle }) {
   );
 }
 
-function SummaryMetric({ label, value, accent = UI_COLORS.textStrong, testId, children }) {
-  const [expanded, setExpanded] = useState(false);
+function SummaryMetric({ label, value, accent = UI_COLORS.textStrong, testId, children, expanded, onToggle }) {
   const hasDetail = !!children;
   return (
     <SurfaceCard
@@ -103,7 +102,7 @@ function SummaryMetric({ label, value, accent = UI_COLORS.textStrong, testId, ch
         transition: 'border-color 0.15s ease',
         borderColor: expanded ? `${accent}44` : undefined,
       }}
-      onClick={hasDetail ? () => setExpanded(!expanded) : undefined}
+      onClick={hasDetail ? onToggle : undefined}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
@@ -265,6 +264,7 @@ const ScenarioStrip = ({
 }) => {
   useRenderMetric('ScenarioStrip');
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [cardsExpanded, setCardsExpanded] = useState(false);
   const set = onFieldChange;
   const commitStrategy = 'release';
 
@@ -340,6 +340,8 @@ const ScenarioStrip = ({
             value={`${fmtFull(model.summary.monthlyOutflow)}/mo`}
             accent={UI_COLORS.destructive}
             testId='primary-levers-monthly-outflow'
+            expanded={cardsExpanded}
+            onToggle={() => setCardsExpanded(!cardsExpanded)}
           >
             {model.breakdown.map((item) => {
               if (item.kind === 'total') return null;
@@ -369,6 +371,8 @@ const ScenarioStrip = ({
             value={`${fmtFull(model.summary.monthlySavings)}/mo`}
             accent={UI_COLORS.positive}
             testId='primary-levers-monthly-savings'
+            expanded={cardsExpanded}
+            onToggle={() => setCardsExpanded(!cardsExpanded)}
           >
             {model.recurringLevers.map((lever) => (
               <div key={lever.id} style={{
@@ -406,6 +410,8 @@ const ScenarioStrip = ({
             value={fmtFull(model.summary.oneTimeAsk)}
             accent={UI_COLORS.caution}
             testId='primary-levers-one-time-ask'
+            expanded={cardsExpanded}
+            onToggle={() => setCardsExpanded(!cardsExpanded)}
           >
             {(() => {
               const activeItems = model.consequenceItems.filter(i => i.active && i.amount > 0);

@@ -6,6 +6,7 @@ import useContainerWidth from '../hooks/useContainerWidth.js';
 const LAYERS = [
   { key: 'ssIncome', label: 'Social Security', color: '#34d399' },
   { key: 'trustIncome', label: 'Trust LLC', color: '#a78bfa' },
+  { key: 'pensionIncome', label: 'PERS Pension', color: '#fbbf24' },
   { key: 'poolDraw', label: 'Pool Draw', color: '#60a5fa' },
 ];
 
@@ -19,7 +20,8 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
 
   const enriched = yearlyData.map(d => ({
     ...d,
-    trustIncome: Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0)),
+    trustIncome: Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0) - (d.pensionIncome || 0)),
+    pensionIncome: d.pensionIncome || 0,
   }));
 
   const n = enriched.length;
@@ -29,15 +31,15 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   const plotH = svgH - padT - padB;
 
   // Dynamic scale
-  const maxIncome = Math.max(...enriched.map(d => (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome));
+  const maxIncome = Math.max(...enriched.map(d => (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome + (d.pensionIncome || 0)));
   const maxTarget = Math.max(...enriched.map(d => d.totalTarget || 0));
   const yMax = Math.max(maxIncome, maxTarget) * 1.1 || 1;
 
   const xOf = (i) => padL + (i / (n - 1)) * plotW;
   const yOf = (v) => padT + plotH - (v / yMax) * plotH;
 
-  // Build stacked area paths (bottom-up: SS, Trust, Pool Draw)
-  const layerKeys = ['ssIncome', 'trustIncome', 'poolDraw'];
+  // Build stacked area paths (bottom-up: SS, Trust, Pension, Pool Draw)
+  const layerKeys = ['ssIncome', 'trustIncome', 'pensionIncome', 'poolDraw'];
   const cumulative = enriched.map(() => 0);
   const areaPaths = layerKeys.map((key, li) => {
     const prevCum = [...cumulative];
@@ -71,8 +73,8 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
     const idx = Math.round(((mouseX - padL) / plotW) * (n - 1));
     if (idx < 0 || idx >= n) { setTooltip(null); return; }
     const d = enriched[idx];
-    const total = (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome;
-    setTooltip({ idx, x: xOf(idx), data: d, trustIncome: d.trustIncome, total });
+    const total = (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome + (d.pensionIncome || 0);
+    setTooltip({ idx, x: xOf(idx), data: d, trustIncome: d.trustIncome, pensionIncome: d.pensionIncome || 0, total });
   };
 
   const legendItems = buildLegendItems([
@@ -202,6 +204,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
                 { label: 'Pool Draw', color: '#60a5fa', value: d.poolDraw || 0 },
                 { label: 'Social Security', color: '#34d399', value: d.ssIncome || 0, detail: d.ssLabel },
                 { label: 'Trust', color: '#a78bfa', value: tooltip.trustIncome },
+                { label: 'PERS Pension', color: '#fbbf24', value: tooltip.pensionIncome || 0 },
               ].filter(s => s.value > 0).map((s, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

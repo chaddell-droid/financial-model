@@ -151,6 +151,8 @@ function RetirementIncomeChart({
   ssType, ssPersonal, ssPIA, ssClaimAge,
   chadJob,
   trustIncomeFuture,
+  ssMonthsWithheld,
+  chadJobPensionMonthly,
   onSpendingTargets,
 }) {
   useRenderMetric('RetirementIncomeChart');
@@ -171,7 +173,7 @@ function RetirementIncomeChart({
     showPwaIntro, pwaIntroReady, dismissPwaIntro,
     ageDiff, sarahTargetAge, years,
     endSavings, end401k, homeSaleNet, totalPool,
-    trustMonthly, startingCoupleIncome,
+    trustMonthly, pensionMonthly, startingCoupleIncome,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
     pwaCurrentDistribution, pwaCurrentSelection, pwaCurrentView,
@@ -180,7 +182,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly });
 
   // Report spending targets to parent
   useEffect(() => {
@@ -459,7 +461,7 @@ function RetirementIncomeChart({
               {fmtFull(Math.round(pwaCurrentView.totalSpendingTarget))}/mo
             </div>
             <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {fmtFull(Math.round(pwaCurrentView.currentPortfolioDraw))}/mo + SS {fmtFull(Math.round(pwaStartContext.currentSSIncome))}/mo + {fmtFull(trustMonthly)}/mo trust
+              Pool draw {fmtFull(Math.round(pwaCurrentView.currentPortfolioDraw))}/mo + SS {fmtFull(Math.round(pwaStartContext.currentSSIncome))}/mo + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
             </div>
             {pwaCurrentView.outsideIncomeReinvested > 0 && (
               <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -514,7 +516,7 @@ function RetirementIncomeChart({
             {fmtFull(coupleSummary.totalTarget)}/mo
           </div>
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool draw {formatRange(coupleSummary.start.poolDraw, coupleSummary.end.poolDraw, '/mo')} + SS {formatRange(coupleSummary.start.ssIncome, coupleSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
+            Pool draw {formatRange(coupleSummary.start.poolDraw, coupleSummary.end.poolDraw, '/mo')} + SS {formatRange(coupleSummary.start.ssIncome, coupleSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
           </div>
           {(coupleSummary.start.savedToPool > 0 || coupleSummary.end.savedToPool > 0) && (
             <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -537,7 +539,7 @@ function RetirementIncomeChart({
               {fmtFull(postInheritanceSummary.totalTarget)}/mo
             </div>
             <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {formatRange(postInheritanceSummary.start.poolDraw, postInheritanceSummary.end.poolDraw, '/mo')} + SS {formatRange(postInheritanceSummary.start.ssIncome, postInheritanceSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
+              Pool draw {formatRange(postInheritanceSummary.start.poolDraw, postInheritanceSummary.end.poolDraw, '/mo')} + SS {formatRange(postInheritanceSummary.start.ssIncome, postInheritanceSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
             </div>
             {(postInheritanceSummary.start.savedToPool > 0 || postInheritanceSummary.end.savedToPool > 0) && (
               <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -560,7 +562,7 @@ function RetirementIncomeChart({
             {fmtFull(survivorSummary.totalTarget)}/mo
           </div>
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
+            Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
           </div>
           {(survivorSummary.start.savedToPool > 0 || survivorSummary.end.savedToPool > 0) && (
             <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -846,7 +848,7 @@ function RetirementIncomeChart({
               </div>
             )}
             <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {fmtFull(tooltip.poolDraw)} + SS {fmtFull(tooltip.ssIncome)} + trust {fmtFull(trustMonthly)}
+              Pool draw {fmtFull(tooltip.poolDraw)} + SS {fmtFull(tooltip.ssIncome)} + trust {fmtFull(trustMonthly)}{pensionMonthly > 0 ? ` + pension ${fmtFull(tooltip.pensionIncome || 0)}` : ''}
             </div>
             {tooltip.savedToPool > 0 && (
               <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -903,7 +905,7 @@ function RetirementIncomeChart({
               {fmtFull(survivorSummary.totalTarget)}/mo
             </div>
             <div style={{ fontSize: 10, color: retirementTextBody, marginTop: 2, lineHeight: 1.35, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust
+              Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
             </div>
           </div>
         </div>

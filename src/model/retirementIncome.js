@@ -2,6 +2,15 @@ function getSurvivorStartMonth(chadPassesAge) {
   return (chadPassesAge - 67) * 12;
 }
 
+function getPensionAtMonth(t, pensionMonthly, chadAlive) {
+  if (pensionMonthly <= 0) return 0;
+  const pensionCola = 1.03; // WA PERS COLA cap
+  const yearsFromStart = Math.floor(t / 12);
+  const pensionWithCola = Math.round(pensionMonthly * Math.pow(pensionCola, yearsFromStart));
+  // Full pension while Chad is alive; survivor gets 50%
+  return chadAlive ? pensionWithCola : Math.round(pensionWithCola * 0.5);
+}
+
 function getRetirementMonthDetails(t, {
   chadPassesAge,
   ageDiff,
@@ -11,6 +20,7 @@ function getRetirementMonthDetails(t, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  pensionMonthly,
 }) {
   const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
   const chadAge = 67 + t / 12;
@@ -22,7 +32,8 @@ function getRetirementMonthDetails(t, {
     sarahOwnSS,
     survivorSS,
   });
-  const guaranteedIncome = trustMonthly + ssInfo.amount;
+  const pension = getPensionAtMonth(t, pensionMonthly || 0, chadAlive);
+  const guaranteedIncome = trustMonthly + ssInfo.amount + pension;
 
   return {
     chadAge,
@@ -34,6 +45,7 @@ function getRetirementMonthDetails(t, {
     ssIncome: ssInfo.amount,
     ssLabel: ssInfo.label,
     trustIncome: trustMonthly,
+    pensionIncome: pension,
   };
 }
 
@@ -79,12 +91,14 @@ export function buildRetirementContext({
   sarahOwnSS,
   survivorSS,
   trustMonthly,
+  pensionMonthly,
 }) {
   const supplementalFlows = new Float64Array(horizonMonths);
   const scaling = new Float64Array(horizonMonths);
   const guaranteedIncome = new Float64Array(horizonMonths);
   const ssIncome = new Float64Array(horizonMonths);
   const trustIncome = new Float64Array(horizonMonths);
+  const pensionIncome = new Float64Array(horizonMonths);
   const chadAges = new Float64Array(horizonMonths);
   const sarahAges = new Float64Array(horizonMonths);
   const phases = new Array(horizonMonths);
@@ -98,6 +112,7 @@ export function buildRetirementContext({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    pensionMonthly: pensionMonthly || 0,
   };
 
   for (let t = 0; t < horizonMonths; t++) {
@@ -107,6 +122,7 @@ export function buildRetirementContext({
     guaranteedIncome[t] = details.guaranteedIncome;
     ssIncome[t] = details.ssIncome;
     trustIncome[t] = details.trustIncome;
+    pensionIncome[t] = details.pensionIncome;
     chadAges[t] = details.chadAge;
     sarahAges[t] = details.sarahAge;
     phases[t] = details.phase;
@@ -121,6 +137,7 @@ export function buildRetirementContext({
     guaranteedIncome,
     ssIncome,
     trustIncome,
+    pensionIncome,
     chadAges,
     sarahAges,
     phases,
@@ -160,6 +177,7 @@ export function buildSupplementalFlows({
   sarahOwnSS,
   survivorSS,
   trustMonthly,
+  pensionMonthly,
   hasInheritance,
   inheritanceMonth,
   inheritanceAmount,
@@ -174,6 +192,7 @@ export function buildSupplementalFlows({
     sarahOwnSS,
     survivorSS,
     trustMonthly,
+    pensionMonthly,
   });
   const supplementalFlows = new Float64Array(context.supplementalFlows);
 
@@ -197,6 +216,7 @@ export function sliceRetirementContext(context, decisionMonth) {
     currentGuaranteedIncome: remainingMonths > 0 ? context.guaranteedIncome[currentMonth] : 0,
     currentSSIncome: remainingMonths > 0 ? context.ssIncome[currentMonth] : 0,
     currentTrustIncome: remainingMonths > 0 ? context.trustIncome[currentMonth] : 0,
+    currentPensionIncome: remainingMonths > 0 ? (context.pensionIncome ? context.pensionIncome[currentMonth] : 0) : 0,
     currentScaling: remainingMonths > 0 ? context.scaling[currentMonth] : 0,
     currentPhase: remainingMonths > 0 ? context.phases[currentMonth] : 'completed',
     currentChadAge: remainingMonths > 0 ? context.chadAges[currentMonth] : context.chadAges[lastMonth] || 67,
@@ -230,6 +250,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  pensionMonthly,
 }) {
   const chadAlive = chadAge < chadPassesAge;
   const ssInfo = getRetirementSSInfo(chadAge, chadAlive, {
@@ -239,8 +260,10 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     sarahOwnSS,
     survivorSS,
   });
+  const yearsFromRetirement = Math.max(0, chadAge - 67);
+  const pension = getPensionAtMonth(yearsFromRetirement * 12, pensionMonthly || 0, chadAlive);
   const totalTarget = Math.round(baseMonthlyConsumption * (chadAlive ? 1 : survivorSpendRatio));
-  const guaranteedIncome = ssInfo.amount + trustMonthly;
+  const guaranteedIncome = ssInfo.amount + trustMonthly + pension;
   const poolDraw = poolActive ? Math.max(0, totalTarget - guaranteedIncome) : 0;
   const savedToPool = poolActive ? Math.max(0, guaranteedIncome - totalTarget) : 0;
 
@@ -254,6 +277,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     savedToPool,
     ssIncome: ssInfo.amount,
     ssLabel: ssInfo.label,
+    pensionIncome: pension,
   };
 }
 

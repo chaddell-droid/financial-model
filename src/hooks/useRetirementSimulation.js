@@ -6,6 +6,7 @@
 import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
 import { simulatePath, computeSWR, computePreInhSWR } from '../model/ernWithdrawal.js';
+import { ssRecalculatedBenefit } from '../model/constants.js';
 import {
   buildRetirementContext,
   buildScalingAndRescueFlows,
@@ -19,7 +20,7 @@ import { buildPwaDistribution } from '../model/pwaDistribution.js';
 import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from '../model/pwaStrategies.js';
 
 export function useRetirementSimulation({
-  savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture,
+  savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly,
 }) {
   // ── State ────────────────────────────────────────────────────────────
   const [retirementMode, setRetirementMode] = useState('historical_safe');
@@ -73,8 +74,11 @@ export function useRetirementSimulation({
   const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
 
   // Chad's SS — PIA from state replaces hardcoded value
+  // When SS retirement path: use recalculated benefit (credits months withheld by earnings test)
   const ssFRA = ssPIA || 4214;
-  const chadSS = (ssType === 'ss') ? (ssPersonal || Math.round(ssFRA * 0.7)) : ssFRA;
+  const chadSS = (ssType === 'ss')
+    ? ssRecalculatedBenefit(ssFRA, ssClaimAge || 62, ssMonthsWithheld || 0)
+    : ssFRA;
   const sarahOwnSS = 1900;
   // Survivor benefit: if Chad claimed before FRA, Sarah gets max(his benefit, 82.5% PIA)
   // If Chad claimed at/after FRA (or SSDI which converts at FRA), Sarah gets his full benefit
@@ -84,7 +88,8 @@ export function useRetirementSimulation({
     ? Math.max(chadSS, Math.round(ssFRA * 0.825))
     : chadSS;
   const trustMonthly = trustIncomeFuture || 0;
-  const startingCoupleIncome = chadSS + trustMonthly;
+  const pensionMonthly = chadJobPensionMonthly || 0;
+  const startingCoupleIncome = chadSS + trustMonthly + pensionMonthly;
   const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
   const normalizedPwaToleranceLow = Math.min(dPwaToleranceLow, dPwaToleranceHigh);
   const normalizedPwaToleranceHigh = Math.max(dPwaToleranceLow, dPwaToleranceHigh);
@@ -115,8 +120,9 @@ export function useRetirementSimulation({
       sarahOwnSS,
       survivorSS,
       trustMonthly,
+      pensionMonthly,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly]);
 
   const { rescueFlows, scaling } = useMemo(() => {
     return buildScalingAndRescueFlows({
@@ -139,11 +145,12 @@ export function useRetirementSimulation({
       sarahOwnSS,
       survivorSS,
       trustMonthly,
+      pensionMonthly,
       hasInheritance,
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Closed-form cohort math includes inheritance as a future cash event (like SS/trust).
   const formulaSupplementalFlows = useMemo(() => {
@@ -156,11 +163,12 @@ export function useRetirementSimulation({
       sarahOwnSS,
       survivorSS,
       trustMonthly,
+      pensionMonthly,
       hasInheritance,
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   const pwaStartContext = useMemo(
     () => sliceRetirementContext(retirementContext, 0),
@@ -421,6 +429,7 @@ export function useRetirementSimulation({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    pensionMonthly,
   };
 
   const yearlyData = deterministicPools.map((pool, y) => {
@@ -491,7 +500,7 @@ export function useRetirementSimulation({
     // Constants
     ageDiff, sarahTargetAge, years, survivorSpendRatio,
     endSavings, end401k, homeSaleNet, totalPool,
-    trustMonthly, startingCoupleIncome,
+    trustMonthly, pensionMonthly, startingCoupleIncome,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
 

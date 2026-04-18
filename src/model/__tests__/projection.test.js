@@ -176,12 +176,11 @@ test('14. Chad job income: 0 before chadJobStartMonth, net salary after', () => 
   const startMonth = 3;
   const salary = 120000;
   const taxRate = 25;
-  const ficaRate = 0.062;
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: salary, chadJobTaxRate: taxRate, chadJobStartMonth: startMonth,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  const expectedNet = Math.round(salary * (1 - taxRate / 100 - ficaRate) / 12);
+  const expectedNet = Math.round(salary * (1 - taxRate / 100) / 12);
   assert.strictEqual(monthlyData[startMonth - 1].chadJobIncome, 0, 'no income before start');
   assert.strictEqual(monthlyData[startMonth].chadJobIncome, expectedNet, 'net salary at start');
 });
@@ -883,7 +882,6 @@ test('54. Van sold at month 0 — van costs should not apply at month 0, shortfa
 test('55. Chad job with chadJobStartMonth = 0 — job income at month 0 and health savings deducted', () => {
   const salary = 120000;
   const taxRate = 25;
-  const ficaRate = 0.062;
   const healthSavings = 4200;
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: salary, chadJobTaxRate: taxRate,
@@ -893,7 +891,7 @@ test('55. Chad job with chadJobStartMonth = 0 — job income at month 0 and heal
     vanLoanBalance: 0, vanSalePrice: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  const expectedNet = Math.round(salary * (1 - taxRate / 100 - ficaRate) / 12);
+  const expectedNet = Math.round(salary * (1 - taxRate / 100) / 12);
   // Job income should appear at month 0
   assert.strictEqual(monthlyData[0].chadJobIncome, expectedNet,
     `job income at month 0 should be ${expectedNet}, got ${monthlyData[0].chadJobIncome}`);
@@ -1126,9 +1124,9 @@ test('61. Verify monthly income and expense difference between chadJob=true and 
   const { monthlyData: off } = runMonthlySimulation(sOff);
   const { monthlyData: on } = runMonthlySimulation(sOn);
 
-  // Expected job net: 80000 * (1 - 0.25 - 0.062) / 12 = 4587 (includes 6.2% FICA)
-  const expectedJobNet = Math.round(80000 * (1 - 0.25 - 0.062) / 12);
-  assert.strictEqual(expectedJobNet, 4587, 'expected monthly net should be $4,587 (after tax + FICA)');
+  // Expected job net: 80000 * 0.75 / 12 = 5000 (25% all-in effective rate)
+  const expectedJobNet = Math.round(80000 * (1 - 0.25) / 12);
+  assert.strictEqual(expectedJobNet, 5000, 'expected monthly net should be $5,000 (after 25% tax)');
 
   // Print differences at key months for manual inspection
   for (const m of [0, 12, 36, 72]) {
@@ -1143,7 +1141,7 @@ test('61. Verify monthly income and expense difference between chadJob=true and 
   // The income difference at month 0 should be:
   // +chadJobIncome - lostSSDI - lostConsulting
   // Since defaults: ssdiApprovalMonth=7, at month 0 SSDI is not yet active, consulting is 0
-  // So at month 0 the income diff should just be +4587 (after FICA)
+  // So at month 0 the income diff should just be +5000 (after tax)
   const m0IncomeDiff = on[0].cashIncome - off[0].cashIncome;
   const m0ExpenseDiff = on[0].expenses - off[0].expenses;
   console.log(`        [VERIFY] month 0: income diff = ${m0IncomeDiff}, expense diff = ${m0ExpenseDiff}`);
@@ -1185,13 +1183,13 @@ test('63. Consulting is zeroed for all months when chadJob=true', () => {
 });
 
 // ---- Test 64: Verify chadJobIncome appears at correct value ----
-test('64. chadJobIncome is $4,587/mo (80000 * 0.688 / 12) starting at month 0', () => {
+test('64. chadJobIncome is $4,587/mo (80000 * 0.75 / 12) starting at month 0', () => {
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
     chadJobTaxRate: 25, chadJobHealthSavings: 4200,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  const expected = Math.round(80000 * (1 - 0.25 - 0.062) / 12);
+  const expected = Math.round(80000 * (1 - 0.25) / 12);
   assert.strictEqual(monthlyData[0].chadJobIncome, expected,
     `month 0 chadJobIncome should be ${expected}, got ${monthlyData[0].chadJobIncome}`);
   // Verify it persists
@@ -1274,7 +1272,7 @@ test('68. chadJob with chadJobStartMonth=6 — no job income or health savings b
       `month ${m}: expenses should be baseExpenses before job starts, got ${monthlyData[m].expenses}`);
   }
   // At and after start month: job income and health savings apply
-  const expectedJobNet68 = Math.round(80000 * (1 - 0.25 - 0.062) / 12);
+  const expectedJobNet68 = Math.round(80000 * (1 - 0.25) / 12);
   assert.strictEqual(monthlyData[6].chadJobIncome, expectedJobNet68,
     `month 6: chadJobIncome should be ${expectedJobNet68}, got ${monthlyData[6].chadJobIncome}`);
   assert.strictEqual(monthlyData[6].expenses, s.baseExpenses - 4200,

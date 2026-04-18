@@ -15,6 +15,7 @@ const IncomeControls = ({
   ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
   chadConsulting,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+  chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
   sarahWorkYears,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -93,6 +94,40 @@ const IncomeControls = ({
                   <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} commitStrategy={commitStrategy} min={30000} max={150000} step={5000} color={COLORS.greenDark} format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
                   <Slider label="Effective tax rate" value={chadJobTaxRate} onChange={set('chadJobTaxRate')} commitStrategy={commitStrategy} min={10} max={40} color={COLORS.greenDark} format={(v) => v + "%"} />
                   <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} commitStrategy={commitStrategy} min={0} max={24} color={COLORS.greenDark} format={(v) => v === 0 ? "Now" : v + " mo"} />
+
+                  {/* Employer Retirement & Tax */}
+                  <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+                    <div style={{ fontSize: 10, color: COLORS.amber, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Employer Retirement & Tax</div>
+                    <Toggle
+                      label="No Social Security tax (non-SS employer)"
+                      description={chadJobNoFICA ? `Saves $${Math.round(chadJobSalary * 0.062 / 12).toLocaleString()}/mo — lower your effective tax rate accordingly` : "Most employers withhold 6.2% for SS"}
+                      checked={chadJobNoFICA}
+                      onChange={set('chadJobNoFICA')}
+                      color={COLORS.amber}
+                      testId="income-no-fica"
+                    />
+                    <Slider label="Pension accrual rate (%/yr)" value={chadJobPensionRate} onChange={set('chadJobPensionRate')} commitStrategy={commitStrategy} min={0} max={5} step={0.5} color={COLORS.amber} format={(v) => v === 0 ? "None" : v + "%"} />
+                    {chadJobPensionRate > 0 && (
+                      <>
+                        <Slider label="Employee pension contribution (%)" value={chadJobPensionContrib} onChange={set('chadJobPensionContrib')} commitStrategy={commitStrategy} min={0} max={15} step={0.1} color={COLORS.amber} format={(v) => v.toFixed(1) + "%"} />
+                        {(() => {
+                          const projMonths = Math.max(0, ((sarahWorkYears || 6) * 12) - (chadJobStartMonth || 0));
+                          const yrs = projMonths / 12;
+                          const pensionMo = Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * yrs);
+                          return (
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
+                              <span style={{ color: COLORS.textDim }}>Est. pension at retirement:</span>
+                              <span style={{ color: COLORS.amber, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(pensionMo)}/mo</span>
+                            </div>
+                          );
+                        })()}
+                        <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
+                          {chadJobPensionRate}% × {((((sarahWorkYears || 6) * 12) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, +3%/yr COLA
+                        </div>
+                      </>
+                    )}
+                  </div>
+
                   {(() => {
                     const isSSPath = ssType === 'ss';
                     const familyRate = isSSPath ? (ssFamilyTotal || 7099) : (ssdiFamilyTotal || 6500);

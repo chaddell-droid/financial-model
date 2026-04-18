@@ -38,12 +38,11 @@ export function runMonthlySimulation(s) {
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
   // Chad Gets a Job
+  // chadJobTaxRate is the ALL-IN effective rate (includes FICA, state, etc.).
+  // chadJobNoFICA and chadJobPensionContrib are informational — they help the
+  // user understand what effective rate to set, not modify the calculation.
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
-  const ficaRate = s.chadJobNoFICA ? 0 : 0.062;
-  const pensionContribRate = (s.chadJobPensionContrib || 0) / 100;
-  const chadJobMonthlyNet = chadJob
-    ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100 - ficaRate - pensionContribRate) / 12)
-    : 0;
+  const chadJobMonthlyNet = chadJob ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100) / 12) : 0;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
 
   // 401k and home equity — tracked alongside savings for deficit drawdown

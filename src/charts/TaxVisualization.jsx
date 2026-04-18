@@ -35,7 +35,7 @@ function TaxVisualization({
   taxOdcDependents, taxCapGainLoss, taxSolo401k,
   sarahRate, sarahMaxRate, sarahRateGrowth,
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-  sarahWorkYears,
+  sarahWorkMonths,
   chadJob, chadJobSalary, chadJobStartMonth,
 }) {
   const [selectedYear, setSelectedYear] = useState(0);
@@ -44,8 +44,9 @@ function TaxVisualization({
     const s = {
       sarahRate, sarahMaxRate, sarahRateGrowth,
       sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-      sarahWorkYears,
-      totalProjectionMonths: (sarahWorkYears || 6) * 12,
+      sarahWorkMonths,
+      totalProjectionMonths: sarahWorkMonths || 72,
+      chadRetirementMonth: 72, // tax viz doesn't track Chad's work duration independently yet
       chadJob, chadJobSalary: chadJobSalary || 0, chadJobStartMonth: chadJobStartMonth ?? 3,
       taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
       taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
@@ -56,7 +57,7 @@ function TaxVisualization({
     catch { return []; }
   }, [
     sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahWorkYears,
+    sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahWorkMonths,
     chadJob, chadJobSalary, chadJobStartMonth,
     taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
     taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,

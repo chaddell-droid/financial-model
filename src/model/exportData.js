@@ -26,8 +26,10 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       steadyStateMonth: 36,
       steadyStateNet: data[data.findIndex(d => d.month >= 36)]?.netMonthly,
       cashFlowBreakevenMonth: findOperationalBreakevenIndex(md),
-      sarahWorkYears: s.sarahWorkYears || 6,
-      savingsRunway: md.every(d => d.balance >= 0) ? `${s.sarahWorkYears || 6}+ years` : `${md.findIndex(d => d.balance < 0)} months`,
+      chadWorkMonths: s.chadWorkMonths || 72,
+      sarahWorkMonths: s.sarahWorkMonths || 72,
+      horizonMonths: s.totalProjectionMonths || 72,
+      savingsRunway: md.every(d => d.balance >= 0) ? `${Math.round((s.totalProjectionMonths || 72) / 12)}+ years` : `${md.findIndex(d => d.balance < 0)} months`,
       advanceAsk: advanceNeeded,
     },
     income: {

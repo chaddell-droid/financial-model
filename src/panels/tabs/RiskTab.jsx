@@ -29,7 +29,7 @@ export default function RiskTab({
   seqReturnsProps,
   savingsDrawdownProps,
   netWorthProps,
-  sarahWorkYears,
+  sarahWorkMonths,
   showEmbeddedBalanceCharts = true,
 }) {
   return (
@@ -48,7 +48,7 @@ export default function RiskTab({
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
           <div style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.45 }}>
-            1. Monte Carlo answers how often the {sarahWorkYears || 6}-year plan stays above zero and how bad the typical downside gets.
+            1. Monte Carlo answers how often the {Math.round((sarahWorkMonths || 72) / 12)}-year plan stays above zero and how bad the typical downside gets.
           </div>
           <div style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.45 }}>
             2. Sequence risk shows what happens if the same average returns arrive in the wrong order before the plan stabilizes.
@@ -64,7 +64,7 @@ export default function RiskTab({
       <RiskQuestion
         testId="risk-question-probability"
         step="Question 1"
-        title={`How often does the plan stay solvent over the ${sarahWorkYears || 6}-year outlook?`}
+        title={`How often does the plan stay solvent over the ${Math.round((sarahWorkMonths || 72) / 12)}-year outlook?`}
         body="Start with probability. Monte Carlo tells you whether the base plan usually survives, what a bad-luck finish looks like, and which assumption moves the result most."
       >
         <MonteCarloPanel {...monteCarloProps} />

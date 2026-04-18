@@ -84,7 +84,8 @@ export default function FinancialModel() {
   }, [dispatch]);
 
   const {
-    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate, sarahWorkYears,
+    sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate,
+    chadWorkMonths, sarahWorkMonths,
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
@@ -138,7 +139,7 @@ export default function FinancialModel() {
 
   // Projected PERS pension at retirement — mirrors gatherState.chadJobPensionMonthly
   const chadJobPensionMonthly = (chadJob && chadJobPensionRate > 0)
-    ? Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * Math.max(0, ((sarahWorkYears || 6) * 12 - (chadJobStartMonth || 0)) / 12))
+    ? Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * Math.max(0, ((chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12))
     : 0;
 
   const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
@@ -377,7 +378,8 @@ export default function FinancialModel() {
 
   // Savings zero-crossing
   const savingsZeroMonth = savingsData.find(d => d.balance <= 0);
-  const savingsZeroLabel = savingsZeroMonth ? `~${Math.round(savingsZeroMonth.month)} months` : `${sarahWorkYears || 6}+ years`;
+  const horizonYears = Math.round(Math.max(chadWorkMonths || 72, sarahWorkMonths || 72) / 12);
+  const savingsZeroLabel = savingsZeroMonth ? `~${Math.round(savingsZeroMonth.month)} months` : `${horizonYears}+ years`;
 
   const handleTogglePresentMode = () => {
     if (presentMode) {
@@ -479,7 +481,7 @@ export default function FinancialModel() {
     vanSold, vanMonthlySavings,
     kidsAgeOutMonths, msftGrowth,
     currentMsftVesting: data[0].msftVesting,
-    sarahWorkYears,
+    sarahWorkMonths,
   }), [
     retireDebt, debtService,
     ssType, ssdiApprovalMonth, ssdiFamilyTotal,
@@ -489,7 +491,7 @@ export default function FinancialModel() {
     bcsYearsLeft, bcsFamilyMonthly,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings,
-    kidsAgeOutMonths, msftGrowth, data, sarahWorkYears,
+    kidsAgeOutMonths, msftGrowth, data, sarahWorkMonths,
   ]);
 
   const scenarioStripProps = useMemo(() => ({
@@ -545,7 +547,7 @@ export default function FinancialModel() {
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
-    sarahWorkYears,
+    chadWorkMonths,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     onFieldChange: set,
@@ -559,7 +561,7 @@ export default function FinancialModel() {
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
-    sarahWorkYears,
+    chadWorkMonths,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   ]);
@@ -896,7 +898,7 @@ export default function FinancialModel() {
           msftPrice={msftPrice} msftGrowth={msftGrowth} onMsftGrowthChange={set('msftGrowth')} onMsftPriceChange={set('msftPrice')}
           sarahRate={sarahRate} sarahMaxRate={sarahMaxRate} sarahRateGrowth={sarahRateGrowth}
           sarahCurrentClients={sarahCurrentClients} sarahMaxClients={sarahMaxClients} sarahClientGrowth={sarahClientGrowth}
-          sarahTaxRate={sarahTaxRate} sarahWorkYears={sarahWorkYears}
+          sarahTaxRate={sarahTaxRate} sarahWorkMonths={sarahWorkMonths}
           sarahCurrentGross={sarahCurrentGross} sarahCurrentNet={sarahCurrentNet}
           sarahCeilingGross={sarahCeilingGross} sarahCeiling={sarahCeiling}
           onFieldChange={set}
@@ -914,7 +916,7 @@ export default function FinancialModel() {
           seqReturnsProps={seqReturnsProps}
           savingsDrawdownProps={riskSavingsDrawdownProps}
           netWorthProps={riskNetWorthProps}
-          sarahWorkYears={sarahWorkYears}
+          sarahWorkMonths={sarahWorkMonths}
           showEmbeddedBalanceCharts={!showRail}
         />
       )}

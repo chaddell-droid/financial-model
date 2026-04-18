@@ -15,7 +15,7 @@ export default function SarahPracticeChart({
   sarahCurrentNet,
   sarahCeilingGross,
   sarahCeiling,
-  sarahWorkYears,
+  sarahWorkMonths,
   onFieldChange,
 }) {
   const set = onFieldChange;
@@ -23,7 +23,7 @@ export default function SarahPracticeChart({
   const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
 
-  const months = (sarahWorkYears || 6) * 12;
+  const months = sarahWorkMonths || 72;
   const chartW = 800;
   const chartH = 240;
   const padL = 55;
@@ -333,7 +333,7 @@ export default function SarahPracticeChart({
           </div>
           <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
             <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Working Duration</div>
-            <Slider label="Years Sarah works" value={sarahWorkYears || 6} onChange={set('sarahWorkYears')} commitStrategy='release' min={3} max={12} step={1} color="#a78bfa" format={(v) => v + " years"} />
+            <Slider label="Sarah works for" value={sarahWorkMonths || 72} onChange={set('sarahWorkMonths')} commitStrategy='release' min={36} max={144} step={3} color="#a78bfa" format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
           </div>
           <div style={{ padding: "8px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
@@ -354,11 +354,11 @@ export default function SarahPracticeChart({
             </div>
             <div style={{ borderTop: "1px solid #334155", marginTop: 4, paddingTop: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ color: "#64748b" }}>Total gross ({sarahWorkYears || 6}yr):</span>
+                <span style={{ color: "#64748b" }}>Total gross ({Math.round((sarahWorkMonths || 72) / 12)}yr):</span>
                 <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmt(pts.reduce((s, p) => s + p.gross, 0))}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: "#34d399", fontWeight: 600 }}>Total net ({sarahWorkYears || 6}yr):</span>
+                <span style={{ color: "#34d399", fontWeight: 600 }}>Total net ({Math.round((sarahWorkMonths || 72) / 12)}yr):</span>
                 <span style={{ color: "#34d399", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmt(pts.reduce((s, p) => s + p.net, 0))}</span>
               </div>
             </div>

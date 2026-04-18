@@ -63,7 +63,7 @@ export function useRetirementSimulation({
   const horizonMonths = years * 12; // 444
   const survivorSpendRatio = 0.6;
 
-  // Assets at end of variable-length projection (age 67+ depending on sarahWorkYears)
+  // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths)
   const endIdx = savingsData.length - 1;
   const endSavings = savingsData[endIdx]?.balance || 0;
   const end401k = wealthData[endIdx]?.balance401k || 0;

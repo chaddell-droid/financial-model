@@ -16,7 +16,7 @@ const IncomeControls = ({
   chadConsulting,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
-  sarahWorkYears,
+  chadWorkMonths,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   onFieldChange,
@@ -97,6 +97,7 @@ const IncomeControls = ({
                   <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} commitStrategy={commitStrategy} min={30000} max={150000} step={5000} color={COLORS.greenDark} format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
                   <Slider label="Effective tax rate" value={chadJobTaxRate} onChange={set('chadJobTaxRate')} commitStrategy={commitStrategy} min={10} max={40} color={COLORS.greenDark} format={(v) => v + "%"} />
                   <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} commitStrategy={commitStrategy} min={0} max={24} color={COLORS.greenDark} format={(v) => v === 0 ? "Now" : v + " mo"} />
+                  <Slider label="Chad works for" value={chadWorkMonths} onChange={set('chadWorkMonths')} commitStrategy={commitStrategy} min={12} max={144} step={3} color={COLORS.greenDark} format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
 
                   {/* Employer Retirement & Tax */}
                   <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
@@ -114,7 +115,7 @@ const IncomeControls = ({
                       <>
                         <Slider label="Employee pension contribution (%)" value={chadJobPensionContrib} onChange={set('chadJobPensionContrib')} commitStrategy={commitStrategy} min={0} max={15} step={0.1} color={COLORS.amber} format={(v) => v.toFixed(1) + "%"} />
                         {(() => {
-                          const projMonths = Math.max(0, ((sarahWorkYears || 6) * 12) - (chadJobStartMonth || 0));
+                          const projMonths = Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0));
                           const yrs = projMonths / 12;
                           const pensionMo = Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * yrs);
                           return (
@@ -247,7 +248,7 @@ const IncomeControls = ({
               const computedKidsMonths = Math.max(0, TWINS_AGE_OUT_MONTH - computedStartMonth);
               const childBenefitEach = Math.round(pia * 0.5);
               const computedFamily = computedKidsMonths > 0 ? computedPersonal + 2 * childBenefitEach : computedPersonal;
-              const projMonths = ((sarahWorkYears || 6) * 12);
+              const projMonths = (chadWorkMonths || 72);
               const beyondHorizon = computedStartMonth > projMonths;
               const ageLabel = age === SS_FRA ? `${age} (FRA)` : `${age}`;
               const atOrAfterFRA = age >= SS_FRA;

@@ -23,9 +23,9 @@ export default function TimelineChart({
   kidsAgeOutMonths,
   msftGrowth,
   currentMsftVesting,
-  sarahWorkYears,
+  sarahWorkMonths,
 }) {
-  const totalMonths = (sarahWorkYears || 6) * 12;
+  const totalMonths = sarahWorkMonths || 72;
   const padL = 60; // px padding left for cards
   const padR = 60; // px padding right for cards
   const pct = (m) => (m / totalMonths) * 100;

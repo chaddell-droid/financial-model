@@ -343,28 +343,46 @@ const ScenarioStrip = ({
             expanded={cardsExpanded}
             onToggle={() => setCardsExpanded(!cardsExpanded)}
           >
-            {model.breakdown.map((item) => {
-              if (item.kind === 'total') return null;
-              const isSubtotal = item.kind === 'subtotal';
-              const isSavings = item.kind === 'savings';
-              const isStruck = item.active === false && item.originalAmount > 0;
-              return (
-                <div key={item.id} style={{
-                  display: 'flex', justifyContent: 'space-between', fontSize: 11,
-                  marginTop: 3, color: isSavings ? UI_COLORS.positive : isStruck ? UI_COLORS.textMuted : UI_COLORS.textDim,
-                  fontWeight: isSubtotal ? 600 : 400,
-                  borderTop: isSubtotal ? `1px solid ${UI_COLORS.border}` : undefined,
-                  paddingTop: isSubtotal ? 4 : undefined,
-                  marginTop: isSubtotal ? 6 : 3,
+            {(() => {
+              // Waterfall: start from what the user entered, show each lever's impact, arrive at outflow
+              const outflow = model.summary.monthlyOutflow;
+              const startLabel = totalMonthlySpend != null ? 'Base Monthly Spend' : 'Pre-lever expenses';
+              const startAmount = totalMonthlySpend != null ? totalMonthlySpend : (outflow + model.summary.monthlySavings);
+              const rows = [{ label: startLabel, value: fmtFull(startAmount), color: UI_COLORS.textDim, bold: true }];
+              // Show each active lever as a deduction
+              for (const lever of model.recurringLevers) {
+                if (lever.monthlyImpact > 0) {
+                  rows.push({ label: lever.label, value: `-${fmtFull(lever.monthlyImpact)}`, color: UI_COLORS.positive });
+                }
+              }
+              // If there's a residual difference (e.g., van not yet sold at month 0, health savings, etc.)
+              const accounted = model.recurringLevers.reduce((s, l) => s + Math.max(0, l.monthlyImpact), 0);
+              const residual = startAmount - accounted - outflow;
+              if (Math.abs(residual) > 1) {
+                // Positive residual = additional savings not from levers (health ins, milestones)
+                // Negative residual = additional costs (van still paying pre-sale, one-time extras)
+                rows.push({
+                  label: residual > 0 ? 'Other savings (health ins, etc.)' : 'Timing adjustments (van pre-sale, etc.)',
+                  value: residual > 0 ? `-${fmtFull(residual)}` : `+${fmtFull(Math.abs(residual))}`,
+                  color: residual > 0 ? UI_COLORS.positive : UI_COLORS.caution,
+                  small: true,
+                });
+              }
+              rows.push({ label: 'Current outflow', value: `${fmtFull(outflow)}`, color: UI_COLORS.destructive, bold: true, divider: true });
+              return rows.map((row, i) => (
+                <div key={i} style={{
+                  display: 'flex', justifyContent: 'space-between', fontSize: row.small ? 10 : 11,
+                  marginTop: row.divider ? 6 : i === 0 ? 0 : 3,
+                  paddingTop: row.divider ? 4 : 0,
+                  borderTop: row.divider ? `1px solid ${UI_COLORS.border}` : undefined,
+                  color: row.color, fontWeight: row.bold ? 600 : 400,
+                  fontStyle: row.small ? 'italic' : undefined,
                 }}>
-                  <span style={{ textDecoration: isStruck ? 'line-through' : undefined }}>{item.label}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                    {isSavings ? `-${fmtFull(item.amount)}` : fmtFull(item.amount)}
-                    {isStruck && item.originalAmount ? ` (was ${fmtFull(item.originalAmount)})` : ''}
-                  </span>
+                  <span>{row.label}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{row.value}</span>
                 </div>
-              );
-            })}
+              ));
+            })()}
           </SummaryMetric>
           <SummaryMetric
             label='Savings unlocked'

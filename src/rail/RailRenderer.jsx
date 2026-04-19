@@ -30,7 +30,7 @@ import { UI_COLORS, UI_TEXT, UI_SPACE } from '../ui/tokens.js';
  *   onAdd(chartId) - called when a chart is added from the picker
  *   onReset() - called to reset current tab to defaults
  */
-export default function RailRenderer({ tab, chartIds, componentMap, propsMap, onReorder, onRemove, onAdd, onReset, onClearAll }) {
+export default function RailRenderer({ tab, chartIds, componentMap, propsMap, onReorder, onRemove, onAdd, onReset, onClearAll, onSave, isModified }) {
   const [showPicker, setShowPicker] = useState(false);
 
   const sensors = useSensors(
@@ -58,7 +58,19 @@ export default function RailRenderer({ tab, chartIds, componentMap, propsMap, on
         <span style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
           Charts
         </span>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {isModified && onSave && (
+            <button
+              onClick={onSave}
+              style={{
+                background: 'none', border: 'none', color: UI_COLORS.positive,
+                fontSize: 10, cursor: 'pointer', padding: '2px 6px', fontWeight: 700,
+              }}
+              aria-label="Save chart layout"
+            >
+              Save
+            </button>
+          )}
           {chartIds.length > 0 && onClearAll && (
             <button
               onClick={onClearAll}
@@ -77,7 +89,7 @@ export default function RailRenderer({ tab, chartIds, componentMap, propsMap, on
               background: 'none', border: 'none', color: UI_COLORS.textDim,
               fontSize: 10, cursor: 'pointer', padding: '2px 6px',
             }}
-            aria-label="Reset charts to defaults"
+            aria-label="Reset charts to saved layout"
           >
             Reset
           </button>

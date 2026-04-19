@@ -905,6 +905,8 @@ export default function FinancialModel() {
                 onAdd={(id) => railConfig.addChart('overview', id)}
                 onReset={() => railConfig.resetTab('overview')}
                 onClearAll={() => railConfig.setTabCharts('overview', [])}
+                onSave={() => railConfig.saveLayout()}
+                isModified={railConfig.isTabModified('overview')}
               />
             </div>
           )}
@@ -938,6 +940,8 @@ export default function FinancialModel() {
                 onAdd={(id) => railConfig.addChart('plan', id)}
                 onReset={() => railConfig.resetTab('plan')}
                 onClearAll={() => railConfig.setTabCharts('plan', [])}
+                onSave={() => railConfig.saveLayout()}
+                isModified={railConfig.isTabModified('plan')}
               />
             </div>
           )}
@@ -1053,6 +1057,8 @@ export default function FinancialModel() {
       onAdd={(id) => railConfig.addChart(effectiveTab, id)}
       onReset={() => railConfig.resetTab(effectiveTab)}
       onClearAll={() => railConfig.setTabCharts(effectiveTab, [])}
+      onSave={() => railConfig.saveLayout()}
+      isModified={railConfig.isTabModified(effectiveTab)}
     />
   ), [effectiveTab, railConfig, RAIL_COMPONENTS, railPropsMap]);
 

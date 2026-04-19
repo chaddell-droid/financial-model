@@ -1,38 +1,45 @@
 import { useState, useCallback, useEffect } from 'react';
 import { DEFAULT_RAIL_CONFIG } from './railDefaults.js';
-import { loadRailConfig, saveRailConfig, clearRailConfig } from './railConfigStorage.js';
+import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, saveSavedRailConfig } from './railConfigStorage.js';
 
 /**
  * Hook for managing per-tab rail chart configuration.
  *
- * Returns an object with methods to get, add, remove, reorder, and reset
- * chart IDs for any tab. Changes are persisted to storage automatically.
+ * Two layers of state:
+ * - config: the live working config (changes as you add/remove/reorder)
+ * - savedConfig: the last explicitly saved checkpoint (what "Reset" restores to)
  *
- * Usage:
- *   const rail = useRailConfig();
- *   const charts = rail.getTabCharts('income'); // ['savings', 'networth']
- *   rail.addChart('income', 'retirement');       // now ['savings', 'networth', 'retirement']
+ * "Save" locks the current layout as the checkpoint.
+ * "Reset" restores the current tab to the last saved checkpoint.
+ * If no checkpoint exists, reset falls back to DEFAULT_RAIL_CONFIG.
  */
 export function useRailConfig() {
   const [config, setConfig] = useState(DEFAULT_RAIL_CONFIG);
+  const [savedConfig, setSavedConfig] = useState(DEFAULT_RAIL_CONFIG);
   const [loaded, setLoaded] = useState(false);
 
-  // Load persisted config on mount
+  // Load persisted config + saved checkpoint on mount
   useEffect(() => {
-    loadRailConfig().then(saved => {
+    Promise.all([loadRailConfig(), loadSavedRailConfig()]).then(([live, saved]) => {
+      if (live) {
+        const merged = { ...DEFAULT_RAIL_CONFIG };
+        for (const tab of Object.keys(live)) {
+          if (Array.isArray(live[tab])) merged[tab] = live[tab];
+        }
+        setConfig(merged);
+      }
       if (saved) {
-        // Merge with defaults: ensure every tab has a key, use saved values where available
         const merged = { ...DEFAULT_RAIL_CONFIG };
         for (const tab of Object.keys(saved)) {
           if (Array.isArray(saved[tab])) merged[tab] = saved[tab];
         }
-        setConfig(merged);
+        setSavedConfig(merged);
       }
       setLoaded(true);
     });
   }, []);
 
-  // Persist on every change (after initial load)
+  // Persist live config on every change
   const persist = useCallback((next) => {
     setConfig(next);
     saveRailConfig(next);
@@ -48,7 +55,7 @@ export function useRailConfig() {
 
   const addChart = useCallback((tab, chartId) => {
     const current = config[tab] || [];
-    if (current.includes(chartId)) return; // no duplicates
+    if (current.includes(chartId)) return;
     persist({ ...config, [tab]: [...current, chartId] });
   }, [config, persist]);
 
@@ -66,14 +73,28 @@ export function useRailConfig() {
     persist({ ...config, [tab]: current });
   }, [config, persist]);
 
+  // Save: lock current config as the checkpoint
+  const saveLayout = useCallback(() => {
+    setSavedConfig({ ...config });
+    saveSavedRailConfig(config);
+  }, [config]);
+
+  // Reset: restore current tab to saved checkpoint (or defaults)
   const resetTab = useCallback((tab) => {
-    persist({ ...config, [tab]: DEFAULT_RAIL_CONFIG[tab] || [] });
-  }, [config, persist]);
+    const savedCharts = savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || [];
+    persist({ ...config, [tab]: savedCharts });
+  }, [config, savedConfig, persist]);
 
   const resetAll = useCallback(() => {
-    persist({ ...DEFAULT_RAIL_CONFIG });
-    clearRailConfig();
-  }, [persist]);
+    persist({ ...savedConfig });
+  }, [savedConfig, persist]);
+
+  // Check if current tab differs from saved
+  const isTabModified = useCallback((tab) => {
+    const current = JSON.stringify(config[tab] || []);
+    const saved = JSON.stringify(savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || []);
+    return current !== saved;
+  }, [config, savedConfig]);
 
   return {
     config,
@@ -83,7 +104,9 @@ export function useRailConfig() {
     addChart,
     removeChart,
     moveChart,
+    saveLayout,
     resetTab,
     resetAll,
+    isTabModified,
   };
 }

@@ -122,9 +122,8 @@ export const INITIAL_STATE = {
   showSaveLoad: false,
   presentMode: false,
 
-  // UI — Comparison
-  compareState: null,
-  compareName: "",
+  // UI — Comparison (up to 3 simultaneous)
+  comparisons: [],  // Array of { name: string, state: object }
 
   // Monte Carlo
   mcResults: null,

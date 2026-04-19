@@ -71,8 +71,8 @@ function SavingsDrawdownChart({
   savingsData,
   savingsZeroMonth,
   savingsZeroLabel,
-  compareProjection,
-  compareName,
+  compareProjections,
+  compareColors,
   data,
   startingSavings,
   investmentReturn,
@@ -90,9 +90,11 @@ function SavingsDrawdownChart({
   const containerRef = useRef(null);
   const svgW = useContainerWidth(containerRef);
   const [savingsTooltip, setSavingsTooltip] = useState(null);
-  const comparisonLegend = buildLegendItems(compareProjection ? [
+  const comparisonLegend = buildLegendItems(compareProjections && compareProjections.length > 0 ? [
     { id: 'current', label: 'Current settings', color: COLORS.green },
-    { id: 'compare', label: `"${compareName}"`, color: COLORS.yellow, line: true, dash: true },
+    ...compareProjections.map((cp, ci) => ({
+      id: `compare-${ci}`, label: `"${cp.name}"`, color: (compareColors || [])[ci] || COLORS.yellow, line: true, dash: true,
+    })),
   ] : []);
 
   return (
@@ -158,9 +160,9 @@ function SavingsDrawdownChart({
             const plotW = svgW - padL - padR;
             const plotH = svgH - padT - padB;
 
-            const compSavings = compareProjection ? compareProjection.savingsData : null;
-            const dataMax = Math.max(startingSavings, ...savingsData.map(d => d.balance), ...(compSavings || []).map(d => d.balance));
-            const dataMin = Math.min(0, ...savingsData.map(d => d.balance), ...(compSavings || []).map(d => d.balance));
+            const allCompBalances = (compareProjections || []).flatMap(cp => (cp.projection.savingsData || []).map(d => d.balance));
+            const dataMax = Math.max(startingSavings, ...savingsData.map(d => d.balance), ...allCompBalances);
+            const dataMin = Math.min(0, ...savingsData.map(d => d.balance), ...allCompBalances);
             // Lock range to at least -startingSavings to startingSavings*1.5 so small changes don't rescale
             const maxBal = Math.max(dataMax, startingSavings * 1.5);
             const minBal = Math.min(dataMin, -startingSavings);
@@ -234,38 +236,38 @@ function SavingsDrawdownChart({
                 <path d={linePath} fill="none" stroke={COLORS.red} strokeWidth="2.5"
                   strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#sav-below-${instanceId})`} />
 
-                {/* Comparison line overlay */}
-                {compSavings && (() => {
+                {/* Comparison line overlays — one per active comparison */}
+                {(compareProjections || []).map((cp, ci) => {
+                  const compSavings = cp.projection.savingsData;
+                  if (!compSavings || compSavings.length === 0) return null;
+                  const color = (compareColors || [])[ci] || COLORS.yellow;
                   const compPoints = compSavings.map(d => `${x(d.month)},${y(d.balance)}`);
                   const compLinePath = `M ${compPoints.join(" L ")}`;
                   const compZeroMonth = compSavings.find(d => d.balance <= 0);
                   const compEnd = compSavings[compSavings.length - 1];
                   return (
-                    <>
-                      <path d={compLinePath} fill="none" stroke={COLORS.yellow} strokeWidth="2"
+                    <React.Fragment key={`comp-sav-${ci}`}>
+                      <path d={compLinePath} fill="none" stroke={color} strokeWidth="2"
                         strokeLinejoin="round" strokeLinecap="round" strokeDasharray="8,4" opacity="0.8" />
                       {compZeroMonth && (
-                        <>
-                          <line x1={x(compZeroMonth.month)} x2={x(compZeroMonth.month)}
-                            y1={padT} y2={padT + plotH}
-                            stroke={COLORS.yellow} strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
-                        </>
+                        <line x1={x(compZeroMonth.month)} x2={x(compZeroMonth.month)}
+                          y1={padT} y2={padT + plotH}
+                          stroke={color} strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
                       )}
-                      {/* Comparison end-of-line label */}
-                      <circle cx={x(compEnd.month)} cy={y(compEnd.balance)} r="3" fill={COLORS.yellow} />
-                      <text x={x(compEnd.month) - 6} y={y(compEnd.balance) - 8} textAnchor="end"
-                        fill={COLORS.yellow} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                        {compareName}
+                      <circle cx={x(compEnd.month)} cy={y(compEnd.balance)} r="3" fill={color} />
+                      <text x={x(compEnd.month) - 6} y={y(compEnd.balance) - 8 - ci * 14} textAnchor="end"
+                        fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                        {cp.name}
                       </text>
-                    </>
+                    </React.Fragment>
                   );
-                })()}
+                })}
 
                 {/* Current line end-of-line label */}
                 {(() => {
                   const curEnd = savingsData[savingsData.length - 1];
                   const curColor = curEnd.balance >= 0 ? COLORS.green : COLORS.red;
-                  return compSavings ? (
+                  return (compareProjections || []).length > 0 ? (
                     <>
                       <circle cx={x(curEnd.month)} cy={y(curEnd.balance)} r="3" fill={curColor} />
                       <text x={x(curEnd.month) - 6} y={y(curEnd.balance) + 14} textAnchor="end"

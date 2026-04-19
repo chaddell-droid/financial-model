@@ -20,7 +20,8 @@ export default function SaveLoadPanel({
   onSave,
   onLoad,
   onCompare,
-  compareName,
+  comparisons,
+  compareColors,
   onClearCompare,
   onDelete,
   onApplyTemplate,
@@ -29,6 +30,9 @@ export default function SaveLoadPanel({
   storageAvailable,
 }) {
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const isComparing = (name) => (comparisons || []).some(c => c.name === name);
+  const compIdx = (name) => (comparisons || []).findIndex(c => c.name === name);
+  const hasComparisons = (comparisons || []).length > 0;
 
   if (!showSaveLoad) return null;
 
@@ -45,7 +49,7 @@ export default function SaveLoadPanel({
             Save the current plan as a checkpoint, reload an earlier version, or compare it against what you are editing now.
           </div>
         </div>
-        {compareName ? (
+        {hasComparisons ? (
           <ActionButton onClick={onClearCompare} variant={UI_ACTION_VARIANTS.secondary} size='sm'>
             Stop comparing
           </ActionButton>
@@ -118,9 +122,9 @@ export default function SaveLoadPanel({
                   style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     gap: UI_SPACE.sm, padding: `${UI_SPACE.xs}px ${UI_SPACE.sm}px`,
-                    background: scenarioName === t.name ? '#1e3a5f' : compareName === t.name ? '#3b2a1a' : '#0f172a',
+                    background: scenarioName === t.name ? '#1e3a5f' : isComparing(t.name) ? '#3b2a1a' : '#0f172a',
                     borderRadius: UI_RADII.sm,
-                    border: scenarioName === t.name ? `1px solid ${UI_COLORS.primary}` : compareName === t.name ? `1px solid ${UI_COLORS.compare}` : '1px solid #334155',
+                    border: scenarioName === t.name ? `1px solid ${UI_COLORS.primary}` : isComparing(t.name) ? `1px solid ${(compareColors || [])[compIdx(t.name)] || UI_COLORS.compare}` : '1px solid #334155',
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
@@ -131,8 +135,8 @@ export default function SaveLoadPanel({
                       {scenarioName === t.name && (
                         <span style={{ fontSize: 9, color: UI_COLORS.primary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active</span>
                       )}
-                      {compareName === t.name && (
-                        <span style={{ fontSize: 9, color: UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
+                      {isComparing(t.name) && (
+                        <span style={{ fontSize: 9, color: (compareColors || [])[compIdx(t.name)] || UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
                       )}
                     </div>
                     <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, lineHeight: 1.3 }}>
@@ -147,9 +151,9 @@ export default function SaveLoadPanel({
                         variant={UI_ACTION_VARIANTS.secondary}
                         size='sm'
                         accent={UI_COLORS.compare}
-                        active={compareName === t.name}
+                        active={isComparing(t.name)}
                       >
-                        {compareName === t.name ? 'Comparing' : 'Compare'}
+                        {isComparing(t.name) ? 'Comparing' : 'Compare'}
                       </ActionButton>
                     )}
                     <ActionButton
@@ -183,8 +187,8 @@ export default function SaveLoadPanel({
               tone='featured'
               padding='sm'
               style={{
-                background: scenarioName === scenario.name ? '#1e3a5f' : compareName === scenario.name ? '#3b2a1a' : '#0f172a',
-                border: scenarioName === scenario.name ? `1px solid ${UI_COLORS.primary}` : compareName === scenario.name ? `1px solid ${UI_COLORS.compare}` : undefined,
+                background: scenarioName === scenario.name ? '#1e3a5f' : isComparing(scenario.name) ? '#3b2a1a' : '#0f172a',
+                border: scenarioName === scenario.name ? `1px solid ${UI_COLORS.primary}` : isComparing(scenario.name) ? `1px solid ${(compareColors || [])[compIdx(scenario.name)] || UI_COLORS.compare}` : undefined,
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: UI_SPACE.md, flexWrap: 'wrap' }}>
@@ -196,8 +200,8 @@ export default function SaveLoadPanel({
                     {scenarioName === scenario.name && (
                       <span style={{ fontSize: 9, color: UI_COLORS.primary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active</span>
                     )}
-                    {compareName === scenario.name && (
-                      <span style={{ fontSize: 9, color: UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
+                    {isComparing(scenario.name) && (
+                      <span style={{ fontSize: 9, color: (compareColors || [])[compIdx(scenario.name)] || UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
                     )}
                   </div>
                   <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 2 }}>
@@ -215,13 +219,13 @@ export default function SaveLoadPanel({
                   <ActionButton
                     onClick={() => onCompare(scenario.name, scenario.state)}
                     data-testid={`save-load-compare-${index}`}
-                    aria-label={`${compareName === scenario.name ? 'Stop comparing' : 'Compare'} scenario ${scenario.name}`}
+                    aria-label={`${isComparing(scenario.name) ? 'Stop comparing' : 'Compare'} scenario ${scenario.name}`}
                     variant={UI_ACTION_VARIANTS.secondary}
                     size='sm'
                     accent={UI_COLORS.compare}
-                    active={compareName === scenario.name}
+                    active={isComparing(scenario.name)}
                   >
-                    {compareName === scenario.name ? 'Comparing now' : 'Compare'}
+                    {isComparing(scenario.name) ? 'Comparing' : 'Compare'}
                   </ActionButton>
                   <ActionButton onClick={() => onDelete(scenario.name)} data-testid={`save-load-delete-${index}`} aria-label={`Delete scenario ${scenario.name}`} variant={UI_ACTION_VARIANTS.destructive} size='sm'>
                     Delete
@@ -235,7 +239,7 @@ export default function SaveLoadPanel({
 
       <div style={{ marginTop: 10, fontSize: UI_TEXT.micro, color: UI_COLORS.textDim }}>
         {storageAvailable
-          ? `${savedScenarios.length} saved ${savedScenarios.length === 1 ? 'checkpoint' : 'checkpoints'} on this device${compareName ? ` · comparing ${compareName}` : ''}.`
+          ? `${savedScenarios.length} saved ${savedScenarios.length === 1 ? 'checkpoint' : 'checkpoints'} on this device${hasComparisons ? ` · comparing ${comparisons.map(c => c.name).join(', ')}` : ''}.`
           : 'This browser session cannot keep saved checkpoints.'}
       </div>
     </SurfaceCard>

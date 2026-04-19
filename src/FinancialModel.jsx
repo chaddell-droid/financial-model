@@ -104,7 +104,7 @@ export default function FinancialModel() {
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
-    compareState, compareName,
+    comparisons,
     starting401k, return401k, homeEquity, homeAppreciation,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     seqBadY1, seqBadY2,
@@ -186,10 +186,14 @@ export default function FinancialModel() {
     return buildReforecast(gatherState, latest);
   }, [checkInHistory, deferredState]);
 
-  const compareProjection = useMemo(() => {
-    if (!compareState) return null;
-    return computeProjection(compareState);
-  }, [compareState]);
+  // Multi-comparison: compute projections for up to 3 comparisons
+  const COMPARE_COLORS = ['#fbbf24', '#22d3ee', '#c084fc']; // yellow, cyan, purple
+  const compareProjections = useMemo(() => {
+    return (comparisons || []).map(c => ({
+      name: c.name,
+      projection: computeProjection(c.state),
+    }));
+  }, [comparisons]);
 
   // Scenario persistence
   const restoreState = (s) => {
@@ -624,7 +628,7 @@ export default function FinancialModel() {
 
   const savingsDrawdownProps = useMemo(() => ({
     savingsData, savingsZeroMonth, savingsZeroLabel,
-    compareProjection, compareName,
+    compareProjections, compareColors: COMPARE_COLORS,
     data, startingSavings, investmentReturn,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
@@ -633,7 +637,7 @@ export default function FinancialModel() {
     monthlyDetail,
   }), [
     savingsData, savingsZeroMonth, savingsZeroLabel,
-    compareProjection, compareName,
+    compareProjections,
     data, startingSavings, investmentReturn,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
@@ -646,13 +650,13 @@ export default function FinancialModel() {
     starting401k, return401k,
     homeEquity, homeAppreciation,
     presentMode, onFieldChange: set,
-    compareProjection, compareName,
+    compareProjections, compareColors: COMPARE_COLORS,
   }), [
     savingsData, wealthData,
     starting401k, return401k,
     homeEquity, homeAppreciation,
     presentMode,
-    compareProjection, compareName,
+    compareProjections,
   ]);
 
   // Stable risk-tab variants with instanceId baked in (avoids inline spread that defeats memo)
@@ -713,7 +717,7 @@ export default function FinancialModel() {
         ? 'side'
         : 'below';
   const compactShell = shellWidthBucket === 'compact';
-  const showCompareBanner = !presentMode && Boolean(compareState);
+  const showCompareBanner = !presentMode && (comparisons || []).length > 0;
   // Rail charts use useDeferredValue for prioritization — no additional delay needed.
   // A hard debounce here prevents charts from updating at all during slider drag.
   const goalPanelProps = useMemo(() => ({
@@ -784,11 +788,12 @@ export default function FinancialModel() {
 
         {showCompareBanner ? (
           <ComparisonBanner
-            compareState={compareState}
-            compareName={compareName}
-            onClearCompare={() => { set('compareState')(null); set('compareName')(''); }}
+            comparisons={comparisons || []}
+            compareProjections={compareProjections}
+            compareColors={COMPARE_COLORS}
+            onRemoveComparison={(name) => set('comparisons')((comparisons || []).filter(c => c.name !== name))}
+            onClearAll={() => set('comparisons')([])}
             projection={projection}
-            compareProjection={compareProjection}
           />
         ) : null}
       </>
@@ -818,8 +823,8 @@ export default function FinancialModel() {
     cutInHalf,
     extraCuts,
     showCompareBanner,
-    compareState,
-    compareName,
+    comparisons,
+    compareProjections,
     retirementSpendingTargets,
   ]);
 
@@ -913,7 +918,7 @@ export default function FinancialModel() {
           chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
           vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
           bcsYearsLeft={bcsYearsLeft} milestones={milestones}
-          compareProjection={compareProjection} compareName={compareName}
+          compareProjections={compareProjections} compareColors={COMPARE_COLORS}
         />
       )}
 
@@ -1019,19 +1024,29 @@ export default function FinancialModel() {
             onSave={saveScenario}
             onLoad={(s) => { restoreState(s.state); set('scenarioName')(s.name); }}
             onCompare={(name, st) => {
-              if (compareState && compareName === name) { set('compareState')(null); set('compareName')(""); }
-              else { set('compareState')(st); set('compareName')(name); }
+              const current = comparisons || [];
+              const existing = current.findIndex(c => c.name === name);
+              if (existing >= 0) {
+                set('comparisons')(current.filter((_, i) => i !== existing));
+              } else {
+                const next = current.length >= 3 ? [...current.slice(1), { name, state: st }] : [...current, { name, state: st }];
+                set('comparisons')(next);
+              }
             }}
-            compareName={compareName}
-            onClearCompare={() => { set('compareState')(null); set('compareName')(""); }}
+            comparisons={comparisons || []}
+            compareColors={COMPARE_COLORS}
+            onClearCompare={() => set('comparisons')([])}
             onDelete={deleteScenario}
             onApplyTemplate={(name, overrides) => { dispatch({ type: 'APPLY_TEMPLATE', overrides }); set('scenarioName')(name); }}
             onCompareTemplate={(name, overrides) => {
-              if (compareState && compareName === name) { set('compareState')(null); set('compareName')(''); }
-              else {
-                // Build a full gathered state from current state + template overrides for comparison
+              const current = comparisons || [];
+              const existing = current.findIndex(c => c.name === name);
+              if (existing >= 0) {
+                set('comparisons')(current.filter((_, i) => i !== existing));
+              } else {
                 const templateState = gatherState({ ...state, ...overrides });
-                set('compareState')(templateState); set('compareName')(name);
+                const next = current.length >= 3 ? [...current.slice(1), { name, state: templateState }] : [...current, { name, state: templateState }];
+                set('comparisons')(next);
               }
             }}
             storageStatus={storageStatus}

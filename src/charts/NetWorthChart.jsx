@@ -11,7 +11,7 @@ function NetWorthChart({
   savingsData, wealthData,
   starting401k, return401k, homeEquity, homeAppreciation,
   presentMode, onFieldChange,
-  compareProjection, compareName,
+  compareProjections, compareColors,
   instanceId = 'default',
 }) {
   const containerRef = useRef(null);
@@ -36,14 +36,16 @@ function NetWorthChart({
   let maxVal = Math.max(...primaryTotals);
   let minVal = Math.min(0, ...savingsData.map(d => d.balance));
   // Extend scale for comparison data
-  if (compareProjection) {
-    const compSav = compareProjection.savingsData || [];
-    const compWealth = compareProjection.monthlyData || [];
-    for (let i = 0; i < compWealth.length; i++) {
-      const sav = compSav[i]?.balance || 0;
-      const total = sav + (compWealth[i]?.balance401k || 0) + (compWealth[i]?.homeEquity || 0);
-      if (total > maxVal) maxVal = total;
-      if (sav < minVal) minVal = sav;
+  if (compareProjections) {
+    for (const cp of compareProjections) {
+      const compSav = cp.projection.savingsData || [];
+      const compWealth = cp.projection.monthlyData || [];
+      for (let i = 0; i < compWealth.length; i++) {
+        const sav = compSav[i]?.balance || 0;
+        const total = sav + (compWealth[i]?.balance401k || 0) + (compWealth[i]?.homeEquity || 0);
+        if (total > maxVal) maxVal = total;
+        if (sav < minVal) minVal = sav;
+      }
     }
   }
   const yMax = maxVal * 1.05;
@@ -85,7 +87,7 @@ function NetWorthChart({
     { id: '401k', label: '401k', color: COLORS.blue },
     { id: 'home', label: 'Home Equity', color: COLORS.amber },
     { id: 'total', label: 'Total Net Worth', color: COLORS.textSecondary, line: true, dash: true },
-    ...(compareProjection ? [{ id: 'compare', label: `"${compareName}" net worth`, color: COLORS.yellow, line: true, dash: true }] : []),
+    ...((compareProjections || []).map((cp, ci) => ({ id: `compare-${ci}`, label: `"${cp.name}" net worth`, color: (compareColors || [])[ci] || COLORS.yellow, line: true, dash: true }))),
   ]);
 
   return (
@@ -147,12 +149,13 @@ function NetWorthChart({
               opacity={l.dashed ? 0.7 : 1} />
           ))}
 
-          {/* Comparison total net worth line — dashed yellow (matches SavingsDrawdownChart) */}
-          {compareProjection && (() => {
-            const compSav = compareProjection.savingsData || [];
-            const compWealth = compareProjection.monthlyData || [];
+          {/* Comparison net worth lines — one per active comparison */}
+          {compareProjections && compareProjections.map((cp, ci) => {
+            const compSav = cp.projection.savingsData || [];
+            const compWealth = cp.projection.monthlyData || [];
             const len = Math.min(compSav.length, compWealth.length);
             if (len === 0) return null;
+            const color = (compareColors || [])[ci] || COLORS.yellow;
             const compTotalPath = Array.from({ length: len }, (_, i) => {
               const sav = compSav[i]?.balance || 0;
               const total = sav + (compWealth[i]?.balance401k || 0) + (compWealth[i]?.homeEquity || 0);
@@ -165,17 +168,17 @@ function NetWorthChart({
             })();
             const lastMonth = compSav[len - 1]?.month || 0;
             return (
-              <>
-                <path d={`M ${compTotalPath}`} fill="none" stroke={COLORS.yellow} strokeWidth="2"
+              <React.Fragment key={`comp-nw-${ci}`}>
+                <path d={`M ${compTotalPath}`} fill="none" stroke={color} strokeWidth="2"
                   strokeLinejoin="round" strokeLinecap="round" strokeDasharray="8,4" opacity="0.8" />
-                <circle cx={xOf(lastMonth)} cy={yOf(compEnd)} r="3" fill={COLORS.yellow} />
-                <text x={xOf(lastMonth) - 6} y={yOf(compEnd) - 8} textAnchor="end"
-                  fill={COLORS.yellow} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                  {compareName}
+                <circle cx={xOf(lastMonth)} cy={yOf(compEnd)} r="3" fill={color} />
+                <text x={xOf(lastMonth) - 6} y={yOf(compEnd) - 8 - ci * 14} textAnchor="end"
+                  fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                  {cp.name}
                 </text>
-              </>
+              </React.Fragment>
             );
-          })()}
+          })}
 
           {/* Savings depleted marker */}
           {(() => {

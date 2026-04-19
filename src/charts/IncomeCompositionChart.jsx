@@ -11,7 +11,7 @@ import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
  * Annotations: dashed vertical lines through chart with labels ABOVE the chart area,
  * matching the SavingsDrawdownChart visual pattern.
  */
-export default function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings, compareProjection, compareName }) {
+export default function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings, compareProjections, compareColors }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   // Map monthly field names: chart sources use 'msftVesting' key but monthly data has 'msftSmoothed'
@@ -33,7 +33,7 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
   const legendItems = buildLegendItems([
     ...sources.map((source) => ({ id: source.key, label: source.label, color: source.color })),
     { id: 'expenses', label: 'Expenses', color: '#f87171', line: true },
-    ...(compareProjection ? [{ id: 'compare-expenses', label: `"${compareName}" expenses`, color: '#fbbf24', line: true, dash: true }] : []),
+    ...((compareProjections || []).map((cp, ci) => ({ id: `compare-${ci}`, label: `"${cp.name}" expenses`, color: (compareColors || [])[ci] || '#fbbf24', line: true, dash: true }))),
   ]);
 
   // Compute totalIncome (smoothed) for a month — consistent with what bars show
@@ -237,23 +237,23 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
               fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
 
-          {/* Comparison expense line — dashed yellow, matches SavingsDrawdownChart pattern */}
-          {compareProjection && (() => {
-            const compData = compareProjection.monthlyData;
+          {/* Comparison expense lines — one per active comparison, each with distinct color */}
+          {compareProjections && compareProjections.map((cp, ci) => {
+            const compData = cp.projection.monthlyData;
             if (!compData || compData.length === 0) return null;
-            // Build path matching months by index (same viewBox coordinate system)
+            const color = (compareColors || [])[ci] || '#fbbf24';
             const compPath = compData.slice(0, n).map((cd, i) =>
               `${i * 100 + 50},${stackH - (cd.expenses / stackMax) * stackH}`
             );
             return (
-              <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
-                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 4 }}>
+              <svg key={`comp-${ci}`} viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 4 + ci }}>
                 <path d={`M ${compPath.join(' L ')}`}
-                  fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
+                  fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
                   strokeDasharray="8,4" opacity="0.8" />
               </svg>
             );
-          })()}
+          })}
 
           {/* Dashed vertical annotation lines through the chart */}
           {markers.map((m, i) => (

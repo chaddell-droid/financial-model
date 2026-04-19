@@ -715,10 +715,10 @@ export default function FinancialModel() {
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = true;
   const showTabs = !presentMode;
-  const showRail = !presentMode && effectiveTab !== 'plan' && effectiveTab !== 'overview';
+  const showRail = !presentMode;
   const railPlacement = !showRail
     ? 'hidden'
-    : (effectiveTab === 'overview' || effectiveTab === 'track')
+    : effectiveTab === 'track'
       ? 'below'
       : shellWidthBucket === 'desktop'
         ? 'side'
@@ -875,77 +875,25 @@ export default function FinancialModel() {
   const plannerWorkspace = useMemo(() => (
     <>
       {effectiveTab === 'overview' && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: shellWidthBucket === 'desktop' ? `minmax(0, 1fr) ${railConfig.railWidth || 520}px` : '1fr',
-          gap: 24,
-          alignItems: 'start',
-        }}>
-          <div>
-            <SavingsDrawdownChart {...savingsDrawdownProps} instanceId='overview' />
-            <OverviewTab
-              bridgeProps={bridgeProps}
-              rawMonthlyGap={rawMonthlyGap}
-              savingsZeroLabel={savingsZeroLabel}
-              savingsZeroMonth={savingsZeroMonth}
-              mcResults={mcResults}
-              onTabChange={set('activeTab')}
-            />
-            <NetWorthChart {...netWorthProps} instanceId='overview' />
-          </div>
-          {shellWidthBucket === 'desktop' && (
-            <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
-              <RailRenderer
-                tab="overview"
-                chartIds={railConfig.getTabCharts('overview')}
-                componentMap={RAIL_COMPONENTS}
-                propsMap={railPropsMap}
-                onReorder={(from, to) => railConfig.moveChart('overview', from, to)}
-                onRemove={(id) => railConfig.removeChart('overview', id)}
-                onAdd={(id) => railConfig.addChart('overview', id)}
-                onReset={() => railConfig.resetTab('overview')}
-                onClearAll={() => railConfig.setTabCharts('overview', [])}
-                onSave={() => railConfig.saveLayout()}
-                isModified={railConfig.isTabModified('overview')}
-              />
-            </div>
-          )}
-        </div>
+        <OverviewTab
+          bridgeProps={bridgeProps}
+          rawMonthlyGap={rawMonthlyGap}
+          savingsZeroLabel={savingsZeroLabel}
+          savingsZeroMonth={savingsZeroMonth}
+          mcResults={mcResults}
+          onTabChange={set('activeTab')}
+        />
       )}
 
       {effectiveTab === 'plan' && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: shellWidthBucket === 'desktop' ? `minmax(0, 1fr) ${railConfig.railWidth || 520}px` : '1fr',
-          gap: 24,
-          alignItems: 'start',
-        }}>
-          <PlanTab
-            incomeControlsProps={incomeControlsProps}
-            expenseControlsProps={expenseControlsProps}
-            scenarioStripProps={scenarioStripProps}
-            shellWidthBucket={shellWidthBucket}
-            presentMode={presentMode}
-            gatherState={stableGatherState}
-          />
-          {shellWidthBucket === 'desktop' && (
-            <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
-              <RailRenderer
-                tab="plan"
-                chartIds={railConfig.getTabCharts('plan')}
-                componentMap={RAIL_COMPONENTS}
-                propsMap={railPropsMap}
-                onReorder={(from, to) => railConfig.moveChart('plan', from, to)}
-                onRemove={(id) => railConfig.removeChart('plan', id)}
-                onAdd={(id) => railConfig.addChart('plan', id)}
-                onReset={() => railConfig.resetTab('plan')}
-                onClearAll={() => railConfig.setTabCharts('plan', [])}
-                onSave={() => railConfig.saveLayout()}
-                isModified={railConfig.isTabModified('plan')}
-              />
-            </div>
-          )}
-        </div>
+        <PlanTab
+          incomeControlsProps={incomeControlsProps}
+          expenseControlsProps={expenseControlsProps}
+          scenarioStripProps={scenarioStripProps}
+          shellWidthBucket={shellWidthBucket}
+          presentMode={presentMode}
+          gatherState={stableGatherState}
+        />
       )}
 
       {effectiveTab === 'track' && (

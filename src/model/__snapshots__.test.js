@@ -1852,10 +1852,10 @@ test('FinancialModel passes best-projected-gap inputs into KeyMetrics', () => {
   assert.ok(source.includes('bestProjectedLabel={bestProjectedLabel}'), 'FinancialModel should pass bestProjectedLabel into KeyMetrics');
 });
 
-test('Overview forces the rail below and Plan hides it', () => {
+test('All tabs use the shared AppShell rail', () => {
   const source = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes("effectiveTab === 'overview'"), 'overview should force below-rail placement');
-  assert.ok(source.includes("effectiveTab !== 'plan'"), 'plan should hide the shared rail');
+  assert.ok(source.includes("showRail = !presentMode"), 'rail should be visible on all tabs when not presenting');
+  assert.ok(!source.includes("effectiveTab !== 'plan'"), 'plan should no longer hide the rail');
 });
 
 test('AppShell narrows the side rail width contract', () => {

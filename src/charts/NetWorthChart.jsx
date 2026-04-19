@@ -301,7 +301,7 @@ function NetWorthChart({
             <div style={{
               width: 20, height: item.line ? 0 : 3,
               background: item.line ? undefined : item.color,
-              borderTop: item.line ? `2px dashed ${item.color}` : undefined,
+              borderTop: item.line ? `2px ${item.dash ? 'dashed' : 'solid'} ${item.color}` : undefined,
               borderRadius: 1,
             }} />
             <span style={{ color: COLORS.textMuted }}>{item.label}</span>

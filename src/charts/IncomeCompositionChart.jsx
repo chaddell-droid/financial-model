@@ -335,7 +335,13 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
       <div style={{ display: "flex", gap: 14, marginTop: 32, justifyContent: "center", flexWrap: "wrap" }}>
         {legendItems.map((item) => (
           <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: item.line ? 16 : 12, height: item.line ? 2 : 12, borderRadius: item.line ? 0 : 2, background: item.line ? undefined : item.color, borderTop: item.line ? `2px solid ${item.color}` : undefined, opacity: item.line ? 1 : 0.7 }} />
+            <div style={{
+              width: item.line ? 16 : 12, height: item.line ? 2 : 12,
+              borderRadius: item.line ? 0 : 2,
+              background: item.line ? undefined : item.color,
+              borderTop: item.line ? `2px ${item.dash ? 'dashed' : 'solid'} ${item.color}` : undefined,
+              opacity: item.line ? 1 : 0.7,
+            }} />
             <span style={{ fontSize: 11, color: "#94a3b8" }}>{item.label}</span>
           </div>
         ))}

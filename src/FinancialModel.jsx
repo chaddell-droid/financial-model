@@ -31,6 +31,12 @@ import { getCurrentModelMonth, buildReforecast } from './model/checkIn.js';
 import { getShellWidthBucket } from './ui/tokens.js';
 import { useIsVisible } from './ui/useIsVisible.js';
 import { noteCompute } from './testing/perfMetrics.js';
+import { useRailConfig } from './rail/useRailConfig.js';
+import RailRenderer from './rail/RailRenderer.jsx';
+import BridgeChart from './charts/BridgeChart.jsx';
+import IncomeCompositionChart from './charts/IncomeCompositionChart.jsx';
+import MonteCarloPanel from './charts/MonteCarloPanel.jsx';
+import SequenceOfReturnsChart from './charts/SequenceOfReturnsChart.jsx';
 
 // Lazy wrapper: only renders RetirementIncomeChart when scrolled into view.
 // React.lazy code-splits the chart + shillerReturns (~162KB) into a separate chunk.
@@ -57,6 +63,7 @@ export default function FinancialModel() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [shellWidthBucket, setShellWidthBucket] = useState(getInitialShellWidthBucket);
   const [retirementSpendingTargets, setRetirementSpendingTargets] = useState(null);
+  const railConfig = useRailConfig();
   const handleResetAll = () => {
     const confirmed = typeof window === 'undefined'
       ? true
@@ -982,19 +989,50 @@ export default function FinancialModel() {
     mcResults,
   ]);
 
+  // Chart picker: component map + props map for the configurable rail
+  const RAIL_COMPONENTS = useMemo(() => ({
+    savings: SavingsDrawdownChart,
+    networth: NetWorthChart,
+    retirement: LazyRetirementChart,
+    bridge: BridgeChart,
+    income: IncomeCompositionChart,
+    montecarlo: MonteCarloPanel,
+    sequence: SequenceOfReturnsChart,
+  }), []);
+
+  const railPropsMap = useMemo(() => ({
+    savings: { ...savingsDrawdownProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
+    networth: { ...netWorthProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
+    retirement: deferredRetirementRailProps,
+    bridge: bridgeProps,
+    income: {
+      monthlyDetail, investmentReturn, ssType,
+      ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
+      chadJob, chadJobStartMonth, chadJobHealthSavings,
+      vanSold, vanSaleMonth, vanMonthlySavings,
+      bcsYearsLeft, milestones,
+      compareProjections, compareColors: COMPARE_COLORS,
+    },
+    montecarlo: monteCarloProps,
+    sequence: seqReturnsProps,
+  }), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, bridgeProps,
+    monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
+    vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
+    compareProjections, monteCarloProps, seqReturnsProps, effectiveTab]);
+
   const plannerRail = useMemo(() => (
-    <>
-      <SavingsDrawdownChart
-        {...savingsDrawdownProps}
-        instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}
-      />
-      <NetWorthChart
-        {...netWorthProps}
-        instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}
-      />
-      <LazyRetirementChart {...deferredRetirementRailProps} />
-    </>
-  ), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, effectiveTab]);
+    <RailRenderer
+      tab={effectiveTab}
+      chartIds={railConfig.getTabCharts(effectiveTab)}
+      componentMap={RAIL_COMPONENTS}
+      propsMap={railPropsMap}
+      onReorder={(from, to) => railConfig.moveChart(effectiveTab, from, to)}
+      onRemove={(id) => railConfig.removeChart(effectiveTab, id)}
+      onAdd={(id) => railConfig.addChart(effectiveTab, id)}
+      onReset={() => railConfig.resetTab(effectiveTab)}
+    />
+  ), [effectiveTab, railConfig, RAIL_COMPONENTS, railPropsMap]);
 
   return (
     <div style={{

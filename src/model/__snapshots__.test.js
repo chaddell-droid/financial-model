@@ -1496,7 +1496,7 @@ test('chart automation hooks disambiguate duplicate surfaces and hover targets',
   const cashFlowSource = fs.readFileSync(new URL('../charts/MonthlyCashFlowChart.jsx', import.meta.url), 'utf8');
   const incomeCompSource = fs.readFileSync(new URL('../charts/IncomeCompositionChart.jsx', import.meta.url), 'utf8');
   assert.ok(appSource.includes("instanceId: 'risk-tab'"), 'FinancialModel should assign a risk-tab instance id to duplicate charts');
-  assert.ok(appSource.includes("instanceId={effectiveTab === 'risk' ? 'right-rail' : 'shared-rail'}"), 'FinancialModel should assign a separate right-rail instance id');
+  assert.ok(appSource.includes("'right-rail'") && appSource.includes("'shared-rail'"), 'FinancialModel should assign right-rail and shared-rail instance ids');
   assert.ok(savingsSource.includes('savings-drawdown-hover-surface'), 'savings chart should expose a stable hover surface');
   assert.ok(netWorthSource.includes('net-worth-hover-surface'), 'net worth chart should expose a stable hover surface');
   assert.ok(cashFlowSource.includes('monthly-cash-flow-hover-surface'), 'cash flow chart should expose a stable hover surface');

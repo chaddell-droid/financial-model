@@ -1,25 +1,23 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_RAIL_CONFIG } from './railDefaults.js';
 import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, saveSavedRailConfig } from './railConfigStorage.js';
 
 /**
  * Hook for managing per-tab rail chart configuration.
  *
- * Two layers of state:
- * - config: the live working config (changes as you add/remove/reorder)
- * - savedConfig: the last explicitly saved checkpoint (what "Reset" restores to)
- *
- * "Save" locks the current layout as the checkpoint.
- * "Reset" restores the current tab to the last saved checkpoint.
- * If no checkpoint exists, reset falls back to DEFAULT_RAIL_CONFIG.
+ * Uses functional state updates (prev => next) to avoid stale closure bugs.
+ * All mutators use setConfig(prev => ...) so they always operate on the
+ * latest state, regardless of React batching or memoization.
  */
 export function useRailConfig() {
   const [config, setConfig] = useState(DEFAULT_RAIL_CONFIG);
   const [savedConfig, setSavedConfig] = useState(DEFAULT_RAIL_CONFIG);
   const [railWidth, setRailWidthState] = useState(520);
   const [loaded, setLoaded] = useState(false);
+  // Ref to always have latest config for persistence without stale closures
+  const configRef = useRef(config);
+  configRef.current = config;
 
-  // Load persisted config + saved checkpoint on mount
   useEffect(() => {
     Promise.all([loadRailConfig(), loadSavedRailConfig()]).then(([live, saved]) => {
       if (live) {
@@ -41,10 +39,13 @@ export function useRailConfig() {
     });
   }, []);
 
-  // Persist live config on every change
-  const persist = useCallback((next) => {
-    setConfig(next);
-    saveRailConfig(next);
+  // All mutators use functional updates to avoid stale closures
+  const updateConfig = useCallback((updater) => {
+    setConfig(prev => {
+      const next = updater(prev);
+      saveRailConfig({ ...next, railWidth: configRef.current.railWidth });
+      return next;
+    });
   }, []);
 
   const getTabCharts = useCallback((tab) => {
@@ -52,62 +53,63 @@ export function useRailConfig() {
   }, [config]);
 
   const setTabCharts = useCallback((tab, chartIds) => {
-    persist({ ...config, [tab]: chartIds });
-  }, [config, persist]);
+    updateConfig(prev => ({ ...prev, [tab]: chartIds }));
+  }, [updateConfig]);
 
   const addChart = useCallback((tab, chartId) => {
-    const current = config[tab] || [];
-    if (current.includes(chartId)) return;
-    persist({ ...config, [tab]: [...current, chartId] });
-  }, [config, persist]);
+    updateConfig(prev => {
+      const current = prev[tab] || [];
+      if (current.includes(chartId)) return prev;
+      return { ...prev, [tab]: [...current, chartId] };
+    });
+  }, [updateConfig]);
 
   const removeChart = useCallback((tab, chartId) => {
-    const current = config[tab] || [];
-    persist({ ...config, [tab]: current.filter(id => id !== chartId) });
-  }, [config, persist]);
+    updateConfig(prev => ({ ...prev, [tab]: (prev[tab] || []).filter(id => id !== chartId) }));
+  }, [updateConfig]);
 
   const moveChart = useCallback((tab, fromIndex, toIndex) => {
-    const current = [...(config[tab] || [])];
-    if (fromIndex < 0 || fromIndex >= current.length) return;
-    if (toIndex < 0 || toIndex >= current.length) return;
-    const [moved] = current.splice(fromIndex, 1);
-    current.splice(toIndex, 0, moved);
-    persist({ ...config, [tab]: current });
-  }, [config, persist]);
+    updateConfig(prev => {
+      const current = [...(prev[tab] || [])];
+      if (fromIndex < 0 || fromIndex >= current.length) return prev;
+      if (toIndex < 0 || toIndex >= current.length) return prev;
+      const [moved] = current.splice(fromIndex, 1);
+      current.splice(toIndex, 0, moved);
+      return { ...prev, [tab]: current };
+    });
+  }, [updateConfig]);
 
-  // Save: lock current config as the checkpoint
   const saveLayout = useCallback(() => {
-    setSavedConfig({ ...config });
-    saveSavedRailConfig(config);
-  }, [config]);
+    setSavedConfig({ ...configRef.current });
+    saveSavedRailConfig(configRef.current);
+  }, []);
 
-  // Reset: restore current tab to saved checkpoint (or defaults)
   const resetTab = useCallback((tab) => {
-    const savedCharts = savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || [];
-    persist({ ...config, [tab]: savedCharts });
-  }, [config, savedConfig, persist]);
+    updateConfig(prev => {
+      const savedCharts = savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || [];
+      return { ...prev, [tab]: savedCharts };
+    });
+  }, [updateConfig, savedConfig]);
 
   const resetAll = useCallback(() => {
-    persist({ ...savedConfig });
-  }, [savedConfig, persist]);
+    setConfig({ ...savedConfig });
+    saveRailConfig(savedConfig);
+  }, [savedConfig]);
 
-  // Check if current tab differs from saved
   const isTabModified = useCallback((tab) => {
     const current = JSON.stringify(config[tab] || []);
     const saved = JSON.stringify(savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || []);
     return current !== saved;
   }, [config, savedConfig]);
 
-  // Rail width — live update (no persist) for smooth dragging
   const setRailWidthLive = useCallback((w) => {
     setRailWidthState(w);
   }, []);
 
-  // Rail width — commit (persist) on drag end
   const commitRailWidth = useCallback((w) => {
     setRailWidthState(w);
-    saveRailConfig({ ...config, railWidth: w });
-  }, [config]);
+    saveRailConfig({ ...configRef.current, railWidth: w });
+  }, []);
 
   return {
     config,

@@ -411,12 +411,12 @@ function SavingsDrawdownChart({
             Investment returns compound monthly while balance is positive — but only matter when the monthly deficit is small. At a {fmtFull(Math.abs(data[0].netCashFlow))}/mo burn rate, savings drain before returns can compound meaningfully. Toggle debt retirement and spending cuts to shrink the deficit — that's when returns become a powerful lever.
           </div>
           </>}
-          {compareProjection && (
-            <div style={{ marginTop: 6, display: "flex", gap: 16, fontSize: 11, alignItems: "center" }}>
+          {(compareProjections || []).length > 0 && (
+            <div style={{ marginTop: 6, display: "flex", gap: 16, fontSize: 11, alignItems: "center", flexWrap: "wrap" }}>
               {comparisonLegend.map((item) => (
                 <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ width: item.line ? 20 : 20, height: item.line ? 0 : 3, background: item.line ? undefined : item.color, borderRadius: item.line ? 0 : 1, borderTop: item.line ? `2px dashed ${item.color}` : undefined }} />
-                  <span style={{ color: item.id === 'compare' ? item.color : COLORS.textMuted }}>{item.label}</span>
+                  <span style={{ color: item.color || COLORS.textMuted }}>{item.label}</span>
                 </div>
               ))}
             </div>

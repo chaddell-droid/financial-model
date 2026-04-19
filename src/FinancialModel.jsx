@@ -839,6 +839,39 @@ export default function FinancialModel() {
     showTabs ? <TabBar activeTab={effectiveTab} onChange={set('activeTab')} compact={compactShell} /> : null
   ), [showTabs, effectiveTab, compactShell]);
 
+  // Chart picker: component map + props map for the configurable rail
+  // Must be defined BEFORE plannerWorkspace which references them
+  const RAIL_COMPONENTS = useMemo(() => ({
+    savings: SavingsDrawdownChart,
+    networth: NetWorthChart,
+    retirement: LazyRetirementChart,
+    bridge: BridgeChart,
+    income: IncomeCompositionChart,
+    montecarlo: MonteCarloPanel,
+    sequence: SequenceOfReturnsChart,
+  }), []);
+
+  const railPropsMap = useMemo(() => ({
+    savings: { ...savingsDrawdownProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
+    networth: { ...netWorthProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
+    retirement: deferredRetirementRailProps,
+    bridge: bridgeProps,
+    income: {
+      monthlyDetail, investmentReturn, ssType,
+      ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
+      chadJob, chadJobStartMonth, chadJobHealthSavings,
+      vanSold, vanSaleMonth, vanMonthlySavings,
+      bcsYearsLeft, milestones,
+      compareProjections, compareColors: COMPARE_COLORS,
+    },
+    montecarlo: monteCarloProps,
+    sequence: seqReturnsProps,
+  }), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, bridgeProps,
+    monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
+    vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
+    compareProjections, monteCarloProps, seqReturnsProps, effectiveTab]);
+
   const plannerWorkspace = useMemo(() => (
     <>
       {effectiveTab === 'overview' && (
@@ -862,7 +895,16 @@ export default function FinancialModel() {
           </div>
           {shellWidthBucket === 'desktop' && (
             <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
-              <LazyRetirementChart {...deferredRetirementRailProps} />
+              <RailRenderer
+                tab="overview"
+                chartIds={railConfig.getTabCharts('overview')}
+                componentMap={RAIL_COMPONENTS}
+                propsMap={railPropsMap}
+                onReorder={(from, to) => railConfig.moveChart('overview', from, to)}
+                onRemove={(id) => railConfig.removeChart('overview', id)}
+                onAdd={(id) => railConfig.addChart('overview', id)}
+                onReset={() => railConfig.resetTab('overview')}
+              />
             </div>
           )}
         </div>
@@ -885,8 +927,16 @@ export default function FinancialModel() {
           />
           {shellWidthBucket === 'desktop' && (
             <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
-              <SavingsDrawdownChart {...savingsDrawdownProps} instanceId='plan' />
-              <LazyRetirementChart {...deferredRetirementRailProps} />
+              <RailRenderer
+                tab="plan"
+                chartIds={railConfig.getTabCharts('plan')}
+                componentMap={RAIL_COMPONENTS}
+                propsMap={railPropsMap}
+                onReorder={(from, to) => railConfig.moveChart('plan', from, to)}
+                onRemove={(id) => railConfig.removeChart('plan', id)}
+                onAdd={(id) => railConfig.addChart('plan', id)}
+                onReset={() => railConfig.resetTab('plan')}
+              />
             </div>
           )}
         </div>
@@ -988,38 +1038,6 @@ export default function FinancialModel() {
     savingsZeroMonth,
     mcResults,
   ]);
-
-  // Chart picker: component map + props map for the configurable rail
-  const RAIL_COMPONENTS = useMemo(() => ({
-    savings: SavingsDrawdownChart,
-    networth: NetWorthChart,
-    retirement: LazyRetirementChart,
-    bridge: BridgeChart,
-    income: IncomeCompositionChart,
-    montecarlo: MonteCarloPanel,
-    sequence: SequenceOfReturnsChart,
-  }), []);
-
-  const railPropsMap = useMemo(() => ({
-    savings: { ...savingsDrawdownProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
-    networth: { ...netWorthProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
-    retirement: deferredRetirementRailProps,
-    bridge: bridgeProps,
-    income: {
-      monthlyDetail, investmentReturn, ssType,
-      ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
-      chadJob, chadJobStartMonth, chadJobHealthSavings,
-      vanSold, vanSaleMonth, vanMonthlySavings,
-      bcsYearsLeft, milestones,
-      compareProjections, compareColors: COMPARE_COLORS,
-    },
-    montecarlo: monteCarloProps,
-    sequence: seqReturnsProps,
-  }), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, bridgeProps,
-    monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
-    compareProjections, monteCarloProps, seqReturnsProps, effectiveTab]);
 
   const plannerRail = useMemo(() => (
     <RailRenderer

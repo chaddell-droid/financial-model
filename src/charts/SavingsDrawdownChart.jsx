@@ -255,10 +255,17 @@ function SavingsDrawdownChart({
                           stroke={color} strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
                       )}
                       <circle cx={x(compEnd.month)} cy={y(compEnd.balance)} r="3" fill={color} />
-                      <text x={x(compEnd.month) - 6} y={y(compEnd.balance) - 8 - ci * 14} textAnchor="end"
-                        fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                        {cp.name}
-                      </text>
+                      {(() => {
+                        // Place label near endpoint, stagger vertically, clamp within SVG bounds
+                        const rawY = y(compEnd.balance) - 8 - ci * 16;
+                        const labelY = Math.max(padT + 10, Math.min(rawY, padT + plotH - 5));
+                        return (
+                          <text x={x(compEnd.month) - 6} y={labelY} textAnchor="end"
+                            fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                            {cp.name}
+                          </text>
+                        );
+                      })()}
                     </React.Fragment>
                   );
                 })}

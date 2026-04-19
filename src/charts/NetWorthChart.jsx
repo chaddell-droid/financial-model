@@ -172,10 +172,16 @@ function NetWorthChart({
                 <path d={`M ${compTotalPath}`} fill="none" stroke={color} strokeWidth="2"
                   strokeLinejoin="round" strokeLinecap="round" strokeDasharray="8,4" opacity="0.8" />
                 <circle cx={xOf(lastMonth)} cy={yOf(compEnd)} r="3" fill={color} />
-                <text x={xOf(lastMonth) - 6} y={yOf(compEnd) - 8 - ci * 14} textAnchor="end"
-                  fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                  {cp.name}
-                </text>
+                {(() => {
+                  const rawY = yOf(compEnd) - 8 - ci * 16;
+                  const labelY = Math.max(padT + 10, Math.min(rawY, svgH - padB - 5));
+                  return (
+                    <text x={xOf(lastMonth) - 6} y={labelY} textAnchor="end"
+                      fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                      {cp.name}
+                    </text>
+                  );
+                })()}
               </React.Fragment>
             );
           })}

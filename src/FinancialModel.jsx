@@ -1037,6 +1037,7 @@ export default function FinancialModel() {
     savingsZeroLabel,
     savingsZeroMonth,
     mcResults,
+    railConfig, RAIL_COMPONENTS, railPropsMap,
   ]);
 
   const plannerRail = useMemo(() => (

@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { UI_SPACE } from '../../ui/tokens.js';
+import RailDivider from '../RailDivider.jsx';
 
 function AppShell({
   summary,
@@ -9,8 +10,12 @@ function AppShell({
   showRail = true,
   compact = false,
   railPlacement = 'side',
+  railWidth = 520,
+  onRailWidthChange,
+  onRailWidthCommit,
 }) {
   const stackedRail = showRail && railPlacement !== 'side';
+  const sideRail = showRail && railPlacement === 'side';
 
   return (
     <div
@@ -26,19 +31,27 @@ function AppShell({
         data-testid='app-shell-body'
         style={{
           display: 'grid',
-          gridTemplateColumns: showRail && railPlacement === 'side'
-            ? 'minmax(0, 1fr) minmax(380px, 520px)'
+          gridTemplateColumns: sideRail
+            ? `minmax(0, 1fr) 8px ${railWidth}px`
             : 'minmax(0, 1fr)',
-          gap: UI_SPACE.xl,
+          gap: 0,
           alignItems: 'start',
         }}
       >
-        <div data-testid='app-shell-workspace' style={{ minWidth: 0 }}>
+        <div data-testid='app-shell-workspace' style={{ minWidth: 0, paddingRight: sideRail ? UI_SPACE.md : 0 }}>
           {workspace}
         </div>
 
-        {showRail && railPlacement === 'side' ? (
-          <div data-testid='app-shell-rail' style={{ position: 'sticky', top: UI_SPACE.lg, alignSelf: 'start' }}>
+        {sideRail ? (
+          <RailDivider
+            railWidth={railWidth}
+            onWidthChange={onRailWidthChange || (() => {})}
+            onWidthCommit={onRailWidthCommit || (() => {})}
+          />
+        ) : null}
+
+        {sideRail ? (
+          <div data-testid='app-shell-rail' style={{ position: 'sticky', top: UI_SPACE.lg, alignSelf: 'start', paddingLeft: UI_SPACE.md }}>
             {rail}
           </div>
         ) : null}

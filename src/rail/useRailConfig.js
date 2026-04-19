@@ -16,6 +16,7 @@ import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, s
 export function useRailConfig() {
   const [config, setConfig] = useState(DEFAULT_RAIL_CONFIG);
   const [savedConfig, setSavedConfig] = useState(DEFAULT_RAIL_CONFIG);
+  const [railWidth, setRailWidthState] = useState(520);
   const [loaded, setLoaded] = useState(false);
 
   // Load persisted config + saved checkpoint on mount
@@ -27,6 +28,7 @@ export function useRailConfig() {
           if (Array.isArray(live[tab])) merged[tab] = live[tab];
         }
         setConfig(merged);
+        if (typeof live.railWidth === 'number') setRailWidthState(live.railWidth);
       }
       if (saved) {
         const merged = { ...DEFAULT_RAIL_CONFIG };
@@ -96,9 +98,21 @@ export function useRailConfig() {
     return current !== saved;
   }, [config, savedConfig]);
 
+  // Rail width — live update (no persist) for smooth dragging
+  const setRailWidthLive = useCallback((w) => {
+    setRailWidthState(w);
+  }, []);
+
+  // Rail width — commit (persist) on drag end
+  const commitRailWidth = useCallback((w) => {
+    setRailWidthState(w);
+    saveRailConfig({ ...config, railWidth: w });
+  }, [config]);
+
   return {
     config,
     loaded,
+    railWidth,
     getTabCharts,
     setTabCharts,
     addChart,
@@ -108,5 +122,7 @@ export function useRailConfig() {
     resetTab,
     resetAll,
     isTabModified,
+    setRailWidthLive,
+    commitRailWidth,
   };
 }

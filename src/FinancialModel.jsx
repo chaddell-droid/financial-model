@@ -877,7 +877,7 @@ export default function FinancialModel() {
       {effectiveTab === 'overview' && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(380px, 520px)' : '1fr',
+          gridTemplateColumns: shellWidthBucket === 'desktop' ? `minmax(0, 1fr) ${railConfig.railWidth || 520}px` : '1fr',
           gap: 24,
           alignItems: 'start',
         }}>
@@ -916,7 +916,7 @@ export default function FinancialModel() {
       {effectiveTab === 'plan' && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: shellWidthBucket === 'desktop' ? 'minmax(0, 1fr) minmax(380px, 520px)' : '1fr',
+          gridTemplateColumns: shellWidthBucket === 'desktop' ? `minmax(0, 1fr) ${railConfig.railWidth || 520}px` : '1fr',
           gap: 24,
           alignItems: 'start',
         }}>
@@ -1128,6 +1128,9 @@ export default function FinancialModel() {
           showRail={showRail}
           compact={compactShell}
           railPlacement={railPlacement}
+          railWidth={railConfig.railWidth}
+          onRailWidthChange={railConfig.setRailWidthLive}
+          onRailWidthCommit={railConfig.commitRailWidth}
         />
       </div>
     </div>

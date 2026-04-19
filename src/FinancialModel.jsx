@@ -715,7 +715,8 @@ export default function FinancialModel() {
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = true;
   const showTabs = !presentMode;
-  const showRail = !presentMode;
+  const noRailTabs = new Set(['actuals', 'details']);
+  const showRail = !presentMode && !noRailTabs.has(effectiveTab);
   const railPlacement = !showRail
     ? 'hidden'
     : effectiveTab === 'track'

@@ -255,34 +255,41 @@ function SavingsDrawdownChart({
                           stroke={color} strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
                       )}
                       <circle cx={x(compEnd.month)} cy={y(compEnd.balance)} r="3" fill={color} />
-                      {(() => {
-                        // Place label near endpoint, stagger vertically, clamp within SVG bounds
-                        const rawY = y(compEnd.balance) - 8 - ci * 16;
-                        const labelY = Math.max(padT + 10, Math.min(rawY, padT + plotH - 5));
-                        return (
-                          <text x={x(compEnd.month) - 6} y={labelY} textAnchor="end"
-                            fill={color} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                            {cp.name}
-                          </text>
-                        );
-                      })()}
                     </React.Fragment>
                   );
                 })}
 
-                {/* Current line end-of-line label */}
+                {/* Endpoint labels — above each line, to the left, not touching */}
                 {(() => {
+                  if ((compareProjections || []).length === 0) return null;
                   const curEnd = savingsData[savingsData.length - 1];
                   const curColor = curEnd.balance >= 0 ? COLORS.green : COLORS.red;
-                  return (compareProjections || []).length > 0 ? (
-                    <>
-                      <circle cx={x(curEnd.month)} cy={y(curEnd.balance)} r="3" fill={curColor} />
-                      <text x={x(curEnd.month) - 6} y={y(curEnd.balance) + 14} textAnchor="end"
-                        fill={curColor} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                        Current
-                      </text>
-                    </>
-                  ) : null;
+                  const lastMonth = curEnd.month;
+                  // Collect all endpoints with their Y positions
+                  const endpoints = [
+                    { name: 'Current', yPos: y(curEnd.balance), color: curColor },
+                    ...(compareProjections || []).map((cp, ci) => {
+                      const compEnd = (cp.projection.savingsData || []).slice(-1)[0];
+                      return compEnd ? { name: cp.name, yPos: y(compEnd.balance), color: (compareColors || [])[ci] || COLORS.yellow } : null;
+                    }).filter(Boolean),
+                  ];
+                  // Sort by Y position (top of chart = smallest Y = highest balance)
+                  endpoints.sort((a, b) => a.yPos - b.yPos);
+                  // Ensure minimum 14px spacing between labels
+                  for (let i = 1; i < endpoints.length; i++) {
+                    const labelY = endpoints[i].yPos - 14;
+                    const prevLabelY = endpoints[i - 1].yPos - 14;
+                    if (labelY - prevLabelY < 14) {
+                      endpoints[i].yPos = endpoints[i - 1].yPos + 14;
+                    }
+                  }
+                  const labelX = x(lastMonth) - 20; // 20px to the left of line end
+                  return endpoints.map((ep, i) => (
+                    <text key={`ep-${i}`} x={labelX} y={ep.yPos - 14} textAnchor="end"
+                      fill={ep.color} fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                      {ep.name}
+                    </text>
+                  ));
                 })()}
 
                 {/* Hover highlight dot */}

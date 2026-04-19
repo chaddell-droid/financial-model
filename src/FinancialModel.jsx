@@ -994,7 +994,7 @@ export default function FinancialModel() {
     railConfig, RAIL_COMPONENTS, railPropsMap,
   ]);
 
-  const plannerRail = useMemo(() => (
+  const plannerRail = (
     <RailRenderer
       tab={effectiveTab}
       chartIds={railConfig.getTabCharts(effectiveTab)}
@@ -1008,7 +1008,7 @@ export default function FinancialModel() {
       onSave={() => railConfig.saveLayout()}
       isModified={railConfig.isTabModified(effectiveTab)}
     />
-  ), [effectiveTab, railConfig, RAIL_COMPONENTS, railPropsMap]);
+  );
 
   return (
     <div style={{

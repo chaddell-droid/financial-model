@@ -176,6 +176,34 @@ function NetWorthChart({
             );
           })}
 
+          {/* Comparison endpoint labels — above each line, to the left */}
+          {compareProjections && compareProjections.length > 0 && (() => {
+            const endpoints = compareProjections.map((cp, ci) => {
+              const compSav = cp.projection.savingsData || [];
+              const compWealth = cp.projection.monthlyData || [];
+              const len = Math.min(compSav.length, compWealth.length);
+              if (len === 0) return null;
+              const lastSav = compSav[len - 1]?.balance || 0;
+              const lastW = compWealth[len - 1];
+              const total = lastSav + (lastW?.balance401k || 0) + (lastW?.homeEquity || 0);
+              const lastMonth = compSav[len - 1]?.month || 0;
+              return { name: cp.name, yPos: yOf(total), xPos: xOf(lastMonth), color: (compareColors || [])[ci] || COLORS.yellow };
+            }).filter(Boolean);
+            // Sort by Y (top first) and ensure 14px spacing
+            endpoints.sort((a, b) => a.yPos - b.yPos);
+            for (let i = 1; i < endpoints.length; i++) {
+              if (endpoints[i].yPos - endpoints[i - 1].yPos < 14) {
+                endpoints[i].yPos = endpoints[i - 1].yPos + 14;
+              }
+            }
+            return endpoints.map((ep, i) => (
+              <text key={`nw-ep-${i}`} x={ep.xPos - 20} y={ep.yPos - 14} textAnchor="end"
+                fill={ep.color} fontSize="9" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+                {ep.name}
+              </text>
+            ));
+          })()}
+
           {/* Savings depleted marker */}
           {(() => {
             const savZeroIdx = savingsData.findIndex((d, i) => i > 0 && d.balance <= 0);

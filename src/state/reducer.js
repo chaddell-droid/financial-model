@@ -123,6 +123,41 @@ export function reducer(state, action) {
         ...(action.clearClassifications ? { merchantClassifications: {} } : {}),
       };
     }
+    case 'APPLY_PREVIEW_MOVE': {
+      // action.move = { id, label, mutation }
+      // If a move with the same id already exists, replace it in place
+      // (preserves ordering for re-dragged continuous-lever sliders in Phase 2).
+      // Otherwise, append.
+      if (!action.move || !action.move.id || !action.move.mutation) return state;
+      const existing = Array.isArray(state.previewMoves) ? state.previewMoves : [];
+      const idx = existing.findIndex(m => m && m.id === action.move.id);
+      const next = idx >= 0
+        ? existing.map((m, i) => (i === idx ? action.move : m))
+        : [...existing, action.move];
+      return { ...state, previewMoves: next };
+    }
+    case 'REMOVE_PREVIEW_MOVE': {
+      // action.id
+      const existing = Array.isArray(state.previewMoves) ? state.previewMoves : [];
+      return { ...state, previewMoves: existing.filter(m => m && m.id !== action.id) };
+    }
+    case 'CLEAR_PREVIEW': {
+      return { ...state, previewMoves: [] };
+    }
+    case 'COMMIT_PREVIEW': {
+      // Atomically merge every staged mutation into baseline state and clear
+      // the preview stack. Single reducer dispatch; no partial commits.
+      const moves = Array.isArray(state.previewMoves) ? state.previewMoves : [];
+      if (moves.length === 0) return state;
+      let merged = { ...state };
+      for (const m of moves) {
+        if (m && m.mutation && typeof m.mutation === 'object') {
+          merged = { ...merged, ...m.mutation };
+        }
+      }
+      merged.previewMoves = [];
+      return merged;
+    }
     default:
       return state;
   }

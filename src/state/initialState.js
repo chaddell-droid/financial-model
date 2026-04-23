@@ -157,6 +157,13 @@ export const INITIAL_STATE = {
   // UI
   activeTab: "overview",
 
+  // Preview Sandbox (UI-only, strictly in-memory — never persisted)
+  // Shape: Array<{ id: string, label: string, mutation: object }>
+  // Each element layers mutations onto baseline; composePreviewState applies
+  // them in order. Not in MODEL_KEYS, so autoSave's extractModelState filters
+  // it out automatically.
+  previewMoves: [],
+
   // Storage
   storageStatus: "",
 

@@ -1,5 +1,6 @@
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_START_OFFSET } from '../model/constants.js';
+import { composePreviewState } from './previewState.js';
 
 /**
  * Build the projection-ready state object from the full UI state.
@@ -7,11 +8,23 @@ import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_START_OFFSET } from '../mod
  * Extracts MODEL_KEYS from `state`, computes BCS family share, and
  * resolves cutsOverride into the three cuts buckets.
  *
+ * If the input state has `previewMoves`, those mutations are composed onto
+ * the state BEFORE MODEL_KEYS are extracted — so derivations (bcsFamilyMonthly,
+ * lifestyleCuts, ssPersonal, etc.) run on the composed input. The returned
+ * state does NOT contain `previewMoves` (it's not in MODEL_KEYS), so callers
+ * who re-pass the result into gatherState won't double-apply.
+ *
  * @param {object} state — full UI state (or a partial override merged onto INITIAL_STATE)
  * @returns {object} — projection-ready state
  */
 export function gatherState(state) {
-  const st = state || INITIAL_STATE;
+  const stIn = state || INITIAL_STATE;
+  // Compose any staged preview moves onto the input BEFORE extracting MODEL_KEYS
+  // so all downstream derivations read the composed values. No-op when
+  // previewMoves is empty or absent (the common case).
+  const st = (stIn.previewMoves && stIn.previewMoves.length > 0)
+    ? composePreviewState(stIn, stIn.previewMoves)
+    : stIn;
   const s = {};
   for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
 

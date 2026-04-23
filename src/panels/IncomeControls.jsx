@@ -19,6 +19,8 @@ const IncomeControls = ({
   chadWorkMonths,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
+  hideVan = false,
+  hideTrust = false,
   onFieldChange,
 }) => {
   useRenderMetric('IncomeControls');
@@ -368,8 +370,9 @@ const IncomeControls = ({
               );
             })()}
 
+            {!hideTrust && (
             <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
-              <h4 style={{ fontSize: 11, color: COLORS.purple, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trust / LLC Income</h4>
+              <h4 style={{ fontSize: 11, color: COLORS.purple, margin: "0 0 8px", letterSpacing: "0.05em" }}>Trust / LLC Income</h4>
               <Slider label="Current monthly" value={trustIncomeNow} onChange={set('trustIncomeNow')} commitStrategy={commitStrategy} min={0} max={3000} step={50} color={COLORS.purple} />
               <Slider label="After increase" value={trustIncomeFuture} onChange={set('trustIncomeFuture')} commitStrategy={commitStrategy} min={0} max={5000} step={50} color={COLORS.purple} />
               <Slider label="Increase at month" value={trustIncreaseMonth} onChange={set('trustIncreaseMonth')} commitStrategy={commitStrategy} min={3} max={24} format={(v) => v + " mo"} color={COLORS.purple} />
@@ -377,8 +380,9 @@ const IncomeControls = ({
                 <span>Annual: {fmtFull(trustIncomeNow * 12)} → {fmtFull(trustIncomeFuture * 12)}</span>
               </div>
             </div>
+            )}
 
-            {(() => {
+            {!hideVan && (() => {
               const effectiveSalePrice = vanSalePrice ?? 25000;
               const effectiveLoanBalance = vanLoanBalance ?? 200000;
               const vanShortfall = Math.max(0, effectiveLoanBalance - effectiveSalePrice);

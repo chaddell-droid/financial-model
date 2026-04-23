@@ -32,7 +32,7 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
   );
   const legendItems = buildLegendItems([
     ...sources.map((source) => ({ id: source.key, label: source.label, color: source.color })),
-    { id: 'expenses', label: 'Expenses', color: '#f87171', line: true },
+    { id: 'expenses', label: 'Expenses', color: '#f1f5f9', line: true },
     ...((compareProjections || []).map((cp, ci) => ({ id: `compare-${ci}`, label: `"${cp.name}" expenses`, color: (compareColors || [])[ci] || '#fbbf24', line: true, dash: true }))),
   ]);
 
@@ -169,7 +169,7 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
         })()}
 
         {/* Stacked bars + expense line + dashed annotation lines */}
-        <div style={{ display: "flex", alignItems: "flex-end", height: stackH, gap: 0, position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", height: stackH, gap: 1, position: "relative" }}>
           {data.map((d, i) => {
             const vals = sources.map(s => getVal(d, s.key));
             const total = vals.reduce((a, b) => a + b, 0);
@@ -192,15 +192,29 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                       tooltipSources.push({ label: s.label, color: s.color, value: val });
                     }
                   }
-                  const expenseReductions = [];
-                  if (chadJob && (chadJobHealthSavings || 0) > 0 && d.month >= (chadJobStartMonth ?? 0)) {
-                    expenseReductions.push({ label: 'Health ins. savings', amount: -(chadJobHealthSavings || 0) });
-                  }
-                  if (vanSold && d.month >= (vanSaleMonth ?? 6)) {
-                    expenseReductions.push({ label: 'Van sold', amount: -(vanMonthlySavings || 0) });
+                  // Build expense components list from d.expenseBreakdown (emitted by projection).
+                  // Label + sort: positive additions first (biggest to smallest), then negative reductions.
+                  const EXPENSE_LABELS = {
+                    baseLiving: 'Base living',
+                    debtService: 'Debt service',
+                    van: 'Van (loan + fuel)',
+                    bcs: 'BCS tuition',
+                    oneTimeExtras: 'One-time extras',
+                    lifestyleCuts: 'Lifestyle cuts',
+                    milestones: 'Milestones',
+                    healthInsurance: 'Health ins. (employer)',
+                  };
+                  const expenseComponents = [];
+                  if (d.expenseBreakdown) {
+                    const entries = Object.entries(d.expenseBreakdown);
+                    const additions = entries.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+                    const reductions = entries.filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]);
+                    for (const [k, v] of [...additions, ...reductions]) {
+                      expenseComponents.push({ key: k, label: EXPENSE_LABELS[k] || k, amount: v });
+                    }
                   }
                   // Use smoothedNet (total - expenses) for consistency with bar heights
-                  setIncomeTooltip({ pctX, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseReductions, net: smoothedNet });
+                  setIncomeTooltip({ pctX, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseComponents, net: smoothedNet });
                 }}>
                 {/* Stacked segments */}
                 <div style={{ width: "100%", display: "flex", flexDirection: "column-reverse" }}>
@@ -228,13 +242,14 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
             );
           })}
 
-          {/* Expense line — black outline + red for visibility */}
+          {/* Expense line — dark halo + bright slate-white stroke for a neutral
+              anchor that cuts across any income-family hue without collision. */}
           <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
             style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
             <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-              fill="none" stroke="#0f172a" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" />
+              fill="none" stroke="#0f172a" strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
             <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-              fill="none" stroke="#f87171" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+              fill="none" stroke="#f1f5f9" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
 
           {/* Comparison expense lines — one per active comparison, each with distinct color */}
@@ -306,18 +321,25 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                 <span style={{ color: "#94a3b8" }}>Total income</span>
                 <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.total)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Expenses</span>
+              {incomeTooltip.expenseComponents && incomeTooltip.expenseComponents.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 2 }}>
+                    Expense math
+                  </div>
+                  {incomeTooltip.expenseComponents.map((c, ci) => (
+                    <div key={ci} style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginTop: 1, marginLeft: 8 }}>
+                      <span style={{ color: "#94a3b8" }}>{c.label}</span>
+                      <span style={{ color: c.amount < 0 ? "#4ade80" : "#e2e8f0", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {c.amount >= 0 ? "+" : ""}{fmtFull(c.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, paddingTop: 3, borderTop: "1px dashed #334155" }}>
+                <span style={{ color: "#f87171", fontWeight: 600 }}>Total expenses</span>
                 <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.expenses)}</span>
               </div>
-              {incomeTooltip.expenseReductions && incomeTooltip.expenseReductions.length > 0 && (
-                incomeTooltip.expenseReductions.map((r, ri) => (
-                  <div key={ri} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginTop: 1, marginLeft: 13 }}>
-                    <span style={{ color: "#64748b" }}>{r.label}</span>
-                    <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(r.amount)}/mo</span>
-                  </div>
-                ))
-              )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
                 <span style={{ color: incomeTooltip.net >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>
                   {incomeTooltip.net >= 0 ? "Surplus" : "Deficit"}

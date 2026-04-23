@@ -76,3 +76,266 @@ a {
 svg text {
   font-family: var(--ui-font-sans);
 }
+
+/* ───────── Plan tab — dark dense theme (from design handoff) ─────────
+ * Namespaced to `.plan-workspace` so it does not leak to other tabs. */
+.plan-workspace {
+  --plan-bg: #070b0f;
+  --plan-panel: #0d141b;
+  --plan-panel-2: #111a22;
+  --plan-panel-3: #16222c;
+  --plan-line: #1d2a35;
+  --plan-line-2: #263646;
+  --plan-ink: #e6edf3;
+  --plan-ink-dim: #9aa9b8;
+  --plan-ink-faint: #5a6b7a;
+  --plan-accent: #22d37a;
+  --plan-accent-dim: #12663c;
+  --plan-warn: #f0b34a;
+  --plan-danger: #ef5a5a;
+  --plan-info: #5ab4ef;
+  --plan-magenta: #d36ad6;
+  --plan-cyan: #5ed4d0;
+  --plan-active-tab: rgba(34, 211, 122, 0.12);
+
+  background: var(--plan-bg);
+  color: var(--plan-ink);
+  font-feature-settings: "cv11", "ss01", "tnum";
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 2px;
+  border-radius: 10px;
+}
+.plan-workspace .plan-mono { font-family: var(--ui-font-mono); font-variant-numeric: tabular-nums; }
+.plan-workspace .plan-panel {
+  background: var(--plan-panel);
+  border: 1px solid var(--plan-line);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.plan-workspace .plan-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--plan-line);
+}
+.plan-workspace .plan-panel-head h3 {
+  margin: 0; font-size: 13px; font-weight: 600; color: var(--plan-ink); letter-spacing: .01em;
+}
+.plan-workspace .plan-sub {
+  color: var(--plan-ink-faint); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: .1em; font-weight: 600;
+}
+.plan-workspace .plan-eyebrow {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--plan-ink-faint); font-weight: 600;
+}
+.plan-workspace .plan-pill {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700;
+}
+.plan-workspace .plan-pill.cyan { color: var(--plan-cyan); }
+.plan-workspace .plan-pill.magenta { color: var(--plan-magenta); }
+.plan-workspace .plan-pill.amber { color: var(--plan-warn); }
+
+/* Lever card */
+.plan-workspace .plan-lever {
+  background: var(--plan-panel-2);
+  border: 1px solid var(--plan-line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  transition: border-color .15s, background .15s;
+}
+.plan-workspace .plan-lever.on {
+  border-color: rgba(34, 211, 122, 0.35);
+  background: linear-gradient(180deg, rgba(34,211,122,0.04), rgba(34,211,122,0) 60%), var(--plan-panel-2);
+}
+.plan-workspace .plan-lever-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--plan-panel-3); color: var(--plan-ink-dim);
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid var(--plan-line-2);
+}
+.plan-workspace .plan-lever.on .plan-lever-num {
+  color: var(--plan-accent);
+  border-color: rgba(34,211,122,0.4);
+}
+.plan-workspace .plan-lever-body {
+  grid-column: 1 / -1;
+  display: none;
+  padding-top: 8px;
+  border-top: 1px dashed var(--plan-line);
+  margin-top: 4px;
+}
+.plan-workspace .plan-lever.on .plan-lever-body { display: block; }
+.plan-workspace .plan-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 4px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .02em;
+}
+.plan-workspace .plan-badge.on { background: rgba(34,211,122,0.12); color: var(--plan-accent); }
+.plan-workspace .plan-badge.off { background: rgba(90,107,122,0.15); color: var(--plan-ink-dim); }
+
+.plan-workspace .plan-slider {
+  appearance: none; -webkit-appearance: none;
+  width: 100%; height: 4px;
+  background: var(--plan-panel-3); border-radius: 2px; outline: none;
+}
+.plan-workspace .plan-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--plan-accent); cursor: pointer;
+  border: 2px solid #0b1813; box-shadow: 0 0 0 1px var(--plan-accent);
+}
+.plan-workspace .plan-slider::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--plan-accent); cursor: pointer; border: 2px solid #0b1813;
+}
+.plan-workspace .plan-slider.cyan::-webkit-slider-thumb { background: var(--plan-cyan); box-shadow: 0 0 0 1px var(--plan-cyan); }
+.plan-workspace .plan-slider.magenta::-webkit-slider-thumb { background: var(--plan-magenta); box-shadow: 0 0 0 1px var(--plan-magenta); }
+.plan-workspace .plan-slider.warn::-webkit-slider-thumb { background: var(--plan-warn); box-shadow: 0 0 0 1px var(--plan-warn); }
+
+/* Split row */
+.plan-workspace .plan-split-row {
+  --plan-split-ratio: 0.4167;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+}
+.plan-workspace .plan-split-left  { flex: 0 0 calc((100% - 12px) * var(--plan-split-ratio)); min-width: 280px; }
+.plan-workspace .plan-split-right { flex: 0 0 calc((100% - 12px) * (1 - var(--plan-split-ratio))); min-width: 280px; }
+.plan-workspace .plan-split-handle {
+  flex: 0 0 12px;
+  position: relative;
+  cursor: col-resize;
+  display: flex; align-items: center; justify-content: center;
+  user-select: none;
+  touch-action: none;
+}
+.plan-workspace .plan-split-handle::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 50%;
+  width: 1px;
+  background: var(--plan-line);
+  transition: background .15s, width .15s;
+  transform: translateX(-50%);
+}
+.plan-workspace .plan-split-grip {
+  position: relative;
+  width: 4px; height: 36px;
+  border-radius: 3px;
+  background: var(--plan-line-2);
+  transition: background .15s, transform .15s;
+  z-index: 1;
+}
+.plan-workspace .plan-split-handle:hover .plan-split-grip,
+.plan-workspace .plan-split-handle.plan-dragging .plan-split-grip {
+  background: var(--plan-accent);
+  transform: scaleY(1.3);
+}
+.plan-workspace .plan-split-handle:hover::before,
+.plan-workspace .plan-split-handle.plan-dragging::before {
+  background: rgba(34,211,122,0.3);
+  width: 2px;
+}
+body.plan-split-dragging,
+body.plan-split-dragging * { cursor: col-resize !important; user-select: none !important; }
+
+/* Add row (dashed) */
+.plan-workspace .plan-add-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--plan-line-2);
+  border-radius: 7px;
+  color: var(--plan-ink-faint);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  transition: all .15s;
+}
+.plan-workspace .plan-add-row:hover {
+  border-color: var(--plan-accent);
+  color: var(--plan-accent);
+  background: rgba(34,211,122,0.04);
+}
+.plan-workspace .plan-add-row.amber:hover {
+  border-color: var(--plan-warn);
+  color: var(--plan-warn);
+  background: rgba(240,179,74,0.04);
+}
+
+/* Capital row — × remove appears on hover */
+.plan-workspace .plan-capital-row { position: relative; }
+.plan-workspace .plan-cap-remove {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--plan-ink-faint);
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: all .15s;
+  padding: 0;
+}
+.plan-workspace .plan-capital-row:hover .plan-cap-remove { opacity: 1; }
+.plan-workspace .plan-cap-remove:hover {
+  color: var(--plan-danger);
+  border-color: rgba(239,90,90,0.3);
+  background: rgba(239,90,90,0.08);
+}
+
+/* Assumptions horizontal grid */
+.plan-workspace .plan-assume-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--plan-line);
+  border-radius: 8px;
+  border: 1px solid var(--plan-line);
+  overflow: hidden;
+}
+.plan-workspace .plan-assume-col {
+  background: var(--plan-panel);
+  display: flex;
+  flex-direction: column;
+}
+.plan-workspace .plan-assume-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--plan-line);
+}
+.plan-workspace .plan-assume-inner {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+/* Responsive: stacked below 1180 */
+@media (max-width: 1180px) {
+  .plan-workspace .plan-assume-grid {
+    grid-template-columns: 1fr;
+  }
+  .plan-workspace .plan-split-row {
+    flex-direction: column;
+  }
+  .plan-workspace .plan-split-left,
+  .plan-workspace .plan-split-right {
+    flex-basis: auto;
+    width: 100%;
+  }
+  .plan-workspace .plan-split-handle {
+    display: none;
+  }
+}

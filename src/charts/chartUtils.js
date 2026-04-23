@@ -100,15 +100,24 @@ export function responsivePadding(containerW) {
   };
 }
 
-// Income source definitions — used by Income Composition chart and Dad Mode
+// Income source definitions — used by Income Composition chart and Dad Mode.
+// Palette designed around THREE SEMANTIC FAMILIES (not ad-hoc hue selection):
+//   • Earned income → teal family (deepest = most stable earner)
+//   • Entitlement → single magenta (SS — visual bridge between families)
+//   • Passive / structural → amber family (deepest = biggest structural)
+// Order here drives stack order: first = bottom. Earned forms the "foundation,"
+// SS bridges, passive sits on top.
 export const INCOME_SOURCES = [
-  { key: "sarahIncome", label: "Sarah's Business", color: COLORS.blue },
-  { key: "msftVesting", label: "MSFT Vesting", color: COLORS.amber },
-  { key: "ssBenefit", label: "SS Benefit", color: COLORS.green },
-  { key: "chadJobIncome", label: "Chad's Job", color: COLORS.greenDark },
-  { key: "consulting", label: "Chad Consulting", color: COLORS.blueLight },
-  { key: "trustLLC", label: "Trust / LLC", color: COLORS.purple },
-  { key: "investReturn", label: "Invest Returns", color: COLORS.cyan },
+  // ─── Earned family (teal) ───
+  { key: "sarahIncome",  label: "Sarah's Business",  color: "#0d9488" }, // teal-600, deepest
+  { key: "chadJobIncome", label: "Chad's Job",        color: "#14b8a6" }, // teal-500
+  { key: "consulting",    label: "Chad Consulting",   color: "#5eead4" }, // teal-300, lightest
+  // ─── Passive family (amber) ───
+  { key: "msftVesting",   label: "MSFT Vesting",      color: "#ea580c" }, // orange-600 (warmer/redder than amber to separate from Trust)
+  // ─── Entitlement (magenta) — sits above MSFT per user preference ───
+  { key: "ssBenefit",     label: "SS Benefit",        color: "#ec4899" }, // pink-500
+  { key: "trustLLC",      label: "Trust / LLC",       color: "#f59e0b" }, // amber-500
+  { key: "investReturn",  label: "Invest Returns",    color: "#fcd34d" }, // amber-300, lightest
 ];
 
 export function buildIncomeSources(ssType) {

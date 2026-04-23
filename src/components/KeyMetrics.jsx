@@ -46,8 +46,23 @@ export default function KeyMetrics({
   steadyStateIncome,
   totalCurrentExpenses,
   retirementSpendingTargets,
+  baseLivingDerived,
+  debtServiceMonthly,
+  vanMonthlyCost,
+  bcsFamilyMonthly,
   onFieldChange,
 }) {
+  // When totalMonthlySpend is set, show how it decomposes into the parts the
+  // individual sliders target — so the user can tick-and-tie the derivation.
+  // Matches FinancialModel: baseLiving = totalMonthlySpend − debtService − van − bcsFamilyMonthly
+  const spendBreakdown = totalMonthlySpend != null
+    ? [
+        { label: 'Base living', value: baseLivingDerived },
+        { label: 'Debt service', value: debtServiceMonthly },
+        { label: 'Van (loan + insurance + fuel)', value: vanMonthlyCost },
+        { label: 'BCS family share', value: bcsFamilyMonthly },
+      ]
+    : null;
   const status = buildOverviewStatusModel({
     rawMonthlyGap,
     netMonthly,
@@ -133,6 +148,53 @@ export default function KeyMetrics({
           <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 4 }}>
             Recurring (bank statements)
           </div>
+          {spendBreakdown && (
+            <div
+              data-testid="base-spend-breakdown"
+              style={{
+                marginTop: 8,
+                padding: '8px 10px',
+                background: 'rgba(0,0,0,0.2)',
+                border: `1px solid ${UI_COLORS.border}`,
+                borderRadius: 4,
+                fontSize: 11,
+                lineHeight: 1.5,
+              }}
+            >
+              <div style={{ color: UI_COLORS.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+                Derivation
+              </div>
+              {spendBreakdown.map((it) => (
+                <div
+                  key={it.label}
+                  style={{ display: 'flex', justifyContent: 'space-between', color: UI_COLORS.textDim }}
+                >
+                  <span>{it.label}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: UI_COLORS.textStrong }}>
+                    {fmtFull(it.value || 0)}
+                  </span>
+                </div>
+              ))}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginTop: 4,
+                  paddingTop: 4,
+                  borderTop: `1px dashed ${UI_COLORS.border}`,
+                  color: UI_COLORS.textStrong,
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ fontSize: 10.5, color: UI_COLORS.textMuted, fontWeight: 500 }}>
+                  Anchor (from Base Monthly Spend)
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {fmtFull(spendBreakdown.reduce((sum, it) => sum + (it.value || 0), 0))}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ flex: '1 1 180px', minWidth: 150 }}>

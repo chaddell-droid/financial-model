@@ -95,13 +95,21 @@ export const INITIAL_STATE = {
   startingSavings: 200000,
   investmentReturn: 15,
 
-  // Capital Projects
+  // Capital Projects (legacy scalar fields — preserved for back-compat; migration seeds capitalItems from these)
   moldCost: 60000,
   moldInclude: false,
   roofCost: 40000,
   roofInclude: false,
   otherProjects: 40000,
   otherInclude: false,
+
+  // Capital Items — array-based model (Plan tab redesign). Seeded by gatherState migration from legacy fields if empty.
+  // Shape: { id: string, name: string, description: string, cost: number, include: boolean, likelihood: number }
+  capitalItems: [],
+
+  // Custom Levers — user-added recurring-income levers (Plan tab Decision Console).
+  // Shape: { id: string, name: string, description: string, maxImpact: number, currentValue: number, active: boolean }
+  customLevers: [],
 
   // Debt Balances
   debtCC: 92760,
@@ -181,6 +189,7 @@ export const MODEL_KEYS = [
   'retireDebt',
   'startingSavings', 'investmentReturn', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
+  'capitalItems', 'customLevers',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation',
   'seqBadY1', 'seqBadY2',

@@ -1,10 +1,22 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { getMsftPrice } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 
 function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange }) {
   const [fetching, setFetching] = useState(false);
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+
+  // Precompute running totals so the tooltip can show "remaining after this vest".
+  const runningRemaining = useMemo(() => {
+    const totals = [];
+    let remaining = vestEvents.reduce((s, v) => s + v.net, 0);
+    for (const v of vestEvents) {
+      totals.push(remaining);
+      remaining -= v.net;
+    }
+    return totals;
+  }, [vestEvents]);
 
   const handleRefreshPrice = useCallback(async () => {
     setFetching(true);
@@ -43,13 +55,20 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
       <h3 style={{ fontSize: 14, color: "#f59e0b", margin: 0, fontWeight: 700 }}>MSFT Vesting Runway — Actual Quarterly Payouts</h3>
       <span data-testid="msft-vesting-total-remaining" style={{ fontSize: 12, color: "#94a3b8" }}>Total remaining: <span style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(totalRemainingVesting)}</span></span>
     </div>
-    <div style={{ display: "flex", gap: 3, height: 80, alignItems: "flex-end" }}>
+    <div style={{ display: "flex", gap: 3, height: 80, alignItems: "flex-end", position: "relative" }}>
       {vestEvents.map((v, i) => {
         const maxNet = Math.max(...vestEvents.map(ve => ve.net));
         const barH = (v.net / maxNet) * 60;
         const isLow = v.net < 15000;
+        const isHovered = hoveredIdx === i;
         return (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <div
+            key={i}
+            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "default" }}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+            data-testid={`msft-vest-bar-${i}`}
+          >
             <div style={{
               fontSize: 10, color: isLow ? "#f87171" : "#f59e0b",
               fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", fontWeight: 600
@@ -67,10 +86,87 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
               background: isLow
                 ? "linear-gradient(180deg, #f87171, #dc2626)"
                 : "linear-gradient(180deg, #fbbf24, #f59e0b)",
+              outline: isHovered ? "2px solid #fcd34d" : "none",
+              outlineOffset: isHovered ? 1 : 0,
+              transition: "outline 0.1s",
             }} />
           </div>
         );
       })}
+      {hoveredIdx !== null && (() => {
+        const v = vestEvents[hoveredIdx];
+        const gross = v.gross ?? Math.round(v.shares * v.price);
+        const withheld = gross - v.net;
+        const taxRate = gross > 0 ? Math.round((withheld / gross) * 100) : 0;
+        const remainingAfter = runningRemaining[hoveredIdx] - v.net;
+        // Position tooltip above bar, nudging left/right near edges to stay in frame
+        const pct = (hoveredIdx + 0.5) / (vestEvents.length + 1) * 100;
+        const anchor = pct < 25 ? 'left' : pct > 75 ? 'right' : 'center';
+        const anchorStyle = anchor === 'left'
+          ? { left: `${pct}%`, transform: 'translateX(0)' }
+          : anchor === 'right'
+          ? { left: `${pct}%`, transform: 'translateX(-100%)' }
+          : { left: `${pct}%`, transform: 'translateX(-50%)' };
+        return (
+          <div
+            data-testid="msft-vest-tooltip"
+            style={{
+              position: "absolute",
+              top: "100%",
+              marginTop: 10,
+              background: "#0f172a",
+              border: "1px solid #f59e0b55",
+              borderRadius: 8,
+              padding: "10px 12px",
+              minWidth: 200,
+              fontSize: 11,
+              color: "#e2e8f0",
+              fontFamily: "'Inter', sans-serif",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              zIndex: 9999,
+              pointerEvents: "none",
+              ...anchorStyle,
+            }}
+          >
+            <div style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#f59e0b",
+              marginBottom: 6,
+              borderBottom: "1px dashed #334155",
+              paddingBottom: 4,
+            }}>
+              {v.label} vest
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 10px", fontFamily: "'JetBrains Mono', monospace" }}>
+              <span style={{ color: "#94a3b8" }}>Shares vesting</span>
+              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{v.shares}</span>
+              <span style={{ color: "#94a3b8" }}>Share price</span>
+              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>${Math.round(v.price).toLocaleString()}</span>
+              <span style={{ color: "#94a3b8" }}>Gross value</span>
+              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{fmtFull(gross)}</span>
+              <span style={{ color: "#94a3b8" }}>Tax withholding</span>
+              <span style={{ color: "#f87171", fontWeight: 600 }}>−{fmtFull(withheld)} ({taxRate}%)</span>
+              <span style={{
+                color: "#e2e8f0",
+                fontWeight: 600,
+                borderTop: "1px dashed #334155",
+                paddingTop: 4,
+                marginTop: 2,
+              }}>Net deposited</span>
+              <span style={{
+                color: "#4ade80",
+                fontWeight: 700,
+                borderTop: "1px dashed #334155",
+                paddingTop: 4,
+                marginTop: 2,
+              }}>{fmtFull(v.net)}</span>
+              <span style={{ color: "#64748b", fontSize: 10 }}>Remaining after</span>
+              <span style={{ color: "#64748b", fontSize: 10, fontWeight: 500 }}>{fmtFull(Math.max(0, remainingAfter))}</span>
+            </div>
+          </div>
+        );
+      })()}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
         <div style={{ fontSize: 10, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>$0</div>
         <div style={{ width: "85%", height: 2, background: "#334155", borderRadius: 1 }} />

@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -188,6 +188,17 @@ const MIGRATIONS = [
       return result;
     },
   },
+  {
+    from: 5,
+    to: 6,
+    fn: (state) => {
+      const result = { ...state };
+      // Initialize new array fields; gatherState performs legacy→capitalItems seeding on every load.
+      if (!Array.isArray(result.capitalItems)) result.capitalItems = [];
+      if (!Array.isArray(result.customLevers)) result.customLevers = [];
+      return result;
+    },
+  },
 ];
 
 /**
@@ -235,6 +246,14 @@ export function validateAndSanitize(raw) {
     }
     if (key === 'milestones') {
       result[key] = sanitizeMilestones(rawVal, defaultVal);
+      continue;
+    }
+    if (key === 'capitalItems') {
+      result[key] = sanitizeCapitalItems(rawVal);
+      continue;
+    }
+    if (key === 'customLevers') {
+      result[key] = sanitizeCustomLevers(rawVal);
       continue;
     }
     if (expectedType === 'nullable') {
@@ -313,4 +332,46 @@ function sanitizeMilestones(milestones, fallback) {
     month: m.month,
     savings: m.savings,
   }));
+}
+
+function clampNum(v, min, max, fallback) {
+  let n = typeof v === 'number' && Number.isFinite(v) ? v : Number(v);
+  if (!Number.isFinite(n)) n = fallback;
+  if (min !== undefined && n < min) n = min;
+  if (max !== undefined && n > max) n = max;
+  return n;
+}
+
+export function sanitizeCapitalItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.filter(it => it && typeof it === 'object').map(it => ({
+    id: typeof it.id === 'string' && it.id.length > 0 ? it.id : genId('cap'),
+    name: typeof it.name === 'string' ? it.name : 'Untitled item',
+    description: typeof it.description === 'string' ? it.description : '',
+    cost: clampNum(it.cost, 0, 5_000_000, 0),
+    include: Boolean(it.include),
+    likelihood: clampNum(it.likelihood, 0, 100, 100),
+  }));
+}
+
+export function sanitizeCustomLevers(levers) {
+  if (!Array.isArray(levers)) return [];
+  return levers.filter(l => l && typeof l === 'object').map(l => {
+    const maxImpact = clampNum(l.maxImpact, 0, 50000, 0);
+    const currentValue = clampNum(l.currentValue, 0, maxImpact, maxImpact);
+    return {
+      id: typeof l.id === 'string' && l.id.length > 0 ? l.id : genId('lv'),
+      name: typeof l.name === 'string' ? l.name : 'Custom lever',
+      description: typeof l.description === 'string' ? l.description : '',
+      maxImpact,
+      currentValue,
+      active: Boolean(l.active),
+    };
+  });
+}
+
+let _idCounter = 0;
+function genId(prefix) {
+  _idCounter += 1;
+  return `${prefix}-${Date.now().toString(36)}-${_idCounter.toString(36)}`;
 }

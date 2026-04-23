@@ -25,7 +25,7 @@ function NetWorthChart({
   const startNetWorth = startingSavings + (starting401k || 0) + (homeEquity || 0);
   const endNetWorth = endSavings + end401k + endHome;
 
-  const svgH = 340;
+  const svgH = 380;
   const padL = 60, padR = 80, padT = 20, padB = 30;
 
   // Compute total net worth at each month for scaling (include comparison if active)
@@ -90,16 +90,22 @@ function NetWorthChart({
     ...((compareProjections || []).map((cp, ci) => ({ id: `compare-${ci}`, label: `"${cp.name}" net worth`, color: (compareColors || [])[ci] || COLORS.yellow, line: true, dash: true }))),
   ]);
 
+  const isPlan = instanceId === 'plan';
   return (
-    <div ref={containerRef} data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={{
+    <div ref={containerRef} data-testid={`net-worth-chart-${instanceId}`} data-chart-instance={instanceId} style={isPlan ? {
+      background: 'transparent', border: 'none', padding: 0, margin: 0,
+    } : {
       background: COLORS.bgCard, borderRadius: 12, padding: '20px 16px',
       border: `1px solid ${COLORS.border}`, marginBottom: 24,
     }}>
+      {!isPlan && (
       <h3 style={{ fontSize: 14, color: COLORS.textSecondary, margin: 0, marginBottom: 8, fontWeight: 600 }}>
         Net Worth Projection
       </h3>
+      )}
 
       {/* Key numbers strip */}
+      {!isPlan && (
       <div style={{ display: 'flex', gap: 2, marginBottom: 16, flexWrap: 'wrap' }}>
         {keyCards.map((item, i) => (
           <div key={i} style={{
@@ -117,6 +123,7 @@ function NetWorthChart({
           </div>
         ))}
       </div>
+      )}
 
       {/* Chart */}
       <div data-testid={`net-worth-hover-surface-${instanceId}`} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
@@ -319,6 +326,7 @@ function NetWorthChart({
       </div>
 
       {/* Legend */}
+      {!isPlan && (
       <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 11 }}>
         {legendItems.map((item) => (
           <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -332,9 +340,10 @@ function NetWorthChart({
           </div>
         ))}
       </div>
+      )}
 
       {/* Sliders */}
-      {!presentMode && (
+      {!presentMode && !isPlan && (
         <div style={{ marginTop: 12 }}>
           <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 6, fontWeight: 600 }}>401k</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

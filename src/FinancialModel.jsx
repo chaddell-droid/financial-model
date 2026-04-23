@@ -7,7 +7,7 @@ import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { reducer } from './state/reducer.js';
-import { gatherState as _gatherState } from './state/gatherState.js';
+import { gatherState as _gatherState, deriveCapitalItemsFromLegacy } from './state/gatherState.js';
 import { saveModelState, loadModelState } from './state/autoSave.js';
 import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
@@ -109,6 +109,7 @@ export default function FinancialModel() {
     startingSavings, investmentReturn,
     ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
+    capitalItems, customLevers,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     comparisons,
@@ -141,7 +142,17 @@ export default function FinancialModel() {
     ? Math.max(0, totalMonthlySpend - debtService - vanMonthlySavings - bcsFamilyMonthly)
     : baseExpenses;
   const debtTotal = debtCC + debtPersonal + debtIRS + debtFirstmark;
-  const oneTimeTotal = (moldInclude ? moldCost : 0) + (roofInclude ? roofCost : 0) + (otherInclude ? otherProjects : 0);
+  // Effective capital items: use the array form when populated, else derive from legacy scalar fields.
+  const effectiveCapitalItems = useMemo(
+    () => (Array.isArray(capitalItems) && capitalItems.length > 0
+      ? capitalItems
+      : deriveCapitalItemsFromLegacy({ moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude })),
+    [capitalItems, moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude]
+  );
+  const oneTimeTotal = effectiveCapitalItems.reduce(
+    (sum, it) => sum + (it.include ? Math.max(0, Number(it.cost) || 0) : 0),
+    0
+  );
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
 
   // Projected PERS pension at retirement — mirrors gatherState.chadJobPensionMonthly
@@ -715,7 +726,9 @@ export default function FinancialModel() {
   const effectiveTab = presentMode ? "overview" : (activeTab || "overview");
   const showTopSummary = true;
   const showTabs = !presentMode;
-  const noRailTabs = new Set(['actuals', 'details']);
+  // Plan tab has its own in-workspace chart stack (Savings + NetWorth) via
+  // WorkspaceSplit, so hide the AppShell rail on Plan.
+  const noRailTabs = new Set(['actuals', 'details', 'plan']);
   const showRail = !presentMode && !noRailTabs.has(effectiveTab);
   const railPlacement = !showRail
     ? 'hidden'
@@ -783,6 +796,10 @@ export default function FinancialModel() {
           steadyStateIncome={steadyStateIncome}
           totalCurrentExpenses={totalCurrentExpenses}
           retirementSpendingTargets={retirementSpendingTargets}
+          baseLivingDerived={effectiveBaseExpenses}
+          debtServiceMonthly={debtService}
+          vanMonthlyCost={vanMonthlySavings}
+          bcsFamilyMonthly={bcsFamilyMonthly}
           onFieldChange={set}
         />
 
@@ -883,6 +900,13 @@ export default function FinancialModel() {
           savingsZeroMonth={savingsZeroMonth}
           mcResults={mcResults}
           onTabChange={set('activeTab')}
+          savingsData={savingsData}
+          wealthData={wealthData}
+          monthlyDetail={monthlyDetail}
+          ssType={ssType}
+          goals={goals}
+          goalResults={goalResults}
+          gatherState={stableGatherState}
         />
       )}
 
@@ -891,6 +915,19 @@ export default function FinancialModel() {
           incomeControlsProps={incomeControlsProps}
           expenseControlsProps={expenseControlsProps}
           scenarioStripProps={scenarioStripProps}
+          savingsChartProps={{ ...savingsDrawdownProps, instanceId: 'plan-savings' }}
+          netWorthChartProps={{ ...netWorthProps, instanceId: 'plan-networth' }}
+          incomeChartProps={{
+            monthlyDetail, investmentReturn, ssType,
+            ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
+            chadJob, chadJobStartMonth, chadJobHealthSavings,
+            vanSold, vanSaleMonth, vanMonthlySavings,
+            bcsYearsLeft, milestones,
+            compareProjections, compareColors: COMPARE_COLORS,
+          }}
+          capitalItems={effectiveCapitalItems}
+          customLevers={customLevers}
+          onFieldChange={set}
           shellWidthBucket={shellWidthBucket}
           presentMode={presentMode}
           gatherState={stableGatherState}
@@ -992,6 +1029,13 @@ export default function FinancialModel() {
     savingsZeroLabel,
     savingsZeroMonth,
     mcResults,
+    savingsData,
+    wealthData,
+    monthlyDetail,
+    ssType,
+    goals,
+    goalResults,
+    stableGatherState,
     railConfig, RAIL_COMPONENTS, railPropsMap,
   ]);
 
@@ -1019,7 +1063,7 @@ export default function FinancialModel() {
       minHeight: "100vh",
       padding: "24px 16px"
     }}>
-      <div style={{ maxWidth: 1680, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1920, margin: "0 auto" }}>
         <Header
           presentMode={presentMode}
           onTogglePresentMode={handleTogglePresentMode}

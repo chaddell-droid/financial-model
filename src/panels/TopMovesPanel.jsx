@@ -3,34 +3,33 @@ import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
+/**
+ * Your Top 3 Moves — two-tier action/awareness panel.
+ *
+ * Tier 1: "Levers to pull" — ranked INACTIVE Primary Levers (built-in + custom).
+ *         Each is a real click on the Decision Console. Driven by computeTopMoves.
+ *
+ * Tier 2: "Sensitivities to watch" — 1-2 parameter sensitivities for awareness.
+ *         Not presented as actions. Driven by computeSensitivities.
+ */
 export default function TopMovesPanel({ gatherState }) {
-  const [results, setResults] = useState(null);
+  const [tier1, setTier1] = useState(null);   // lever moves
+  const [tier2, setTier2] = useState(null);   // sensitivities
+  const [tier3, setTier3] = useState(null);   // income pathways
   const [running, setRunning] = useState(false);
 
   const handleCalculate = () => {
     if (!gatherState) return;
     setRunning(true);
-    import('../model/sensitivityAnalysis.js').then(({ computeTopMoves }) => {
+    import('../model/sensitivityAnalysis.js').then(({ computeTopMoves, computeSensitivities, computeIncomePathways }) => {
       setTimeout(() => {
         const state = gatherState();
-        const moves = computeTopMoves(state);
-        setResults(moves);
+        setTier1(computeTopMoves(state, 3));
+        setTier2(computeSensitivities(state, 2));
+        setTier3(computeIncomePathways(state, 3));
         setRunning(false);
       }, 50);
     });
-  };
-
-  const formatDelta = (v) => {
-    if (v.unit === 'toggle') return v.label;
-    const abs = Math.abs(v.delta);
-    const sign = v.delta > 0 ? '+' : '-';
-    if (v.unit === '$/hr') return `${sign}$${abs}/hr`;
-    if (v.unit === '$/mo') return `${sign}$${abs}/mo`;
-    if (v.unit === '$/yr') return `${sign}$${abs.toLocaleString()}/yr`;
-    if (v.unit === '%') return `${sign}${abs}%`;
-    if (v.unit === 'months') return `${abs} months ${v.delta < 0 ? 'sooner' : 'later'}`;
-    if (v.unit === 'clients') return `${sign}${abs} client${abs !== 1 ? 's' : ''}`;
-    return `${sign}${abs} ${v.unit}`;
   };
 
   return (
@@ -64,7 +63,7 @@ export default function TopMovesPanel({ gatherState }) {
         </button>
       </div>
 
-      {!results && !running && (
+      {!tier1 && !running && (
         <p style={{
           color: UI_COLORS.textMuted,
           fontSize: UI_TEXT.body,
@@ -74,56 +73,196 @@ export default function TopMovesPanel({ gatherState }) {
         </p>
       )}
 
-      {results && results.length === 0 && (
+      {tier1 && <TierOneList moves={tier1} />}
+      {tier3 && tier3.length > 0 && <TierThreeList pathways={tier3} />}
+      {tier2 && tier2.length > 0 && <TierTwoList sensitivities={tier2} />}
+
+      {tier1 && tier1.length === 0 && (!tier2 || tier2.length === 0) && (!tier3 || tier3.length === 0) && (
         <p style={{
           color: UI_COLORS.textMuted,
           fontSize: UI_TEXT.body,
           margin: 0,
         }}>
-          No single-lever improvements found. Your plan may already be well-optimized.
+          Your plan is fully leveraged — every primary lever is already active.
         </p>
       )}
+    </SurfaceCard>
+  );
+}
 
-      {results && results.length > 0 && (
-        <ol style={{
-          margin: 0, paddingLeft: UI_SPACE.xl,
-          listStyleType: 'decimal',
+// ─── Tier 1: Levers to pull ───
+function TierOneList({ moves }) {
+  if (moves.length === 0) {
+    return (
+      <div>
+        <SectionHeader title="Levers to pull" subtitle="Actions available on the Decision Console" />
+        <p style={{
+          color: UI_COLORS.textMuted,
+          fontSize: UI_TEXT.caption,
+          margin: `${UI_SPACE.sm}px 0 ${UI_SPACE.md}px`,
+          fontStyle: 'italic',
         }}>
-          {results.map((r, i) => (
-            <li key={r.key} style={{
-              marginBottom: i < results.length - 1 ? UI_SPACE.md : 0,
-              color: UI_COLORS.textBody,
-              fontSize: UI_TEXT.body,
+          Every primary lever is already active. Check the sensitivities below.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <SectionHeader title="Levers to pull" subtitle="Inactive levers ranked by impact" />
+      <ol style={{
+        margin: `${UI_SPACE.sm}px 0 ${UI_SPACE.md}px`,
+        paddingLeft: UI_SPACE.xl,
+        listStyleType: 'decimal',
+      }}>
+        {moves.map((r, i) => (
+          <li key={r.key} style={{
+            marginBottom: i < moves.length - 1 ? UI_SPACE.md : 0,
+            color: UI_COLORS.textBody,
+            fontSize: UI_TEXT.body,
+          }}>
+            <div style={{ fontWeight: 500 }}>
+              {r.label}
+              {r.delta > 0 && (
+                <span style={{ color: UI_COLORS.positive, marginLeft: 6, fontFamily: "'JetBrains Mono', monospace" }}>
+                  +{fmtFull(r.delta)}/mo
+                </span>
+              )}
+            </div>
+            <div style={{
+              fontSize: UI_TEXT.caption,
+              color: UI_COLORS.textMuted,
+              marginTop: 2,
             }}>
-              <div style={{ fontWeight: 500 }}>
-                {r.label} by {formatDelta(r)}
-              </div>
-              <div style={{
+              {r.finalBalanceDelta > 0 && (
+                <span style={{ color: UI_COLORS.positive }}>
+                  +{fmtFull(r.finalBalanceDelta)} at end of plan
+                </span>
+              )}
+              {r.finalBalanceDelta > 0 && r.breakevenMonthDelta < 0 && ' · '}
+              {r.breakevenMonthDelta < 0 && (
+                <span style={{ color: UI_COLORS.positive }}>
+                  Breakeven {Math.abs(r.breakevenMonthDelta)} month{Math.abs(r.breakevenMonthDelta) !== 1 ? 's' : ''} sooner
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Tier 2: Sensitivities (awareness only) ───
+function TierTwoList({ sensitivities }) {
+  return (
+    <div style={{
+      marginTop: UI_SPACE.md,
+      paddingTop: UI_SPACE.md,
+      borderTop: `1px dashed ${UI_COLORS.border}`,
+    }}>
+      <SectionHeader
+        title="Sensitivities to watch"
+        subtitle="Assumptions that move the outcome — context, not actions"
+      />
+      <ul style={{
+        margin: `${UI_SPACE.sm}px 0 0`,
+        padding: 0,
+        listStyle: 'none',
+      }}>
+        {sensitivities.map((s) => {
+          const deltaSign = s.delta > 0 ? '+' : '';
+          const deltaStr = `${deltaSign}${s.delta}${s.unit}`;
+          const impact = s.finalBalanceDelta;
+          const impactColor = impact >= 0 ? UI_COLORS.positive : UI_COLORS.destructive;
+          const impactStr = `${impact >= 0 ? '+' : ''}${fmtFull(impact)} at end of plan`;
+          return (
+            <li
+              key={s.key}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
                 fontSize: UI_TEXT.caption,
                 color: UI_COLORS.textMuted,
-                marginTop: 2,
-              }}>
-                {r.finalBalanceDelta > 0 && (
-                  <span style={{ color: UI_COLORS.positive }}>
-                    +{fmtFull(r.finalBalanceDelta)} at end of plan
-                  </span>
-                )}
-                {r.finalBalanceDelta > 0 && r.runwayDelta > 0 && ' · '}
-                {r.runwayDelta > 0 && (
-                  <span style={{ color: UI_COLORS.positive }}>
-                    Runway extends {r.runwayDelta} month{r.runwayDelta !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {r.finalBalanceDelta <= 0 && r.runwayDelta > 0 && (
-                  <span style={{ color: UI_COLORS.positive }}>
-                    Runway extends {r.runwayDelta} month{r.runwayDelta !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
+                padding: `${UI_SPACE.xs}px 0`,
+              }}
+            >
+              <span>
+                {s.label} <span style={{ color: UI_COLORS.textDim }}>({deltaStr})</span>
+              </span>
+              <span style={{ color: impactColor, fontFamily: "'JetBrains Mono', monospace" }}>
+                {impactStr}
+              </span>
             </li>
-          ))}
-        </ol>
-      )}
-    </SurfaceCard>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ─── Tier 3: Income pathways (counterfactuals to pursue, not click) ───
+function TierThreeList({ pathways }) {
+  if (pathways.length === 0) return null;
+  return (
+    <div style={{
+      marginTop: UI_SPACE.md,
+      paddingTop: UI_SPACE.md,
+      borderTop: `1px dashed ${UI_COLORS.border}`,
+    }}>
+      <SectionHeader
+        title="Income pathways"
+        subtitle="Upside you could pursue — negotiation, job change, business scaling"
+      />
+      <ul style={{
+        margin: `${UI_SPACE.sm}px 0 0`,
+        padding: 0,
+        listStyle: 'none',
+      }}>
+        {pathways.map((p) => (
+          <li
+            key={p.key}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              fontSize: UI_TEXT.body,
+              color: UI_COLORS.textBody,
+              padding: `${UI_SPACE.xs}px 0`,
+            }}
+          >
+            <span>
+              <span style={{ color: UI_COLORS.primary, marginRight: 4 }}>Pursue →</span>
+              {p.label}
+            </span>
+            <span style={{ color: UI_COLORS.positive, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+              +{fmtFull(p.finalBalanceDelta)} at end of plan
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SectionHeader({ title, subtitle }) {
+  return (
+    <div>
+      <div style={{
+        fontSize: UI_TEXT.label,
+        fontWeight: 600,
+        color: UI_COLORS.textBody,
+      }}>
+        {title}
+      </div>
+      <div style={{
+        fontSize: UI_TEXT.micro,
+        color: UI_COLORS.textDim,
+        marginTop: 1,
+      }}>
+        {subtitle}
+      </div>
+    </div>
   );
 }

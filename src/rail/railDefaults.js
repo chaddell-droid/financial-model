@@ -4,7 +4,8 @@
  */
 export const DEFAULT_RAIL_CONFIG = {
   overview: ['savings', 'networth', 'retirement'],
-  plan: ['savings', 'networth', 'retirement'],
+  // Plan tab renders its own in-workspace chart stack; rail is hidden via noRailTabs.
+  plan: [],
   income: ['savings', 'networth'],
   risk: ['savings', 'networth'],
   track: ['savings', 'networth'],

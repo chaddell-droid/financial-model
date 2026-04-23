@@ -97,11 +97,15 @@ function SavingsDrawdownChart({
     })),
   ] : []);
 
+  const isPlan = instanceId === 'plan';
   return (
-        <div ref={containerRef} data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={{
+        <div ref={containerRef} data-testid={`savings-drawdown-chart-${instanceId}`} data-chart-instance={instanceId} style={isPlan ? {
+          background: 'transparent', border: 'none', padding: 0, margin: 0,
+        } : {
           background: COLORS.bgCard, borderRadius: 12, padding: "20px 16px",
           border: savingsZeroMonth ? `1px solid ${COLORS.red}33` : `1px solid ${COLORS.border}`, marginBottom: 24
         }}>
+          {!isPlan && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
             <h3 style={{ fontSize: 14, color: savingsZeroMonth ? COLORS.red : COLORS.green, margin: 0, fontWeight: 600 }}>
               Savings Balance Over Time
@@ -110,8 +114,10 @@ function SavingsDrawdownChart({
               <span style={{ fontSize: 12, color: COLORS.red, fontWeight: 600 }}>Depleted: {savingsZeroLabel}</span>
             )}
           </div>
+          )}
 
           {/* Key numbers strip */}
+          {!isPlan && (
           <div style={{
             display: "flex", gap: 2, marginBottom: 16, flexWrap: "wrap"
           }}>
@@ -151,8 +157,9 @@ function SavingsDrawdownChart({
               </div>
             ))}
           </div>
+          )}
           {(() => {
-            const svgH = 370;
+            const svgH = 380;
             const padL = 60;
             const padR = 20;
             const padT = 20;
@@ -402,7 +409,7 @@ function SavingsDrawdownChart({
               </div>
             );
           })()}
-          {!presentMode && <>
+          {!presentMode && !isPlan && <>
           <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Slider label="Starting savings" value={startingSavings} onChange={onFieldChange('startingSavings')} commitStrategy='release'
               min={50000} max={500000} step={10000} color={COLORS.blue} />

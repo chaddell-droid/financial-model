@@ -35,6 +35,10 @@ export function runMonthlySimulation(s) {
   const trustNow = s.trustIncomeNow || 0;
   const trustFuture = s.trustIncomeFuture || 0;
   const trustMonth = s.trustIncreaseMonth ?? 11;
+  // Custom levers (Plan Decision Console) — active levers add currentValue to monthly cashIncome.
+  const customLeverMonthly = Array.isArray(s.customLevers)
+    ? s.customLevers.reduce((sum, lv) => sum + (lv && lv.active ? Math.max(0, Number(lv.currentValue) || 0) : 0), 0)
+    : 0;
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
 
   // Chad's work duration — driven by chadWorkMonths state field (was hardcoded chadRetirementMonth = 72)
@@ -130,31 +134,58 @@ export function runMonthlySimulation(s) {
     if (s.expenseInflation) {
       inflatedBase = Math.round(inflatedBase * Math.pow(1 + (s.expenseInflationRate || 0) / 100, m / 12));
     }
+    // Track expense breakdown so tooltips can show the math that rolls up to `expenses`.
+    const expenseBreakdown = { baseLiving: inflatedBase };
     let expenses = inflatedBase;
-    if (!s.retireDebt) expenses += s.debtService;
+    if (!s.retireDebt) {
+      expenses += s.debtService;
+      expenseBreakdown.debtService = s.debtService;
+    }
     // Van: if sold, monthly cost stops at sale month; if not sold, cost continues forever
     const vanSaleMonth = s.vanSaleMonth ?? 12;
     if (s.vanSold) {
-      if (m < vanSaleMonth) expenses += (s.vanMonthlySavings || 0); // still paying before sale
+      if (m < vanSaleMonth) {
+        expenses += (s.vanMonthlySavings || 0); // still paying before sale
+        expenseBreakdown.van = s.vanMonthlySavings || 0;
+      }
     } else {
       expenses += (s.vanMonthlySavings || 0); // never sold, always paying
+      expenseBreakdown.van = s.vanMonthlySavings || 0;
     }
     const totalCuts = (s.lifestyleCuts || 0) + (s.cutInHalf || 0) + (s.extraCuts || 0);
-    if (s.lifestyleCutsApplied) expenses -= totalCuts * cutsDiscipline;
-    if (m < (s.bcsYearsLeft ?? 3) * 12) expenses += s.bcsFamilyMonthly;
-    for (const mi of ms) { if (m >= mi.month) expenses -= mi.savings; }
+    if (s.lifestyleCutsApplied) {
+      const appliedCuts = Math.round(totalCuts * cutsDiscipline);
+      expenses -= appliedCuts;
+      expenseBreakdown.lifestyleCuts = -appliedCuts;
+    }
+    if (m < (s.bcsYearsLeft ?? 3) * 12) {
+      expenses += s.bcsFamilyMonthly;
+      expenseBreakdown.bcs = s.bcsFamilyMonthly;
+    }
+    let milestoneSavings = 0;
+    for (const mi of ms) { if (m >= mi.month) milestoneSavings += (mi.savings || 0); }
+    if (milestoneSavings > 0) {
+      expenses -= milestoneSavings;
+      expenseBreakdown.milestones = -milestoneSavings;
+    }
     // Employer health insurance saves on premiums
-    if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) expenses -= chadJobHealthSavings;
+    if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
+      expenses -= chadJobHealthSavings;
+      expenseBreakdown.healthInsurance = -chadJobHealthSavings;
+    }
     // One-time extras: temporary additional costs for a limited duration
     const oneTimeExtras = s.oneTimeExtras || 0;
     const oneTimeMonths = s.oneTimeMonths || 0;
-    if (oneTimeExtras > 0 && m < oneTimeMonths) expenses += oneTimeExtras;
+    if (oneTimeExtras > 0 && m < oneTimeMonths) {
+      expenses += oneTimeExtras;
+      expenseBreakdown.oneTimeExtras = oneTimeExtras;
+    }
     expenses = Math.max(expenses, 0);
 
     // Canonical monthly cash-flow rows use actual vest timing so they reconcile to
     // savings balance changes. Keep smoothed MSFT as an explicit secondary series.
-    const cashIncome = sarahIncome + msftLump + trustLLC + ssBenefit + consulting + chadJobIncome;
-    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssBenefit + consulting + chadJobIncome;
+    const cashIncome = sarahIncome + msftLump + trustLLC + ssBenefit + consulting + chadJobIncome + customLeverMonthly;
+    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssBenefit + consulting + chadJobIncome + customLeverMonthly;
 
     balance += investReturn;
     balance += (cashIncome - expenses);
@@ -191,7 +222,7 @@ export function runMonthlySimulation(s) {
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, consulting, chadJobIncome,
-      investReturn, cashIncome, cashIncomeSmoothed, expenses, homeEquity,
+      investReturn, cashIncome, cashIncomeSmoothed, expenses, expenseBreakdown, homeEquity,
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,
       netMonthly: cashIncome + investReturn - expenses,

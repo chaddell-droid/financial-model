@@ -13,6 +13,7 @@ const ExpenseControls = ({
   vanMonthlySavings,
   milestones,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
+  hideCapital = false,
   onFieldChange,
 }) => {
   useRenderMetric('ExpenseControls');
@@ -151,7 +152,8 @@ const ExpenseControls = ({
               >+ Add milestone</button>
             </div>
 
-            {/* Capital needs */}
+            {/* Capital needs (legacy UI; hidden when hideCapital=true, e.g. in the Plan tab where CapitalItemsPanel is the new home) */}
+            {!hideCapital && (
             <div style={{ marginTop: 12 }}>
               <h4 style={{ fontSize: 12, color: COLORS.yellow, margin: "0 0 8px", textTransform: "uppercase" }}>One-Time Capital Needs (Advance Items)</h4>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -173,6 +175,7 @@ const ExpenseControls = ({
                 </div>
               </div>
             </div>
+            )}
           </div>
   );
 };

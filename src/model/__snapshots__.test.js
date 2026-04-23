@@ -1834,10 +1834,11 @@ test('Monthly and rail charts adopt the shared chart contract helpers', () => {
   assert.ok(pwaSource.includes('buildLegendItems'), 'PWA distribution chart should use shared legend helpers');
 });
 
-test('PlanTab owns ScenarioStrip and exposes workspace selector', () => {
+test('PlanTab renders DecisionConsole and exposes workspace selector', () => {
   const planSource = fs.readFileSync(new URL('../panels/tabs/PlanTab.jsx', import.meta.url), 'utf8');
-  assert.ok(planSource.includes('<ScenarioStrip {...scenarioStripProps} />'), 'PlanTab should render ScenarioStrip');
-  assert.ok(planSource.includes("data-testid='plan-workspace'"), 'PlanTab should expose a stable workspace selector');
+  // PlanTab was redesigned from ScenarioStrip to a DecisionConsole (Plan tab redesign, 2026-04-21).
+  assert.ok(planSource.includes('DecisionConsole'), 'PlanTab should render the Decision Console');
+  assert.ok(planSource.includes('"plan-workspace"'), 'PlanTab should expose a stable workspace selector');
 });
 
 test('FinancialModel passes planning workflow props into PlanTab', () => {

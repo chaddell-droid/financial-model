@@ -1,5 +1,9 @@
 import React, { memo } from "react";
 import BridgeChart from '../../charts/BridgeChart.jsx';
+import MiniNetWorthChart from '../../charts/MiniNetWorthChart.jsx';
+import MiniIncomeExpenseChart from '../../charts/MiniIncomeExpenseChart.jsx';
+import OverviewTopMoves from '../OverviewTopMoves.jsx';
+import GoalStatusStrip from '../GoalStatusStrip.jsx';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../../ui/tokens.js';
 import { fmtFull } from '../../model/formatters.js';
@@ -21,7 +25,7 @@ function HeroCard({ label, value, sub, tone }) {
         {label}
       </div>
       <div style={{
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: 700,
         color,
         lineHeight: 1.1,
@@ -42,12 +46,10 @@ function HeroCard({ label, value, sub, tone }) {
 }
 
 function HeroDashboard({ rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcResults, onTabChange }) {
-  // Monthly Gap: positive means surplus, negative means deficit
   const gapTone = rawMonthlyGap >= 0 ? 'positive' : 'destructive';
   const gapValue = fmtFull(rawMonthlyGap);
   const gapSub = rawMonthlyGap >= 0 ? 'Monthly surplus' : 'Monthly shortfall';
 
-  // Savings Runway
   const runwayMonths = savingsZeroMonth ? savingsZeroMonth.month : null;
   const runwayTone = runwayMonths == null ? 'positive'
     : runwayMonths < 24 ? 'destructive'
@@ -55,7 +57,6 @@ function HeroDashboard({ rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcRe
   const runwayValue = savingsZeroLabel;
   const runwaySub = runwayMonths == null ? 'No zero crossing' : 'Until savings depleted';
 
-  // Success Probability (solvencyRate is 0-1)
   const solvencyRate = mcResults?.solvencyRate ?? null;
   const solvencyPct = solvencyRate != null ? Math.round(solvencyRate * 100) : null;
   const successTone = solvencyPct == null ? 'muted'
@@ -68,20 +69,10 @@ function HeroDashboard({ rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcRe
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
       gap: UI_SPACE.md,
-      marginBottom: UI_SPACE.lg,
+      marginBottom: UI_SPACE.md,
     }}>
-      <HeroCard
-        label="Monthly Gap"
-        value={gapValue}
-        sub={gapSub}
-        tone={gapTone}
-      />
-      <HeroCard
-        label="Savings Runway"
-        value={runwayValue}
-        sub={runwaySub}
-        tone={runwayTone}
-      />
+      <HeroCard label="Monthly Gap" value={gapValue} sub={gapSub} tone={gapTone} />
+      <HeroCard label="Savings Runway" value={runwayValue} sub={runwaySub} tone={runwayTone} />
       {solvencyPct != null ? (
         <HeroCard
           label="Success Probability"
@@ -100,7 +91,7 @@ function HeroDashboard({ rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcRe
             Success Probability
           </div>
           <div style={{
-            fontSize: 28,
+            fontSize: 24,
             fontWeight: 700,
             color: UI_COLORS.textMuted,
             lineHeight: 1.1,
@@ -129,9 +120,14 @@ function HeroDashboard({ rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcRe
   );
 }
 
-function OverviewTab({ bridgeProps, rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcResults, onTabChange }) {
+function OverviewTab({
+  bridgeProps, rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcResults, onTabChange,
+  savingsData, wealthData, monthlyDetail, ssType,
+  goals, goalResults, gatherState,
+}) {
   return (
     <>
+      {/* Section 1: Health Strip */}
       <HeroDashboard
         rawMonthlyGap={rawMonthlyGap}
         savingsZeroLabel={savingsZeroLabel}
@@ -139,6 +135,38 @@ function OverviewTab({ bridgeProps, rawMonthlyGap, savingsZeroLabel, savingsZero
         mcResults={mcResults}
         onTabChange={onTabChange}
       />
+
+      {/* Section 2: Financial Snapshot — 2 mini-charts */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+        gap: UI_SPACE.md,
+        marginBottom: UI_SPACE.md,
+      }}>
+        <MiniNetWorthChart
+          savingsData={savingsData}
+          wealthData={wealthData}
+          onTabChange={onTabChange}
+        />
+        <MiniIncomeExpenseChart
+          monthlyDetail={monthlyDetail}
+          ssType={ssType}
+          onTabChange={onTabChange}
+        />
+      </div>
+
+      {/* Section 3: Action Row — Top Moves + Goals */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: UI_SPACE.md,
+        marginBottom: UI_SPACE.md,
+      }}>
+        <OverviewTopMoves gatherState={gatherState} onTabChange={onTabChange} />
+        <GoalStatusStrip goals={goals} goalResults={goalResults} onTabChange={onTabChange} />
+      </div>
+
+      {/* Section 4: Bridge Story */}
       <BridgeChart {...bridgeProps} variant='overview' />
     </>
   );

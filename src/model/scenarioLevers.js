@@ -54,6 +54,8 @@ export function buildPrimaryLeversModel(input) {
     roofInclude,
     otherProjects,
     otherInclude,
+    capitalItems,
+    customLevers,
     advanceNeeded,
   } = input;
 
@@ -80,7 +82,7 @@ export function buildPrimaryLeversModel(input) {
     + (vanSold ? 0 : vanMonthlySavings)
     + monthlyFamilyShare;
 
-  const recurringLevers = rankRecurringLevers([
+  const builtInLevers = [
     {
       id: 'retire_debt',
       label: 'Retire all debt',
@@ -118,7 +120,55 @@ export function buildPrimaryLeversModel(input) {
       multiYearImpact: totalDeltaOverRemainingYears,
       kind: 'monthly_savings',
     },
-  ]);
+  ];
+
+  const customLeverEntries = Array.isArray(customLevers)
+    ? customLevers.map((lv) => {
+        const maxImpact = Math.max(0, Number(lv.maxImpact) || 0);
+        const currentValue = Math.max(0, Math.min(maxImpact, Number(lv.currentValue) || 0));
+        const active = Boolean(lv.active);
+        return {
+          id: `custom:${lv.id}`,
+          label: lv.name || 'Custom lever',
+          description: lv.description || '',
+          monthlyImpact: active ? currentValue : 0,
+          availableMonthlyImpact: maxImpact,
+          active,
+          oneTimeImpact: 0,
+          kind: 'monthly_savings',
+          custom: true,
+          sourceId: lv.id,
+        };
+      })
+    : [];
+
+  const recurringLevers = rankRecurringLevers([...builtInLevers, ...customLeverEntries]);
+
+  // Capital consequences: prefer array-based capitalItems when available;
+  // fall back to legacy scalar fields for call sites that haven't migrated.
+  // Preserve stable IDs (`mold_remediation`, `roof`, `house_projects`) for legacy
+  // items so existing consumers and tests keep working.
+  const LEGACY_ID_BY_KEY = {
+    'legacy-mold': 'mold_remediation',
+    'legacy-roof': 'roof',
+    'legacy-other': 'house_projects',
+  };
+  const effectiveCapitalItems = Array.isArray(capitalItems) && capitalItems.length > 0
+    ? capitalItems
+    : [
+        { id: 'legacy-mold', name: 'Mold remediation', cost: moldCost || 0, include: Boolean(moldInclude) },
+        { id: 'legacy-roof', name: 'Roof', cost: roofCost || 0, include: Boolean(roofInclude) },
+        { id: 'legacy-other', name: 'House projects + toilets', cost: otherProjects || 0, include: Boolean(otherInclude) },
+      ];
+
+  const capitalConsequenceItems = effectiveCapitalItems.map((it) => ({
+    id: LEGACY_ID_BY_KEY[it.id] || `capital:${it.id}`,
+    group: 'other_assumptions',
+    label: it.name || 'Capital item',
+    amount: it.include ? Math.max(0, Number(it.cost) || 0) : 0,
+    active: Boolean(it.include),
+    kind: 'one_time',
+  }));
 
   const consequenceItems = [
     {
@@ -138,30 +188,7 @@ export function buildPrimaryLeversModel(input) {
       active: totalDeltaOverRemainingYears !== 0,
       kind: 'multi_year',
     },
-    {
-      id: 'mold_remediation',
-      group: 'other_assumptions',
-      label: 'Mold remediation',
-      amount: moldInclude ? moldCost : 0,
-      active: moldInclude,
-      kind: 'one_time',
-    },
-    {
-      id: 'roof',
-      group: 'other_assumptions',
-      label: 'Roof',
-      amount: roofInclude ? roofCost : 0,
-      active: roofInclude,
-      kind: 'one_time',
-    },
-    {
-      id: 'house_projects',
-      group: 'other_assumptions',
-      label: 'House projects + toilets',
-      amount: otherInclude ? otherProjects : 0,
-      active: otherInclude,
-      kind: 'one_time',
-    },
+    ...capitalConsequenceItems,
   ];
 
   const breakdown = [

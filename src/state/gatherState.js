@@ -14,6 +14,15 @@ export function gatherState(state) {
   const st = state || INITIAL_STATE;
   const s = {};
   for (const key of MODEL_KEYS) s[key] = st[key] ?? INITIAL_STATE[key];
+
+  // Capital items migration shim: if the array is empty but legacy scalar fields
+  // are populated, derive the array from legacy. Dual-write preserved — legacy
+  // fields remain readable/writable so no saved scenario loses data.
+  if (!Array.isArray(s.capitalItems) || s.capitalItems.length === 0) {
+    s.capitalItems = deriveCapitalItemsFromLegacy(s);
+  }
+  if (!Array.isArray(s.customLevers)) s.customLevers = [];
+
   s.chadRetirementMonth = s.chadWorkMonths || 72;
   s.totalProjectionMonths = Math.max(s.chadWorkMonths || 72, s.sarahWorkMonths || 72);
   s.bcsFamilyMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - (s.bcsParentsAnnual || 0)) / 12);
@@ -70,4 +79,38 @@ export function gatherState(state) {
  */
 export function gatherStateWithOverrides(overrides = {}) {
   return gatherState({ ...INITIAL_STATE, ...overrides });
+}
+
+/**
+ * Derive capital items from legacy scalar fields (moldCost/roofCost/otherProjects +
+ * their *Include booleans). Used as a one-time seed so pre-v6 saved scenarios and
+ * the default state both surface in the new array-based UI.
+ */
+export function deriveCapitalItemsFromLegacy(s) {
+  return [
+    {
+      id: 'legacy-mold',
+      name: 'Mold remediation',
+      description: 'Basement · quoted by Elite ENV',
+      cost: Math.max(0, s.moldCost || 0),
+      include: Boolean(s.moldInclude),
+      likelihood: 100,
+    },
+    {
+      id: 'legacy-roof',
+      name: 'Roof replacement',
+      description: 'Est. replacement',
+      cost: Math.max(0, s.roofCost || 0),
+      include: Boolean(s.roofInclude),
+      likelihood: 100,
+    },
+    {
+      id: 'legacy-other',
+      name: 'House projects & trailers',
+      description: 'Landscape + pop-up trailer',
+      cost: Math.max(0, s.otherProjects || 0),
+      include: Boolean(s.otherInclude),
+      likelihood: 100,
+    },
+  ];
 }

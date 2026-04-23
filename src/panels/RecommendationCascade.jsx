@@ -40,18 +40,11 @@ export default function RecommendationCascade({
   const hasPreview = previewMoves.length > 0;
 
   // Grab composed state so we can read effectiveLeverConstraints and feed
-  // the cascade engine. The cascade + filter are driven by a DEFERRED snapshot
-  // so that rapid slider drags don't re-rank mid-drag — the DOM element the
-  // user is grabbing stays mounted through the drag (NFR3). Live values are
-  // still used for the preview-mode banner and the Staged list so immediate
-  // feedback (banner appears, staged entry updates) isn't suppressed.
+  // the cascade engine. useDeferredValue keeps the cascade recomputation
+  // low-priority; the staged-list slider has its own local state so the
+  // drag can't be interrupted by a re-render here either way.
   const composedState = useMemo(() => (gatherState ? gatherState() : null), [gatherState]);
   const deferredComposedState = useDeferredValue(composedState);
-  const deferredPreviewMoves = useDeferredValue(previewMoves);
-  const deferredStagedIds = useMemo(
-    () => new Set(deferredPreviewMoves.map((m) => m.id)),
-    [deferredPreviewMoves],
-  );
 
   const cascade = useMemo(() => {
     if (!deferredComposedState) return [];
@@ -114,32 +107,9 @@ export default function RecommendationCascade({
             listStyleType: 'decimal',
           }}
         >
-          {cascade
-            // Hide already-staged continuous-lever rungs from the cascade —
-            // the slider lives in the Staged list once a value is committed.
-            // Uses DEFERRED stagedIds so the filter doesn't fire mid-drag:
-            // the cascade rung the user is currently dragging stays mounted
-            // until the drag settles, at which point the deferred state
-            // catches up and the rung moves to the Staged list cleanly.
-            .filter((rung) => {
-              if (!rung.id || !rung.id.startsWith('optimize:')) return true;
-              return !deferredStagedIds.has(rung.id);
-            })
-            .map((rung, i, list) => {
+          {cascade.map((rung, i, list) => {
             const isStaged = stagedIds.has(rung.id);
             const showCumulative = i > 0 && rung.cumulativeFinalBalanceDelta !== rung.finalBalanceDelta;
-            const isContinuous = typeof rung.id === 'string' && rung.id.startsWith('optimize:');
-            const leverKey = isContinuous ? rung.id.slice('optimize:'.length) : null;
-            const leverConstraints =
-              isContinuous && composedState && composedState.effectiveLeverConstraints
-                ? composedState.effectiveLeverConstraints[leverKey]
-                : null;
-
-            // Initial slider value = optimizer's recommendation from rung.mutation.
-            // Staged continuous levers have been filtered out of the cascade
-            // display above, so we don't need the staged-fallback here anymore.
-            const sliderValue = rung.mutation && rung.mutation[leverKey];
-
             return (
               <li
                 key={rung.id}
@@ -160,31 +130,17 @@ export default function RecommendationCascade({
                     onRemove={() => removePreviewMove?.(rung.id)}
                   />
                 </div>
-
-                {/* Phase 2 slider — continuous levers get a draggable control
-                    so the user can override the optimizer's pick live. */}
-                {isContinuous && leverConstraints && typeof sliderValue === 'number' && (
-                  <ContinuousLeverSlider
-                    leverKey={leverKey}
-                    currentValue={sliderValue}
-                    min={leverConstraints.min}
-                    max={leverConstraints.max}
-                    onChange={(nextValue) => {
-                      // Regenerate label so the staged-list entry reflects
-                      // the slider's actual value, not the original optimizer pick.
-                      const freshLabel = `${leverLabelPrefix(leverKey)} ${formatLeverValue(leverKey, nextValue)}`;
-                      applyPreviewMove?.({
-                        id: rung.id,
-                        label: freshLabel,
-                        mutation: { [leverKey]: nextValue },
-                      });
-                    }}
-                    onOverrideBounds={(bounds) => {
-                      setLeverConstraintOverride?.(leverKey, bounds);
-                    }}
-                    presentMode={presentMode}
-                  />
-                )}
+                {/*
+                  Note: continuous-lever rungs show only the label + Apply
+                  button — NOT an inline slider. The slider lives exclusively
+                  in the Staged in preview list above, where it's parented to
+                  a stable DOM position that doesn't get re-rendered by
+                  cascade re-ranking. Earlier attempts to render the slider
+                  in the cascade rung caused the DOM element to unmount on
+                  every state update, breaking drag tracking. The user's flow
+                  is now: click Apply to preview → drag the slider in the
+                  Staged list above → commit / save / clear when ready.
+                */}
               </li>
             );
           })}

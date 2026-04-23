@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -199,6 +199,19 @@ const MIGRATIONS = [
       return result;
     },
   },
+  {
+    from: 6,
+    to: 7,
+    fn: (state) => {
+      const result = { ...state };
+      // Story 2.2: leverConstraintsOverride defaults to null (use workshop
+      // defaults). User can set per-lever overrides at runtime via the UI.
+      if (result.leverConstraintsOverride === undefined) {
+        result.leverConstraintsOverride = null;
+      }
+      return result;
+    },
+  },
 ];
 
 /**
@@ -254,6 +267,10 @@ export function validateAndSanitize(raw) {
     }
     if (key === 'customLevers') {
       result[key] = sanitizeCustomLevers(rawVal);
+      continue;
+    }
+    if (key === 'leverConstraintsOverride') {
+      result[key] = sanitizeLeverConstraintsOverride(rawVal);
       continue;
     }
     if (expectedType === 'nullable') {
@@ -352,6 +369,30 @@ export function sanitizeCapitalItems(items) {
     include: Boolean(it.include),
     likelihood: clampNum(it.likelihood, 0, 100, 100),
   }));
+}
+
+/**
+ * Sanitize the `leverConstraintsOverride` MODEL_KEY (Story 2.2).
+ *
+ * Accepts null, undefined, or an object mapping lever keys to { min?, max? }
+ * objects. Malformed entries are stripped; non-object input returns null.
+ * Returns null when the cleaned map is empty so save/load round-trips
+ * cleanly — the gatherState derivation treats null as "use workshop defaults."
+ */
+export function sanitizeLeverConstraintsOverride(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const result = {};
+  for (const [leverKey, val] of Object.entries(raw)) {
+    if (typeof leverKey !== 'string' || leverKey.length === 0) continue;
+    if (!val || typeof val !== 'object') continue;
+    const entry = {};
+    if (typeof val.min === 'number' && Number.isFinite(val.min)) entry.min = val.min;
+    if (typeof val.max === 'number' && Number.isFinite(val.max)) entry.max = val.max;
+    if (Object.keys(entry).length === 0) continue;
+    result[leverKey] = entry;
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 export function sanitizeCustomLevers(levers) {

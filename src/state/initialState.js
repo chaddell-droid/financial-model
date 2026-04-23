@@ -111,6 +111,13 @@ export const INITIAL_STATE = {
   // Shape: { id: string, name: string, description: string, maxImpact: number, currentValue: number, active: boolean }
   customLevers: [],
 
+  // Lever constraint overrides — per-lever min/max that override the
+  // Constraint Workshop defaults in src/model/leverClassification.js.
+  // Shape: { [leverKey]: { min?: number, max?: number } } | null
+  // null means "use workshop defaults for every bounded-continuous lever".
+  // Exposed via gatherState's effectiveLeverConstraints derivation.
+  leverConstraintsOverride: null,
+
   // Debt Balances
   debtCC: 92760,
   debtPersonal: 57611,
@@ -196,7 +203,7 @@ export const MODEL_KEYS = [
   'retireDebt',
   'startingSavings', 'investmentReturn', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
-  'capitalItems', 'customLevers',
+  'capitalItems', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation',
   'seqBadY1', 'seqBadY2',

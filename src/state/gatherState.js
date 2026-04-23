@@ -1,6 +1,7 @@
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_START_OFFSET } from '../model/constants.js';
 import { composePreviewState } from './previewState.js';
+import { computeEffectiveLeverConstraints } from '../model/leverClassification.js';
 
 /**
  * Build the projection-ready state object from the full UI state.
@@ -82,6 +83,11 @@ export function gatherState(state) {
 
   // Cross-field clamping: ensure sarahRate never exceeds sarahMaxRate.
   if (s.sarahRate > s.sarahMaxRate) s.sarahRate = s.sarahMaxRate;
+
+  // Effective lever constraints — workshop defaults + any user override.
+  // Phase 2 optimizer (Story 2.3) and slider UI (Story 2.4) read from here,
+  // never from LEVER_CLASSIFICATION directly.
+  s.effectiveLeverConstraints = computeEffectiveLeverConstraints(s.leverConstraintsOverride);
 
   return s;
 }

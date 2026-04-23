@@ -85,6 +85,7 @@ export default function TopMovesPanel({
         clearPreview={previewProps.clearPreview}
         commitPreview={previewProps.commitPreview}
         saveFromPreview={previewProps.saveFromPreview}
+        setLeverConstraintOverride={previewProps.setLeverConstraintOverride}
         count={5}
         presentMode={presentMode}
       />

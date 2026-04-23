@@ -186,6 +186,7 @@ function OverviewTab({
             clearPreview={previewProps.clearPreview}
             commitPreview={previewProps.commitPreview}
             saveFromPreview={previewProps.saveFromPreview}
+            setLeverConstraintOverride={previewProps.setLeverConstraintOverride}
             count={3}
             presentMode={presentMode}
           />

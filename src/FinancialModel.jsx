@@ -114,6 +114,11 @@ export default function FinancialModel() {
   // right after saveScenario is declared (~line 410).
   const saveScenarioRef = useRef(null);
 
+  // Ref to latest leverConstraintsOverride so setLeverConstraintOverride
+  // below can read it without forcing callers to re-memoize on every state
+  // change. Assigned below each render near other refs.
+  const leverConstraintsOverrideRef = useRef(null);
+
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate,
     chadWorkMonths, sarahWorkMonths,
@@ -146,7 +151,9 @@ export default function FinancialModel() {
     checkInHistory, activeCheckInMonth,
     monthlyActuals, merchantClassifications,
     previewMoves,
+    leverConstraintsOverride,
   } = state;
+  leverConstraintsOverrideRef.current = leverConstraintsOverride;
 
   // Backward-compatible computed totals from individual cuts
   const lifestyleCuts = cutOliver + cutVacation + cutGym;
@@ -667,6 +674,33 @@ export default function FinancialModel() {
     await saveScenarioRef.current(name, { provenance });
   }, [previewMoves, scenarioName]);
 
+  // Story 2.4 — update a single lever's constraint bounds. Passing `null` as
+  // the bounds clears the override for that lever, reverting to workshop
+  // defaults. Passing `{ min, max }` (partial allowed) installs an override.
+  // Uses the ref so the callback is stable even as leverConstraintsOverride
+  // changes — avoids cascading prop-bundle re-memoization.
+  const setLeverConstraintOverride = useCallback((leverKey, bounds) => {
+    if (typeof leverKey !== 'string' || leverKey.length === 0) return;
+    const current = leverConstraintsOverrideRef.current;
+    const currentObj = current && typeof current === 'object' ? current : {};
+    let next;
+    if (bounds === null) {
+      if (!(leverKey in currentObj)) return; // nothing to clear
+      next = { ...currentObj };
+      delete next[leverKey];
+      if (Object.keys(next).length === 0) next = null;
+    } else if (bounds && typeof bounds === 'object') {
+      const entry = {};
+      if (typeof bounds.min === 'number' && Number.isFinite(bounds.min)) entry.min = bounds.min;
+      if (typeof bounds.max === 'number' && Number.isFinite(bounds.max)) entry.max = bounds.max;
+      if (Object.keys(entry).length === 0) return;
+      next = { ...currentObj, [leverKey]: entry };
+    } else {
+      return;
+    }
+    dispatch({ type: 'SET_FIELD', field: 'leverConstraintsOverride', value: next });
+  }, [dispatch]);
+
   // Preview sandbox prop bundle — passed through to any surface that renders
   // the RecommendationCascade. Preview state is strictly in-memory; see
   // src/state/previewState.js and autoSave.js filtering.
@@ -677,7 +711,8 @@ export default function FinancialModel() {
     clearPreview,
     commitPreview,
     saveFromPreview,
-  }), [previewMoves, applyPreviewMove, removePreviewMove, clearPreview, commitPreview, saveFromPreview]);
+    setLeverConstraintOverride,
+  }), [previewMoves, applyPreviewMove, removePreviewMove, clearPreview, commitPreview, saveFromPreview, setLeverConstraintOverride]);
   const monteCarloProps = useMemo(() => ({
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,

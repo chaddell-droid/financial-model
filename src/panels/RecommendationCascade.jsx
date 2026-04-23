@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { computeMoveCascade } from '../model/moveCascade.js';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import ContinuousLeverSlider, { formatLeverValue } from './ContinuousLeverSlider.jsx';
 
 /**
  * RecommendationCascade — preview-sandbox recommendation engine panel.
@@ -28,6 +29,7 @@ export default function RecommendationCascade({
   clearPreview,                // () => void — dispatches CLEAR_PREVIEW (Story 1.5)
   commitPreview,               // () => void — dispatches COMMIT_PREVIEW (Story 1.5)
   saveFromPreview,             // (name) => Promise<void> — save-as-scenario with provenance (Story 1.5)
+  setLeverConstraintOverride,  // (leverKey, bounds|null) => void — updates leverConstraintsOverride (Story 2.4)
   count = 3,                   // N rungs (default 3 for Overview; Plan passes 5)
   presentMode = false,         // hide all interactive controls in DadMode
 }) {
@@ -37,12 +39,28 @@ export default function RecommendationCascade({
   );
   const hasPreview = previewMoves.length > 0;
 
+  // Grab a live snapshot of composed state so we can read
+  // effectiveLeverConstraints for sliders AND feed the cascade engine.
+  const composedState = useMemo(() => (gatherState ? gatherState() : null), [gatherState]);
+
   const cascade = useMemo(() => {
-    if (!gatherState) return [];
-    const s = gatherState();
-    if (!s) return [];
-    return computeMoveCascade(s, count);
-  }, [gatherState, count]);
+    if (!composedState) return [];
+    return computeMoveCascade(composedState, count);
+  }, [composedState, count]);
+
+  // Build a map of staged continuous-lever moves keyed by leverKey so the
+  // slider can always show the user's current staged value even when the
+  // cascade re-ranks the rung out of view.
+  const stagedContinuousByLeverKey = useMemo(() => {
+    const out = {};
+    for (const m of previewMoves) {
+      if (m && typeof m.id === 'string' && m.id.startsWith('optimize:')) {
+        const key = m.id.slice('optimize:'.length);
+        out[key] = m;
+      }
+    }
+    return out;
+  }, [previewMoves]);
 
   // Hide entirely in DadMode. Preview state is preserved by the reducer —
   // we just do not render the control surface (FR34, FR35).
@@ -95,6 +113,25 @@ export default function RecommendationCascade({
           {cascade.map((rung, i) => {
             const isStaged = stagedIds.has(rung.id);
             const showCumulative = i > 0 && rung.cumulativeFinalBalanceDelta !== rung.finalBalanceDelta;
+            const isContinuous = typeof rung.id === 'string' && rung.id.startsWith('optimize:');
+            const leverKey = isContinuous ? rung.id.slice('optimize:'.length) : null;
+            const leverConstraints =
+              isContinuous && composedState && composedState.effectiveLeverConstraints
+                ? composedState.effectiveLeverConstraints[leverKey]
+                : null;
+
+            // For continuous rungs, the slider's current value prefers the
+            // staged preview value (if the user has already dragged), else
+            // falls back to the optimizer's recommendation from rung.mutation.
+            const stagedContinuousValue =
+              isContinuous && stagedContinuousByLeverKey[leverKey] && stagedContinuousByLeverKey[leverKey].mutation
+                ? stagedContinuousByLeverKey[leverKey].mutation[leverKey]
+                : undefined;
+            const sliderValue =
+              stagedContinuousValue !== undefined
+                ? stagedContinuousValue
+                : rung.mutation && rung.mutation[leverKey];
+
             return (
               <li
                 key={rung.id}
@@ -115,6 +152,31 @@ export default function RecommendationCascade({
                     onRemove={() => removePreviewMove?.(rung.id)}
                   />
                 </div>
+
+                {/* Phase 2 slider — continuous levers get a draggable control
+                    so the user can override the optimizer's pick live. */}
+                {isContinuous && leverConstraints && typeof sliderValue === 'number' && (
+                  <ContinuousLeverSlider
+                    leverKey={leverKey}
+                    currentValue={sliderValue}
+                    min={leverConstraints.min}
+                    max={leverConstraints.max}
+                    onChange={(nextValue) => {
+                      // Regenerate label so the staged-list entry reflects
+                      // the slider's actual value, not the original optimizer pick.
+                      const freshLabel = `${leverLabelPrefix(leverKey)} ${formatLeverValue(leverKey, nextValue)}`;
+                      applyPreviewMove?.({
+                        id: rung.id,
+                        label: freshLabel,
+                        mutation: { [leverKey]: nextValue },
+                      });
+                    }}
+                    onOverrideBounds={(bounds) => {
+                      setLeverConstraintOverride?.(leverKey, bounds);
+                    }}
+                    presentMode={presentMode}
+                  />
+                )}
               </li>
             );
           })}
@@ -342,6 +404,23 @@ function ConfirmCommitModal({ moves, onConfirm, onCancel }) {
       </div>
     </div>
   );
+}
+
+// Short, human-readable prefix used when we regenerate a continuous-lever
+// staged-move label on every slider change. Keeps the staged list honest
+// about the ACTUAL value the user has dragged to.
+function leverLabelPrefix(leverKey) {
+  switch (leverKey) {
+    case 'sarahRate': return `Sarah's rate:`;
+    case 'sarahCurrentClients': return `Sarah's clients:`;
+    case 'cutsOverride': return `Spending cuts:`;
+    case 'bcsParentsAnnual': return `External BCS:`;
+    case 'chadConsulting': return `Consulting:`;
+    case 'ssClaimAge': return `Claim SS at`;
+    case 'chadJobStartMonth': return `W-2 starts`;
+    case 'vanSaleMonth': return `Sell van`;
+    default: return `${leverKey}:`;
+  }
 }
 
 // ─── Staged moves list (FR11: each staged rung has a Remove action) ───────

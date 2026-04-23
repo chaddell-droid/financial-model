@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+
+/** Debounce window before we dispatch a slider value to the parent.
+ *  Long enough that React doesn't re-render mid-drag and unmount the thumb.
+ *  Short enough that chart updates feel live once the user settles. */
+const DISPATCH_DEBOUNCE_MS = 80;
 
 /**
  * ContinuousLeverSlider — Story 2.4.
@@ -35,13 +40,55 @@ export default function ContinuousLeverSlider({
   if (typeof min !== 'number' || typeof max !== 'number' || min > max) return null;
 
   const resolvedStep = step ?? defaultStepFor(leverKey);
-  const v = clamp(currentValue, min, max);
+
+  // ─── Local-controlled value + debounced parent dispatch ────────────────
+  // The <input type="range"> is controlled by local state `localValue` so
+  // the thumb follows the user's finger smoothly even while the parent
+  // (reducer → cascade) is still catching up. onChange dispatches to the
+  // parent are debounced — React only re-renders the tree after the user
+  // pauses for DISPATCH_DEBOUNCE_MS, which keeps the slider's DOM element
+  // mounted throughout the drag. Without this, every input event caused a
+  // reducer round-trip and the cascade filter could unmount the rung.
+  const initialLocal = clamp(currentValue, min, max);
+  const [localValue, setLocalValue] = useState(initialLocal);
+  // Track the last value we actually dispatched, so external prop changes
+  // (e.g., the cascade re-stages the lever at a new optimizer value) can
+  // re-sync localValue without stomping on an in-flight user drag.
+  const lastDispatchedRef = useRef(initialLocal);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    // External prop change (optimizer recommended a new value, a different
+    // staged move was removed, etc.) — only adopt it if the incoming value
+    // differs from what we last sent ourselves. That filters out the echo
+    // from our own onChange dispatch re-arriving as a prop.
+    if (typeof currentValue !== 'number') return;
+    const clamped = clamp(currentValue, min, max);
+    if (Math.abs(clamped - lastDispatchedRef.current) < 1e-6) return;
+    setLocalValue(clamped);
+    lastDispatchedRef.current = clamped;
+  }, [currentValue, min, max]);
+
+  // Cleanup any pending dispatch on unmount.
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   const handleChange = (e) => {
     const next = parseFloat(e.target.value);
     if (!Number.isFinite(next)) return;
-    onChange?.(next);
+    // Update local immediately so the thumb tracks the mouse.
+    setLocalValue(next);
+    // Schedule (or reschedule) the parent dispatch.
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      lastDispatchedRef.current = next;
+      onChange?.(next);
+    }, DISPATCH_DEBOUNCE_MS);
   };
+
+  const v = localValue;
 
   return (
     <div

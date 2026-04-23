@@ -90,6 +90,25 @@ export default function FinancialModel() {
     return setterCache.current[field];
   }, [dispatch]);
 
+  // Preview Sandbox dispatch helpers (Story 1.2 reducer actions). Stable
+  // references so child components can memoize prop bundles cleanly.
+  const applyPreviewMove = useCallback(
+    (move) => dispatch({ type: 'APPLY_PREVIEW_MOVE', move }),
+    [dispatch],
+  );
+  const removePreviewMove = useCallback(
+    (id) => dispatch({ type: 'REMOVE_PREVIEW_MOVE', id }),
+    [dispatch],
+  );
+  const clearPreview = useCallback(
+    () => dispatch({ type: 'CLEAR_PREVIEW' }),
+    [dispatch],
+  );
+  const commitPreview = useCallback(
+    () => dispatch({ type: 'COMMIT_PREVIEW' }),
+    [dispatch],
+  );
+
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate,
     chadWorkMonths, sarahWorkMonths,
@@ -121,6 +140,7 @@ export default function FinancialModel() {
     activeTab,
     checkInHistory, activeCheckInMonth,
     monthlyActuals, merchantClassifications,
+    previewMoves,
   } = state;
 
   // Backward-compatible computed totals from individual cuts
@@ -614,6 +634,17 @@ export default function FinancialModel() {
   ]);
 
   const stableGatherState = useCallback(() => gatherState(), [state]);
+
+  // Preview sandbox prop bundle — passed through to any surface that renders
+  // the RecommendationCascade. Preview state is strictly in-memory; see
+  // src/state/previewState.js and autoSave.js filtering.
+  const previewProps = useMemo(() => ({
+    previewMoves: Array.isArray(previewMoves) ? previewMoves : [],
+    applyPreviewMove,
+    removePreviewMove,
+    clearPreview,
+    commitPreview,
+  }), [previewMoves, applyPreviewMove, removePreviewMove, clearPreview, commitPreview]);
   const monteCarloProps = useMemo(() => ({
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
@@ -907,6 +938,8 @@ export default function FinancialModel() {
           goals={goals}
           goalResults={goalResults}
           gatherState={stableGatherState}
+          previewProps={previewProps}
+          presentMode={presentMode}
         />
       )}
 
@@ -931,6 +964,7 @@ export default function FinancialModel() {
           shellWidthBucket={shellWidthBucket}
           presentMode={presentMode}
           gatherState={stableGatherState}
+          previewProps={previewProps}
         />
       )}
 

@@ -34,6 +34,7 @@ function PlanTab({
   onFieldChange,
   gatherState,
   presentMode = false,
+  previewProps = {},
 }) {
   useRenderMetric('PlanTab');
 
@@ -47,6 +48,8 @@ function PlanTab({
               customLevers={customLevers}
               onFieldChange={onFieldChange}
               gatherState={gatherState}
+              previewProps={previewProps}
+              presentMode={presentMode}
             />
           }
           right={

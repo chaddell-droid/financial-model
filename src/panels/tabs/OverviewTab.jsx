@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import BridgeChart from '../../charts/BridgeChart.jsx';
 import MiniNetWorthChart from '../../charts/MiniNetWorthChart.jsx';
 import MiniIncomeExpenseChart from '../../charts/MiniIncomeExpenseChart.jsx';
-import OverviewTopMoves from '../OverviewTopMoves.jsx';
+import RecommendationCascade from '../RecommendationCascade.jsx';
 import GoalStatusStrip from '../GoalStatusStrip.jsx';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../../ui/tokens.js';
@@ -124,6 +124,8 @@ function OverviewTab({
   bridgeProps, rawMonthlyGap, savingsZeroLabel, savingsZeroMonth, mcResults, onTabChange,
   savingsData, wealthData, monthlyDetail, ssType,
   goals, goalResults, gatherState,
+  previewProps = {},
+  presentMode = false,
 }) {
   return (
     <>
@@ -162,7 +164,29 @@ function OverviewTab({
         gap: UI_SPACE.md,
         marginBottom: UI_SPACE.md,
       }}>
-        <OverviewTopMoves gatherState={gatherState} onTabChange={onTabChange} />
+        <SurfaceCard padding="md" style={{ display: 'flex', flexDirection: 'column', gap: UI_SPACE.sm, height: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: UI_TEXT.body, fontWeight: 600, color: UI_COLORS.textStrong }}>
+              Top 3 Moves
+            </span>
+            {onTabChange && (
+              <button onClick={() => onTabChange('plan')} style={{
+                background: 'none', border: 'none', color: UI_COLORS.textDim,
+                fontSize: 10, cursor: 'pointer', padding: 0, textDecoration: 'underline',
+              }}>
+                Details →
+              </button>
+            )}
+          </div>
+          <RecommendationCascade
+            gatherState={gatherState}
+            previewMoves={previewProps.previewMoves}
+            applyPreviewMove={previewProps.applyPreviewMove}
+            removePreviewMove={previewProps.removePreviewMove}
+            count={3}
+            presentMode={presentMode}
+          />
+        </SurfaceCard>
         <GoalStatusStrip goals={goals} goalResults={goalResults} onTabChange={onTabChange} />
       </div>
 

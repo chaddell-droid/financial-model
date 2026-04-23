@@ -2,29 +2,39 @@ import React, { useState } from 'react';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import RecommendationCascade from './RecommendationCascade.jsx';
 
 /**
- * Your Top 3 Moves — two-tier action/awareness panel.
+ * Suggested Next Moves panel — Plan-tab footer.
  *
- * Tier 1: "Levers to pull" — ranked INACTIVE Primary Levers (built-in + custom).
- *         Each is a real click on the Decision Console. Driven by computeTopMoves.
+ * Tier 1 (always-live): RecommendationCascade — greedy cascade of next-best
+ *   moves with preview-sandbox apply/remove actions. Auto-computes on every
+ *   state change; no Calculate button required (FR9).
  *
- * Tier 2: "Sensitivities to watch" — 1-2 parameter sensitivities for awareness.
- *         Not presented as actions. Driven by computeSensitivities.
+ * Tier 2 (on-demand awareness): Sensitivities — awareness-only parameter
+ *   sweeps (investment return, inflation, MSFT). Shown on explicit Analyze
+ *   click so the slower computation doesn't run on every state tick.
+ *
+ * Tier 3 (on-demand counterfactuals): Income pathways — counterfactual
+ *   income expansions (Sarah's rate bumps, Chad W-2, consulting scale).
+ *   Also shown on Analyze click.
  */
-export default function TopMovesPanel({ gatherState }) {
-  const [tier1, setTier1] = useState(null);   // lever moves
+export default function TopMovesPanel({
+  gatherState,
+  previewProps = {},
+  presentMode = false,
+}) {
   const [tier2, setTier2] = useState(null);   // sensitivities
   const [tier3, setTier3] = useState(null);   // income pathways
   const [running, setRunning] = useState(false);
+  const awarenessLoaded = tier2 !== null || tier3 !== null;
 
-  const handleCalculate = () => {
+  const handleAnalyze = () => {
     if (!gatherState) return;
     setRunning(true);
-    import('../model/sensitivityAnalysis.js').then(({ computeTopMoves, computeSensitivities, computeIncomePathways }) => {
+    import('../model/sensitivityAnalysis.js').then(({ computeSensitivities, computeIncomePathways }) => {
       setTimeout(() => {
         const state = gatherState();
-        setTier1(computeTopMoves(state, 3));
         setTier2(computeSensitivities(state, 2));
         setTier3(computeIncomePathways(state, 3));
         setRunning(false);
@@ -42,114 +52,43 @@ export default function TopMovesPanel({ gatherState }) {
           fontSize: UI_TEXT.title, fontWeight: 600,
           color: UI_COLORS.textStrong,
         }}>
-          Your Top 3 Moves
+          Suggested Next Moves
         </span>
-        <button
-          onClick={handleCalculate}
-          disabled={running}
-          style={{
-            padding: `${UI_SPACE.xs}px ${UI_SPACE.md}px`,
-            fontSize: UI_TEXT.body,
-            fontWeight: 500,
-            border: `1px solid ${UI_COLORS.primary}`,
-            borderRadius: 6,
-            background: 'transparent',
-            color: UI_COLORS.primary,
-            cursor: running ? 'wait' : 'pointer',
-            opacity: running ? 0.6 : 1,
-          }}
-        >
-          {running ? 'Analyzing...' : 'Calculate'}
-        </button>
+        {!presentMode && (
+          <button
+            onClick={handleAnalyze}
+            disabled={running}
+            style={{
+              padding: `${UI_SPACE.xs}px ${UI_SPACE.md}px`,
+              fontSize: UI_TEXT.caption,
+              fontWeight: 500,
+              border: `1px solid ${UI_COLORS.border}`,
+              borderRadius: 6,
+              background: 'transparent',
+              color: UI_COLORS.textMuted,
+              cursor: running ? 'wait' : 'pointer',
+              opacity: running ? 0.6 : 1,
+            }}
+            title="Compute awareness-only sensitivities and income pathways"
+          >
+            {running ? 'Analyzing…' : awarenessLoaded ? 'Refresh analysis' : 'Show sensitivities & pathways'}
+          </button>
+        )}
       </div>
 
-      {!tier1 && !running && (
-        <p style={{
-          color: UI_COLORS.textMuted,
-          fontSize: UI_TEXT.body,
-          margin: 0,
-        }}>
-          Click Calculate to find your highest-impact moves.
-        </p>
-      )}
+      {/* Always-live cascade (Tier 1) */}
+      <RecommendationCascade
+        gatherState={gatherState}
+        previewMoves={previewProps.previewMoves}
+        applyPreviewMove={previewProps.applyPreviewMove}
+        removePreviewMove={previewProps.removePreviewMove}
+        count={5}
+        presentMode={presentMode}
+      />
 
-      {tier1 && <TierOneList moves={tier1} />}
       {tier3 && tier3.length > 0 && <TierThreeList pathways={tier3} />}
       {tier2 && tier2.length > 0 && <TierTwoList sensitivities={tier2} />}
-
-      {tier1 && tier1.length === 0 && (!tier2 || tier2.length === 0) && (!tier3 || tier3.length === 0) && (
-        <p style={{
-          color: UI_COLORS.textMuted,
-          fontSize: UI_TEXT.body,
-          margin: 0,
-        }}>
-          Your plan is fully leveraged — every primary lever is already active.
-        </p>
-      )}
     </SurfaceCard>
-  );
-}
-
-// ─── Tier 1: Levers to pull ───
-function TierOneList({ moves }) {
-  if (moves.length === 0) {
-    return (
-      <div>
-        <SectionHeader title="Levers to pull" subtitle="Actions available on the Decision Console" />
-        <p style={{
-          color: UI_COLORS.textMuted,
-          fontSize: UI_TEXT.caption,
-          margin: `${UI_SPACE.sm}px 0 ${UI_SPACE.md}px`,
-          fontStyle: 'italic',
-        }}>
-          Every primary lever is already active. Check the sensitivities below.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div>
-      <SectionHeader title="Levers to pull" subtitle="Inactive levers ranked by impact" />
-      <ol style={{
-        margin: `${UI_SPACE.sm}px 0 ${UI_SPACE.md}px`,
-        paddingLeft: UI_SPACE.xl,
-        listStyleType: 'decimal',
-      }}>
-        {moves.map((r, i) => (
-          <li key={r.key} style={{
-            marginBottom: i < moves.length - 1 ? UI_SPACE.md : 0,
-            color: UI_COLORS.textBody,
-            fontSize: UI_TEXT.body,
-          }}>
-            <div style={{ fontWeight: 500 }}>
-              {r.label}
-              {r.delta > 0 && (
-                <span style={{ color: UI_COLORS.positive, marginLeft: 6, fontFamily: "'JetBrains Mono', monospace" }}>
-                  +{fmtFull(r.delta)}/mo
-                </span>
-              )}
-            </div>
-            <div style={{
-              fontSize: UI_TEXT.caption,
-              color: UI_COLORS.textMuted,
-              marginTop: 2,
-            }}>
-              {r.finalBalanceDelta > 0 && (
-                <span style={{ color: UI_COLORS.positive }}>
-                  +{fmtFull(r.finalBalanceDelta)} at end of plan
-                </span>
-              )}
-              {r.finalBalanceDelta > 0 && r.breakevenMonthDelta < 0 && ' · '}
-              {r.breakevenMonthDelta < 0 && (
-                <span style={{ color: UI_COLORS.positive }}>
-                  Breakeven {Math.abs(r.breakevenMonthDelta)} month{Math.abs(r.breakevenMonthDelta) !== 1 ? 's' : ''} sooner
-                </span>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
   );
 }
 

@@ -22,6 +22,8 @@ function DecisionConsole({
   customLevers = [],
   onFieldChange,
   gatherState,
+  previewProps = {},
+  presentMode = false,
 }) {
   const {
     retireDebt, lifestyleCutsApplied, vanSold,
@@ -233,7 +235,11 @@ function DecisionConsole({
           </div>
         </div>
         <div data-testid="plan-suggested-moves">
-          <TopMovesPanel gatherState={gatherState} />
+          <TopMovesPanel
+            gatherState={gatherState}
+            previewProps={previewProps}
+            presentMode={presentMode}
+          />
         </div>
       </div>
     </div>

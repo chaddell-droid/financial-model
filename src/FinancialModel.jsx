@@ -6,6 +6,7 @@ import { computeProjection, findOperationalBreakevenIndex } from './model/projec
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
+import { withProvenanceAll, DEFAULT_PROVENANCE } from './state/scenarioProvenance.js';
 import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState, deriveCapitalItemsFromLegacy } from './state/gatherState.js';
 import { saveModelState, loadModelState } from './state/autoSave.js';
@@ -252,8 +253,10 @@ export default function FinancialModel() {
         if (result && result.value) {
           const parsed = JSON.parse(result.value);
           if (Array.isArray(parsed)) {
-            set('savedScenarios')(parsed);
-            set('storageStatus')(`loaded-${parsed.length}`);
+            // Default provenance on legacy scenarios (idempotent, safe on every load).
+            const normalized = withProvenanceAll(parsed);
+            set('savedScenarios')(normalized);
+            set('storageStatus')(`loaded-${normalized.length}`);
           }
         }
       } catch (e) {
@@ -371,10 +374,19 @@ export default function FinancialModel() {
     };
   }, []);
 
-  const saveScenario = async (name) => {
+  const saveScenario = async (name, options = {}) => {
     if (!name.trim()) return;
     const st = gatherState();
-    const entry = { name: name.trim(), state: st, schemaVersion: st.schemaVersion, savedAt: new Date().toISOString() };
+    // Provenance defaults to manual. Story 1.5's "Save from preview" path
+    // passes options.provenance built via buildRecommendationProvenance.
+    const provenance = options && options.provenance ? options.provenance : { ...DEFAULT_PROVENANCE };
+    const entry = {
+      name: name.trim(),
+      state: st,
+      schemaVersion: st.schemaVersion,
+      savedAt: new Date().toISOString(),
+      provenance,
+    };
     const updated = [...savedScenarios.filter(s => s.name !== name.trim()), entry];
     set('savedScenarios')(updated);
     set('scenarioName')("");

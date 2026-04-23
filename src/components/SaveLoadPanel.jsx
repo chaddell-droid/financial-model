@@ -3,6 +3,7 @@ import ActionButton from './ui/ActionButton.jsx';
 import SurfaceCard from './ui/SurfaceCard.jsx';
 import { UI_ACTION_VARIANTS, UI_COLORS, UI_SPACE, UI_RADII, UI_TEXT } from '../ui/tokens.js';
 import { SCENARIO_TEMPLATES } from '../model/scenarioTemplates.js';
+import { isRecommendationSourced } from '../state/scenarioProvenance.js';
 
 function getStorageMessage(storageStatus) {
   if (storageStatus === 'saved') return { text: 'Checkpoint saved locally.', color: UI_COLORS.positive };
@@ -202,6 +203,29 @@ export default function SaveLoadPanel({
                     )}
                     {isComparing(scenario.name) && (
                       <span style={{ fontSize: 9, color: (compareColors || [])[compIdx(scenario.name)] || UI_COLORS.compare, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparing</span>
+                    )}
+                    {isRecommendationSourced(scenario) && (
+                      <span
+                        data-testid="provenance-badge"
+                        title={
+                          Array.isArray(scenario.provenance?.moves)
+                            ? `Built from recommendations.\nMoves: ${scenario.provenance.moves.map((m) => m.label || m.id).join(' · ')}${scenario.provenance.baseline ? `\nBaseline: ${scenario.provenance.baseline}` : ''}`
+                            : 'Built from recommendations.'
+                        }
+                        style={{
+                          fontSize: 9,
+                          color: UI_COLORS.positive,
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          cursor: 'help',
+                          border: `1px solid ${UI_COLORS.positive}`,
+                          borderRadius: 3,
+                          padding: '1px 4px',
+                        }}
+                      >
+                        ↯ From recs
+                      </span>
                     )}
                   </div>
                   <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginTop: 2 }}>

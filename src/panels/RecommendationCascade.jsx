@@ -48,19 +48,6 @@ export default function RecommendationCascade({
     return computeMoveCascade(composedState, count);
   }, [composedState, count]);
 
-  // Build a map of staged continuous-lever moves keyed by leverKey so the
-  // slider can always show the user's current staged value even when the
-  // cascade re-ranks the rung out of view.
-  const stagedContinuousByLeverKey = useMemo(() => {
-    const out = {};
-    for (const m of previewMoves) {
-      if (m && typeof m.id === 'string' && m.id.startsWith('optimize:')) {
-        const key = m.id.slice('optimize:'.length);
-        out[key] = m;
-      }
-    }
-    return out;
-  }, [previewMoves]);
 
   // Hide entirely in DadMode. Preview state is preserved by the reducer —
   // we just do not render the control surface (FR34, FR35).
@@ -73,7 +60,14 @@ export default function RecommendationCascade({
       {hasPreview && <PreviewModeBanner count={previewMoves.length} />}
 
       {hasPreview && (
-        <StagedMovesList moves={previewMoves} onRemove={removePreviewMove} />
+        <StagedMovesList
+          moves={previewMoves}
+          onRemove={removePreviewMove}
+          composedState={composedState}
+          applyPreviewMove={applyPreviewMove}
+          setLeverConstraintOverride={setLeverConstraintOverride}
+          presentMode={presentMode}
+        />
       )}
 
       {empty && !hasPreview && (
@@ -110,7 +104,15 @@ export default function RecommendationCascade({
             listStyleType: 'decimal',
           }}
         >
-          {cascade.map((rung, i) => {
+          {cascade
+            // Hide already-staged continuous-lever rungs from the cascade —
+            // the slider lives in the Staged list once a value is committed
+            // so it doesn't vanish when the cascade re-ranks mid-drag.
+            .filter((rung) => {
+              if (!rung.id || !rung.id.startsWith('optimize:')) return true;
+              return !stagedIds.has(rung.id);
+            })
+            .map((rung, i, list) => {
             const isStaged = stagedIds.has(rung.id);
             const showCumulative = i > 0 && rung.cumulativeFinalBalanceDelta !== rung.finalBalanceDelta;
             const isContinuous = typeof rung.id === 'string' && rung.id.startsWith('optimize:');
@@ -120,23 +122,16 @@ export default function RecommendationCascade({
                 ? composedState.effectiveLeverConstraints[leverKey]
                 : null;
 
-            // For continuous rungs, the slider's current value prefers the
-            // staged preview value (if the user has already dragged), else
-            // falls back to the optimizer's recommendation from rung.mutation.
-            const stagedContinuousValue =
-              isContinuous && stagedContinuousByLeverKey[leverKey] && stagedContinuousByLeverKey[leverKey].mutation
-                ? stagedContinuousByLeverKey[leverKey].mutation[leverKey]
-                : undefined;
-            const sliderValue =
-              stagedContinuousValue !== undefined
-                ? stagedContinuousValue
-                : rung.mutation && rung.mutation[leverKey];
+            // Initial slider value = optimizer's recommendation from rung.mutation.
+            // Staged continuous levers have been filtered out of the cascade
+            // display above, so we don't need the staged-fallback here anymore.
+            const sliderValue = rung.mutation && rung.mutation[leverKey];
 
             return (
               <li
                 key={rung.id}
                 style={{
-                  marginBottom: i < cascade.length - 1 ? UI_SPACE.md : 0,
+                  marginBottom: i < list.length - 1 ? UI_SPACE.md : 0,
                   color: UI_COLORS.textBody,
                   fontSize: UI_TEXT.body,
                 }}
@@ -424,7 +419,7 @@ function leverLabelPrefix(leverKey) {
 }
 
 // ─── Staged moves list (FR11: each staged rung has a Remove action) ───────
-function StagedMovesList({ moves, onRemove }) {
+function StagedMovesList({ moves, onRemove, composedState, applyPreviewMove, setLeverConstraintOverride, presentMode }) {
   return (
     <div
       data-testid="staged-moves-list"
@@ -440,42 +435,78 @@ function StagedMovesList({ moves, onRemove }) {
         Staged in preview
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-        {moves.map((m) => (
-          <li
-            key={m.id}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: UI_SPACE.sm,
-              padding: `${UI_SPACE.xs}px 0`,
-              fontSize: UI_TEXT.caption,
-              color: UI_COLORS.textBody,
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: UI_SPACE.xs }}>
-              <span style={{ color: UI_COLORS.positive, fontWeight: 600 }}>✓</span>
-              <span>{m.label}</span>
-            </span>
-            <button
-              type="button"
-              data-testid="remove-preview"
-              onClick={() => onRemove?.(m.id)}
+        {moves.map((m) => {
+          const isContinuous = typeof m.id === 'string' && m.id.startsWith('optimize:');
+          const leverKey = isContinuous ? m.id.slice('optimize:'.length) : null;
+          const constraints =
+            isContinuous && composedState && composedState.effectiveLeverConstraints
+              ? composedState.effectiveLeverConstraints[leverKey]
+              : null;
+          const stagedValue =
+            isContinuous && m.mutation && typeof m.mutation[leverKey] === 'number'
+              ? m.mutation[leverKey]
+              : null;
+
+          return (
+            <li
+              key={m.id}
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: UI_COLORS.textMuted,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: UI_SPACE.xs,
+                padding: `${UI_SPACE.xs}px 0`,
                 fontSize: UI_TEXT.caption,
-                cursor: 'pointer',
-                padding: `${UI_SPACE.xs}px ${UI_SPACE.sm}px`,
-                borderRadius: 3,
+                color: UI_COLORS.textBody,
               }}
-              title="Remove from preview"
             >
-              Remove
-            </button>
-          </li>
-        ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: UI_SPACE.sm }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: UI_SPACE.xs }}>
+                  <span style={{ color: UI_COLORS.positive, fontWeight: 600 }}>✓</span>
+                  <span>{m.label}</span>
+                </span>
+                <button
+                  type="button"
+                  data-testid="remove-preview"
+                  onClick={() => onRemove?.(m.id)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: UI_COLORS.textMuted,
+                    fontSize: UI_TEXT.caption,
+                    cursor: 'pointer',
+                    padding: `${UI_SPACE.xs}px ${UI_SPACE.sm}px`,
+                    borderRadius: 3,
+                  }}
+                  title="Remove from preview"
+                >
+                  Remove
+                </button>
+              </div>
+
+              {/* Continuous-lever staged moves get a stable slider here —
+                  the cascade above filters them out so they don't vanish
+                  while the user drags. */}
+              {isContinuous && constraints && typeof stagedValue === 'number' && (
+                <ContinuousLeverSlider
+                  leverKey={leverKey}
+                  currentValue={stagedValue}
+                  min={constraints.min}
+                  max={constraints.max}
+                  onChange={(nextValue) => {
+                    const freshLabel = `${leverLabelPrefix(leverKey)} ${formatLeverValue(leverKey, nextValue)}`;
+                    applyPreviewMove?.({
+                      id: m.id,
+                      label: freshLabel,
+                      mutation: { [leverKey]: nextValue },
+                    });
+                  }}
+                  onOverrideBounds={(bounds) => setLeverConstraintOverride?.(leverKey, bounds)}
+                  presentMode={presentMode}
+                />
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

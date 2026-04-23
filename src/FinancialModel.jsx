@@ -6,7 +6,7 @@ import { computeProjection, findOperationalBreakevenIndex } from './model/projec
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
-import { withProvenanceAll, DEFAULT_PROVENANCE } from './state/scenarioProvenance.js';
+import { withProvenanceAll, DEFAULT_PROVENANCE, buildRecommendationProvenance } from './state/scenarioProvenance.js';
 import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState, deriveCapitalItemsFromLegacy } from './state/gatherState.js';
 import { saveModelState, loadModelState } from './state/autoSave.js';
@@ -109,6 +109,10 @@ export default function FinancialModel() {
     () => dispatch({ type: 'COMMIT_PREVIEW' }),
     [dispatch],
   );
+  // Ref bound to saveScenario (declared later) — enables saveFromPreview to
+  // call saveScenario without creating a hoisting cycle. Assignment happens
+  // right after saveScenario is declared (~line 410).
+  const saveScenarioRef = useRef(null);
 
   const {
     sarahRate, sarahMaxRate, sarahRateGrowth, sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahTaxRate,
@@ -375,6 +379,8 @@ export default function FinancialModel() {
   }, []);
 
   const saveScenario = async (name, options = {}) => {
+    // Make saveScenario reachable from saveFromPreview via the ref set on every render.
+    // (Assigned below, after function declaration.)
     if (!name.trim()) return;
     const st = gatherState();
     // Provenance defaults to manual. Story 1.5's "Save from preview" path
@@ -404,6 +410,8 @@ export default function FinancialModel() {
       set('storageStatus')("error: " + e.message);
     }
   };
+  // Bind the ref so saveFromPreview (declared earlier) can call saveScenario.
+  saveScenarioRef.current = saveScenario;
 
   const deleteScenario = async (name) => {
     const updated = savedScenarios.filter(s => s.name !== name);
@@ -647,6 +655,18 @@ export default function FinancialModel() {
 
   const stableGatherState = useCallback(() => gatherState(), [state]);
 
+  // Save-from-preview helper — builds recommendation provenance from the
+  // current preview stack + active scenario name, then calls saveScenario.
+  // Used by CommitActionBar's "Save as new scenario" flow (Story 1.5).
+  // The ref indirection (saveScenarioRef, declared at top of component near
+  // other preview callbacks) avoids the hoisting cycle with saveScenario.
+  const saveFromPreview = useCallback(async (name) => {
+    if (!saveScenarioRef.current) return;
+    const baseline = typeof scenarioName === 'string' && scenarioName.length > 0 ? scenarioName : null;
+    const provenance = buildRecommendationProvenance(baseline, previewMoves);
+    await saveScenarioRef.current(name, { provenance });
+  }, [previewMoves, scenarioName]);
+
   // Preview sandbox prop bundle — passed through to any surface that renders
   // the RecommendationCascade. Preview state is strictly in-memory; see
   // src/state/previewState.js and autoSave.js filtering.
@@ -656,7 +676,8 @@ export default function FinancialModel() {
     removePreviewMove,
     clearPreview,
     commitPreview,
-  }), [previewMoves, applyPreviewMove, removePreviewMove, clearPreview, commitPreview]);
+    saveFromPreview,
+  }), [previewMoves, applyPreviewMove, removePreviewMove, clearPreview, commitPreview, saveFromPreview]);
   const monteCarloProps = useMemo(() => ({
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,

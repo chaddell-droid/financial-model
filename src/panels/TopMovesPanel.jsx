@@ -82,6 +82,9 @@ export default function TopMovesPanel({
         previewMoves={previewProps.previewMoves}
         applyPreviewMove={previewProps.applyPreviewMove}
         removePreviewMove={previewProps.removePreviewMove}
+        clearPreview={previewProps.clearPreview}
+        commitPreview={previewProps.commitPreview}
+        saveFromPreview={previewProps.saveFromPreview}
         count={5}
         presentMode={presentMode}
       />

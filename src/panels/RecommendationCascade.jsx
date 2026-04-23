@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { computeMoveCascade } from '../model/moveCascade.js';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
@@ -25,6 +25,9 @@ export default function RecommendationCascade({
   previewMoves = [],           // current preview stack (for staged-status indicators)
   applyPreviewMove,            // (move) => void — dispatches APPLY_PREVIEW_MOVE
   removePreviewMove,           // (id) => void — dispatches REMOVE_PREVIEW_MOVE
+  clearPreview,                // () => void — dispatches CLEAR_PREVIEW (Story 1.5)
+  commitPreview,               // () => void — dispatches COMMIT_PREVIEW (Story 1.5)
+  saveFromPreview,             // (name) => Promise<void> — save-as-scenario with provenance (Story 1.5)
   count = 3,                   // N rungs (default 3 for Overview; Plan passes 5)
   presentMode = false,         // hide all interactive controls in DadMode
 }) {
@@ -117,6 +120,226 @@ export default function RecommendationCascade({
           })}
         </ol>
       )}
+
+      {/* Commit action bar — Story 1.5. Only renders when callbacks are provided
+          (keeps Story 1.3 tests / isolated usage working without the full
+          commit/save plumbing). */}
+      {(commitPreview || clearPreview || saveFromPreview) && (
+        <CommitActionBar
+          previewMoves={previewMoves}
+          onCommit={commitPreview}
+          onSave={saveFromPreview}
+          onClear={clearPreview}
+          presentMode={presentMode}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Commit action bar — Commit / Save as scenario / Clear (Story 1.5) ─────
+function CommitActionBar({ previewMoves, onCommit, onSave, onClear, presentMode }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  if (presentMode) return null;
+
+  const disabled = !Array.isArray(previewMoves) || previewMoves.length === 0;
+
+  const handleCommitClick = () => {
+    if (disabled || !onCommit) return;
+    setConfirmOpen(true);
+  };
+  const handleConfirm = () => {
+    setConfirmOpen(false);
+    onCommit?.();
+  };
+  const handleCancel = () => setConfirmOpen(false);
+
+  const handleSaveClick = async () => {
+    if (disabled || !onSave) return;
+    // Simple prompt for Story 1.5 MVP. Future iteration can swap to inline form.
+    const name = typeof window !== 'undefined'
+      ? window.prompt('Save preview as a new scenario. Name:', '')
+      : '';
+    if (name && name.trim()) {
+      await onSave(name.trim());
+    }
+  };
+
+  const handleClearClick = () => {
+    if (disabled || !onClear) return;
+    onClear();
+  };
+
+  const baseBtn = {
+    padding: `${UI_SPACE.xs}px ${UI_SPACE.md}px`,
+    fontSize: UI_TEXT.caption,
+    fontWeight: 600,
+    borderRadius: 4,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      data-testid="commit-action-bar"
+      style={{
+        display: 'flex',
+        gap: UI_SPACE.sm,
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        marginTop: UI_SPACE.md,
+        paddingTop: UI_SPACE.sm,
+        borderTop: `1px dashed ${UI_COLORS.border}`,
+      }}
+    >
+      {!disabled && (
+        <span style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginRight: 'auto' }}>
+          {previewMoves.length} move{previewMoves.length === 1 ? '' : 's'} staged
+        </span>
+      )}
+      <button
+        type="button"
+        data-testid="clear-preview"
+        onClick={handleClearClick}
+        disabled={disabled}
+        style={{
+          ...baseBtn,
+          background: 'transparent',
+          color: UI_COLORS.textMuted,
+          border: `1px solid ${UI_COLORS.border}`,
+        }}
+      >
+        Clear preview
+      </button>
+      <button
+        type="button"
+        data-testid="save-as-scenario"
+        onClick={handleSaveClick}
+        disabled={disabled}
+        style={{
+          ...baseBtn,
+          background: 'transparent',
+          color: UI_COLORS.primary,
+          border: `1px solid ${UI_COLORS.primary}`,
+        }}
+      >
+        Save as new scenario
+      </button>
+      <button
+        type="button"
+        data-testid="commit-to-plan"
+        onClick={handleCommitClick}
+        disabled={disabled}
+        style={{
+          ...baseBtn,
+          background: UI_COLORS.primary,
+          color: '#fff',
+          border: `1px solid ${UI_COLORS.primary}`,
+        }}
+      >
+        Commit to plan
+      </button>
+
+      {confirmOpen && (
+        <ConfirmCommitModal
+          moves={previewMoves}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Confirm modal for Commit-to-plan ──────────────────────────────────────
+function ConfirmCommitModal({ moves, onConfirm, onCancel }) {
+  // Dismiss on Escape; click outside handled by the backdrop onClick.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onCancel?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  const count = Array.isArray(moves) ? moves.length : 0;
+
+  return (
+    <div
+      data-testid="confirm-commit-backdrop"
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+    >
+      <div
+        data-testid="confirm-commit-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: UI_COLORS.panelBg,
+          border: `1px solid ${UI_COLORS.border}`,
+          borderRadius: 6,
+          padding: UI_SPACE.lg,
+          minWidth: 320,
+          maxWidth: 480,
+          color: UI_COLORS.textBody,
+        }}
+      >
+        <div style={{ fontSize: UI_TEXT.title, fontWeight: 600, color: UI_COLORS.textStrong, marginBottom: UI_SPACE.md }}>
+          Commit {count} move{count === 1 ? '' : 's'} to your plan?
+        </div>
+        <ol style={{ margin: 0, paddingLeft: UI_SPACE.xl, marginBottom: UI_SPACE.md }}>
+          {Array.isArray(moves) && moves.map((m, i) => (
+            <li key={m.id || i} style={{ fontSize: UI_TEXT.body, marginBottom: UI_SPACE.xs }}>
+              {m.label || m.id}
+            </li>
+          ))}
+        </ol>
+        <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textDim, marginBottom: UI_SPACE.md }}>
+          This updates your baseline plan. Existing saved scenarios are unchanged.
+        </div>
+        <div style={{ display: 'flex', gap: UI_SPACE.sm, justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            data-testid="confirm-cancel"
+            onClick={onCancel}
+            style={{
+              padding: `${UI_SPACE.xs}px ${UI_SPACE.md}px`,
+              fontSize: UI_TEXT.caption,
+              fontWeight: 500,
+              borderRadius: 4,
+              background: 'transparent',
+              color: UI_COLORS.textMuted,
+              border: `1px solid ${UI_COLORS.border}`,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            data-testid="confirm-commit"
+            onClick={onConfirm}
+            style={{
+              padding: `${UI_SPACE.xs}px ${UI_SPACE.md}px`,
+              fontSize: UI_TEXT.caption,
+              fontWeight: 600,
+              borderRadius: 4,
+              background: UI_COLORS.primary,
+              color: '#fff',
+              border: `1px solid ${UI_COLORS.primary}`,
+              cursor: 'pointer',
+            }}
+          >
+            Commit to plan
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

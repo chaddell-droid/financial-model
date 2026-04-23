@@ -183,6 +183,9 @@ function OverviewTab({
             previewMoves={previewProps.previewMoves}
             applyPreviewMove={previewProps.applyPreviewMove}
             removePreviewMove={previewProps.removePreviewMove}
+            clearPreview={previewProps.clearPreview}
+            commitPreview={previewProps.commitPreview}
+            saveFromPreview={previewProps.saveFromPreview}
             count={3}
             presentMode={presentMode}
           />

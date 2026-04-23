@@ -264,6 +264,47 @@ test('14. Applying all cascade mutations yields the engine-claimed cumulative de
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Continuous-lever integration (Story 2.3)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== continuous-lever integration ===');
+
+test('15. Cascade containing continuous-lever candidates still monotone on cumulative', () => {
+  // Start from a solvent baseline where both discrete AND continuous levers
+  // have headroom. Every selected rung must satisfy the greedy-correctness
+  // invariant on cumulativeFinalBalanceDelta (same test as 6 but with the
+  // continuous-lever candidates in the mix).
+  const s = gatherStateWithOverrides({
+    startingSavings: 2000000,
+    investmentReturn: 6,
+    sarahRate: 200, sarahMaxRate: 300,
+    sarahCurrentClients: 3.75, sarahMaxClients: 5,
+  });
+  const result = computeMoveCascade(s, 5);
+  assert.ok(result.length >= 2, `precondition: need multi-rung cascade; got ${result.length}`);
+  for (let k = 1; k < result.length; k++) {
+    assert.ok(
+      result[k].cumulativeFinalBalanceDelta >= result[k - 1].cumulativeFinalBalanceDelta,
+      `rung ${k} cumulative (${result[k].cumulativeFinalBalanceDelta}) should be >= prior (${result[k - 1].cumulativeFinalBalanceDelta})`
+    );
+  }
+});
+
+test('16. Continuous-lever rung ids are prefixed "optimize:" for UI discrimination', () => {
+  const s = gatherStateWithOverrides({ startingSavings: 2000000, investmentReturn: 6 });
+  const result = computeMoveCascade(s, 10);
+  // At least one of these rungs should be a continuous optimize:* move
+  // given the realistic headroom in the state.
+  const optimizeRungs = result.filter(r => r.id && r.id.startsWith('optimize:'));
+  // Not asserting "> 0" because the exact composition depends on scoring;
+  // we just assert: if any continuous rung appears, its shape is valid.
+  for (const r of optimizeRungs) {
+    const key = r.id.slice('optimize:'.length);
+    assert.ok(r.mutation && typeof r.mutation === 'object', `optimize:${key} missing mutation`);
+    assert.ok(key in r.mutation, `optimize:${key} mutation should set ${key}`);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

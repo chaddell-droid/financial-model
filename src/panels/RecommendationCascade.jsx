@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { computeMoveCascade } from '../model/moveCascade.js';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
@@ -39,14 +39,24 @@ export default function RecommendationCascade({
   );
   const hasPreview = previewMoves.length > 0;
 
-  // Grab a live snapshot of composed state so we can read
-  // effectiveLeverConstraints for sliders AND feed the cascade engine.
+  // Grab composed state so we can read effectiveLeverConstraints and feed
+  // the cascade engine. The cascade + filter are driven by a DEFERRED snapshot
+  // so that rapid slider drags don't re-rank mid-drag — the DOM element the
+  // user is grabbing stays mounted through the drag (NFR3). Live values are
+  // still used for the preview-mode banner and the Staged list so immediate
+  // feedback (banner appears, staged entry updates) isn't suppressed.
   const composedState = useMemo(() => (gatherState ? gatherState() : null), [gatherState]);
+  const deferredComposedState = useDeferredValue(composedState);
+  const deferredPreviewMoves = useDeferredValue(previewMoves);
+  const deferredStagedIds = useMemo(
+    () => new Set(deferredPreviewMoves.map((m) => m.id)),
+    [deferredPreviewMoves],
+  );
 
   const cascade = useMemo(() => {
-    if (!composedState) return [];
-    return computeMoveCascade(composedState, count);
-  }, [composedState, count]);
+    if (!deferredComposedState) return [];
+    return computeMoveCascade(deferredComposedState, count);
+  }, [deferredComposedState, count]);
 
 
   // Hide entirely in DadMode. Preview state is preserved by the reducer —
@@ -106,11 +116,14 @@ export default function RecommendationCascade({
         >
           {cascade
             // Hide already-staged continuous-lever rungs from the cascade —
-            // the slider lives in the Staged list once a value is committed
-            // so it doesn't vanish when the cascade re-ranks mid-drag.
+            // the slider lives in the Staged list once a value is committed.
+            // Uses DEFERRED stagedIds so the filter doesn't fire mid-drag:
+            // the cascade rung the user is currently dragging stays mounted
+            // until the drag settles, at which point the deferred state
+            // catches up and the rung moves to the Staged list cleanly.
             .filter((rung) => {
               if (!rung.id || !rung.id.startsWith('optimize:')) return true;
-              return !stagedIds.has(rung.id);
+              return !deferredStagedIds.has(rung.id);
             })
             .map((rung, i, list) => {
             const isStaged = stagedIds.has(rung.id);

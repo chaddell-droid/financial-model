@@ -1,0 +1,5 @@
+name: financial-model-dev
+config:
+  type: cloud
+  networking:
+    type: unrestricted

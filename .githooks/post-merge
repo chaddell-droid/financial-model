@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# After `git pull` (which runs merge), touch vite.config.js so any running
+# vite dev server restarts and picks up the new files. No manual restart needed.
+touch vite.config.js 2>/dev/null || true

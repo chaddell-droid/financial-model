@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Third arg is 1 for branch checkout, 0 for file checkout. Only restart vite
+# on branch switches, not when checking out individual files.
+if [ "$3" = "1" ]; then
+  touch vite.config.js 2>/dev/null || true
+fi

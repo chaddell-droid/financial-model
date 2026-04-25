@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
-    "dev": "vite",
+    "dev": "kill-port 5173 && vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node src/state/__tests__/reducer.test.js && node src/state/__tests__/autoSave.test.js && node src/state/__tests__/customLevers.test.js && node src/state/__tests__/previewState.test.js && node src/state/__tests__/scenarioProvenance.test.js && node src/state/__tests__/leverConstraintsOverride.test.js && node src/model/__tests__/retirement.test.js && node src/model/__tests__/vesting.test.js && node src/model/__tests__/projection.test.js && node src/model/__tests__/checkIn.test.js && node src/model/__tests__/monteCarlo.test.js && node src/model/__tests__/exportData.test.js && node src/model/__tests__/formatters.test.js && node src/model/__tests__/csvParser.test.js && node src/model/__tests__/sensitivityAnalysis.test.js && node src/model/__tests__/moveCascade.test.js && node src/model/__tests__/leverClassification.test.js && node src/model/__tests__/moveOptimizer.test.js && node src/model/__snapshots__.test.js && node src/model/__tests__/scenarioTemplates.test.js && node src/model/__tests__/scenarios.test.js && node src/model/__tests__/transitions.test.js && node src/model/__tests__/displayParity.test.js && node src/model/__tests__/chartContracts.test.js",
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "kill-port": "^2.0.1",
     "playwright-core": "^1.58.2",
     "vite": "^6.0.0"
   }

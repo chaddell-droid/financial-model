@@ -192,8 +192,14 @@ export default function FinancialModel() {
     ? Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * Math.max(0, ((chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12))
     : 0;
 
-  const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
-  const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
+  // Mirror of projection.js back-pay formula. Auxiliary back pay for dependent kids
+  // (the portion of family total exceeding the worker's PIA) is added on top, bounded
+  // by kidsAgeOutMonths. Attorney fee applies only to the worker's share.
+  const ssdiAuxBackPayMonths = Math.min(ssdiBackPayMonths, kidsAgeOutMonths || 0);
+  const ssdiAdultBackPayGross = ssdiBackPayMonths * ssdiPersonal;
+  const ssdiAuxBackPayGross = ssdiAuxBackPayMonths * Math.max(0, (ssdiFamilyTotal || 0) - ssdiPersonal);
+  const ssdiBackPayGross = ssdiAdultBackPayGross + ssdiAuxBackPayGross;
+  const ssdiAttorneyFee = Math.min(Math.round(ssdiAdultBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
 
   const gatherState = (src) => _gatherState(src || state);
 

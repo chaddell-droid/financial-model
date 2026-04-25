@@ -538,11 +538,15 @@ console.log('\n=== 12. SSDI Back Pay Lump Sum ===');
   const sim = runMonthlySimulation(s);
   const { monthlyData } = sim;
 
-  // Back pay: gross = 18 * 4152 = 74736, fee = min(round(74736*0.25), 7500) = min(18684, 7500) = 7500
-  // net = 74736 - 7500 = 67236. Appears at month 8 + 2 = 10.
-  const backPayGross = 18 * 4152;
-  const backPayFee = Math.min(Math.round(backPayGross * 0.25), 7500);
-  const backPayExpected = backPayGross - backPayFee;
+  // Back pay includes auxiliary share for kids during back-pay window:
+  //   adult gross = 18 * 4152 = 74736
+  //   aux gross   = 18 * (6228 - 4152) = 37368  (kids' 50% portion of family total)
+  //   fee         = min(round(74736*0.25), 9200) = 9200  (fee on adult share only)
+  //   net         = 74736 + 37368 - 9200 = 102904. Appears at month 8 + 2 = 10.
+  const adultBackPayGross = 18 * 4152;
+  const auxBackPayGross = 18 * (6228 - 4152);
+  const backPayFee = Math.min(Math.round(adultBackPayGross * 0.25), 9200);
+  const backPayExpected = adultBackPayGross + auxBackPayGross - backPayFee;
 
   test('12.1 Balance reconciliation at month 9 (no lump sum)', () => {
     // balance[9] = balance[8] + investReturn(0) + (cashIncome[9] - expenses[9])
@@ -561,7 +565,7 @@ console.log('\n=== 12. SSDI Back Pay Lump Sum ===');
       `month 10 balance should include lump sum: expected ${Math.round(expected)}, got ${monthlyData[10].balance}`);
   });
 
-  test('12.3 backPayActual matches formula: 67236', () => {
+  test('12.3 backPayActual matches formula: 102904', () => {
     assert.strictEqual(sim.backPayActual, backPayExpected,
       `backPayActual should be ${backPayExpected}, got ${sim.backPayActual}`);
   });

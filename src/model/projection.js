@@ -24,9 +24,17 @@ export function runMonthlySimulation(s) {
   const chadJob = s.chadJob || false;
   // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
   const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
-  const backPayGross = (useSS || chadJob) ? 0 : (s.ssdiDenied ? 0 : (s.ssdiBackPayMonths || 0) * (s.ssdiPersonal || 4152));
-  const backPayFee = Math.min(Math.round(backPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  const backPayActual = backPayGross - backPayFee;
+  // Back pay includes auxiliary benefits for dependent kids during their eligibility window.
+  // Bound auxiliary months by kidsAgeOutMonths as a forward-looking proxy: if kids are
+  // eligible at/after approval they were eligible during the (past) back-pay window too.
+  // Attorney fee applies only to the worker's share, not auxiliary benefits.
+  const totalBackPayMonths = (useSS || chadJob || s.ssdiDenied) ? 0 : (s.ssdiBackPayMonths || 0);
+  const auxBackPayMonths = Math.min(totalBackPayMonths, s.kidsAgeOutMonths || 0);
+  const adultBackPayGross = totalBackPayMonths * (s.ssdiPersonal || 4214);
+  const auxBackPayGross = auxBackPayMonths * Math.max(0, (s.ssdiFamilyTotal || 6321) - (s.ssdiPersonal || 4214));
+  const backPayFee = Math.min(Math.round(adultBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
+  const backPayActual = adultBackPayGross + auxBackPayGross - backPayFee;
+  const backPayGross = adultBackPayGross + auxBackPayGross;
   const ssStartMonth = s.ssStartMonth ?? 18;
   const ssFamilyTotal = s.ssFamilyTotal || 7099;
   const ssPersonal = s.ssPersonal || 2933;

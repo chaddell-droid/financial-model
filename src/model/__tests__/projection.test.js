@@ -185,21 +185,23 @@ test('14. Chad job income: 0 before chadJobStartMonth, net salary after', () => 
   assert.strictEqual(monthlyData[startMonth].chadJobIncome, expectedNet, 'net salary at start');
 });
 
-test('15. Back pay: added at ssdiApprovalMonth + 2, equals gross - min(gross*0.25, 7500)', () => {
+test('15. Back pay: added at ssdiApprovalMonth + 2, includes auxiliary share, fee on adult share only', () => {
   const approvalMonth = 5;
   const backPayMonths = 18;
   const personal = 4152;
+  const family = 6228; // 1.5x personal — SSDI FMB ceiling
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: false,
-    ssdiBackPayMonths: backPayMonths, ssdiPersonal: personal,
+    ssdiBackPayMonths: backPayMonths, ssdiPersonal: personal, ssdiFamilyTotal: family,
     kidsAgeOutMonths: 60, chadJob: false,
     // Zero out other noise: large starting savings so balance doesn't go negative
     startingSavings: 500000,
   });
   const { monthlyData, backPayActual } = runMonthlySimulation(s);
-  const gross = backPayMonths * personal;
-  const fee = Math.min(Math.round(gross * 0.25), 7500);
-  const expectedBackPay = gross - fee;
+  const adultGross = backPayMonths * personal;
+  const auxGross = Math.min(backPayMonths, 60) * (family - personal);
+  const fee = Math.min(Math.round(adultGross * 0.25), 9200);
+  const expectedBackPay = adultGross + auxGross - fee;
   assert.strictEqual(backPayActual, expectedBackPay, 'backPayActual should match formula');
 
   // Back pay is added at approvalMonth + 2 to the balance
@@ -823,9 +825,10 @@ test('53. Back pay beyond horizon (approval + 2 > 72) — backPayActual still co
   const approvalMonth = 71; // approval + 2 = 73, beyond month 72
   const backPayMonths = 18;
   const personal = 4152;
+  const family = 6228;
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: false,
-    ssdiBackPayMonths: backPayMonths, ssdiPersonal: personal,
+    ssdiBackPayMonths: backPayMonths, ssdiPersonal: personal, ssdiFamilyTotal: family,
     kidsAgeOutMonths: 60, chadJob: false,
     startingSavings: 500000, investmentReturn: 0,
     retireDebt: true, vanSold: true, vanSaleMonth: 0,
@@ -833,17 +836,18 @@ test('53. Back pay beyond horizon (approval + 2 > 72) — backPayActual still co
     vanLoanBalance: 0, vanSalePrice: 0,
   });
   const { monthlyData, backPayActual } = runMonthlySimulation(s);
-  // backPayActual should still be computed
-  const gross = backPayMonths * personal;
-  const fee = Math.min(Math.round(gross * 0.25), 7500);
-  const expectedBackPay = gross - fee;
+  // backPayActual should still be computed (with auxiliary share, fee on adult only)
+  const adultGross = backPayMonths * personal;
+  const auxGross = Math.min(backPayMonths, 60) * (family - personal);
+  const fee = Math.min(Math.round(adultGross * 0.25), 9200);
+  const expectedBackPay = adultGross + auxGross - fee;
   assert.strictEqual(backPayActual, expectedBackPay,
     `backPayActual should be ${expectedBackPay}, got ${backPayActual}`);
 
   // Run a control simulation identical except with denial (no back pay at all)
   const sControl = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: true,
-    ssdiBackPayMonths: backPayMonths, ssdiPersonal: personal,
+    ssdiBackPayMonths: backPayMonths, ssdiPersonal: personal, ssdiFamilyTotal: family,
     kidsAgeOutMonths: 60, chadJob: false,
     startingSavings: 500000, investmentReturn: 0,
     retireDebt: true, vanSold: true, vanSaleMonth: 0,

@@ -610,9 +610,9 @@ test('D35: ssdiBackPayGross = backPayMonths * ssdiPersonal', () => {
 test('D36: Attorney fee capped at SSDI_ATTORNEY_FEE_CAP', () => {
   const gross = 75852;
   const fee = Math.min(Math.round(gross * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  // 75852 * 0.25 = 18963, cap is 7500
+  // 75852 * 0.25 = 18963, cap is 9200
   assert.strictEqual(fee, SSDI_ATTORNEY_FEE_CAP, `Fee should be capped at ${SSDI_ATTORNEY_FEE_CAP}, got ${fee}`);
-  assert.strictEqual(fee, 7500, `Fee cap should be 7500`);
+  assert.strictEqual(fee, 9200, `Fee cap should be 9200`);
 });
 
 test('D37: Attorney fee below cap (small back pay)', () => {
@@ -628,12 +628,13 @@ test('D37: Attorney fee below cap (small back pay)', () => {
 test('D38: projection.backPayActual matches UI formula', () => {
   const s = gatherStateWithOverrides({});
   const { backPayActual } = runMonthlySimulation(s);
-  // UI formula from FinancialModel.jsx
-  const ssdiPersonal = INITIAL_STATE.ssdiPersonal;
-  const ssdiBackPayMonths = INITIAL_STATE.ssdiBackPayMonths;
-  const ssdiBackPayGross = ssdiBackPayMonths * ssdiPersonal;
-  const ssdiAttorneyFee = Math.min(Math.round(ssdiBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  const ssdiBackPayActual = ssdiBackPayGross - ssdiAttorneyFee;
+  // UI formula from FinancialModel.jsx — adult share + auxiliary share, fee on adult only
+  const { ssdiPersonal, ssdiFamilyTotal, ssdiBackPayMonths, kidsAgeOutMonths } = INITIAL_STATE;
+  const ssdiAuxBackPayMonths = Math.min(ssdiBackPayMonths, kidsAgeOutMonths || 0);
+  const ssdiAdultBackPayGross = ssdiBackPayMonths * ssdiPersonal;
+  const ssdiAuxBackPayGross = ssdiAuxBackPayMonths * Math.max(0, (ssdiFamilyTotal || 0) - ssdiPersonal);
+  const ssdiAttorneyFee = Math.min(Math.round(ssdiAdultBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
+  const ssdiBackPayActual = ssdiAdultBackPayGross + ssdiAuxBackPayGross - ssdiAttorneyFee;
   assert.strictEqual(backPayActual, ssdiBackPayActual,
     `projection.backPayActual (${backPayActual}) should match UI formula (${ssdiBackPayActual})`);
 });

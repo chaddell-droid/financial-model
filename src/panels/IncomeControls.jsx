@@ -420,8 +420,8 @@ const IncomeControls = ({
             {ssType === 'ssdi' && !chadJob && (
             <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>SSDI Back Pay (Lump Sum)</h4>
-              <Slider label="Back pay months" value={ssdiBackPayMonths} onChange={set('ssdiBackPayMonths')} commitStrategy={commitStrategy} min={6} max={24} color={COLORS.green} format={(v) => v + " mo"} />
-              <Slider label="SSDI approval (months out)" value={ssdiApprovalMonth} onChange={set('ssdiApprovalMonth')} commitStrategy={commitStrategy} min={3} max={18} color={COLORS.green} format={(v) => v + " mo"} />
+              <Slider label="Back pay months" value={ssdiBackPayMonths} onChange={set('ssdiBackPayMonths')} commitStrategy={commitStrategy} min={6} max={48} color={COLORS.green} format={(v) => v + " mo"} />
+              <Slider label="SSDI approval (months out)" value={ssdiApprovalMonth} onChange={set('ssdiApprovalMonth')} commitStrategy={commitStrategy} min={0} max={36} color={COLORS.green} format={(v) => v + " mo"} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6 }}>
                 <span style={{ color: COLORS.textDim }}>Gross ({ssdiBackPayMonths} × {fmtFull(ssdiPersonal)}):</span>
                 <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(ssdiBackPayGross)}</span>

@@ -185,6 +185,256 @@ test('14. Chad job income: 0 before chadJobStartMonth, net salary after', () => 
   assert.strictEqual(monthlyData[startMonth].chadJobIncome, expectedNet, 'net salary at start');
 });
 
+test('14a. Annual raise compounds yearly on base salary', () => {
+  const startMonth = 0;
+  const salary = 100000;
+  const taxRate = 25;
+  const raisePct = 4; // 4%/yr
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: salary, chadJobTaxRate: taxRate, chadJobStartMonth: startMonth,
+    chadJobRaisePct: raisePct, chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Year 1 (months 0-11): base salary
+  const y1Net = Math.round(salary * 0.75 / 12);
+  assert.strictEqual(monthlyData[0].chadJobIncome, y1Net, 'year 1 = base salary');
+  assert.strictEqual(monthlyData[11].chadJobIncome, y1Net, 'month 11 still year 1');
+  // Year 2 (months 12-23): salary * 1.04
+  const y2Net = Math.round(salary * 1.04 * 0.75 / 12);
+  assert.strictEqual(monthlyData[12].chadJobIncome, y2Net, 'year 2 = base * (1+r)');
+  // Year 3 (months 24-35): salary * 1.04^2
+  const y3Net = Math.round(salary * Math.pow(1.04, 2) * 0.75 / 12);
+  assert.strictEqual(monthlyData[24].chadJobIncome, y3Net, 'year 3 = base * (1+r)^2');
+});
+
+test('14b. Annual bonus paid as lump sum in configured month, prorated in year 1', () => {
+  // Start at projection month 0 (= March 2026, calendar month 2). Bonus month
+  // = 8 (September). First September after start is projection month 6.
+  const startMonth = 0;
+  const salary = 100000;
+  const taxRate = 25;
+  const bonusPct = 20; // 20% of salary
+  const bonusMonth = 8; // September
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: salary, chadJobTaxRate: taxRate, chadJobStartMonth: startMonth,
+    chadJobBonusPct: bonusPct, chadJobBonusMonth: bonusMonth, chadJobBonusProrateFirst: true,
+    chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(salary * 0.75 / 12);
+  // Non-bonus month = salary only
+  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet, 'month 0 = salary only (not Sept)');
+  assert.strictEqual(monthlyData[5].chadJobIncome, monthlySalaryNet, 'month 5 = salary only');
+  // Month 6 = September of year 1, prorated 6/12 of bonus
+  const proratedBonusNet = Math.round(salary * 0.20 * (6 / 12) * 0.75);
+  const expectedSeptNet = monthlySalaryNet + proratedBonusNet;
+  assert.strictEqual(monthlyData[6].chadJobIncome, expectedSeptNet, 'first Sept = salary + prorated bonus');
+  // Month 7 = back to salary only
+  assert.strictEqual(monthlyData[7].chadJobIncome, monthlySalaryNet, 'month 7 = salary only');
+  // Month 18 = September of year 2, full bonus
+  const fullBonusNet = Math.round(salary * 0.20 * 0.75);
+  assert.strictEqual(monthlyData[18].chadJobIncome, monthlySalaryNet + fullBonusNet,
+    'second Sept = salary + full bonus');
+});
+
+test('14b-prorate-off. With prorate disabled, no bonus until 1 full year', () => {
+  const startMonth = 0;
+  const salary = 100000;
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: salary, chadJobTaxRate: 25, chadJobStartMonth: startMonth,
+    chadJobBonusPct: 20, chadJobBonusMonth: 8, chadJobBonusProrateFirst: false,
+    chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(salary * 0.75 / 12);
+  // Month 6 = first September, but only 6 months worked → no bonus (eligibility cliff)
+  assert.strictEqual(monthlyData[6].chadJobIncome, monthlySalaryNet, 'no bonus before 1 year');
+  // Month 18 = second September, 18 months worked → full bonus
+  const fullBonusNet = Math.round(salary * 0.20 * 0.75);
+  assert.strictEqual(monthlyData[18].chadJobIncome, monthlySalaryNet + fullBonusNet, 'full bonus after 1 year');
+});
+
+test('14b-month. Bonus month is configurable (e.g. June)', () => {
+  // June = calendar month 5. m=0 is March (calendar 2). First June = m=3.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobBonusPct: 10, chadJobBonusMonth: 5, chadJobBonusProrateFirst: true,
+    chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
+  // Month 3 = first June, 3 months worked → 3/12 prorate
+  const proratedBonusNet = Math.round(100000 * 0.10 * (3 / 12) * 0.75);
+  assert.strictEqual(monthlyData[3].chadJobIncome, monthlySalaryNet + proratedBonusNet,
+    'June bonus prorated 3/12');
+  // Month 15 = second June, 15 months worked → full bonus
+  const fullBonusNet = Math.round(100000 * 0.10 * 0.75);
+  assert.strictEqual(monthlyData[15].chadJobIncome, monthlySalaryNet + fullBonusNet,
+    'second June = full bonus');
+});
+
+test('14d. Annual stock refresh: lumpy 5%/qtr Feb/May/Aug/Nov, 20 vests/grant', () => {
+  // Start month 0 = March 2026 (calendar 2). Vest months: Feb=1, May=4, Aug=7, Nov=10.
+  // Projection-month vest indices (calendar = (m+2)%12):
+  //   m=2 May, m=5 Aug, m=8 Nov, m=11 Feb, m=14 May, m=17 Aug, m=20 Nov, ...
+  const grant = 60000;
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobStockRefresh: grant, chadJobRefreshStartMonth: 0, chadWorkMonths: 96,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
+  // Month 0: no vest yet (start month is grant date, no instant vest)
+  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet, 'no vest at grant date');
+  // Month 1 (April): not a vest month
+  assert.strictEqual(monthlyData[1].chadJobIncome, monthlySalaryNet, 'April: no vest');
+  // Month 2 (May): first vest of grant 1, 5% × $60K = $3K gross
+  const oneVestNet = Math.round(grant * 0.05 * 0.75);
+  assert.strictEqual(monthlyData[2].chadJobIncome, monthlySalaryNet + oneVestNet, 'May year 1: 1 grant × 5%');
+  // Month 5 (Aug): second vest of grant 1, still 1 grant active
+  assert.strictEqual(monthlyData[5].chadJobIncome, monthlySalaryNet + oneVestNet, 'Aug year 1: 1 grant × 5%');
+  // Month 14 (May year 2): grants 1 and 2 both vest. Grant 1 vest #5, grant 2 vest #1.
+  const twoVestNet = Math.round(grant * 0.05 * 2 * 0.75);
+  assert.strictEqual(monthlyData[14].chadJobIncome, monthlySalaryNet + twoVestNet, 'May year 2: 2 grants × 5%');
+  // Month 50 (May year 5): 5 grants vest concurrently in steady state
+  const fiveVestNet = Math.round(grant * 0.05 * 5 * 0.75);
+  assert.strictEqual(monthlyData[50].chadJobIncome, monthlySalaryNet + fiveVestNet, 'steady state: 5 grants × 5%');
+});
+
+test('14d-refresh-start. Default refresh start = 12 months (MSFT default): no refresh in Y1', () => {
+  // Default chadJobRefreshStartMonth = 12. First grant issued at month 12, first vest at m=14 (May yr 2).
+  const grant = 60000;
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobStockRefresh: grant, chadWorkMonths: 96,
+    // chadJobRefreshStartMonth omitted → uses default of 12
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
+  // Months 0-13: no refresh vest (first grant not issued until month 12, first vest at m=14)
+  for (const m of [2, 5, 8, 11, 12, 13]) {
+    assert.strictEqual(monthlyData[m].chadJobStockRefreshNet, 0,
+      `month ${m}: no refresh vest before first grant matures`);
+  }
+  // Month 14 (May year 2): first vest of grant 1
+  const oneVestNet = Math.round(grant * 0.05 * 0.75);
+  assert.strictEqual(monthlyData[14].chadJobStockRefreshNet, oneVestNet,
+    'm=14 (May yr 2): first refresh vest with default start month');
+  // Month 26 (May year 3): grant 1 (issued m=12) and grant 2 (issued m=24) both active
+  const twoVestNet = Math.round(grant * 0.05 * 2 * 0.75);
+  assert.strictEqual(monthlyData[26].chadJobStockRefreshNet, twoVestNet,
+    'm=26 (May yr 3): 2 grants vest');
+});
+
+test('14d-refresh-start-custom. Custom refresh start month (e.g. 6 months)', () => {
+  // First grant at start + 6 = month 6 (Sept yr 1). Sept is not a vest month, so first vest at m=8 (Nov).
+  const grant = 60000;
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobStockRefresh: grant, chadJobRefreshStartMonth: 6, chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const oneVestNet = Math.round(grant * 0.05 * 0.75);
+  // Months 0-7: no refresh vest yet (grant issued m=6, first vest at next vest month after = m=8)
+  for (const m of [0, 2, 5, 6, 7]) {
+    assert.strictEqual(monthlyData[m].chadJobStockRefreshNet, 0,
+      `month ${m}: no refresh vest before m=8`);
+  }
+  // Month 8 (Nov yr 1): first vest of grant 1
+  assert.strictEqual(monthlyData[8].chadJobStockRefreshNet, oneVestNet,
+    'm=8 (Nov yr 1): first vest with refresh-start=6');
+});
+
+test('14e. One-time hire stock vests as anniversary lumps', () => {
+  // Schedule: $55K Y1, $30K Y2, $25K Y3, $10K Y4 — paid at anniversary months 12/24/36/48.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobHireStockY1: 55000, chadJobHireStockY2: 30000,
+    chadJobHireStockY3: 25000, chadJobHireStockY4: 10000,
+    chadWorkMonths: 72,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
+  // Months 0-11: no hire stock vest yet (first vest is at anniversary = m=12)
+  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet, 'no hire vest before anniversary');
+  assert.strictEqual(monthlyData[11].chadJobIncome, monthlySalaryNet, 'still no vest at month 11');
+  // Month 12 (1st anniversary): $55K lump
+  const y1Net = Math.round(55000 * 0.75);
+  assert.strictEqual(monthlyData[12].chadJobIncome, monthlySalaryNet + y1Net, 'anniversary 1: $55K lump');
+  // Month 13: back to salary only
+  assert.strictEqual(monthlyData[13].chadJobIncome, monthlySalaryNet, 'month 13: no vest');
+  // Month 24 (2nd anniversary): $30K lump
+  const y2Net = Math.round(30000 * 0.75);
+  assert.strictEqual(monthlyData[24].chadJobIncome, monthlySalaryNet + y2Net, 'anniversary 2: $30K lump');
+  // Month 48 (4th anniversary): $10K lump
+  const y4Net = Math.round(10000 * 0.75);
+  assert.strictEqual(monthlyData[48].chadJobIncome, monthlySalaryNet + y4Net, 'anniversary 4: $10K lump');
+  // Month 60 (5th anniversary): no Y5 entry — hire stock fully vested
+  assert.strictEqual(monthlyData[60].chadJobIncome, monthlySalaryNet, 'no hire vest in Y5+');
+});
+
+test('14g. Cash sign-on bonus: 50% on hire, 50% on 1-yr anniversary', () => {
+  const signOn = 60000; // total $60K split 50/50
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobSignOnCash: signOn, chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
+  const halfNet = Math.round(signOn * 0.5 * 0.75); // 50% × 60K × (1 - tax + fica) = 22500
+  // Month 0 (hire date): salary + first half
+  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet + halfNet, 'hire date: 50% sign-on');
+  assert.strictEqual(monthlyData[0].chadJobSignOnNet, halfNet, 'sign-on field on row');
+  // Month 1: just salary
+  assert.strictEqual(monthlyData[1].chadJobIncome, monthlySalaryNet, 'month 1: no sign-on');
+  // Month 12 (anniversary): salary + second half
+  assert.strictEqual(monthlyData[12].chadJobIncome, monthlySalaryNet + halfNet, 'anniversary: 50% sign-on');
+  assert.strictEqual(monthlyData[12].chadJobSignOnNet, halfNet, 'sign-on at anniversary');
+  // Month 24: no more sign-on
+  assert.strictEqual(monthlyData[24].chadJobSignOnNet, 0, 'no sign-on after anniversary');
+});
+
+test('14g-late-start. Sign-on respects chadJobStartMonth offset', () => {
+  // Chad starts at month 5 (Aug '26), sign-on $40K
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 5,
+    chadJobSignOnCash: 40000, chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const halfNet = Math.round(40000 * 0.5 * 0.75);
+  // Month 4 (before start): no income
+  assert.strictEqual(monthlyData[4].chadJobIncome, 0, 'before start: no income');
+  // Month 5 (hire date): includes 50% sign-on
+  assert.strictEqual(monthlyData[5].chadJobSignOnNet, halfNet, 'hire date m=5: 50% sign-on');
+  // Month 17 (start + 12 = anniversary): second half
+  assert.strictEqual(monthlyData[17].chadJobSignOnNet, halfNet, 'anniversary m=17: 50% sign-on');
+});
+
+test('14f. Stock vesting stops after chadRetirementMonth', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobStockRefresh: 50000, chadJobHireStockY1: 50000,
+    chadWorkMonths: 24, // Chad leaves at month 24
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Month 25 — past retirement, no chadJob income at all
+  assert.strictEqual(monthlyData[25].chadJobIncome, 0, 'no income after retirement');
+  // Month 26 (Aug, would have been a vest month): also zero
+  assert.strictEqual(monthlyData[26]?.chadJobIncome ?? 0, 0, 'no vest after retirement');
+});
+
+test('14c. Raise=0 and Bonus=0 matches legacy net-salary formula', () => {
+  const salary = 80000;
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: salary, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobRaisePct: 0, chadJobBonusPct: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const expected = Math.round(salary * 0.75 / 12);
+  assert.strictEqual(monthlyData[0].chadJobIncome, expected, 'no raise/bonus matches base formula');
+  assert.strictEqual(monthlyData[12].chadJobIncome, expected, 'salary unchanged with 0% raise');
+});
+
 test('15. Back pay: added at ssdiApprovalMonth + 2, includes auxiliary share, fee on adult share only', () => {
   const approvalMonth = 5;
   const backPayMonths = 18;

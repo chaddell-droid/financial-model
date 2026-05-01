@@ -104,6 +104,35 @@ test('C6: With chadJob=true and chadJobStartMonth=0, chadJobIncome > 0 at month 
     `Month 0 chadJobIncome should be > 0 when chadJob=true, got ${jobSim.monthlyData[0].chadJobIncome}`);
 });
 
+test('C6a: chadJobIncome row exposes salary/bonus/stock breakdown for tooltip', () => {
+  // Tooltip needs each component on the row. We test that they exist on every row,
+  // and that they sum to chadJobIncome on representative months.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobBonusPct: 15, chadJobBonusMonth: 8, chadJobBonusProrateFirst: true,
+    chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 0, chadJobHireStockY1: 50000,
+    chadWorkMonths: 60,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+
+  // Every row must expose the breakdown fields and they must sum to chadJobIncome.
+  for (let i = 0; i < monthlyData.length; i++) {
+    const row = monthlyData[i];
+    for (const field of ['chadJobSalaryNet', 'chadJobBonusNet', 'chadJobStockRefreshNet', 'chadJobStockHireNet', 'chadJobSignOnNet']) {
+      assert.ok(field in row, `Month ${i}: row must expose ${field}`);
+    }
+    const sum = row.chadJobSalaryNet + row.chadJobBonusNet + row.chadJobStockRefreshNet + row.chadJobStockHireNet + row.chadJobSignOnNet;
+    assert.strictEqual(sum, row.chadJobIncome, `Month ${i}: breakdown must sum to chadJobIncome`);
+  }
+  // Month 6 = first September → bonus paid (lump). Refresh vests are at m=2,5,8,11 (May/Aug/Nov/Feb), not Sept.
+  assert.ok(monthlyData[6].chadJobSalaryNet > 0, 'm6: salary > 0');
+  assert.ok(monthlyData[6].chadJobBonusNet > 0, 'm6 (Sept): bonus > 0');
+  // Month 12 = anniversary → hire stock lump
+  assert.ok(monthlyData[12].chadJobStockHireNet > 0, 'm12: hire stock anniversary lump');
+  // Month 5 = Aug → refresh quarterly vest
+  assert.ok(monthlyData[5].chadJobStockRefreshNet > 0, 'm5 (Aug): refresh vest');
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // 2. SavingsDrawdownChart (C7–C11)
 // ════════════════════════════════════════════════════════════════════════

@@ -43,6 +43,17 @@ export const INITIAL_STATE = {
   chadJobNoFICA: false,         // No 6.2% SS tax (non-SS-covered employer)
   chadJobPensionRate: 0,        // Annual pension accrual rate (0=none, 2=PERS Plan 2)
   chadJobPensionContrib: 0,     // Employee pension contribution % deducted from gross
+  chadJobRaisePct: 0,           // Annual raise % compounded yearly on base salary
+  chadJobBonusPct: 0,           // Annual bonus as % of current annual salary (paid lump-sum)
+  chadJobBonusMonth: 8,         // Calendar month of bonus payment (0=Jan, 8=Sept)
+  chadJobBonusProrateFirst: true, // Prorate first-year bonus by months worked
+  chadJobStockRefresh: 0,       // Annual stock refresh grant $ (each grant vests 20%/yr × 5)
+  chadJobRefreshStartMonth: 12, // Months from hire until first refresh grant is issued (MSFT default ~12 = after first review)
+  chadJobHireStockY1: 0,        // One-time hire stock $ vesting in year 1
+  chadJobHireStockY2: 0,        // ... year 2
+  chadJobHireStockY3: 0,        // ... year 3
+  chadJobHireStockY4: 0,        // ... year 4 (typically tail end of 4-yr vesting)
+  chadJobSignOnCash: 0,         // One-time cash sign-on bonus (50% on hire, 50% on 1yr anniv)
 
   // Expenses
   totalMonthlySpend: null,   // Actual total spend from all accounts; when set, back-calculates baseExpenses
@@ -192,6 +203,9 @@ export const MODEL_KEYS = [
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
+  'chadJobRaisePct', 'chadJobBonusPct', 'chadJobBonusMonth', 'chadJobBonusProrateFirst',
+  'chadJobStockRefresh', 'chadJobRefreshStartMonth', 'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
+  'chadJobSignOnCash',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
   'expenseInflation', 'expenseInflationRate',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',

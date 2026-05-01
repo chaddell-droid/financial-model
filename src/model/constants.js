@@ -3,6 +3,13 @@ export const MONTH_VALUES = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39,
 
 // MSFT vesting schedule (net 80% of gross) — hedged at $410.68/share floor
 // Starting March 2026 = month 0. Each vest covers ~3 months.
+// Calendar month-of-year (0=Jan) at projection-month 0 — used to map projection
+// months to real calendar months (e.g. lump-sum bonus paid each September).
+export const PROJECTION_START_MONTH = 2; // March 2026 = month 0
+
+// Quarterly stock-vest calendar months (0-indexed): Feb, May, Aug, Nov — last day.
+// Used for Chad's annual stock refresh grants (5%/quarter over 5 years per grant).
+export const STOCK_VEST_CALENDAR_MONTHS = [1, 4, 7, 10];
 export const MSFT_FLOOR_PRICE = 410.68;
 
 // Share counts per vest period

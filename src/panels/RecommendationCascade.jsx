@@ -1,5 +1,6 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { computeMoveCascade } from '../model/moveCascade.js';
+import { computeMarginalImpactCurve } from '../model/marginalCurves.js';
 import { fmtFull } from '../model/formatters.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 import ContinuousLeverSlider, { formatLeverValue } from './ContinuousLeverSlider.jsx';
@@ -389,6 +390,30 @@ function leverLabelPrefix(leverKey) {
 
 // ─── Staged moves list (FR11: each staged rung has a Remove action) ───────
 function StagedMovesList({ moves, onRemove, composedState, applyPreviewMove, setLeverConstraintOverride, presentMode }) {
+  // Story 3.2 — compute the marginal-impact curve for every continuous staged
+  // move in one pass. Memoized on (composedState, moves) so the curves only
+  // recompute when the underlying plan or staging actually changes — sliding
+  // the thumb is local-only and does not trigger a recompute (the slider's
+  // `localValue` keeps the marker tracking without dispatching).
+  const curves = useMemo(() => {
+    if (!composedState || !Array.isArray(moves)) return {};
+    const out = {};
+    for (const m of moves) {
+      const isContinuous = typeof m.id === 'string' && m.id.startsWith('optimize:');
+      if (!isContinuous) continue;
+      const leverKey = m.id.slice('optimize:'.length);
+      const constraints = composedState.effectiveLeverConstraints?.[leverKey];
+      if (!constraints) continue;
+      try {
+        out[m.id] = computeMarginalImpactCurve(composedState, leverKey, { constraints });
+      } catch {
+        // Lever unsupported or constraints malformed — skip silently. The
+        // sparkline gracefully renders nothing when `curve` is undefined.
+      }
+    }
+    return out;
+  }, [composedState, moves]);
+
   return (
     <div
       data-testid="staged-moves-list"
@@ -470,6 +495,7 @@ function StagedMovesList({ moves, onRemove, composedState, applyPreviewMove, set
                     });
                   }}
                   onOverrideBounds={(bounds) => setLeverConstraintOverride?.(leverKey, bounds)}
+                  curve={curves[m.id]}
                   presentMode={presentMode}
                 />
               )}

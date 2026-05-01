@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import SensitivityCurveSparkline from '../charts/SensitivityCurveSparkline.jsx';
 
 /** Debounce window before we dispatch a slider value to the parent.
  *  Long enough that React doesn't re-render mid-drag and unmount the thumb.
@@ -32,6 +33,7 @@ export default function ContinuousLeverSlider({
   step,             // UI step; defaults per lever below
   onChange,         // (newValue: number) => void  — dispatches APPLY_PREVIEW_MOVE
   onOverrideBounds, // (bounds: {min?, max?}|null) => void  — sets leverConstraintsOverride[key]
+  curve,            // Story 3.2 — marginal-impact curve samples; sparkline is hidden if absent
   presentMode = false,
 }) {
   const [editing, setEditing] = useState(false);
@@ -170,6 +172,19 @@ export default function ContinuousLeverSlider({
           {formatLeverValue(leverKey, v)}
         </span>
       </div>
+
+      {/* Story 3.2 — sensitivity sparkline. Renders only when the parent
+          supplies a `curve` and the lever has valid bounds. The marker
+          tracks `localValue` so it follows the drag in real time. */}
+      <SensitivityCurveSparkline
+        curve={curve}
+        currentValue={v}
+        min={min}
+        max={max}
+        presentMode={presentMode}
+        height={28}
+        testId={`sensitivity-sparkline-${leverKey}`}
+      />
 
       {editing && (
         <ConstraintEditor

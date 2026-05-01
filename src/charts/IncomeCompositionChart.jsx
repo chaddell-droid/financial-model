@@ -188,6 +188,25 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                     if (s.key === 'ssBenefit' && ssBenefitPersonal > 0 && val > ssBenefitPersonal) {
                       tooltipSources.push({ label: `${s.label} (personal)`, color: s.color, value: ssBenefitPersonal });
                       tooltipSources.push({ label: `${s.label} (kids)`, color: s.color, value: val - ssBenefitPersonal, indent: true });
+                    } else if (s.key === 'chadJobIncome' && (
+                      (d.chadJobBonusNet || 0) > 0 || (d.chadJobStockRefreshNet || 0) > 0 || (d.chadJobStockHireNet || 0) > 0 || (d.chadJobSignOnNet || 0) > 0
+                    )) {
+                      // Break out Chad's Job into salary + bonus + stock + sign-on components when any are nonzero
+                      if ((d.chadJobSalaryNet || 0) > 0) {
+                        tooltipSources.push({ label: `${s.label} (salary)`, color: s.color, value: d.chadJobSalaryNet });
+                      }
+                      if ((d.chadJobBonusNet || 0) > 0) {
+                        tooltipSources.push({ label: `${s.label} (bonus)`, color: s.color, value: d.chadJobBonusNet, indent: true });
+                      }
+                      if ((d.chadJobStockRefreshNet || 0) > 0) {
+                        tooltipSources.push({ label: `${s.label} (stock refresh)`, color: s.color, value: d.chadJobStockRefreshNet, indent: true });
+                      }
+                      if ((d.chadJobStockHireNet || 0) > 0) {
+                        tooltipSources.push({ label: `${s.label} (hire stock)`, color: s.color, value: d.chadJobStockHireNet, indent: true });
+                      }
+                      if ((d.chadJobSignOnNet || 0) > 0) {
+                        tooltipSources.push({ label: `${s.label} (sign-on cash)`, color: s.color, value: d.chadJobSignOnNet, indent: true });
+                      }
                     } else {
                       tooltipSources.push({ label: s.label, color: s.color, value: val });
                     }

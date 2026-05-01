@@ -16,6 +16,9 @@ const IncomeControls = ({
   chadConsulting,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
+  chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst,
+  chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
+  chadJobSignOnCash,
   chadWorkMonths,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -96,7 +99,27 @@ const IncomeControls = ({
               />
               {chadJob && (
                 <>
-                  <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} commitStrategy={commitStrategy} min={30000} max={150000} step={5000} color={COLORS.greenDark} format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
+                  <Slider label="Gross annual salary" value={chadJobSalary} onChange={set('chadJobSalary')} commitStrategy={commitStrategy} min={30000} max={250000} step={5000} color={COLORS.greenDark} format={(v) => "$" + (v/1000).toFixed(0) + "K"} />
+                  <Slider label="Annual raise" value={chadJobRaisePct} onChange={set('chadJobRaisePct')} commitStrategy={commitStrategy} min={0} max={5} step={0.25} color={COLORS.greenDark} format={(v) => v === 0 ? "None" : v.toFixed(2) + "%/yr"} />
+                  <Slider label="Annual bonus (lump-sum)" value={chadJobBonusPct} onChange={set('chadJobBonusPct')} commitStrategy={commitStrategy} min={0} max={30} step={1} color={COLORS.greenDark} format={(v) => v === 0 ? "None" : v + "% of salary"} />
+                  {chadJobBonusPct > 0 && (
+                    <>
+                      <Slider label="Bonus paid in" value={chadJobBonusMonth} onChange={set('chadJobBonusMonth')} commitStrategy={commitStrategy} min={0} max={11} step={1} color={COLORS.greenDark} format={(v) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][v]} />
+                      <Toggle
+                        label="Prorate bonus in first year"
+                        description={chadJobBonusProrateFirst ? "First-year bonus = (months worked / 12) × full bonus (typical)" : "No bonus until 1 full year of employment"}
+                        checked={chadJobBonusProrateFirst}
+                        onChange={set('chadJobBonusProrateFirst')}
+                        color={COLORS.greenDark}
+                      />
+                    </>
+                  )}
+                  <Slider label="Sign-on bonus (cash)" value={chadJobSignOnCash} onChange={set('chadJobSignOnCash')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.greenDark} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(0) + "K total"} />
+                  {chadJobSignOnCash > 0 && (
+                    <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, marginBottom: 6 }}>
+                      50% paid on hire date, 50% on 1-year anniversary. Taxed as W-2.
+                    </div>
+                  )}
                   <Slider label="Effective tax rate" value={chadJobTaxRate} onChange={set('chadJobTaxRate')} commitStrategy={commitStrategy} min={10} max={40} color={COLORS.greenDark} format={(v) => v + "%"} />
                   <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} commitStrategy={commitStrategy} min={0} max={24} color={COLORS.greenDark} format={(v) => v === 0 ? "Now" : v + " mo"} />
                   <Slider label="Chad works for" value={chadWorkMonths} onChange={set('chadWorkMonths')} commitStrategy={commitStrategy} min={12} max={144} step={3} color={COLORS.greenDark} format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
@@ -131,6 +154,31 @@ const IncomeControls = ({
                           {chadJobPensionRate}% × {(Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, +3%/yr COLA
                         </div>
                       </>
+                    )}
+                  </div>
+
+                  {/* Stock Compensation */}
+                  <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+                    <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Stock Compensation</div>
+                    <Slider label="Annual stock refresh (grant $)" value={chadJobStockRefresh} onChange={set('chadJobStockRefresh')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(0) + "K/yr"} />
+                    {chadJobStockRefresh > 0 && (
+                      <>
+                        <Slider label="First refresh grant — months after hire" value={chadJobRefreshStartMonth} onChange={set('chadJobRefreshStartMonth')} commitStrategy={commitStrategy} min={0} max={24} step={1} color={COLORS.blue} format={(v) => v === 0 ? "On hire" : v + " mo"} />
+                        <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, marginBottom: 6 }}>
+                          Each grant vests 5% per quarter (Feb / May / Aug / Nov, last day) for 5 yrs. MSFT default: 12 mo (after first review).
+                        </div>
+                      </>
+                    )}
+                    <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 8, marginBottom: 4 }}>One-time hire stock — anniversary lump</div>
+                    <Slider label="Year 1 vest" value={chadJobHireStockY1} onChange={set('chadJobHireStockY1')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
+                    <Slider label="Year 2 vest" value={chadJobHireStockY2} onChange={set('chadJobHireStockY2')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
+                    <Slider label="Year 3 vest" value={chadJobHireStockY3} onChange={set('chadJobHireStockY3')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
+                    <Slider label="Year 4 vest" value={chadJobHireStockY4} onChange={set('chadJobHireStockY4')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
+                    {(chadJobHireStockY1 + chadJobHireStockY2 + chadJobHireStockY3 + chadJobHireStockY4 > 0) && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
+                        <span style={{ color: COLORS.textDim }}>Total hire stock:</span>
+                        <span style={{ color: COLORS.blue, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(chadJobHireStockY1 + chadJobHireStockY2 + chadJobHireStockY3 + chadJobHireStockY4)}</span>
+                      </div>
                     )}
                   </div>
 

@@ -6,7 +6,18 @@
  * monthly tax amounts instead of applying a flat rate.
  */
 
-import { DAYS_PER_MONTH } from './constants.js';
+import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS } from './constants.js';
+
+// Mirror the projection's quarterly stock-vest helpers (kept in sync).
+function isStockVestMonth(m) {
+  return STOCK_VEST_CALENDAR_MONTHS.includes((m + PROJECTION_START_MONTH) % 12);
+}
+function nextStockVestMonthAfter(month) {
+  for (let k = month + 1; k <= month + 3; k++) {
+    if (isStockVestMonth(k)) return k;
+  }
+  return month + 3;
+}
 import { BRACKETS_MFJ_2025, getSaltCapForYear } from './taxConstants.js';
 import { calculateTax } from './taxEngine.js';
 
@@ -95,6 +106,19 @@ export function buildTaxSchedule(s) {
   const chadRetirementMonth = s.chadRetirementMonth || 72;
   const sarahRetirementMonth = s.sarahWorkMonths || 72;
   const chadJobSalary = s.chadJobSalary || 0;
+  const chadJobRaisePct = (s.chadJobRaisePct || 0) / 100;
+  const chadJobBonusPct = (s.chadJobBonusPct || 0) / 100;
+  const chadJobBonusMonth = s.chadJobBonusMonth ?? 8;
+  const chadJobBonusProrateFirst = s.chadJobBonusProrateFirst !== false;
+  const chadJobStockRefresh = s.chadJobStockRefresh || 0;
+  const chadJobRefreshStartMonth = s.chadJobRefreshStartMonth ?? 12;
+  const chadJobHireStock = [
+    s.chadJobHireStockY1 || 0,
+    s.chadJobHireStockY2 || 0,
+    s.chadJobHireStockY3 || 0,
+    s.chadJobHireStockY4 || 0,
+  ];
+  const chadJobSignOnCash = s.chadJobSignOnCash || 0;
   const ssAnnualBenefits = estimateAnnualSSBenefits(s);
   const schedule = [];
 
@@ -106,6 +130,10 @@ export function buildTaxSchedule(s) {
     // Sum Sarah's actual monthly gross for this year
     let annualSarahGross = 0;
     let chadMonthsEmployed = 0;
+    let chadAnnualSalary = 0;
+    let chadAnnualBonus = 0;
+    let chadAnnualStock = 0;
+    let chadAnnualSignOn = 0;
 
     for (let m = startMonth; m <= endMonth; m++) {
       if (m <= sarahRetirementMonth) {
@@ -122,19 +150,70 @@ export function buildTaxSchedule(s) {
 
       if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
         chadMonthsEmployed++;
+        const monthsWorked = m - chadJobStartMonth;
+        const yearsWorked = Math.floor(monthsWorked / 12);
+        const annualSalaryCurr = chadJobSalary * Math.pow(1 + chadJobRaisePct, yearsWorked);
+        chadAnnualSalary += annualSalaryCurr / 12;
+
+        // Lump-sum bonus paid in configured calendar month
+        const calendarMonthOfYear = (m + PROJECTION_START_MONTH) % 12;
+        if (chadJobBonusPct > 0 && monthsWorked > 0 && calendarMonthOfYear === chadJobBonusMonth) {
+          let bonusFraction;
+          if (monthsWorked >= 12) bonusFraction = 1;
+          else if (chadJobBonusProrateFirst) bonusFraction = monthsWorked / 12;
+          else bonusFraction = 0;
+          chadAnnualBonus += annualSalaryCurr * chadJobBonusPct * bonusFraction;
+        }
+
+        // Stock comp — lumpy events sum into the calendar year they occur in.
+        // Refresh: first grant at start + chadJobRefreshStartMonth, then every 12 months.
+        // 5% of each active grant on Feb/May/Aug/Nov.
+        if (chadJobStockRefresh > 0 && isStockVestMonth(m)) {
+          const monthsSinceFirstRefresh = monthsWorked - chadJobRefreshStartMonth;
+          if (monthsSinceFirstRefresh >= 0) {
+            const maxGrantIdx = Math.floor(monthsSinceFirstRefresh / 12);
+            for (let g = 0; g <= maxGrantIdx; g++) {
+              const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
+              if (issueMonth >= m) break;
+              const firstVest = nextStockVestMonthAfter(issueMonth);
+              if (m < firstVest) continue;
+              const vestIdx = (m - firstVest) / 3;
+              if (vestIdx >= 0 && vestIdx < 20) {
+                chadAnnualStock += chadJobStockRefresh * 0.05;
+              }
+            }
+          }
+        }
+        // Hire stock: lump on each work anniversary.
+        if (monthsWorked > 0 && monthsWorked % 12 === 0) {
+          const yearIdx = monthsWorked / 12 - 1;
+          if (yearIdx >= 0 && yearIdx < 4) {
+            chadAnnualStock += chadJobHireStock[yearIdx];
+          }
+        }
+        // Cash sign-on: 50% on hire date, 50% on 1-yr anniversary
+        if (chadJobSignOnCash > 0) {
+          if (monthsWorked === 0 || monthsWorked === 12) {
+            chadAnnualSignOn += chadJobSignOnCash * 0.5;
+          }
+        }
       }
     }
 
-    // Pro-rate to 12 months if partial year (last year of projection)
+    // Pro-rate salary to 12 months if partial year (last year of projection).
+    // Bonus and stock are discrete events — don't annualize.
     if (monthsInYear < 12) {
       annualSarahGross = Math.round(annualSarahGross * 12 / monthsInYear);
+      if (chadMonthsEmployed > 0) {
+        chadAnnualSalary = chadAnnualSalary * 12 / monthsInYear;
+      }
     }
 
     // Sch C net after business expenses
     const schCNet = Math.round(annualSarahGross * (1 - expenseRatio));
 
-    // Chad's W-2 wages (pro-rated for months employed in this year)
-    const chadW2 = chadJob ? Math.round(chadJobSalary * chadMonthsEmployed / 12) : 0;
+    // Chad's W-2 wages (salary + bonus + RSU vesting + sign-on, with compounded raises)
+    const chadW2 = chadJob ? Math.round(chadAnnualSalary + chadAnnualBonus + chadAnnualStock + chadAnnualSignOn) : 0;
 
     // Inflation-adjusted brackets and SALT cap
     const inflationFactor = s.taxInflationAdjust

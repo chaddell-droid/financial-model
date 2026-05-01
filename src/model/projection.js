@@ -1,4 +1,20 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, buildQuarterlySchedule } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, buildQuarterlySchedule } from './constants.js';
+
+/**
+ * Helpers for lumpy stock-vest calendar math.
+ * Refresh grants vest 5% on each Feb/May/Aug/Nov (last day) for 5 years (20 vests).
+ */
+function isStockVestMonth(m) {
+  return STOCK_VEST_CALENDAR_MONTHS.includes((m + PROJECTION_START_MONTH) % 12);
+}
+// First quarterly vest strictly AFTER `month` (so a grant issued in a vest month
+// skips its same-month vest — first payout 3 months later).
+function nextStockVestMonthAfter(month) {
+  for (let k = month + 1; k <= month + 3; k++) {
+    if (isStockVestMonth(k)) return k;
+  }
+  return month + 3; // fallback (shouldn't hit — vest months are every 3 months)
+}
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 
 export function findOperationalBreakevenIndex(rows) {
@@ -59,9 +75,24 @@ export function runMonthlySimulation(s) {
   const chadJobStartMonth = s.chadJobStartMonth ?? 3;
   const ficaSavings = s.chadJobNoFICA ? 0.062 : 0;
   const pensionContrib = (s.chadJobPensionContrib || 0) / 100;
-  const chadJobMonthlyNet = chadJob
-    ? Math.round((s.chadJobSalary || 0) * (1 - (s.chadJobTaxRate || 25) / 100 + ficaSavings - pensionContrib) / 12)
-    : 0;
+  const chadJobBaseSalary = s.chadJobSalary || 0;
+  const chadJobRaisePct = (s.chadJobRaisePct || 0) / 100;
+  const chadJobBonusPct = (s.chadJobBonusPct || 0) / 100;
+  const chadJobBonusMonth = s.chadJobBonusMonth ?? 8; // 0=Jan, 8=Sept
+  const chadJobBonusProrateFirst = s.chadJobBonusProrateFirst !== false;
+  const chadJobStockRefresh = s.chadJobStockRefresh || 0;
+  const chadJobRefreshStartMonth = s.chadJobRefreshStartMonth ?? 12;
+  const chadJobHireStock = [
+    s.chadJobHireStockY1 || 0,
+    s.chadJobHireStockY2 || 0,
+    s.chadJobHireStockY3 || 0,
+    s.chadJobHireStockY4 || 0,
+  ];
+  const chadJobSignOnCash = s.chadJobSignOnCash || 0;
+  const chadJobTaxRate = (s.chadJobTaxRate ?? 25) / 100;
+  // Pension is deducted from salary only (not bonuses or RSUs, per typical employer rules)
+  const chadJobSalaryNetMult = 1 - chadJobTaxRate + ficaSavings - pensionContrib;
+  const chadJobBonusNetMult = 1 - chadJobTaxRate + ficaSavings;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
 
   // 401k and home equity — tracked alongside savings for deficit drawdown
@@ -90,8 +121,88 @@ export function runMonthlySimulation(s) {
     const msftLump = getVestingLumpSum(m, s.msftGrowth || 0, s.msftPrice);
     const trustLLC = m < trustMonth ? trustNow : trustFuture;
 
-    // Chad's job income (after tax)
-    const chadJobIncome = (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) ? chadJobMonthlyNet : 0;
+    // Chad's job income (after tax) — salary compounds with annual raise; bonus
+    // is paid as a lump sum once per year in the configured calendar month
+    // (default September). First-year bonus prorated by months worked when
+    // chadJobBonusProrateFirst is true; otherwise it pays only after a full
+    // year of employment.
+    let chadJobIncome = 0;
+    let chadJobSalaryNet = 0;
+    let chadJobBonusNet = 0;
+    let chadJobStockRefreshNet = 0;
+    let chadJobStockHireNet = 0;
+    let chadJobSignOnNet = 0;
+    let chadJobBonusGross = 0;
+    let chadJobStockGross = 0;
+    let chadCurrentAnnualSalary = 0;
+    if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
+      const monthsWorked = m - chadJobStartMonth;
+      const yearsWorked = Math.floor(monthsWorked / 12);
+      chadCurrentAnnualSalary = chadJobBaseSalary * Math.pow(1 + chadJobRaisePct, yearsWorked);
+      const monthlySalaryGross = chadCurrentAnnualSalary / 12;
+      chadJobSalaryNet = Math.round(monthlySalaryGross * chadJobSalaryNetMult);
+
+      // Lump-sum bonus on the configured calendar month, after at least 1 month
+      // of employment (so a same-month start doesn't pay an instant bonus).
+      const calendarMonthOfYear = (m + PROJECTION_START_MONTH) % 12;
+      if (chadJobBonusPct > 0 && monthsWorked > 0 && calendarMonthOfYear === chadJobBonusMonth) {
+        let bonusFraction;
+        if (monthsWorked >= 12) {
+          bonusFraction = 1;
+        } else if (chadJobBonusProrateFirst) {
+          bonusFraction = monthsWorked / 12;
+        } else {
+          bonusFraction = 0; // strict eligibility — no bonus until 1 full year
+        }
+        chadJobBonusGross = chadCurrentAnnualSalary * chadJobBonusPct * bonusFraction;
+        chadJobBonusNet = Math.round(chadJobBonusGross * chadJobBonusNetMult);
+      }
+
+      // Stock comp — both schedules are lumpy.
+      // Refresh: first grant issued at start + chadJobRefreshStartMonth (default 12 for
+      // MSFT — after first review). Subsequent grants every 12 months thereafter.
+      // Each grant vests 5% on the next Feb/May/Aug/Nov (skipping same-month-as-issuance),
+      // then every 3 months for 20 quarterly vests total (5 years).
+      let refreshGrossThisMonth = 0;
+      if (chadJobStockRefresh > 0 && isStockVestMonth(m)) {
+        const monthsSinceFirstRefresh = monthsWorked - chadJobRefreshStartMonth;
+        if (monthsSinceFirstRefresh >= 0) {
+          const maxGrantIdx = Math.floor(monthsSinceFirstRefresh / 12);
+          for (let g = 0; g <= maxGrantIdx; g++) {
+            const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
+            if (issueMonth >= m) break; // no instant vest on grant date
+            const firstVest = nextStockVestMonthAfter(issueMonth);
+            if (m < firstVest) continue;
+            const vestIdx = (m - firstVest) / 3; // integer — both endpoints are vest months
+            if (vestIdx >= 0 && vestIdx < 20) {
+              refreshGrossThisMonth += chadJobStockRefresh * 0.05;
+            }
+          }
+        }
+      }
+      // Hire stock: lump on each work anniversary (start + 12, +24, +36, +48).
+      let hireGrossThisMonth = 0;
+      if (monthsWorked > 0 && monthsWorked % 12 === 0) {
+        const yearIdx = monthsWorked / 12 - 1; // m=startMonth+12 → Y1 amount
+        if (yearIdx >= 0 && yearIdx < 4) {
+          hireGrossThisMonth = chadJobHireStock[yearIdx];
+        }
+      }
+      chadJobStockGross = refreshGrossThisMonth + hireGrossThisMonth;
+      chadJobStockRefreshNet = refreshGrossThisMonth > 0 ? Math.round(refreshGrossThisMonth * chadJobBonusNetMult) : 0;
+      chadJobStockHireNet = hireGrossThisMonth > 0 ? Math.round(hireGrossThisMonth * chadJobBonusNetMult) : 0;
+
+      // Cash sign-on bonus — 50% on hire date (m === startMonth), 50% on 1-yr anniversary.
+      if (chadJobSignOnCash > 0) {
+        if (monthsWorked === 0) {
+          chadJobSignOnNet = Math.round(chadJobSignOnCash * 0.5 * chadJobBonusNetMult);
+        } else if (monthsWorked === 12) {
+          chadJobSignOnNet = Math.round(chadJobSignOnCash * 0.5 * chadJobBonusNetMult);
+        }
+      }
+
+      chadJobIncome = chadJobSalaryNet + chadJobBonusNet + chadJobStockRefreshNet + chadJobStockHireNet + chadJobSignOnNet;
+    }
 
     // SS/SSDI income — SS retirement can coexist with job (earnings test applies);
     // SSDI requires no job (SGA rules)
@@ -113,9 +224,22 @@ export function runMonthlySimulation(s) {
     const ssPreTestBenefit = ssBenefit;
     if (useSS && ssBenefit > 0) {
       const isEmployed = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
+      // Annualized stock comp for SS earnings test — chadJobStockGross is lumpy
+      // (only nonzero on quarterly vest / anniversary months), so we project the
+      // expected annual stock comp from the current year of employment instead.
+      const yearsWorkedForSS = Math.max(0, Math.floor((m - chadJobStartMonth) / 12));
+      // Refresh grants begin at chadJobRefreshStartMonth — none active before that.
+      const monthsSinceFirstRefreshForSS = (m - chadJobStartMonth) - chadJobRefreshStartMonth;
+      const activeRefreshForSS = monthsSinceFirstRefreshForSS < 0
+        ? 0
+        : Math.min(5, Math.floor(monthsSinceFirstRefreshForSS / 12) + 1);
+      const annualStockProjected = activeRefreshForSS * 0.20 * chadJobStockRefresh
+        + (yearsWorkedForSS < 4 ? chadJobHireStock[yearsWorkedForSS] : 0);
+      // Sign-on cash: 50% in employment year 0, 50% in year 1.
+      const signOnYear = yearsWorkedForSS === 0 || yearsWorkedForSS === 1 ? chadJobSignOnCash * 0.5 : 0;
       const annualEarned = isEmployed
-        ? (s.chadJobSalary || 0)  // gross salary for earnings test
-        : consulting * 12;        // annualized consulting
+        ? chadCurrentAnnualSalary * (1 + chadJobBonusPct) + annualStockProjected + signOnYear  // salary + bonus + RSU + sign-on
+        : consulting * 12;                                                                       // annualized consulting
       if (annualEarned > 0) {
         if (m >= SS_FRA_MONTH) {
           // At/after FRA: no earnings test
@@ -230,6 +354,7 @@ export function runMonthlySimulation(s) {
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, consulting, chadJobIncome,
+      chadJobSalaryNet, chadJobBonusNet, chadJobStockRefreshNet, chadJobStockHireNet, chadJobSignOnNet,
       investReturn, cashIncome, cashIncomeSmoothed, expenses, expenseBreakdown, homeEquity,
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,
@@ -260,6 +385,17 @@ export function computeProjection(s) {
     const avgNetCash = Math.round(months.reduce((sum, d) => sum + d.netCashFlow, 0) / months.length);
     const avgNetMonthly = Math.round(months.reduce((sum, d) => sum + d.netMonthly, 0) / months.length);
 
+    // Aggregate expense breakdown across the quarter (monthly average per component).
+    const expenseBreakdownKeys = new Set();
+    for (const mo of months) {
+      if (mo.expenseBreakdown) for (const k of Object.keys(mo.expenseBreakdown)) expenseBreakdownKeys.add(k);
+    }
+    const expenseBreakdownAvg = {};
+    for (const k of expenseBreakdownKeys) {
+      const sum = months.reduce((s, mo) => s + ((mo.expenseBreakdown && mo.expenseBreakdown[k]) || 0), 0);
+      expenseBreakdownAvg[k] = Math.round(sum / months.length);
+    }
+
     return {
       label: qLabels[i], month: m,
       sarahIncome: Math.round(months.reduce((sum, d) => sum + d.sarahIncome, 0) / months.length),
@@ -269,10 +405,17 @@ export function computeProjection(s) {
       ssBenefitType: months.find(d => d.ssBenefitType)?.ssBenefitType ?? null,
       consulting: Math.round(months.reduce((sum, d) => sum + d.consulting, 0) / months.length),
       chadJobIncome: Math.round(months.reduce((sum, d) => sum + d.chadJobIncome, 0) / months.length),
+      // ChadJob breakdown (monthly avg across the quarter)
+      chadJobSalary: Math.round(months.reduce((sum, d) => sum + (d.chadJobSalaryNet || 0), 0) / months.length),
+      chadJobBonus: Math.round(months.reduce((sum, d) => sum + (d.chadJobBonusNet || 0), 0) / months.length),
+      chadJobStockRefresh: Math.round(months.reduce((sum, d) => sum + (d.chadJobStockRefreshNet || 0), 0) / months.length),
+      chadJobStockHire: Math.round(months.reduce((sum, d) => sum + (d.chadJobStockHireNet || 0), 0) / months.length),
+      chadJobSignOn: Math.round(months.reduce((sum, d) => sum + (d.chadJobSignOnNet || 0), 0) / months.length),
       investReturn: avgInvestReturn,
       investReturnQtr: qtrInvestReturn,
       totalIncome: Math.round(avgCashIncome + avgInvestReturn),
       expenses: avgExpenses,
+      expenseBreakdown: expenseBreakdownAvg,
       netCashFlow: avgNetCash,
       netMonthly: avgNetMonthly,
     };

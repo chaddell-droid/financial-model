@@ -2,11 +2,12 @@
 project_name: 'financial-model'
 user_name: 'Chad_'
 date: '2026-04-18'
-sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality']
-status: 'updating'
-rule_count: 83
+sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
+status: 'complete'
+rule_count: 160
 optimized_for_llm: true
 previous_update: '2026-03-15'
+schema_version_documented: 5
 ---
 
 # Project Context for AI Agents
@@ -268,55 +269,162 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 ### Development Workflow Rules
 
-- **Always build and push after changes** — workflow is: `git pull` → edit → `npm run build` → commit source + `dist/` → `git push origin main`
-- **Pull-build-commit-push order matters** — always build AFTER pulling latest; Vite content-hashes filenames (`index-*.js`), building before pull causes false merge conflicts
-- **`dist/` is committed** — build artifacts are tracked in git; always rebuild before committing
-- **Never hand-edit `dist/`** — source of truth is always `src/`; built files are overwritten every build
-- **Single branch** — work directly on `main`; no feature branches or PR workflow
-- **Every push to main is production** — no staging, no CI/CD, no rollback; broken push = broken production
-- **Pre-push verification** — (1) `npm run build` succeeds, (2) `npm run preview` visually works, (3) existing features still function (sliders, charts, Monte Carlo)
-- **Commit messages are the only change history** — no PRs, no tickets, no deploy logs; messages must document what changed and why
-- **No environment variables** — all configuration is hardcoded in source; do not introduce `.env` files
-- **Financial data is model parameters, not secrets** — hardcoded values (MSFT vesting, debt amounts, share counts) are the application, not sensitive config; do NOT extract to `.env`
-- **`window.storage` polyfill is not dead code** — `main.jsx` bridges Claude Artifacts storage API to localStorage; do not remove it; it enables the app to run in both standalone and Artifact contexts
-- **No pre-commit hooks or linting** — `npm run build` success is the only automated quality gate
-- **Static hosting** — single `index.html` + JS bundle; no SSR, no API routes, no serverless functions
+**Branching model:**
+- **Single branch** — work directly on `main`; no feature branches, no PR workflow, no review gate
+- Every push to `main` is **production** — no staging, no CI/CD, no rollback
+- Never use `--force` or `--no-verify` on push; investigate failures rather than bypass
+
+**Pre-commit checklist (MANDATORY — no exceptions, per CLAUDE.md):**
+1. **`npm test`** — all tests pass (zero tolerance)
+2. **`npx vite build`** — clean build, no errors
+3. **Restart dev server** via `preview_stop` + `preview_start` — never ask the user to restart
+4. **Visually verify** in the browser — take a screenshot, confirm the change
+5. **Grep for stale references** — if you renamed/removed a variable, grep entire `src/` for the old name
+6. **Check `useMemo` dependency arrays** — every variable used inside must be in deps
+7. If you touched state/storage: verify existing user data is NOT destroyed on reload
+
+**Pull → test → build → commit → push order:**
+- `git pull` first — never skip this step even on a solo branch
+- Build AFTER pulling; Vite content-hashes filenames (`index-*.js`), so building before pull can produce artificial merge conflicts in `dist/`
+- Test first, build second — a failing test should halt before the build artifact is regenerated
+- Commit source + `dist/` together in the same commit
+
+**`dist/` discipline:**
+- `dist/` IS committed — build artifacts are tracked in git
+- Always rebuild before committing source changes
+- Never hand-edit `dist/` — source of truth is always `src/`; the next build overwrites
+- The top-level `.gitignore` only ignores `node_modules` — do not add more entries without approval
+
+**Dev server management (AI-managed, not user-managed):**
+- **Always use port 5173**
+- Kill stale Vite processes on ports 5173–5179 before starting a new server (Windows: `netstat -ano | grep LISTENING` + `taskkill //F //PID`)
+- Use the `preview_start` / `preview_stop` tools — never ask the user to start, stop, or restart
+- After `npm install` or file-structure changes, restart (HMR is not always sufficient — real incident per CLAUDE.md)
+- The preview tool's browser has **separate localStorage** from the user's actual browser — do not run storage-mutation commands there assuming parity
+
+**Commit message conventions (matches existing repo style):**
+- Short imperative mood with Conventional-Commits prefix: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`
+- 1–2 sentences maximum; focus on *why*, not *what*
+- Commit messages are the only change history — no tickets, no PR descriptions, no deploy logs
+- Examples from the repo: `fix: restore Actuals and Details tabs without rail`, `feat: draggable rail width resize with VS Code-style divider`
+- Never include Claude attribution or Co-Authored-By lines unless explicitly requested
+
+**Deploy cadence:**
+- **Push after every completed change** — user expects deploy on every merge
+- Do not batch unrelated changes; one conceptual change per commit
+- If a change is behind multiple commits, push them as a chain — do not hold work locally
+
+**Environment & secrets:**
+- **No environment variables** — all configuration is hardcoded in source
+- **No `.env` files, `.env.local`, or process.env reads**
+- **Financial data is model parameters, not secrets** — hardcoded MSFT share counts, debt balances, SSDI amounts are the application, not sensitive config. Do NOT extract to `.env` "for safety"
+- localStorage data is unencrypted — this is acceptable for a personal single-user tool; do not add encryption without discussion
+
+**Deployment target:**
+- Static hosting — single `index.html` + JS bundles + CDN fonts
+- No SSR, no API routes, no serverless functions, no service worker (beyond what Vite generates)
+- The `window.storage` polyfill in `src/main.jsx` bridges the Claude Artifacts storage API to `localStorage` — keep it; removing it breaks the Artifacts runtime
+
+**Quality gates (what IS automated vs what is NOT):**
+- **Automated**: `npm test` (17 files) + `npx vite build` (type-esque error via import resolution)
+- **NOT automated**: linting, formatting, type-checking, pre-commit hooks, CI, code review
+- Do not add Husky, lint-staged, ESLint, Prettier, or pre-commit frameworks without approval — the workflow is minimal by design
+
+**When a hook or check fails — investigate, don't bypass:**
+- Never use `--no-verify`, `--force-with-lease` beyond genuine conflict resolution, or `-c commit.gpgsign=false` to evade failures
+- If a test fails, fix the test or the code; do not skip it
+- If `vite build` fails, fix the import/syntax; do not disable Vite checks
+
+**Data-protection protocol (NON-NEGOTIABLE per CLAUDE.md):**
+- NEVER run commands that modify browser storage (`window.storage.set`, `localStorage.clear`) in the user's browser context
+- Auto-save must NEVER overwrite larger stored data with smaller/empty data — the guard in `src/state/autoSave.js` is load-bearing
+- Actuals, check-ins, scenarios, and merchant classifications are IRREPLACEABLE user work — verify new-data-is-not-empty before any storage write
 
 ### Critical Don't-Miss Rules
 
-**Anti-Patterns:**
-- Do NOT introduce any new dependencies (npm packages) without explicit user approval
-- Do NOT refactor the single-root-component architecture — props drilling is intentional, not technical debt
-- Do NOT add TypeScript, CSS files, Context providers, or custom hooks — these are deliberate omissions
-- Do NOT "improve" the storage polyfill, primitive components, or chart scale utilities — they are stable by design
-- Do NOT parameterize `VEST_SHARES` in `constants.js` — these are contractual RSU grant terms, not configurable values
+**Anti-Patterns (do NOT do these):**
+- Do NOT introduce any new dependencies (npm packages) without explicit user approval — the lockfile is small on purpose
+- Do NOT refactor the single-root-component architecture — props drilling is intentional, not technical debt; never replace with Context, Redux, Zustand, etc.
+- Do NOT add TypeScript, CSS files, ESLint, Prettier, or pre-commit hooks — these are deliberate omissions
+- Do NOT introduce a charting library (d3, recharts, chart.js, visx, nivo) — custom SVG is the contract
+- Do NOT "improve" the storage polyfill, the `Toggle` / `Slider` primitives, or `chartUtils.createScales` — these are stable by design
+- Do NOT parameterize `VEST_SHARES` or `MSFT_FLOOR_PRICE` in `constants.js` — these are contractual RSU grant terms, not configurable values
+- Do NOT wrap `runMonthlySimulation`, `computeProjection`, or `runMonteCarlo` in a custom hook — they stay as pure exports for `node`-runnable testability
+- Do NOT remove the `dist/` folder from git or add it to `.gitignore` — it is the deployment artifact
+- Do NOT extract MSFT/SSDI/debt amounts to `.env` — they are the application, not secrets
 
-**Data Flow Coupling:**
-- **Savings + net worth are coupled across two computation paths** — `computeProjection` (savings) and `computeWealthProjection` (401k/home) feed into `NetWorthChart` together; changes to either require verifying the combined output
-- **`backPayActual` propagates to summary UI** — SSDI logic changes in `projection.js` affect `KeyMetrics` and `SummaryAsk` via this return value
-- **Comparison overlay data contract** — `compareState` triggers a second projection in `SavingsDrawdownChart`; if data shapes change, old saved comparison scenarios will crash the chart
+**The 3 audiences (drives every UX decision):**
+- **Chad** — analytical, deep finance background; comfortable with charts, sliders, Monte Carlo, sensitivity analysis
+- **Sarah** (Chad's wife) — intimidated by numbers/charts; needs warm, narrative, empowering presentation
+- **Sarah's father** — receives the inheritance-advance ask via `presentMode`; needs a clean executive view with no clutter
+- When ambiguous, default to Chad's view; gate Sarah/Dad-friendly views behind `presentMode`
 
-**Edge Cases:**
-- `ssdiDenied` pushes approval to month 999 and zeros backpay — check for this when adding SSDI-dependent logic
-- `retireDebt` toggle applies a lump-sum deduction from savings at month 0 — not monthly payments
+**Variable projection horizon (replaces the old "72-month" assumption):**
+- The horizon is **variable** — driven by `chadWorkMonths` (range 12–144) and `sarahWorkMonths` (range 36–144); `gatherState` computes `totalProjectionMonths = max(chadWorkMonths, sarahWorkMonths)`
+- Every model-layer reference to projection length MUST read `s.totalProjectionMonths` from the gathered state — never hardcode `72` or `144`
+- Charts and panels MUST iterate by `data.length` / `monthlyData.length` / `savingsData.length` — never hardcode array bounds
+- `CHAD_RETIREMENT_MONTH = 72` is a *fixed* constant for Chad's age, NOT the projection horizon — do not conflate the two
+- `buildQuarterlySchedule(totalProjectionMonths)` in `constants.js` is the single source of truth for quarterly labels — charts read `.label` from data, never compute labels independently
+
+**Data flow coupling (changes here ripple across the app):**
+- **Wealth is in the single projection** — `runMonthlySimulation` computes `balance` (savings), `balance401k`, and `homeEquity` in one loop; `NetWorthChart` reads them combined. There is no separate `computeWealthProjection` (old context lied)
+- **Deficit cascade order is load-bearing**: savings → 401k drawdown → home equity (HELOC). Reordering this chain corrupts retirement readiness analysis
+- **`backPayActual` propagates from `projection.js` to `KeyMetrics`, `SummaryAsk`, `IncomeControls`** — SSDI logic changes anywhere alter that summary number
+- **Comparison overlays** — up to 3 simultaneous via `comparisons` state. Each comparison runs its own `computeProjection`. A change to projection output shape may break old saved comparison scenarios; always test load-old-scenario after shape changes
+- **`ssWithheldSummary`** (months/amount of SS earnings-test withholding) flows from `runMonthlySimulation` → FinancialModel → retirement chart props → display
+- **`evaluateGoal` and `evaluateGoalPass` must be updated in lockstep** — divergence means deterministic verdicts disagree with MC success rates
+
+**Edge cases (real bugs caught here):**
+- **`ssdiDenied`** pushes approval to month 999 and zeros backpay — check before adding SSDI-dependent logic
+- **`chadJob` disables SSDI entirely** — SSDI's SGA test is bypassed by setting effectiveSsdiApproval = 999 when chadJob is true
+- **`retireDebt`** does NOT add monthly debt payments to the projection when toggled on; it removes them. Capital projects (mold/roof/other) and debt retirement are funded from the *inheritance advance*, not from family savings — they show in `advanceNeeded` UI, not as projection deductions
+- **`vanSold` + `vanSaleMonth`** — if sold, monthly cost stops at `vanSaleMonth`; if not sold, cost continues forever. Sale shortfall (loanBalance − salePrice) is a one-time deduction at sale month
+- **`kidsAgeOutMonths`** causes SSDI family benefit to drop from `ssdiFamilyTotal` to `ssdiPersonal` — time-dependent income drop
+- **`bcsYearsLeft`** in years (not months) — converted to months via `* 12` inside the simulation loop; BCS family share is computed in `gatherState` as `(bcsAnnualTotal - bcsParentsAnnual) / 12`
 - Goals array can be empty (`[]`) — all goal-consuming code must handle zero goals gracefully
-- `kidsAgeOutMonths` causes SSDI family benefit to drop — time-dependent income that agents may overlook
-- Spending cuts are 11 individual items, not a single aggregate — legacy scenarios may have old aggregate `lifestyleCuts` key
-- **Month 0 = model start, not January** — simulation uses 0-based month index; `MONTHS` array in `constants.js` maps to calendar dates for display; do not confuse model-month with calendar-month
+- **Spending cuts have two valid representations**: 11 individual `cut*` fields OR a single `cutsOverride` (mutually exclusive). Setting any `cut*` slider clears `cutsOverride`; setting `cutsOverride` overrides the individual sums in `gatherState`. Legacy scenarios may have an old aggregate `lifestyleCuts` key — schema migration v0→v1 absorbs it
+- **Month 0 = model start (Mar 2026), not January** — simulation uses 0-based month index; do not assume calendar month
+- **`totalMonthlySpend = null`** is the unset state; when set, `gatherState` back-calculates `baseExpenses` using **status-quo BCS** ($25k/yr from parents, not the slider value) — this lets the BCS slider actually move expenses
 
-**DadMode is a Parallel Universe:**
-- Separate Monte Carlo (`runDadMonteCarlo`), separate expense breakdown (16 buckets), 3-step wizard (`dadStep` 1/2/3)
-- Changes to income sources, expense categories, or state keys may need DUAL updates — one in main flow AND one in `DadMode`
-- `dadMode` is not a simple toggle; it's a multi-step stateful presentation flow
+**`presentMode` (replaces the deprecated `DadMode`):**
+- Single boolean toggle; forces `effectiveTab = 'overview'`
+- Hides Header SaveLoad button, TabBar, and ALL interactive controls (sliders, toggles, forms, scenario strip)
+- Rail is hidden when presentMode is true OR when `effectiveTab ∈ {actuals, details}`
+- There is **no** `DadMode`, `runDadMonteCarlo`, `dadStep`, or "16 expense buckets" wizard — those were removed; do not re-introduce
+- The old context's "DadMode is a Parallel Universe" warnings are obsolete — there is only ONE income/expense flow now
+
+**Rail subsystem coupling (newer subsystem, easy to break):**
+- `src/rail/chartRegistry.js` defines 7 chart IDs — `savings`, `networth`, `retirement`, `bridge`, `income`, `montecarlo`, `sequence`. Adding a chart requires: (1) entry in `CHART_REGISTRY`, (2) component map entry in `RAIL_COMPONENTS` (FinancialModel.jsx), (3) prop bundle in `railPropsMap`, (4) default placement in `railDefaults.js`
+- `useRailConfig` must use **functional state updates** (`setX(prev => ...)`) — direct closure over `state` causes stale-closure bugs (real incident — see commit `ba32c52`)
+- Per-tab layouts are persisted to `fin-rail-config` in localStorage; corrupting this breaks chart layout but should not crash the app — the loader must fall back to defaults
+- `railWidth` is committed via debounced `commitRailWidth` after drag — not on every drag delta
+
+**Tax engine present but UI dormant:**
+- `src/model/taxEngine.js`, `taxConstants.js`, `taxProjection.js` are wired into the model layer with passing tests
+- `src/panels/tabs/TaxTab.jsx` exists but is **NOT** imported in `FinancialModel.jsx` — tax UI is not yet shippable
+- Do NOT add `'tax'` to the active tab list without confirming the UI is complete and a path to surfacing tax results in `KeyMetrics` exists
+
+**Schema migrations are non-negotiable:**
+- `CURRENT_SCHEMA_VERSION` is `5` — 5 sequential migrations live in `schemaValidation.js`
+- Every saved scenario carries its own `schemaVersion`; on `RESTORE_STATE` the migration pipeline runs from the saved version up to current
+- Adding/renaming/retyping/removing a MODEL_KEY REQUIRES a migration even if the new default is sensible — silent loss of saved-scenario field is a P0 bug per data-protection rules
+- Migrations must be **pure and idempotent** — running migrate(state) twice should produce the same result
 
 **Security:**
-- No user authentication, no multi-tenancy, no server — standard web security concerns (XSS, CSRF, injection) do not apply
-- localStorage data is unencrypted — this is acceptable for a personal single-user tool
+- No user authentication, no multi-tenancy, no server — standard web-security concerns (XSS, CSRF, SQLi, CORS) do not apply
+- localStorage data is unencrypted — acceptable for a personal single-user tool
+- Do not introduce remote API calls, telemetry, analytics, or error reporting without approval
 
-**Performance:**
-- Monte Carlo (500 sims) is the only expensive operation — keep it behind the manual "Run" button, never trigger automatically
-- `useMemo` dependency arrays must be exact — over-broad deps cause unnecessary re-computation of 72-month projections on every render
-- SVG charts re-render on every state change — keep chart components lean; avoid expensive operations in render path
+**Performance gotchas:**
+- Monte Carlo (500 sims × `totalProjectionMonths`) is the only expensive operation — keep it manual ("Run" button), never reactive
+- `useMemo` dependency arrays must be **exact** — over-broad deps cause unnecessary re-computation of full projections on every render; under-broad deps cause stale-closure bugs
+- `useDeferredValue` keeps slider drag responsive — do not remove the deferred state/projection layer
+- SVG charts re-render on every state change — keep chart components lean, avoid expensive operations in render path
+- `shillerReturns.js` is large (~162KB) — kept lazy-loaded behind `RetirementIncomeChart`; never import it eagerly elsewhere
+
+**Documentation drift defense:**
+- This file (`project-context.md`) is the contract — when adding a feature that violates a rule here, update both the code AND this file in the same change
+- The `_bmad-output/planning-artifacts/architecture.md` describes the variable-horizon feature implementation — it is historical, not current state; treat code as source of truth when they conflict
 
 ---
 
@@ -334,4 +442,4 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Review quarterly for outdated rules
 - Remove rules that become obvious over time
 
-Last Updated: 2026-03-15
+Last Updated: 2026-04-18 (refreshed from 2026-03-15 baseline — see frontmatter `previous_update`)

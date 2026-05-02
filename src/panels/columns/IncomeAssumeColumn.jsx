@@ -16,8 +16,10 @@ function IncomeAssumeColumn(props) {
       </div>
       <div className="plan-assume-inner">
         <div data-plan-nested="true" style={{ overflow: 'visible' }}>
-          {/* Van Sale + Trust/LLC render in the Cashflow column per design — both are cashflow adjustments. */}
-          <IncomeControls {...props} hideVan hideTrust />
+          {/* Van/Trust render in the Capital column; Stock Comp + 401(k) render in the
+              Cashflow column. Income column keeps SS Type, Chad Job basics, Employer
+              Retirement & Tax, and SS Retirement controls. */}
+          <IncomeControls {...props} hideVan hideTrust hideStockComp />
         </div>
       </div>
     </div>

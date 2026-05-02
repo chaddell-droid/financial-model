@@ -25,6 +25,7 @@ const IncomeControls = ({
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   hideVan = false,
   hideTrust = false,
+  hideStockComp = false,
   onFieldChange,
 }) => {
   useRenderMetric('IncomeControls');
@@ -164,6 +165,8 @@ const IncomeControls = ({
                     )}
                   </div>
 
+                  {!hideStockComp && (
+                  <>
                   {/* Stock Compensation */}
                   <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
                     <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Stock Compensation</div>
@@ -220,6 +223,8 @@ const IncomeControls = ({
                       </>
                     )}
                   </div>
+                  </>
+                  )}
 
                   {(() => {
                     const isSSPath = ssType === 'ss';

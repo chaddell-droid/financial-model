@@ -1,5 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import CapitalItemsPanel from '../CapitalItemsPanel.jsx';
+import VanSaleBlock from '../VanSaleBlock.jsx';
+import TrustLLCBlock from '../TrustLLCBlock.jsx';
 import { fmt } from '../../model/formatters.js';
 
 /**
@@ -32,6 +34,22 @@ function CapitalAssumeColumn({ capitalItems = [], onFieldChange, incomeControlsP
           <SectionTitle color="warn">Advance items</SectionTitle>
           <CapitalItemsPanel capitalItems={capitalItems} onChange={setCapital} />
         </div>
+
+        <TrustLLCBlock
+          trustIncomeNow={incomeControlsProps.trustIncomeNow}
+          trustIncomeFuture={incomeControlsProps.trustIncomeFuture}
+          trustIncreaseMonth={incomeControlsProps.trustIncreaseMonth}
+          onFieldChange={incomeControlsProps.onFieldChange || onFieldChange}
+        />
+
+        <VanSaleBlock
+          vanSold={incomeControlsProps.vanSold}
+          vanMonthlySavings={incomeControlsProps.vanMonthlySavings}
+          vanSalePrice={incomeControlsProps.vanSalePrice}
+          vanLoanBalance={incomeControlsProps.vanLoanBalance}
+          vanSaleMonth={incomeControlsProps.vanSaleMonth}
+          onFieldChange={incomeControlsProps.onFieldChange || onFieldChange}
+        />
 
         <div>
           <SectionTitle color="warn">Net worth inputs</SectionTitle>

@@ -1,14 +1,13 @@
 import React, { memo } from 'react';
 import ExpenseControls from '../ExpenseControls.jsx';
-import VanSaleBlock from '../VanSaleBlock.jsx';
-import TrustLLCBlock from '../TrustLLCBlock.jsx';
+import StockCompBlock from '../blocks/StockCompBlock.jsx';
 import { fmt } from '../../model/formatters.js';
 
 /**
  * CashflowAssumeColumn — Plan tab Assumptions Row, middle column (magenta).
- * Wraps ExpenseControls (which covers base spend, inflation, BCS, milestones,
- * and for now still includes the legacy capital sliders — CapitalAssumeColumn
- * uses the new capitalItems array side-by-side).
+ * Wraps ExpenseControls (which covers base spend, inflation, BCS, milestones)
+ * and now also hosts Chad's Stock Compensation + 401(k) blocks (moved from the
+ * Income column to balance column heights).
  */
 function CashflowAssumeColumn({ incomeControlsProps, ...props }) {
   const base = props.totalMonthlySpend ?? props.baseExpenses ?? 0;
@@ -23,18 +22,18 @@ function CashflowAssumeColumn({ incomeControlsProps, ...props }) {
       </div>
       <div className="plan-assume-inner">
         <ExpenseControls {...props} hideCapital />
-        <TrustLLCBlock
-          trustIncomeNow={vp.trustIncomeNow}
-          trustIncomeFuture={vp.trustIncomeFuture}
-          trustIncreaseMonth={vp.trustIncreaseMonth}
-          onFieldChange={vp.onFieldChange || props.onFieldChange}
-        />
-        <VanSaleBlock
-          vanSold={vp.vanSold}
-          vanMonthlySavings={vp.vanMonthlySavings}
-          vanSalePrice={vp.vanSalePrice}
-          vanLoanBalance={vp.vanLoanBalance}
-          vanSaleMonth={vp.vanSaleMonth}
+        <StockCompBlock
+          chadJob={vp.chadJob}
+          chadJobStockRefresh={vp.chadJobStockRefresh}
+          chadJobRefreshStartMonth={vp.chadJobRefreshStartMonth}
+          chadJobHireStockY1={vp.chadJobHireStockY1}
+          chadJobHireStockY2={vp.chadJobHireStockY2}
+          chadJobHireStockY3={vp.chadJobHireStockY3}
+          chadJobHireStockY4={vp.chadJobHireStockY4}
+          chadJob401kEnabled={vp.chadJob401kEnabled}
+          chadJob401kDeferral={vp.chadJob401kDeferral}
+          chadJob401kCatchupRoth={vp.chadJob401kCatchupRoth}
+          chadJob401kMatch={vp.chadJob401kMatch}
           onFieldChange={vp.onFieldChange || props.onFieldChange}
         />
       </div>

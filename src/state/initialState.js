@@ -54,6 +54,12 @@ export const INITIAL_STATE = {
   chadJobHireStockY3: 0,        // ... year 3
   chadJobHireStockY4: 0,        // ... year 4 (typically tail end of 4-yr vesting)
   chadJobSignOnCash: 0,         // One-time cash sign-on bonus (50% on hire, 50% on 1yr anniv)
+  // 401(k) — annual dollar amounts. Pre-tax deferral reduces W2 wages + cashflow + adds to 401k.
+  // Roth catch-up (SECURE 2.0 mandate for high earners 50+) is post-tax — reduces cashflow + adds to 401k but no tax benefit.
+  // Employer match goes straight to 401k (no cashflow or tax impact for employee).
+  chadJob401kDeferral: 0,       // Annual pre-tax 401(k) deferral $ (e.g., $24,500 IRS 2026 limit)
+  chadJob401kCatchupRoth: 0,    // Annual Roth catch-up $ (e.g., $11,250 ages 60-63, $8,000 age 64+)
+  chadJob401kMatch: 0,          // Annual employer match $ (e.g., $12,250 = 50% of $24,500 deferral)
 
   // Expenses
   totalMonthlySpend: null,   // Actual total spend from all accounts; when set, back-calculates baseExpenses
@@ -67,7 +73,9 @@ export const INITIAL_STATE = {
   // BCS Tuition
   bcsAnnualTotal: 43400,       // Grades 7-12: $22,720 (1st) + $20,680 (2nd)
   bcsParentsAnnual: 25000,
-  bcsYearsLeft: 3.5,           // Freshmen 2025–2026, graduate June 2029 (~month 39)
+  // FIX M-BCS: 3.5 yr × 12 = 42 monthly BCS payments — payments through month 41 (3.5 years).
+  // If actual graduation is mid-2029 not 2030, change to 3.25 (graduation June 2029 = m=39).
+  bcsYearsLeft: 3.5,           // Freshmen 2025–2026, payments through month 41 (3.5 years)
 
   // Spending Cuts — single slider amount (applied when lifestyleCutsApplied is true)
   lifestyleCutsApplied: false,
@@ -206,6 +214,7 @@ export const MODEL_KEYS = [
   'chadJobRaisePct', 'chadJobBonusPct', 'chadJobBonusMonth', 'chadJobBonusProrateFirst',
   'chadJobStockRefresh', 'chadJobRefreshStartMonth', 'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
   'chadJobSignOnCash',
+  'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
   'expenseInflation', 'expenseInflationRate',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',

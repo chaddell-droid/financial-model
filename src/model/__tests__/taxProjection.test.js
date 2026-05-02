@@ -50,9 +50,10 @@ function makeState(overrides = {}) {
 
 describe('inflateBrackets', () => {
   it('scales bracket thresholds by inflation factor', () => {
+    // FIX #3: Brackets updated to 2026 (Rev. Proc. 2025-32). First MFJ
+    // bracket cap is now $24,800 (was $23,850 in 2025).
     const inflated = inflateBrackets(BRACKETS_MFJ_2025, 1.10);
-    // First bracket: 23850 * 1.10 = 26235
-    expect(inflated[0][0]).toBe(26235);
+    expect(inflated[0][0]).toBe(Math.round(24800 * 1.10));
     expect(inflated[0][1]).toBe(0.10); // rate unchanged
     // Infinity stays Infinity
     expect(inflated[6][0]).toBe(Infinity);
@@ -60,9 +61,10 @@ describe('inflateBrackets', () => {
   });
 
   it('factor of 1 returns same thresholds', () => {
+    // FIX #3: 2026 thresholds (10% MFJ = $24,800; 22% MFJ = $211,400).
     const inflated = inflateBrackets(BRACKETS_MFJ_2025, 1.0);
-    expect(inflated[0][0]).toBe(23850);
-    expect(inflated[2][0]).toBe(206700);
+    expect(inflated[0][0]).toBe(24800);
+    expect(inflated[2][0]).toBe(211400);
   });
 });
 

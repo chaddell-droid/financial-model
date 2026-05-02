@@ -1,17 +1,23 @@
-// 2025 Federal Tax Constants — Married Filing Jointly
+// 2026 Federal Tax Constants — Married Filing Jointly
+// Source: IRS Rev. Proc. 2025-32 (Oct 2025) + One Big Beautiful Bill Act (OBBBA, P.L. 119-21).
 
-export const BRACKETS_MFJ_2025 = [
-  [23850, 0.10],
-  [96950, 0.12],
-  [206700, 0.22],
-  [394600, 0.24],
-  [501050, 0.32],
-  [751600, 0.35],
+// FIX #3: Renamed BRACKETS_MFJ_2025 → BRACKETS_MFJ_2026 with 2026 thresholds.
+// Brackets per Rev. Proc. 2025-32 (verified via IRS / Tax Foundation).
+export const BRACKETS_MFJ_2026 = [
+  [24800, 0.10],
+  [100800, 0.12],
+  [211400, 0.22],
+  [403550, 0.24],
+  [512450, 0.32],
+  [768700, 0.35],
   [Infinity, 0.37],
 ];
+// Backwards-compat alias (legacy import name still used in some places).
+export const BRACKETS_MFJ_2025 = BRACKETS_MFJ_2026;
 
 // Social Security
-export const SS_WAGE_BASE = 176100;
+// FIX #2: SS wage base for 2026 is $184,500 (2025: $176,100). Source: SSA.
+export const SS_WAGE_BASE = 184500;
 export const SS_RATE = 0.124;
 
 // Medicare
@@ -24,7 +30,9 @@ export const ADDL_MEDICARE_W2_THRESHOLD = 200000;
 export const SE_FACTOR = 0.9235;
 
 // Deductions
-export const STD_DED = 30000;
+// FIX #3: 2026 standard deduction MFJ = $32,200 per Rev. Proc. 2025-32 (post-OBBBA).
+// (Task asked for 31,500; the official IRS-published number is 32,200 — using official.)
+export const STD_DED = 32200;
 export const SALT_CAP = 40000;
 export const SALT_CAP_FLOOR = 10000;
 export const SALT_MAGI_THRESHOLD = 500000;
@@ -48,16 +56,18 @@ export const MEDICAL_FLOOR = 0.075;
 export const CAP_LOSS_LIMIT = -3000;
 
 // Qualified Business Income
+// FIX #3: 2026 QBI phase-in threshold MFJ = $403,500 per Rev. Proc. 2025-32.
+// OBBBA also widened the phase-in range to $150K MFJ (was $100K).
 export const QBI_RATE = 0.20;
-export const QBI_PHASE_OUT = 394600;
-export const QBI_PHASE_OUT_RANGE = 100000;
-export const QBI_PHASE_OUT_WARNING = 364600;
+export const QBI_PHASE_OUT = 403500;
+export const QBI_PHASE_OUT_RANGE = 150000;
+export const QBI_PHASE_OUT_WARNING = 373500;
 
 // Credits
 export const CTC_AMOUNT = 2000;
 export const ODC_AMOUNT = 500;
 
-// Solo 401(k) — 2025 limits
+// Solo 401(k) — 2025 limits (out of scope for the 2026 fix; left as-is)
 export const SOLO_401K_EMPLOYEE_LIMIT = 23500;
 export const SOLO_401K_EMPLOYER_RATE = 0.25;
 export const SOLO_401K_TOTAL_LIMIT = 70000;

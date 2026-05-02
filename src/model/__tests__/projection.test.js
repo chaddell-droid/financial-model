@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, TWINS_AGE_OUT_MONTH } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -120,20 +120,22 @@ test('9. SSDI income: 0 before approval, ssdiFamilyTotal after', () => {
   assert.strictEqual(monthlyData[approvalMonth].ssBenefit, 6500, 'ssdiFamilyTotal at approval');
 });
 
-test('10. SSDI transitions to ssdiPersonal after kidsAgeOutMonths post-approval', () => {
+test('10. SSDI transitions to ssdiPersonal at TWINS_AGE_OUT_MONTH (calendar-anchored, not relative)', () => {
+  // FIX #8: The SSDI kids-age-out boundary is now calendar-anchored to TWINS_AGE_OUT_MONTH (=34),
+  // not approval-relative. Previous test locked in buggy `approvalMonth + kidsAgeOutMonths`
+  // behavior that let kids stay eligible past their actual 18th birthday.
   const approvalMonth = 5;
-  const kidsAge = 10;
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: false,
-    ssdiFamilyTotal: 6500, ssdiPersonal: 4166, kidsAgeOutMonths: kidsAge, chadJob: false,
+    ssdiFamilyTotal: 6500, ssdiPersonal: 4166, kidsAgeOutMonths: 10, chadJob: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Family total right at approval
   assert.strictEqual(monthlyData[approvalMonth].ssBenefit, 6500);
-  // Last family month is approvalMonth + kidsAge - 1
-  assert.strictEqual(monthlyData[approvalMonth + kidsAge - 1].ssBenefit, 6500, 'still family total before age-out');
-  // Personal starts at approvalMonth + kidsAge
-  assert.strictEqual(monthlyData[approvalMonth + kidsAge].ssBenefit, 4166, 'personal after age-out');
+  // Last family month is m=33 (TWINS_AGE_OUT_MONTH - 1)
+  assert.strictEqual(monthlyData[33].ssBenefit, 6500, 'still family total at last eligible month (m=33)');
+  // Personal starts at m=34 (TWINS_AGE_OUT_MONTH = first ineligible)
+  assert.strictEqual(monthlyData[34].ssBenefit, 4166, 'personal at first ineligible month (m=34)');
 });
 
 test('11. SSDI denied: SSDI stays 0 forever', () => {
@@ -997,24 +999,26 @@ test('48. bcsYearsLeft = 0 — no BCS expenses at any month', () => {
 });
 
 test('49. ssdiApprovalMonth = 0 — SSDI income amount matches ssdiFamilyTotal at month 0', () => {
+  // FIX #8: SSDI age-out is now calendar-anchored to TWINS_AGE_OUT_MONTH (=34),
+  // not relative to approval. Updated to assert on the correct calendar boundary.
   const familyTotal = 6500;
   const personal = 4166;
-  const kidsAge = 36;
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
     ssdiFamilyTotal: familyTotal, ssdiPersonal: personal,
-    kidsAgeOutMonths: kidsAge, chadJob: false,
+    kidsAgeOutMonths: 36, // legacy default; ignored by SSDI age-out path now
+    chadJob: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // SSDI should be active from month 0 at the family rate
   assert.strictEqual(monthlyData[0].ssBenefit, familyTotal,
     `month 0 SSDI should be ${familyTotal}, got ${monthlyData[0].ssBenefit}`);
-  // Should transition to personal after kidsAgeOutMonths
-  assert.strictEqual(monthlyData[kidsAge].ssBenefit, personal,
-    `month ${kidsAge} SSDI should transition to personal ${personal}, got ${monthlyData[kidsAge].ssBenefit}`);
-  // Month before transition should still be family
-  assert.strictEqual(monthlyData[kidsAge - 1].ssBenefit, familyTotal,
-    `month ${kidsAge - 1} SSDI should still be family ${familyTotal}`);
+  // Should transition to personal at TWINS_AGE_OUT_MONTH (=34)
+  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH].ssBenefit, personal,
+    `month ${TWINS_AGE_OUT_MONTH} SSDI should transition to personal ${personal}, got ${monthlyData[TWINS_AGE_OUT_MONTH].ssBenefit}`);
+  // Month before transition (m=33) should still be family
+  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH - 1].ssBenefit, familyTotal,
+    `month ${TWINS_AGE_OUT_MONTH - 1} SSDI should still be family ${familyTotal}`);
 });
 
 test('50. Multiple milestones at same month — both savings apply', () => {
@@ -1723,7 +1727,11 @@ const PERTURBATIONS = {
   ssdiDenied: true,
   ssdiPersonal: 3500,
   ssdiFamilyTotal: 5000,
-  kidsAgeOutMonths: 24,
+  // FIX #8: kidsAgeOutMonths no longer drives the SSDI age-out boundary (now
+  // calendar-anchored to TWINS_AGE_OUT_MONTH). It still bounds auxiliary back-pay
+  // months — perturb to 6 (< ssdiBackPayMonths=18) so it actually changes the
+  // back-pay calculation and projection output.
+  kidsAgeOutMonths: 6,
   chadConsulting: 1690,
   ssClaimAge: 62,
   ssPIA: 3000,
@@ -2146,6 +2154,312 @@ test('Inflation ON produces lower final savings balance than OFF', () => {
   const onBal = runMonthlySimulation(sOn).monthlyData.slice(-1)[0].balance;
   assert.ok(onBal < offBal,
     `Inflation ON balance (${onBal}) should be lower than OFF (${offBal})`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Engine fix regressions (FIX #7, #8, #9, #10)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Engine fix regressions (FIX #7/#8/#9/#10) ===');
+
+// FIX #7b: SS earnings test — refresh grant 1 expires after 60 months.
+// At m=startMonth+72 (6 yr employed), 6 grants have been ISSUED (Y1..Y6) but
+// grant Y1 (issued at m=12) is now 60 months old → expired. Active = 5, not 6.
+test('EARN-test-1. SS earnings test: 6yr employed, refresh grant 1 expired → 5 active grants (not 6)', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
+    chadJobStockRefresh: 100000, chadJobRefreshStartMonth: 12,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
+    chadWorkMonths: 96,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // SS starts at m=19 with $4214 PIA at age 62. Probe m=72: 6 yrs employed.
+  // Grants issued: m=12, 24, 36, 48, 60, 72 (numGrantsIssued = 6). At m=72,
+  // grant 0 (issued m=12) is exactly 60 months old → 60 < 60 is FALSE → expired.
+  // Grants 1..5 (issued m=24..72) all have m - issueMonth < 60 → 5 active.
+  // annualStockProjected = 5 × 0.20 × $100K = $100K (FIX #7b — old logic was 6).
+  // m=72 is in FRA year (SS_FRA_MONTH=79, FRA-year starts at 79-12=67).
+  // Higher limit applies: excess = $100K - $62,160 = $37,840 → reduction = round(37840/3/12) = $1,051/mo.
+  // m=72 > TWINS_AGE_OUT_MONTH=34 → personal rate (2950 = round(4214 × 0.7)).
+  // Final ssBenefit = max(0, 2950 - 1051) = 1899.
+  const expectedReduction = Math.round((100000 - 62160) / 3 / 12);
+  const expectedBenefit = Math.max(0, s.ssPersonal - expectedReduction);
+  assert.strictEqual(monthlyData[72].ssBenefit, expectedBenefit,
+    `m=72: 5 grants × 20% = $100K earnings → ssBenefit = ${expectedBenefit}, got ${monthlyData[72].ssBenefit}`);
+
+  // Counter-test: with the OLD buggy logic (6 active grants instead of 5), the
+  // earnings would be $120K → reduction = round(57840/3/12) = $1,607 → ssBenefit = 1343.
+  // The new value (1899) is HIGHER (less reduction), confirming we counted 5 grants.
+  const oldBuggyReduction = Math.round((120000 - 62160) / 3 / 12);
+  const oldBuggyBenefit = Math.max(0, s.ssPersonal - oldBuggyReduction);
+  assert.ok(monthlyData[72].ssBenefit > oldBuggyBenefit,
+    `with old logic (6 grants), benefit would be ${oldBuggyBenefit}; got ${monthlyData[72].ssBenefit} > ${oldBuggyBenefit}`);
+});
+
+// FIX #7a: SS earnings test — hire stock projection uses ANNIVERSARY indexing.
+// At m=startMonth (Y0), no Y1 lump has paid yet → hire stock contribution = 0.
+// At m=startMonth+12 (Y1 anniversary), Y1 lump just paid → contribution = chadJobHireStockY1.
+test('EARN-test-2. SS earnings test: hire stock projection respects anniversary timing', () => {
+  // Run with SS coexisting with the job so the earnings-test code path is exercised.
+  // Start month 0 puts Y0 = m=0..11, Y1 anniv at m=12, etc.
+  // chadJobSalary=0 isolates the stock effect.
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
+    chadJobHireStockY1: 50000, chadJobHireStockY2: 0,
+    chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobStockRefresh: 0, chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
+    chadWorkMonths: 96,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // SS doesn't start until m=19 in this scenario. Probe m=19 (still in Y1, before anniversary
+  // m=24 since Y1 anniv was at m=12 and we're past it). yearsWorkedForSS at m=19 = 1
+  // (Math.floor(19/12) = 1) → hireStockForSS = chadJobHireStock[0] = 50000.
+  // annualStockProjected = 50000. After SS_EARNINGS_LIMIT_ANNUAL ≈ $22,320:
+  // excess = 50000 - 22320 = 27680 → reduction = round(27680/2/12) = 1153.
+  // m=19 is < TWINS_AGE_OUT_MONTH=34 so family rate applies.
+  const expectedReduction = Math.round((50000 - 22320) / 2 / 12);
+  const expectedBenefit = Math.max(0, s.ssFamilyTotal - expectedReduction);
+  assert.strictEqual(monthlyData[19].ssBenefit, expectedBenefit,
+    `m=19 (Y1 anniv passed): hire stock annualized to ${50000} → ssBenefit ${expectedBenefit}, got ${monthlyData[19].ssBenefit}`);
+
+  // Probe an even later month — m=72 (6 yrs employed, yearsWorkedForSS=6).
+  // Per FIX #7a, yearsWorkedForSS=6 is OUTSIDE the 1..4 range → no hire stock contribution.
+  // No refresh either → annualStockProjected = 0 → no reduction → full personal SS.
+  assert.strictEqual(monthlyData[72].ssBenefit, s.ssPersonal,
+    `m=72: no hire/refresh → no earnings test reduction → ssPersonal=${s.ssPersonal}, got ${monthlyData[72].ssBenefit}`);
+});
+
+// FIX #8: SSDI kids age-out is calendar-anchored (TWINS_AGE_OUT_MONTH), not relative.
+// With approval=20, kidsAgeOutMonths=36 (legacy), TWINS_AGE_OUT_MONTH=34: family
+// benefits END at m=34 (not m=56 as the old buggy `approval + kidsAgeOutMonths` logic).
+test('SSDI-AgeOut. SSDI family benefits end at TWINS_AGE_OUT_MONTH, not approval+kidsAgeOutMonths', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiApprovalMonth: 20, ssdiDenied: false,
+    ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 36, // legacy default
+    chadJob: false, chadConsulting: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=20 (approval): family benefit kicks in.
+  assert.strictEqual(monthlyData[20].ssBenefit, 6321,
+    `m=20 (approval): expected family ${6321}, got ${monthlyData[20].ssBenefit}`);
+  // m=33 (TWINS_AGE_OUT_MONTH - 1 = 33): still family.
+  assert.strictEqual(monthlyData[33].ssBenefit, 6321,
+    `m=33: still family ${6321}, got ${monthlyData[33].ssBenefit}`);
+  // m=34 (TWINS_AGE_OUT_MONTH): personal — kids no longer eligible per calendar.
+  assert.strictEqual(monthlyData[34].ssBenefit, 4214,
+    `m=34 (kids age out): expected personal ${4214}, got ${monthlyData[34].ssBenefit}`);
+  // OLD buggy logic would have kept family at m=55 (approval=20 + kidsAgeOutMonths=36 - 1 = 55).
+  assert.strictEqual(monthlyData[55].ssBenefit, 4214,
+    `m=55: should be personal (NOT family as old buggy logic produced)`);
+});
+
+// FIX #9: TWINS_AGE_OUT_MONTH semantic — first INELIGIBLE month.
+// At m=33, family benefits still active. At m=34, only personal benefits.
+test('TWINS-AGE-Constant. TWINS_AGE_OUT_MONTH=34 means first ineligible month (m=33 family, m=34 personal)', () => {
+  // Use SSDI with early approval so the boundary is crossed mid-projection.
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
+    ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 36,
+    chadJob: false, chadConsulting: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(TWINS_AGE_OUT_MONTH, 34, 'TWINS_AGE_OUT_MONTH constant unchanged at 34');
+  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH - 1].ssBenefit, 6321,
+    `m=${TWINS_AGE_OUT_MONTH - 1}: family rate active`);
+  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH].ssBenefit, 4214,
+    `m=${TWINS_AGE_OUT_MONTH}: personal rate active`);
+});
+
+// FIX #10: Van sale with positive equity — proceeds boost balance.
+test('Van-PosEquity. Van sale with sale price > loan balance: proceeds added to savings', () => {
+  const saleMonth = 12;
+  const salePrice = 200000;
+  const loanBalance = 150000;
+  const proceeds = salePrice - loanBalance; // 50000
+  const s = gatherStateWithOverrides({
+    vanSold: true, vanSaleMonth: saleMonth,
+    vanLoanBalance: loanBalance, vanSalePrice: salePrice,
+    vanMonthlySavings: 2597,
+    startingSavings: 500000, investmentReturn: 0,
+    retireDebt: true, lifestyleCutsApplied: false,
+    bcsYearsLeft: 0, milestones: [], chadJob: false,
+    ssdiDenied: true, starting401k: 0, homeEquity: 0,
+    trustIncreaseMonth: 0, expenseInflation: false,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=11: van payment still being made.
+  // m=12: van payment stops AND $50K proceeds boost the balance.
+  // balance[12] = balance[11] + investReturn(0) + (cashIncome[12] - expenses[12]) + 50000.
+  const prev = monthlyData[saleMonth - 1];
+  const curr = monthlyData[saleMonth];
+  const expectedBalance = prev.balance + curr.investReturn
+    + (curr.cashIncome - curr.expenses) + proceeds;
+  assert.strictEqual(curr.balance, Math.round(expectedBalance),
+    `m=12 balance should include +${proceeds} proceeds: expected ${Math.round(expectedBalance)}, got ${curr.balance}`);
+  // Confirm the m=12 - m=11 jump is at least the proceeds amount net of monthly cash flow.
+  const jump = curr.balance - prev.balance - curr.investReturn - (curr.cashIncome - curr.expenses);
+  assert.strictEqual(jump, proceeds,
+    `the unaccounted-for jump at sale month should equal proceeds ${proceeds}, got ${jump}`);
+  // m=11: van expense was still being paid.
+  assert.ok(prev.expenses > curr.expenses,
+    `m=11 expenses (${prev.expenses}) should exceed m=12 (${curr.expenses}) — van payment still active before sale`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Re-audit fixes (RA-2 customLeverMonthly on row, RA-3 SSDI back-pay guard)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Re-audit fixes (RA-2, RA-3) ===');
+
+test('RA-2. customLeverMonthly is exposed on monthlyData row', () => {
+  const s = gatherStateWithOverrides({
+    customLevers: [{ id: 't', name: 'test', maxImpact: 5000, currentValue: 5000, active: true }],
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Row should now expose customLeverMonthly directly.
+  assert.strictEqual(monthlyData[0].customLeverMonthly, 5000,
+    `expected 5000 on row, got ${monthlyData[0].customLeverMonthly}`);
+  // And cashIncome should equal sum of all components on the row.
+  const sumComponents = monthlyData[0].sarahIncome + monthlyData[0].msftLump
+    + monthlyData[0].trustLLC + (monthlyData[0].ssBenefit || 0)
+    + monthlyData[0].consulting + monthlyData[0].chadJobIncome
+    + monthlyData[0].customLeverMonthly;
+  assert.strictEqual(monthlyData[0].cashIncome, sumComponents,
+    'row components must sum to cashIncome when lever active');
+});
+
+test('RA-2. customLeverMonthly = 0 when no levers active', () => {
+  const s = gatherStateWithOverrides({});
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].customLeverMonthly, 0);
+});
+
+test('RA-3. SSDI back-pay = 0 when SSDI is denied/SS-active/job-active', () => {
+  // The new gate `effectiveSsdiApproval !== 999 && backPayActual > 0` ensures no anomalous
+  // deposit when SSDI is suppressed. backPayActual itself is set to 0 in these scenarios.
+  const denied = gatherStateWithOverrides({ ssdiDenied: true });
+  assert.strictEqual(runMonthlySimulation(denied).backPayActual, 0);
+
+  const ssRetirement = gatherStateWithOverrides({ ssType: 'ss' });
+  assert.strictEqual(runMonthlySimulation(ssRetirement).backPayActual, 0);
+
+  const jobActive = gatherStateWithOverrides({ chadJob: true });
+  assert.strictEqual(runMonthlySimulation(jobActive).backPayActual, 0);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// 401(k) contributions (Chad's job)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== 401(k) contributions ===');
+
+test('K1. Pre-tax deferral reduces take-home by deferral × (1-tax)', () => {
+  const baseS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadWorkMonths: 24,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(baseS);
+  const k401S = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kDeferral: 24000, // $2K/mo deferral
+    chadWorkMonths: 24,
+  });
+  const { monthlyData: k401Data } = runMonthlySimulation(k401S);
+  // Pre-tax deferral: net cashflow drops by deferral_monthly × (1 - tax + ficaSavings).
+  // = $2000 × 0.75 = $1500 (with default ficaSavings=0).
+  const delta = baseData[0].chadJobSalaryNet - k401Data[0].chadJobSalaryNet;
+  assert.strictEqual(delta, 1500, `take-home should drop by $1,500/mo (pre-tax), got ${delta}`);
+  // chadJob401kContribGross row field exposes the gross monthly contribution.
+  assert.strictEqual(k401Data[0].chadJob401kContribGross, 2000, '$2K/mo contribution exposed on row');
+});
+
+test('K1b. Pre-tax deferral grows 401k when no drawdown is happening', () => {
+  // Use very high startingSavings so balance never goes negative (no drawdown of bal401k).
+  // chadWorkMonths=11 → retirement at m=11 → employed for m=0..11 = exactly 12 months.
+  const baseS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    startingSavings: 5000000, return401k: 0, chadWorkMonths: 11,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(baseS);
+  const k401S = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kDeferral: 24000,
+    startingSavings: 5000000, return401k: 0, chadWorkMonths: 11,
+  });
+  const { monthlyData: k401Data } = runMonthlySimulation(k401S);
+  // 12 months × $2000/mo = $24,000.
+  const balDelta = k401Data[11].balance401k - baseData[11].balance401k;
+  assert.strictEqual(balDelta, 24000, `bal401k should grow by exactly $24K over 12 employed months, got ${balDelta}`);
+});
+
+test('K2. Roth catch-up reduces take-home but NOT taxable wages', () => {
+  // Roth catch-up = post-tax. Net should drop by FULL catch-up amount (not catch-up * (1-tax)).
+  const baseS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadWorkMonths: 12,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(baseS);
+  const rothS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kCatchupRoth: 12000, // $1K/mo Roth
+    chadWorkMonths: 12,
+  });
+  const { monthlyData: rothData } = runMonthlySimulation(rothS);
+  // Net should drop by FULL $1K (post-tax money leaves bank).
+  const delta = baseData[0].chadJobSalaryNet - rothData[0].chadJobSalaryNet;
+  assert.strictEqual(delta, 1000, `Roth catch-up should reduce net by full $1,000/mo, got ${delta}`);
+});
+
+test('K3. Employer match adds to 401k without affecting cashflow', () => {
+  const baseS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadWorkMonths: 12,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(baseS);
+  const matchS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kMatch: 12000, // $1K/mo match
+    chadWorkMonths: 12,
+  });
+  const { monthlyData: matchData } = runMonthlySimulation(matchS);
+  // Take-home unchanged.
+  assert.strictEqual(baseData[0].chadJobSalaryNet, matchData[0].chadJobSalaryNet,
+    'employer match should not affect take-home');
+  // bal401k grows by ~$12K from match over 12 months (plus return).
+  const balDelta = matchData[12].balance401k - baseData[12].balance401k;
+  assert.ok(balDelta >= 12000, `match should grow bal401k by at least $12K, got ${balDelta}`);
+});
+
+test('K4. No 401(k) when chadJob=false', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: false,
+    chadJob401kDeferral: 24000, chadJob401kCatchupRoth: 12000, chadJob401kMatch: 12000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJob401kFlow, 0);
+  assert.strictEqual(monthlyData[0].chadJob401kMatchGross, 0);
+});
+
+test('K5. Combined: deferral + catch-up + match all flow into bal401k (no growth, no drawdown)', () => {
+  // Scenario matching Chad's L63 plan: $24,500 deferral + $11,250 Roth catch-up + $12,250 match
+  // Pin return401k=0 and high startingSavings to isolate contribution math from growth/drawdown.
+  // chadWorkMonths=11 → exactly 12 employed months (m=0..11).
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 215000, chadJobTaxRate: 30, chadJobStartMonth: 0,
+    chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJob401kMatch: 12250,
+    startingSavings: 5000000, return401k: 0, chadWorkMonths: 11,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const noContribS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 215000, chadJobTaxRate: 30, chadJobStartMonth: 0,
+    startingSavings: 5000000, return401k: 0, chadWorkMonths: 11,
+  });
+  const { monthlyData: noContribData } = runMonthlySimulation(noContribS);
+  const annualContribTotal = 24500 + 11250 + 12250; // 48,000
+  // After 12 employed months with return401k=0 and no drawdown, bal401k delta = exactly $48K.
+  const delta = monthlyData[11].balance401k - noContribData[11].balance401k;
+  assert.ok(Math.abs(delta - annualContribTotal) <= 12,
+    `Year 1 401k delta should be ~$48K (±$12 rounding), got ${delta}`);
 });
 
 // ════════════════════════════════════════════════════════════════════════

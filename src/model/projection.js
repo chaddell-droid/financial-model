@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, buildQuarterlySchedule } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, buildQuarterlySchedule } from './constants.js';
 
 /**
  * Helpers for lumpy stock-vest calendar math.
@@ -89,6 +89,12 @@ export function runMonthlySimulation(s) {
     s.chadJobHireStockY4 || 0,
   ];
   const chadJobSignOnCash = s.chadJobSignOnCash || 0;
+  // 401(k) — annual amounts; spread monthly over 12. Pre-tax deferral reduces taxable salary
+  // (so net cashflow falls by deferral × tax-saved-fraction less than the gross deduction);
+  // Roth catch-up is post-tax (cashflow falls by full amount). Match flows to bal401k only.
+  const chadJob401kDeferralMonthly = (s.chadJob401kDeferral || 0) / 12;
+  const chadJob401kCatchupRothMonthly = (s.chadJob401kCatchupRoth || 0) / 12;
+  const chadJob401kMatchMonthly = (s.chadJob401kMatch || 0) / 12;
   const chadJobTaxRate = (s.chadJobTaxRate ?? 25) / 100;
   // Pension is deducted from salary only (not bonuses or RSUs, per typical employer rules)
   const chadJobSalaryNetMult = 1 - chadJobTaxRate + ficaSavings - pensionContrib;
@@ -134,13 +140,22 @@ export function runMonthlySimulation(s) {
     let chadJobSignOnNet = 0;
     let chadJobBonusGross = 0;
     let chadJobStockGross = 0;
+    let chadJob401kFlow = 0;          // Total monthly 401(k) outflow from take-home (deferral + Roth catch-up)
+    let chadJob401kContribGross = 0;   // Pre-tax + Roth contribution this month (excludes match)
+    let chadJob401kMatchGross = 0;     // Employer match this month
     let chadCurrentAnnualSalary = 0;
     if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
       const monthsWorked = m - chadJobStartMonth;
       const yearsWorked = Math.floor(monthsWorked / 12);
       chadCurrentAnnualSalary = chadJobBaseSalary * Math.pow(1 + chadJobRaisePct, yearsWorked);
       const monthlySalaryGross = chadCurrentAnnualSalary / 12;
-      chadJobSalaryNet = Math.round(monthlySalaryGross * chadJobSalaryNetMult);
+      // Pre-tax deferral reduces taxable salary BEFORE applying the netMult (federal + FICA savings).
+      // Roth catch-up does NOT reduce taxable salary (post-tax) but still leaves cashflow.
+      const taxableSalaryGross = Math.max(0, monthlySalaryGross - chadJob401kDeferralMonthly);
+      chadJobSalaryNet = Math.round(taxableSalaryGross * chadJobSalaryNetMult - chadJob401kCatchupRothMonthly);
+      chadJob401kContribGross = Math.round(chadJob401kDeferralMonthly + chadJob401kCatchupRothMonthly);
+      chadJob401kMatchGross = Math.round(chadJob401kMatchMonthly);
+      chadJob401kFlow = chadJob401kContribGross; // outflow from take-home (employee side)
 
       // Lump-sum bonus on the configured calendar month, after at least 1 month
       // of employment (so a same-month start doesn't pay an instant bonus).
@@ -212,7 +227,12 @@ export function runMonthlySimulation(s) {
         ssBenefit = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
-      ssBenefit = m < effectiveSsdiApproval + s.kidsAgeOutMonths ? s.ssdiFamilyTotal : s.ssdiPersonal;
+      // FIX #8: Kids age-out is CALENDAR-ANCHORED (TWINS_AGE_OUT_MONTH), not relative
+      // to approval month. Previously used `effectiveSsdiApproval + s.kidsAgeOutMonths`,
+      // which let kids stay eligible past their actual 18th birthday if approval slipped.
+      // The legacy `kidsAgeOutMonths` state field (default 36) is preserved for back-compat
+      // (still used to bound auxiliary back-pay months above), but ignored on this path.
+      ssBenefit = m < TWINS_AGE_OUT_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
     }
     // Consulting: only when not employed full-time
     const consulting = (m > chadRetirementMonth) ? 0
@@ -224,17 +244,35 @@ export function runMonthlySimulation(s) {
     const ssPreTestBenefit = ssBenefit;
     if (useSS && ssBenefit > 0) {
       const isEmployed = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
-      // Annualized stock comp for SS earnings test — chadJobStockGross is lumpy
-      // (only nonzero on quarterly vest / anniversary months), so we project the
-      // expected annual stock comp from the current year of employment instead.
+      // FIX #7: Annualized stock comp for SS earnings test — chadJobStockGross is
+      // lumpy (only nonzero on quarterly vest / anniversary months), so project
+      // the expected annual stock comp from the current year of employment.
       const yearsWorkedForSS = Math.max(0, Math.floor((m - chadJobStartMonth) / 12));
-      // Refresh grants begin at chadJobRefreshStartMonth — none active before that.
-      const monthsSinceFirstRefreshForSS = (m - chadJobStartMonth) - chadJobRefreshStartMonth;
-      const activeRefreshForSS = monthsSinceFirstRefreshForSS < 0
-        ? 0
-        : Math.min(5, Math.floor(monthsSinceFirstRefreshForSS / 12) + 1);
+      // FIX #7a: Hire stock — Y1 lump pays at the 1-year ANNIVERSARY, not in Y0.
+      // So during employment year 1 (yearsWorkedForSS=0), no hire stock has paid yet
+      // for SS earnings test purposes. yearsWorkedForSS=1 → Y1 anniversary fell this
+      // calendar year → use chadJobHireStock[0]. Index = yearsWorkedForSS - 1.
+      // Y4 (yearsWorkedForSS=4) is the last year where Y4 lump pays this calendar year.
+      const hireStockForSS = (yearsWorkedForSS >= 1 && yearsWorkedForSS <= 4)
+        ? (chadJobHireStock[yearsWorkedForSS - 1] || 0)
+        : 0;
+      // FIX #7b: Refresh grants vest 60 months (5 years × 4 quarters) from issuance.
+      // Old logic: Math.min(5, floor(...) + 1) — never dropped below 5 even when
+      // grant 1 had expired after 5+ years. New logic: count grants whose 60-month
+      // vesting window still includes month m.
+      let activeRefreshForSS = 0;
+      if (chadJobStockRefresh > 0) {
+        const monthsSinceFirstRefreshForSS = (m - chadJobStartMonth) - chadJobRefreshStartMonth;
+        if (monthsSinceFirstRefreshForSS >= 0) {
+          const numGrantsIssued = Math.floor(monthsSinceFirstRefreshForSS / 12) + 1;
+          for (let g = 0; g < numGrantsIssued; g++) {
+            const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
+            if (m - issueMonth < 60) activeRefreshForSS++;
+          }
+        }
+      }
       const annualStockProjected = activeRefreshForSS * 0.20 * chadJobStockRefresh
-        + (yearsWorkedForSS < 4 ? chadJobHireStock[yearsWorkedForSS] : 0);
+        + hireStockForSS;
       // Sign-on cash: 50% in employment year 0, 50% in year 1.
       const signOnYear = yearsWorkedForSS === 0 || yearsWorkedForSS === 1 ? chadJobSignOnCash * 0.5 : 0;
       const annualEarned = isEmployed
@@ -321,16 +359,34 @@ export function runMonthlySimulation(s) {
 
     balance += investReturn;
     balance += (cashIncome - expenses);
-    if (m === effectiveSsdiApproval + 2) balance += backPayActual;
-    // Van sale shortfall: one-time cost at sale month (loan balance - sale price)
+    // FIX RA-3: only deposit back-pay when SSDI is actually active (effectiveSsdiApproval !== 999)
+    // AND backPayActual > 0. Previously the m===999+2 branch could fire on long projections.
+    if (effectiveSsdiApproval !== 999 && backPayActual > 0 && m === effectiveSsdiApproval + 2) {
+      balance += backPayActual;
+    }
+    // FIX #10: Van sale at sale month — handle BOTH shortfall (sale price < loan)
+    // AND positive equity (sale price > loan). Previously only deficit was handled,
+    // silently dropping any positive proceeds.
     if (s.vanSold && m === vanSaleMonth) {
       const vanShortfall = Math.max(0, (s.vanLoanBalance || 0) - (s.vanSalePrice || 0));
+      const vanProceeds = Math.max(0, (s.vanSalePrice || 0) - (s.vanLoanBalance || 0));
       balance -= vanShortfall;
+      balance += vanProceeds;
     }
 
-    // 401k grows (skip month 0 to match standalone behavior)
+    // FIX M-Sym: BOTH 401k and home equity grow BEFORE drawdown so they're
+    // symmetric. Previously 401k grew before drawdown but home grew after,
+    // creating an inconsistent treatment of the two reserves.
+    // (skip month 0 to match standalone behavior — the starting balance is the snapshot)
     if (m > 0) bal401k *= (1 + monthly401kRate);
+    // 401(k) contributions: employee (pre-tax + Roth catch-up) + employer match flow into bal401k
+    // each employed month. Added AFTER monthly growth so this month's contribution doesn't earn
+    // a free month of return (matches typical end-of-month payroll deposit semantics).
+    if (chadJob401kContribGross > 0 || chadJob401kMatchGross > 0) {
+      bal401k += chadJob401kContribGross + chadJob401kMatchGross;
+    }
     bal401k = Math.round(bal401k);
+    if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
 
     // Deficit transfer chain: savings → 401k → home equity (HELOC)
     let withdrawal401k = 0;
@@ -347,14 +403,13 @@ export function runMonthlySimulation(s) {
       homeEquity -= withdrawalHome;
     }
 
-    // Home equity appreciates (even if partially drawn via HELOC)
-    if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
-
     const ssBenefitType = ssBenefit > 0 ? (useSS ? 'retirement' : 'ssdi') : null;
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, consulting, chadJobIncome,
       chadJobSalaryNet, chadJobBonusNet, chadJobStockRefreshNet, chadJobStockHireNet, chadJobSignOnNet,
+      chadJob401kContribGross, chadJob401kMatchGross, chadJob401kFlow, // 401(k) breakdown for tooltips/audit
+      customLeverMonthly, // FIX RA-2: expose on row so charts/tooltips can sum back to cashIncome
       investReturn, cashIncome, cashIncomeSmoothed, expenses, expenseBreakdown, homeEquity,
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,

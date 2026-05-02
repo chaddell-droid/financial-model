@@ -20,8 +20,11 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
   const data = monthlyDetail;
   const n = data.length;
   const stackH = 300;
+  // FIX #6: Include customLeverMonthly in income totals to match engine's
+  // cashIncomeSmoothed (projection.js line 320). Note: requires the engine row to
+  // expose customLeverMonthly — flag if missing.
   const maxIncome = Math.max(...data.map(d =>
-    d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0)));
+    d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0) + (d.customLeverMonthly || 0)));
   const maxExpense = Math.max(...data.map(d => d.expenses));
   const stackMax = Math.max(maxIncome, maxExpense) * 1.1 || 1;
   const stackYPad = 60;
@@ -37,7 +40,9 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
   ]);
 
   // Compute totalIncome (smoothed) for a month — consistent with what bars show
-  const computeTotal = (d) => d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0);
+  // FIX #6: Include customLeverMonthly to match engine's cashIncomeSmoothed
+  // (projection.js line 320). Note: requires engine row exposure of customLeverMonthly.
+  const computeTotal = (d) => d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0) + (d.customLeverMonthly || 0);
 
   // KPI data
   const currentMonth = data[0];

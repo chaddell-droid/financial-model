@@ -78,6 +78,9 @@ const RANGE = {
   chadJobHireStockY3: { min: 0 },
   chadJobHireStockY4: { min: 0 },
   chadJobSignOnCash: { min: 0 },
+  chadJob401kDeferral: { min: 0, max: 50000 },        // 2026 IRS limit ($24,500) + headroom
+  chadJob401kCatchupRoth: { min: 0, max: 15000 },     // 2026 super catch-up ages 60-63 = $11,250
+  chadJob401kMatch: { min: 0, max: 25000 },           // 50% × max IRS limit + headroom
   totalMonthlySpend: { min: 0 },
   oneTimeExtras: { min: 0 },
   oneTimeMonths: { min: 0, max: 72 },
@@ -116,7 +119,9 @@ const RANGE = {
   seqBadY1: { min: -50, max: 50 },
   seqBadY2: { min: -50, max: 50 },
   msftGrowth: { min: -50, max: 50 },
-  cutsOverride: { min: 0 },
+  // FIX M-Cuts: bound cutsOverride at 10x typical baseExpenses (~$10K/mo).
+  // Generous ceiling but prevents pathological scenarios from corrupting the projection.
+  cutsOverride: { min: 0, max: 100000 },
 };
 
 // --- Enum constraints ---

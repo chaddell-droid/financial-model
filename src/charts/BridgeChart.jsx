@@ -508,7 +508,12 @@ const BridgeChart = ({
     const useSS = ssType === 'ss';
     const currentMsft = data?.[0]?.msftVesting || 0;
     const effectiveStartMonth = chadJobStartMonth ?? 3;
-    const chadJobMonthlyNet = chadJob ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
+    // FIX #5: chadJobMonthlyNet parity. Use engine's chadJobSalaryNet (salary-only,
+    // includes FICA savings + pension contrib adjustments) instead of recomputing
+    // a simple tax-only formula here. The chart shows steady-state, not lumpy events,
+    // so salary-only is the correct number. Falls back to 0 when chadJob=false or
+    // monthlyData[0] is missing.
+    const chadJobMonthlyNet = chadJob ? (monthlyDetail?.[0]?.chadJobSalaryNet ?? 0) : 0;
     const chadJobHealthVal = chadJob ? (chadJobHealthSavings || 4200) : 0;
     const jobImmediate = chadJob && effectiveStartMonth === 0;
     const rawIncome = sarahCurrentNet + currentMsft + trustIncomeNow + (jobImmediate ? chadJobMonthlyNet : 0);

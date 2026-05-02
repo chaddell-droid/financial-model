@@ -125,7 +125,7 @@ export default function FinancialModel() {
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash,
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService, expenseInflation, expenseInflationRate,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
@@ -470,7 +470,11 @@ export default function FinancialModel() {
   // Raw monthly gap — no toggles, no returns. Matches waterfall "Today" bar.
   const currentMsft = data[0]?.msftVesting || 0;
   const chadJobImmediate = chadJob && (chadJobStartMonth ?? 3) === 0;
-  const chadJobNetForGap = chadJobImmediate ? Math.round((chadJobSalary || 80000) * (1 - (chadJobTaxRate || 25) / 100) / 12) : 0;
+  // FIX #5: chadJobNetForGap parity. Use engine's chadJobSalaryNet (salary-only,
+  // includes FICA savings + pension contrib adjustments) from monthlyData[0] rather
+  // than recomputing a simple tax-only formula here. Falls back to 0 when chadJob is
+  // not immediate or monthlyData[0] is unavailable.
+  const chadJobNetForGap = chadJobImmediate ? (monthlyDetail[0]?.chadJobSalaryNet ?? 0) : 0;
   const chadJobHealthForGap = chadJobImmediate ? (chadJobHealthSavings || 4200) : 0;
   const totalCurrentIncome = sarahCurrentNet + currentMsft + trustIncomeNow
     + (monthlyDetail[0]?.ssBenefit ?? 0)
@@ -621,7 +625,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash,
+    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     chadWorkMonths,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -635,7 +639,7 @@ export default function FinancialModel() {
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash,
+    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     chadWorkMonths,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,

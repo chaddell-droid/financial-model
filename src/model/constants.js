@@ -31,7 +31,11 @@ export const SS_EARNINGS_LIMIT_ANNUAL = 22320; // 2026 earnings test limit (befo
 export const SS_EARNINGS_LIMIT_FRA_YEAR = 62160; // 2026 earnings test in FRA year ($1 per $3 over)
 export const SSDI_ATTORNEY_FEE_CAP = 9200; // SSA statutory cap, raised to $9,200 in Nov 2024 and unchanged for 2026
 export const DAYS_PER_MONTH = 21.5;
-export const TWINS_AGE_OUT_MONTH = 34; // Last eligible child benefit month (Jan 2029; twins turn 18 Feb 11, 2029)
+// FIX #9: TWINS_AGE_OUT_MONTH is the FIRST INELIGIBLE month (used via `m < TWINS_AGE_OUT_MONTH`).
+// March 2026 = m=0 (PROJECTION_START_MONTH=2 → calendar offset). Twins turn 18 between
+// m=33 (Dec 2028, last eligible) and m=34 (Jan 2029, first ineligible). Both SS and SSDI
+// kids-age-out paths resolve to this calendar moment.
+export const TWINS_AGE_OUT_MONTH = 34; // First month kids are NO LONGER eligible (Jan 2029)
 export const SS_FRA = 67; // Full Retirement Age for 1960+ birth cohort
 export const SS_FRA_MONTH = 79; // Month when Chad reaches FRA (Oct 2032; born Sep 17, must be 67 full month)
 // SS start offset: +19 months from baseline for age 62 (Oct 2027, not Sep — mid-month birthday)

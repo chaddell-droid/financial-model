@@ -1,5 +1,5 @@
 import {
-  BRACKETS_MFJ_2025, SS_WAGE_BASE, SS_RATE, MEDICARE_RATE,
+  BRACKETS_MFJ_2026, SS_WAGE_BASE, SS_RATE, MEDICARE_RATE,
   SE_FACTOR, STD_DED, SALT_CAP, SALT_CAP_FLOOR, SALT_MAGI_THRESHOLD, SALT_PHASEOUT_RATE,
   MEDICAL_FLOOR, CAP_LOSS_LIMIT,
   SOLO_401K_EMPLOYEE_LIMIT, SOLO_401K_EMPLOYER_RATE, SOLO_401K_TOTAL_LIMIT,
@@ -32,9 +32,14 @@ export function computeSSTaxableAmount(annualSSBenefit, otherAGI) {
   return Math.round(tier2);
 }
 
-export function computeSelfEmploymentTax(schCNet, w2Wages = 0) {
+// FIX #1: noFICA controls whether W-2 SS wages count against the SS wage-base cap
+// for SE tax purposes. When the W-2 employer is non-FICA-covered (e.g. certain
+// state/local government), SS tax was never withheld on those wages, so the full
+// SS_WAGE_BASE remains available for self-employment income.
+export function computeSelfEmploymentTax(schCNet, w2Wages = 0, noFICA = false) {
   const seBase = Math.max(0, schCNet) * SE_FACTOR;
-  const remainingBase = Math.max(0, SS_WAGE_BASE - w2Wages);
+  const w2SsWages = noFICA ? 0 : w2Wages;
+  const remainingBase = Math.max(0, SS_WAGE_BASE - w2SsWages);
   const ssTax = Math.min(seBase, remainingBase) * SS_RATE;
   const medTax = seBase * MEDICARE_RATE;
   const seTax = ssTax + medTax;
@@ -42,7 +47,7 @@ export function computeSelfEmploymentTax(schCNet, w2Wages = 0) {
   return { seBase, ssTax, medTax, seTax, halfSeTax };
 }
 
-export function computeFederalTax(taxableIncome, brackets = BRACKETS_MFJ_2025) {
+export function computeFederalTax(taxableIncome, brackets = BRACKETS_MFJ_2026) {
   let fedTax = 0, prev = 0;
   for (const [cap, rate] of brackets) {
     if (taxableIncome > cap) { fedTax += (cap - prev) * rate; prev = cap; }
@@ -96,6 +101,20 @@ export function computeAdditionalMedicare({ w2Wages, seBase }) {
   return { addlMedicare, addlWithheld, addlMedicareOwed };
 }
 
+/**
+ * FIX #1: Employee-side FICA on W-2 wages.
+ * Normally the employer withholds 6.2% SS (up to SS_WAGE_BASE) + 1.45% Medicare.
+ * When noFICA=true (non-FICA-covered employer such as certain state/local pensions),
+ * the SS portion is suppressed but Medicare still applies. Additional Medicare
+ * (0.9% over $200K W-2 wages) is computed separately in computeAdditionalMedicare.
+ */
+export function computeW2EmployeeFica(w2Wages, noFICA = false) {
+  const ssWages = Math.min(Math.max(0, w2Wages), SS_WAGE_BASE);
+  const ssTax = noFICA ? 0 : ssWages * (SS_RATE / 2); // employee half = 6.2%
+  const medTax = Math.max(0, w2Wages) * (MEDICARE_RATE / 2); // employee half = 1.45%
+  return { ssTax, medTax, ficaTax: ssTax + medTax };
+}
+
 export function computeMax401k(schCNet, halfSeTax) {
   const employeeMax = SOLO_401K_EMPLOYEE_LIMIT;
   const netForEmployer = Math.max(0, schCNet - halfSeTax);
@@ -145,10 +164,16 @@ export function calculateTax(inputs) {
     marginalRateOverride = null,
     // Optional bracket override for inflation adjustment
     brackets = null,
+
+    // FIX #1: Non-FICA-covered W-2 employer (no SS withholding on Chad's W-2 wages).
+    // When true, the employee SS portion (6.2% × min(wages, SS_WAGE_BASE)) is zero,
+    // but Medicare 1.45% and Additional Medicare 0.9% still apply.
+    noFICA = false,
   } = inputs;
 
   // SE tax — shared by all modes
-  const se = computeSelfEmploymentTax(schCNet, w2Wages);
+  // Pass noFICA so SE-side SS cap interaction with W-2 wages is correct.
+  const se = computeSelfEmploymentTax(schCNet, w2Wages, noFICA);
 
   // --- Projection mode: simplified marginal rate calculation ---
   if (marginalRateOverride !== null) {
@@ -221,8 +246,11 @@ export function calculateTax(inputs) {
     addlMedicareOwed = aml.addlMedicareOwed;
   }
 
+  // FIX #1: Employee-side W-2 FICA — SS portion suppressed when noFICA=true.
+  const w2Fica = computeW2EmployeeFica(w2Wages, noFICA);
+
   // Total tax
-  const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicareOwed;
+  const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicareOwed + w2Fica.ficaTax;
   const balance = w2Withholding - totalTax;
   const effectiveRate = agi > 0 ? totalTax / agi : 0;
 
@@ -249,6 +277,10 @@ export function calculateTax(inputs) {
     totalCredits,
     // Additional Medicare
     addlMedicareOwed,
+    // FIX #1: W-2 employee FICA (SS portion suppressed when noFICA=true)
+    w2FicaTax: w2Fica.ficaTax,
+    w2FicaSS: w2Fica.ssTax,
+    w2FicaMedicare: w2Fica.medTax,
     // Totals
     totalTax,
     balance,

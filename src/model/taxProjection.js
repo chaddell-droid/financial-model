@@ -6,7 +6,7 @@
  * monthly tax amounts instead of applying a flat rate.
  */
 
-import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS } from './constants.js';
+import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP } from './constants.js';
 
 // Mirror the projection's quarterly stock-vest helpers (kept in sync).
 function isStockVestMonth(m) {
@@ -18,7 +18,7 @@ function nextStockVestMonthAfter(month) {
   }
   return month + 3;
 }
-import { BRACKETS_MFJ_2025, getSaltCapForYear } from './taxConstants.js';
+import { BRACKETS_MFJ_2026, getSaltCapForYear } from './taxConstants.js';
 import { calculateTax } from './taxEngine.js';
 
 /**
@@ -59,9 +59,15 @@ export function getTaxInputs(s, yearIndex) {
  * Pre-estimate annual SS/SSDI benefits for each projection year.
  * Mirrors the SS income logic from projection.js so the tax schedule
  * can incorporate SS benefit taxation before the monthly loop runs.
+ *
+ * FIX #4: Includes SSDI back-pay lump (paid at effectiveSsdiApproval + 2)
+ * in the year that contains the back-pay receipt month, so up-to-85%
+ * taxability of that lump is captured. Gating mirrors projection.js:
+ *   - only when ssType==='ssdi' (i.e. !useSS) AND !ssdiDenied AND !chadJob.
  */
 function estimateAnnualSSBenefits(s) {
   const useSS = s.ssType === 'ss';
+  const chadJob = s.chadJob || false;
   const months = s.totalProjectionMonths || 72;
   const years = Math.ceil(months / 12);
   const annualBenefits = new Array(years).fill(0);
@@ -74,11 +80,31 @@ function estimateAnnualSSBenefits(s) {
     let benefit = 0;
     if (useSS && m >= ssStart) {
       benefit = (m < ssStart + ssKidsOut) ? (s.ssFamilyTotal || 0) : (s.ssPersonal || 0);
-    } else if (!useSS && !s.chadJob && !s.ssdiDenied && m >= ssdiApproval) {
+    } else if (!useSS && !chadJob && !s.ssdiDenied && m >= ssdiApproval) {
       benefit = (m < ssdiApproval + kidsOut) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
     }
     annualBenefits[Math.floor(m / 12)] += benefit;
   }
+
+  // FIX #4: Add SSDI back-pay to the calendar year containing approval+2.
+  // Re-derive backPayActual the same way projection.js does (in case the caller
+  // hasn't already attached it to state).
+  if (!useSS && !chadJob && !s.ssdiDenied && (s.ssdiBackPayMonths || 0) > 0) {
+    const totalBackPayMonths = s.ssdiBackPayMonths || 0;
+    const auxBackPayMonths = Math.min(totalBackPayMonths, kidsOut);
+    const ssdiPersonal = s.ssdiPersonal || 4214;
+    const ssdiFamilyTotal = s.ssdiFamilyTotal || 6321;
+    const adultBackPayGross = totalBackPayMonths * ssdiPersonal;
+    const auxBackPayGross = auxBackPayMonths * Math.max(0, ssdiFamilyTotal - ssdiPersonal);
+    const backPayFee = Math.min(Math.round(adultBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
+    const backPayActual = adultBackPayGross + auxBackPayGross - backPayFee;
+    const receiptMonth = ssdiApproval + 2;
+    const receiptYearIdx = Math.floor(receiptMonth / 12);
+    if (receiptYearIdx >= 0 && receiptYearIdx < years) {
+      annualBenefits[receiptYearIdx] += backPayActual;
+    }
+  }
+
   return annualBenefits;
 }
 
@@ -119,6 +145,11 @@ export function buildTaxSchedule(s) {
     s.chadJobHireStockY4 || 0,
   ];
   const chadJobSignOnCash = s.chadJobSignOnCash || 0;
+  // FIX #1: Pull NoFICA + pension contrib pct so we can flow them into the tax engine.
+  const chadJobNoFICA = !!s.chadJobNoFICA;
+  const chadJobPensionContribPct = (s.chadJobPensionContrib || 0) / 100;
+  // 401(k): pre-tax deferral reduces W-2 wages reported on Box 1. Roth catch-up does NOT.
+  const chadJob401kDeferralAnnual = s.chadJob401kDeferral || 0;
   const ssAnnualBenefits = estimateAnnualSSBenefits(s);
   const schedule = [];
 
@@ -213,7 +244,24 @@ export function buildTaxSchedule(s) {
     const schCNet = Math.round(annualSarahGross * (1 - expenseRatio));
 
     // Chad's W-2 wages (salary + bonus + RSU vesting + sign-on, with compounded raises)
-    const chadW2 = chadJob ? Math.round(chadAnnualSalary + chadAnnualBonus + chadAnnualStock + chadAnnualSignOn) : 0;
+    const chadW2Gross = chadJob ? Math.round(chadAnnualSalary + chadAnnualBonus + chadAnnualStock + chadAnnualSignOn) : 0;
+
+    // FIX #1: Pension contribution is pre-tax for both federal income tax AND FICA.
+    // Reduce taxable W-2 wages by (annual salary × pension %). Pension is on salary
+    // only (not bonus/RSU/sign-on), matching projection.js's chadJobSalaryNetMult.
+    // FIX #M2: chadJobHealthSavings is intentionally NOT subtracted here. Re-read of
+    // projection.js (lines 96, 304-306) confirms it is a premium-savings expense
+    // OFFSET (employer pays more of the premium so household expenses are lower);
+    // it is NOT an employee pre-tax HSA contribution, so it does not reduce W-2
+    // taxable wages. If it ever becomes a true pre-tax HSA contribution, subtract
+    // it from chadW2 here.
+    const pensionDollar = chadJob ? Math.round(chadAnnualSalary * chadJobPensionContribPct) : 0;
+    // 401(k): pre-tax deferral reduces W-2 wages reported on Box 1. Pro-rate by
+    // months actually worked this projection year (so a half-year doesn't get the full annual deferral).
+    const chad401kDeferralDollar = chadJob && chadMonthsEmployed > 0
+      ? Math.round(chadJob401kDeferralAnnual * (chadMonthsEmployed / 12))
+      : 0;
+    const chadW2 = Math.max(0, chadW2Gross - pensionDollar - chad401kDeferralDollar);
 
     // Inflation-adjusted brackets and SALT cap
     const inflationFactor = s.taxInflationAdjust
@@ -224,10 +272,18 @@ export function buildTaxSchedule(s) {
     const saltCap = Math.round(getSaltCapForYear(calendarYear) * inflationFactor);
     // Inflate bracket thresholds so income doesn't creep into higher brackets
     const inflatedBrackets = inflationFactor > 1
-      ? inflateBrackets(BRACKETS_MFJ_2025, inflationFactor)
+      ? inflateBrackets(BRACKETS_MFJ_2026, inflationFactor)
       : null;
 
     const taxInputs = getTaxInputs(s, y);
+
+    // FIX #M3: CTC drops once twins age out. Per the project's canonical
+    // TWINS_AGE_OUT_MONTH (last month of SS-auxiliary eligibility), we treat
+    // years whose end-month reaches that boundary as ineligible for CTC.
+    // (Strictly the IRS test is "under 17 at end of tax year", which would
+    // cut a year earlier; using TWINS_AGE_OUT_MONTH matches the project's
+    // single source of truth and the spec's worked example.)
+    const ctcChildrenForYear = (endMonth < TWINS_AGE_OUT_MONTH) ? taxInputs.ctcChildren : 0;
 
     // Full household tax (Sarah + Chad)
     const fullTax = calculateTax({
@@ -241,12 +297,13 @@ export function buildTaxSchedule(s) {
       mortgageInt: taxInputs.mortgageInt,
       charitable: taxInputs.charitable,
       totalMedicalInput: taxInputs.totalMedicalInput,
-      ctcChildren: taxInputs.ctcChildren,
+      ctcChildren: ctcChildrenForYear,
       odcDependents: taxInputs.odcDependents,
       solo401kContribution: taxInputs.solo401kContribution,
       ssBenefitAnnual: ssAnnualBenefits[y] || 0,
       saltCap,
       brackets: inflatedBrackets,
+      noFICA: chadJobNoFICA, // FIX #1
     });
 
     // W-2 only tax (for marginal attribution — what would tax be without Sarah?)
@@ -261,11 +318,13 @@ export function buildTaxSchedule(s) {
       mortgageInt: taxInputs.mortgageInt,
       charitable: taxInputs.charitable,
       totalMedicalInput: taxInputs.totalMedicalInput,
-      ctcChildren: taxInputs.ctcChildren,
+      ctcChildren: ctcChildrenForYear,
       odcDependents: taxInputs.odcDependents,
       solo401kContribution: 0, // No Solo 401(k) without self-employment
+      ssBenefitAnnual: ssAnnualBenefits[y] || 0, // FIX RA-1: include SS in counterfactual to avoid attribution drift
       saltCap,
       brackets: inflatedBrackets,
+      noFICA: chadJobNoFICA, // FIX #1
     });
 
     // Marginal attribution
@@ -295,7 +354,12 @@ export function buildTaxSchedule(s) {
       annualChadTax: chadAnnualTax,
       annualSarahGross,
       schCNet,
-      chadW2,
+      chadW2,           // FIX #1: W-2 wages AFTER pension + 401(k) deferral reduction (taxable)
+      chadW2Gross,      // FIX #1: W-2 wages BEFORE pension reduction (for display)
+      chadPensionDollar: pensionDollar, // FIX #1: pre-tax pension dollar amount this year
+      chad401kDeferralDollar, // 401(k): pre-tax deferral dollars this year (already prorated)
+      ctcChildrenForYear, // FIX #M3: CTC kids actually used this year
+      noFICA: chadJobNoFICA, // FIX #1
 
       // Full engine results for detailed display
       fullTax,

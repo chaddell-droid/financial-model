@@ -16,6 +16,12 @@ export default function SarahPracticeChart({
   sarahCeilingGross,
   sarahCeiling,
   sarahWorkMonths,
+  // FIX M-Sarah: Optional monthlyDetail pulls Sarah's NET income directly from the
+  // engine row (engine applies sarah's tax + work-month boundary). When provided,
+  // the chart uses engine values; otherwise it falls back to the inline formula
+  // (which matches engine for the active-work window). This maintains display
+  // parity once IncomeTab.jsx is updated to pass monthlyDetail to this chart.
+  monthlyDetail,
   onFieldChange,
 }) {
   const set = onFieldChange;
@@ -34,6 +40,9 @@ export default function SarahPracticeChart({
   const plotH = chartH - padT - padB;
 
   // Compute monthly data points
+  // FIX M-Sarah: Net income pulled from engine row (monthlyDetail[m].sarahIncome)
+  // when available; otherwise computed inline. Gross/rate/clients are still
+  // derived locally because the engine doesn't expose those component fields.
   const pts = [];
   for (let m = 0; m <= months; m++) {
     const rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, m / 12), sarahMaxRate);
@@ -45,7 +54,8 @@ export default function SarahPracticeChart({
     const calYear = 26 + Math.floor((2 + m) / 12);
     const calMonth = (2 + m) % 12;
     const dateLabel = `${['Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb'][calMonth]} '${calYear}`;
-    const net = Math.round(gross * (1 - (sarahTaxRate ?? 25) / 100));
+    const inlineNet = Math.round(gross * (1 - (sarahTaxRate ?? 25) / 100));
+    const net = monthlyDetail && monthlyDetail[m] ? (monthlyDetail[m].sarahIncome ?? inlineNet) : inlineNet;
     pts.push({ m, rate: Math.round(rate), clients: +clients.toFixed(2), gross, net, label, dateLabel });
   }
 

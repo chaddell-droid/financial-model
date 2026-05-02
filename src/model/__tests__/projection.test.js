@@ -2361,6 +2361,7 @@ test('K1. Pre-tax deferral reduces take-home by deferral × (1-tax)', () => {
   const { monthlyData: baseData } = runMonthlySimulation(baseS);
   const k401S = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true,
     chadJob401kDeferral: 24000, // $2K/mo deferral
     chadWorkMonths: 24,
   });
@@ -2383,6 +2384,7 @@ test('K1b. Pre-tax deferral grows 401k when no drawdown is happening', () => {
   const { monthlyData: baseData } = runMonthlySimulation(baseS);
   const k401S = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true,
     chadJob401kDeferral: 24000,
     startingSavings: 5000000, return401k: 0, chadWorkMonths: 11,
   });
@@ -2401,6 +2403,7 @@ test('K2. Roth catch-up reduces take-home but NOT taxable wages', () => {
   const { monthlyData: baseData } = runMonthlySimulation(baseS);
   const rothS = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true,
     chadJob401kCatchupRoth: 12000, // $1K/mo Roth
     chadWorkMonths: 12,
   });
@@ -2418,6 +2421,7 @@ test('K3. Employer match adds to 401k without affecting cashflow', () => {
   const { monthlyData: baseData } = runMonthlySimulation(baseS);
   const matchS = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true,
     chadJob401kMatch: 12000, // $1K/mo match
     chadWorkMonths: 12,
   });
@@ -2433,11 +2437,34 @@ test('K3. Employer match adds to 401k without affecting cashflow', () => {
 test('K4. No 401(k) when chadJob=false', () => {
   const s = gatherStateWithOverrides({
     chadJob: false,
+    chadJob401kEnabled: true,
     chadJob401kDeferral: 24000, chadJob401kCatchupRoth: 12000, chadJob401kMatch: 12000,
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].chadJob401kFlow, 0);
   assert.strictEqual(monthlyData[0].chadJob401kMatchGross, 0);
+});
+
+test('K4b. Master toggle off → no 401(k) contributions even with non-zero sliders', () => {
+  const offS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: false,
+    chadJob401kDeferral: 24000, chadJob401kCatchupRoth: 12000, chadJob401kMatch: 12000,
+    chadWorkMonths: 11,
+  });
+  const { monthlyData: offData } = runMonthlySimulation(offS);
+  // Toggle off → all 401(k) flows are zero regardless of slider values.
+  assert.strictEqual(offData[0].chadJob401kContribGross, 0);
+  assert.strictEqual(offData[0].chadJob401kMatchGross, 0);
+  assert.strictEqual(offData[0].chadJob401kFlow, 0);
+  // Take-home should equal the no-401k baseline (no slider effect when toggled off).
+  const baselineS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadWorkMonths: 11,
+  });
+  const { monthlyData: baselineData } = runMonthlySimulation(baselineS);
+  assert.strictEqual(offData[0].chadJobSalaryNet, baselineData[0].chadJobSalaryNet,
+    'take-home should match baseline when toggle is off, ignoring slider values');
 });
 
 test('K5. Combined: deferral + catch-up + match all flow into bal401k (no growth, no drawdown)', () => {
@@ -2446,6 +2473,7 @@ test('K5. Combined: deferral + catch-up + match all flow into bal401k (no growth
   // chadWorkMonths=11 → exactly 12 employed months (m=0..11).
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 215000, chadJobTaxRate: 30, chadJobStartMonth: 0,
+    chadJob401kEnabled: true,
     chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJob401kMatch: 12250,
     startingSavings: 5000000, return401k: 0, chadWorkMonths: 11,
   });

@@ -92,9 +92,11 @@ export function runMonthlySimulation(s) {
   // 401(k) — annual amounts; spread monthly over 12. Pre-tax deferral reduces taxable salary
   // (so net cashflow falls by deferral × tax-saved-fraction less than the gross deduction);
   // Roth catch-up is post-tax (cashflow falls by full amount). Match flows to bal401k only.
-  const chadJob401kDeferralMonthly = (s.chadJob401kDeferral || 0) / 12;
-  const chadJob401kCatchupRothMonthly = (s.chadJob401kCatchupRoth || 0) / 12;
-  const chadJob401kMatchMonthly = (s.chadJob401kMatch || 0) / 12;
+  // Master toggle chadJob401kEnabled gates all three; when false, slider values are ignored.
+  const chadJob401kEnabled = !!s.chadJob401kEnabled;
+  const chadJob401kDeferralMonthly = chadJob401kEnabled ? (s.chadJob401kDeferral || 0) / 12 : 0;
+  const chadJob401kCatchupRothMonthly = chadJob401kEnabled ? (s.chadJob401kCatchupRoth || 0) / 12 : 0;
+  const chadJob401kMatchMonthly = chadJob401kEnabled ? (s.chadJob401kMatch || 0) / 12 : 0;
   const chadJobTaxRate = (s.chadJobTaxRate ?? 25) / 100;
   // Pension is deducted from salary only (not bonuses or RSUs, per typical employer rules)
   const chadJobSalaryNetMult = 1 - chadJobTaxRate + ficaSavings - pensionContrib;

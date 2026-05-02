@@ -19,7 +19,7 @@ const IncomeControls = ({
   chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst,
   chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
   chadJobSignOnCash,
-  chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
+  chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
   chadWorkMonths,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -192,21 +192,33 @@ const IncomeControls = ({
                   {/* 401(k) Contributions */}
                   <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
                     <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>401(k) Contributions</div>
-                    <Slider label="Pre-tax deferral $/yr" value={chadJob401kDeferral || 0} onChange={set('chadJob401kDeferral')} commitStrategy={commitStrategy} min={0} max={50000} step={500} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(1) + "K"} />
-                    <Slider label="Roth catch-up $/yr (SECURE 2.0)" value={chadJob401kCatchupRoth || 0} onChange={set('chadJob401kCatchupRoth')} commitStrategy={commitStrategy} min={0} max={15000} step={250} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(2) + "K"} />
-                    <Slider label="Employer match $/yr" value={chadJob401kMatch || 0} onChange={set('chadJob401kMatch')} commitStrategy={commitStrategy} min={0} max={25000} step={250} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(2) + "K"} />
-                    {((chadJob401kDeferral || 0) + (chadJob401kCatchupRoth || 0) + (chadJob401kMatch || 0)) > 0 && (() => {
-                      const annualContrib = (chadJob401kDeferral || 0) + (chadJob401kCatchupRoth || 0);
-                      const annualToBalance = annualContrib + (chadJob401kMatch || 0);
-                      const monthlyOutflow = Math.round(annualContrib / 12);
-                      const monthlyToBalance = Math.round(annualToBalance / 12);
-                      return (
-                        <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, lineHeight: 1.5 }}>
-                          Take-home reduced by <span style={{ color: COLORS.amber, fontWeight: 600 }}>${monthlyOutflow.toLocaleString()}/mo</span>; 401k grows by <span style={{ color: COLORS.greenDark, fontWeight: 600 }}>${monthlyToBalance.toLocaleString()}/mo</span> (incl. match).<br />
-                          Pre-tax deferral lowers W-2 wages; Roth catch-up is post-tax (per SECURE 2.0 mandate for high earners).
-                        </div>
-                      );
-                    })()}
+                    <Toggle
+                      label="Enable 401(k) contributions"
+                      description={chadJob401kEnabled ? "Sliders below are active" : "Disabled — turn on to model deferral, Roth catch-up, and employer match"}
+                      checked={!!chadJob401kEnabled}
+                      onChange={set('chadJob401kEnabled')}
+                      color={COLORS.blue}
+                      testId="income-401k-enabled"
+                    />
+                    {chadJob401kEnabled && (
+                      <>
+                        <Slider label="Pre-tax deferral $/yr (IRS 2026: $24,500)" value={chadJob401kDeferral || 0} onChange={set('chadJob401kDeferral')} commitStrategy={commitStrategy} min={0} max={24500} step={500} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(1) + "K"} />
+                        <Slider label="Roth catch-up $/yr (60-63 super: $11,250)" value={chadJob401kCatchupRoth || 0} onChange={set('chadJob401kCatchupRoth')} commitStrategy={commitStrategy} min={0} max={11250} step={250} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(2) + "K"} />
+                        <Slider label="Employer match $/yr" value={chadJob401kMatch || 0} onChange={set('chadJob401kMatch')} commitStrategy={commitStrategy} min={0} max={50000} step={250} color={COLORS.blue} format={(v) => v === 0 ? "None" : "$" + (v/1000).toFixed(2) + "K"} />
+                        {((chadJob401kDeferral || 0) + (chadJob401kCatchupRoth || 0) + (chadJob401kMatch || 0)) > 0 && (() => {
+                          const annualContrib = (chadJob401kDeferral || 0) + (chadJob401kCatchupRoth || 0);
+                          const annualToBalance = annualContrib + (chadJob401kMatch || 0);
+                          const monthlyOutflow = Math.round(annualContrib / 12);
+                          const monthlyToBalance = Math.round(annualToBalance / 12);
+                          return (
+                            <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, lineHeight: 1.5 }}>
+                              Take-home reduced by <span style={{ color: COLORS.amber, fontWeight: 600 }}>${monthlyOutflow.toLocaleString()}/mo</span>; 401k grows by <span style={{ color: COLORS.greenDark, fontWeight: 600 }}>${monthlyToBalance.toLocaleString()}/mo</span> (incl. match).<br />
+                              Pre-tax deferral lowers W-2 wages; Roth catch-up is post-tax (per SECURE 2.0 mandate for high earners).
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
                   </div>
 
                   {(() => {

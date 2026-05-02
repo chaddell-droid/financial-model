@@ -78,9 +78,9 @@ const RANGE = {
   chadJobHireStockY3: { min: 0 },
   chadJobHireStockY4: { min: 0 },
   chadJobSignOnCash: { min: 0 },
-  chadJob401kDeferral: { min: 0, max: 50000 },        // 2026 IRS limit ($24,500) + headroom
-  chadJob401kCatchupRoth: { min: 0, max: 15000 },     // 2026 super catch-up ages 60-63 = $11,250
-  chadJob401kMatch: { min: 0, max: 25000 },           // 50% × max IRS limit + headroom
+  chadJob401kDeferral: { min: 0, max: 24500 },        // IRC §402(g) 2026 elective deferral limit
+  chadJob401kCatchupRoth: { min: 0, max: 11250 },     // SECURE 2.0 super catch-up ages 60-63 ($11,250); regular 50+ = $8,000
+  chadJob401kMatch: { min: 0, max: 50000 },           // No fixed cap; IRC §415(c) total annual additions = $70K base + catch-up
   totalMonthlySpend: { min: 0 },
   oneTimeExtras: { min: 0 },
   oneTimeMonths: { min: 0, max: 72 },

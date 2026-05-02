@@ -149,7 +149,9 @@ export function buildTaxSchedule(s) {
   const chadJobNoFICA = !!s.chadJobNoFICA;
   const chadJobPensionContribPct = (s.chadJobPensionContrib || 0) / 100;
   // 401(k): pre-tax deferral reduces W-2 wages reported on Box 1. Roth catch-up does NOT.
-  const chadJob401kDeferralAnnual = s.chadJob401kDeferral || 0;
+  // Gated by master toggle chadJob401kEnabled — matches projection.js semantics.
+  const chadJob401kEnabled = !!s.chadJob401kEnabled;
+  const chadJob401kDeferralAnnual = chadJob401kEnabled ? (s.chadJob401kDeferral || 0) : 0;
   const ssAnnualBenefits = estimateAnnualSSBenefits(s);
   const schedule = [];
 

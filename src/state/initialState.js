@@ -57,6 +57,7 @@ export const INITIAL_STATE = {
   // 401(k) — annual dollar amounts. Pre-tax deferral reduces W2 wages + cashflow + adds to 401k.
   // Roth catch-up (SECURE 2.0 mandate for high earners 50+) is post-tax — reduces cashflow + adds to 401k but no tax benefit.
   // Employer match goes straight to 401k (no cashflow or tax impact for employee).
+  chadJob401kEnabled: false,    // Master toggle — when false, all 401(k) math is gated off regardless of slider values
   chadJob401kDeferral: 0,       // Annual pre-tax 401(k) deferral $ (e.g., $24,500 IRS 2026 limit)
   chadJob401kCatchupRoth: 0,    // Annual Roth catch-up $ (e.g., $11,250 ages 60-63, $8,000 age 64+)
   chadJob401kMatch: 0,          // Annual employer match $ (e.g., $12,250 = 50% of $24,500 deferral)
@@ -214,7 +215,7 @@ export const MODEL_KEYS = [
   'chadJobRaisePct', 'chadJobBonusPct', 'chadJobBonusMonth', 'chadJobBonusProrateFirst',
   'chadJobStockRefresh', 'chadJobRefreshStartMonth', 'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
   'chadJobSignOnCash',
-  'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',
+  'chadJob401kEnabled', 'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
   'expenseInflation', 'expenseInflationRate',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',

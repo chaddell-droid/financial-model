@@ -180,7 +180,21 @@ test('19. isOptimizerEligible returns true only for bounded-continuous', () => {
 });
 
 test('20. getOptimizerEligibleLevers returns exactly the bounded-continuous set', () => {
-  const expected = ['sarahRate', 'sarahCurrentClients', 'cutsOverride', 'bcsParentsAnnual', 'chadConsulting', 'ssClaimAge', 'chadJobStartMonth', 'vanSaleMonth'];
+  const expected = [
+    'sarahRate', 'sarahCurrentClients', 'cutsOverride', 'bcsParentsAnnual',
+    'chadConsulting', 'ssClaimAge', 'chadJobStartMonth', 'vanSaleMonth',
+    // MSFT job/comp levers (gated on chadJob via prereq map)
+    'chadJobSalary', 'chadJobBonusPct', 'chadJobStockRefresh', 'chadJobRaisePct',
+    'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
+    'chadJobSignOnCash', 'chadJobRefreshStartMonth',
+    // 401(k) levers (gated on chadJob401kEnabled via prereq map)
+    'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',
+    // Promotion ladder (gated on chadL64Enabled / chadL65Enabled via prereq map)
+    'chadL64Month', 'chadL64Salary', 'chadL64StockRefresh', 'chadL64BonusPct',
+    'chadL65Month', 'chadL65Salary', 'chadL65StockRefresh', 'chadL65BonusPct',
+    // Retirement timing
+    'chadWorkMonths', 'sarahWorkMonths',
+  ];
   assert.deepStrictEqual(getOptimizerEligibleLevers().sort(), expected.sort());
 });
 

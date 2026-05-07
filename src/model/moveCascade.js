@@ -2,9 +2,11 @@ import { computeProjection } from './projection.js';
 import { gatherState } from '../state/gatherState.js';
 import {
   BREAKEVEN_MULTIPLIER,
+  GOAL_PROGRESS_MULTIPLIER,
   buildLeverCandidates,
   computeBreakevenMonthDelta,
 } from './sensitivityAnalysis.js';
+import { evaluateAllGoals } from './goalEvaluation.js';
 import { optimizeContinuousLever } from './moveOptimizer.js';
 
 // ─── Continuous-lever candidate generation (Story 2.3) ─────────────────────
@@ -16,6 +18,34 @@ const CONTINUOUS_LEVER_PREREQS = {
   cutsOverride: (s) => Boolean(s.lifestyleCutsApplied),
   chadJobStartMonth: (s) => Boolean(s.chadJob),
   vanSaleMonth: (s) => Boolean(s.vanSold),
+  // ssClaimAge only applies when the user is on SS retirement (not SSDI).
+  // Without this gate the engine would emit a "Claim SS at age X" rung that
+  // the projection ignores because ssType==='ssdi'. (Math audit M11.)
+  ssClaimAge: (s) => s.ssType === 'ss',
+  // MSFT comp & 401(k) levers — meaningless unless Chad is employed.
+  chadJobSalary: (s) => Boolean(s.chadJob),
+  chadJobBonusPct: (s) => Boolean(s.chadJob),
+  chadJobStockRefresh: (s) => Boolean(s.chadJob),
+  chadJobRaisePct: (s) => Boolean(s.chadJob),
+  chadJobHireStockY1: (s) => Boolean(s.chadJob),
+  chadJobHireStockY2: (s) => Boolean(s.chadJob),
+  chadJobHireStockY3: (s) => Boolean(s.chadJob),
+  chadJobHireStockY4: (s) => Boolean(s.chadJob),
+  chadJobSignOnCash: (s) => Boolean(s.chadJob),
+  chadJobRefreshStartMonth: (s) => Boolean(s.chadJob),
+  // 401(k) deferral/catchup/match only relevant when 401(k) is enabled.
+  chadJob401kDeferral: (s) => Boolean(s.chadJob) && Boolean(s.chadJob401kEnabled),
+  chadJob401kCatchupRoth: (s) => Boolean(s.chadJob) && Boolean(s.chadJob401kEnabled),
+  chadJob401kMatch: (s) => Boolean(s.chadJob) && Boolean(s.chadJob401kEnabled),
+  // Promotion ladder fields — only when the corresponding level is enabled.
+  chadL64Month: (s) => Boolean(s.chadJob) && Boolean(s.chadL64Enabled),
+  chadL64Salary: (s) => Boolean(s.chadJob) && Boolean(s.chadL64Enabled),
+  chadL64StockRefresh: (s) => Boolean(s.chadJob) && Boolean(s.chadL64Enabled),
+  chadL64BonusPct: (s) => Boolean(s.chadJob) && Boolean(s.chadL64Enabled),
+  chadL65Month: (s) => Boolean(s.chadJob) && Boolean(s.chadL65Enabled),
+  chadL65Salary: (s) => Boolean(s.chadJob) && Boolean(s.chadL65Enabled),
+  chadL65StockRefresh: (s) => Boolean(s.chadJob) && Boolean(s.chadL65Enabled),
+  chadL65BonusPct: (s) => Boolean(s.chadJob) && Boolean(s.chadL65Enabled),
 };
 
 /**
@@ -25,6 +55,7 @@ const CONTINUOUS_LEVER_PREREQS = {
  */
 function labelForContinuousMove(leverKey, currentValue, newValue) {
   const rounded = Math.round(newValue * 100) / 100;
+  const dollarsK = (v) => '$' + Math.round(v / 1000) + 'K';
   switch (leverKey) {
     case 'sarahRate':
       return `Raise Sarah's rate to $${Math.round(rounded)}/hr`;
@@ -42,6 +73,53 @@ function labelForContinuousMove(leverKey, currentValue, newValue) {
       return `Start W-2 job at month ${Math.round(rounded)}`;
     case 'vanSaleMonth':
       return `Sell the van at month ${Math.round(rounded)}`;
+    // MSFT job + 401(k) + promotion ladder + retirement timing
+    case 'chadJobSalary':
+      return `Negotiate base salary to ${dollarsK(rounded)}`;
+    case 'chadJobBonusPct':
+      return `Negotiate bonus target to ${Math.round(rounded)}%`;
+    case 'chadJobStockRefresh':
+      return `Negotiate annual refresh to ${dollarsK(rounded)}`;
+    case 'chadJobRaisePct':
+      return `Raise % target to ${rounded.toFixed(2)}%/yr`;
+    case 'chadJobHireStockY1':
+      return `Y1 hire stock to ${dollarsK(rounded)}`;
+    case 'chadJobHireStockY2':
+      return `Y2 hire stock to ${dollarsK(rounded)}`;
+    case 'chadJobHireStockY3':
+      return `Y3 hire stock to ${dollarsK(rounded)}`;
+    case 'chadJobHireStockY4':
+      return `Y4 hire stock to ${dollarsK(rounded)}`;
+    case 'chadJobSignOnCash':
+      return `Sign-on cash to ${dollarsK(rounded)}`;
+    case 'chadJobRefreshStartMonth':
+      return `First refresh ${Math.round(rounded)} mo after hire (snaps to next August)`;
+    case 'chadJob401kDeferral':
+      return `401(k) pre-tax deferral to ${dollarsK(rounded)}/yr`;
+    case 'chadJob401kCatchupRoth':
+      return `401(k) Roth catch-up to ${dollarsK(rounded)}/yr`;
+    case 'chadJob401kMatch':
+      return `Negotiate employer 401(k) match to ${dollarsK(rounded)}/yr`;
+    case 'chadL64Month':
+      return `Promote to L64 at month ${Math.round(rounded)}`;
+    case 'chadL64Salary':
+      return `Negotiate L64 salary to ${dollarsK(rounded)}`;
+    case 'chadL64StockRefresh':
+      return `Negotiate L64 refresh to ${dollarsK(rounded)}`;
+    case 'chadL64BonusPct':
+      return `Negotiate L64 bonus to ${Math.round(rounded)}%`;
+    case 'chadL65Month':
+      return `Promote to L65 at month ${Math.round(rounded)}`;
+    case 'chadL65Salary':
+      return `Negotiate L65 salary to ${dollarsK(rounded)}`;
+    case 'chadL65StockRefresh':
+      return `Negotiate L65 refresh to ${dollarsK(rounded)}`;
+    case 'chadL65BonusPct':
+      return `Negotiate L65 bonus to ${Math.round(rounded)}%`;
+    case 'chadWorkMonths':
+      return `Chad works ${Math.round(rounded)} months total`;
+    case 'sarahWorkMonths':
+      return `Sarah works ${Math.round(rounded)} months total`;
     default:
       return `Optimize ${leverKey} to ${rounded}`;
   }
@@ -146,6 +224,13 @@ export function computeMoveCascade(baseState, count = 3) {
   let workingState = baseState;
   let workingFinalBalance = baselineFinalBalance;
   let workingQuarterly = baselineQuarterly;
+  let workingMonthly = baselineMonthly;
+  // Track goal-eval at the WORKING state (not baseline) so each rung's goal
+  // delta is marginal — the cascade picks moves that incrementally close gaps.
+  const baseGoals = Array.isArray(baseState.goals) ? baseState.goals : [];
+  let workingGoalsEval = baseGoals.length > 0
+    ? evaluateAllGoals(baseGoals, workingMonthly, { wealthData: workingMonthly, retireDebt: !!workingState.retireDebt })
+    : [];
 
   for (let step = 0; step < count; step++) {
     const discrete = buildLeverCandidates(workingState);
@@ -166,10 +251,28 @@ export function computeMoveCascade(baseState, count = 3) {
       const marginalFinalDelta = composedFinalBalance - workingFinalBalance;
       const marginalBreakevenDelta = computeBreakevenMonthDelta(workingQuarterly, composedQuarterly);
 
-      // Filter: must improve on at least one axis (mirrors computeTopMoves)
-      if (marginalFinalDelta <= 0 && marginalBreakevenDelta >= 0) continue;
+      // Marginal goal-progress (vs current working state). Only computed when
+      // the user has goals defined.
+      let marginalGoalDelta = 0;
+      if (workingGoalsEval.length > 0) {
+        const composedGoalsEval = evaluateAllGoals(
+          composedState.goals || [],
+          composedMonthly,
+          { wealthData: composedMonthly, retireDebt: !!composedState.retireDebt },
+        );
+        for (let i = 0; i < composedGoalsEval.length; i++) {
+          const before = workingGoalsEval[i]?.progress ?? 0;
+          const after = composedGoalsEval[i]?.progress ?? 0;
+          marginalGoalDelta += (after - before);
+        }
+      }
 
-      const score = marginalFinalDelta + (-marginalBreakevenDelta) * BREAKEVEN_MULTIPLIER;
+      // Filter: must improve on at least one axis (incl. goal progress)
+      if (marginalFinalDelta <= 0 && marginalBreakevenDelta >= 0 && marginalGoalDelta <= 0) continue;
+
+      const score = marginalFinalDelta
+        + (-marginalBreakevenDelta) * BREAKEVEN_MULTIPLIER
+        + marginalGoalDelta * GOAL_PROGRESS_MULTIPLIER;
 
       if (!best || score > best.score) {
         best = {
@@ -177,6 +280,7 @@ export function computeMoveCascade(baseState, count = 3) {
           composedState,
           composedFinalBalance,
           composedQuarterly,
+          composedMonthly,
           score,
         };
       }
@@ -215,6 +319,14 @@ export function computeMoveCascade(baseState, count = 3) {
     workingState = best.composedState;
     workingFinalBalance = best.composedFinalBalance;
     workingQuarterly = best.composedQuarterly;
+    workingMonthly = best.composedMonthly;
+    if (baseGoals.length > 0) {
+      workingGoalsEval = evaluateAllGoals(
+        workingState.goals || [],
+        workingMonthly,
+        { wealthData: workingMonthly, retireDebt: !!workingState.retireDebt },
+      );
+    }
   }
 
   return results;

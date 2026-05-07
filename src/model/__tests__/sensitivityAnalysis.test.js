@@ -3,7 +3,7 @@
  * Run with: node src/model/__tests__/sensitivityAnalysis.test.js
  */
 import assert from 'node:assert';
-import { computeTopMoves, computeSensitivities, computeIncomePathways } from '../sensitivityAnalysis.js';
+import { computeTopMoves, computeSensitivities, computeIncomePathways, buildLeverCandidates } from '../sensitivityAnalysis.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
@@ -136,8 +136,13 @@ test('13. Only improvements returned (no negative-only results)', () => {
   const s = gatherStateWithOverrides({});
   const results = computeTopMoves(s, 10);
   for (const r of results) {
-    const isImprovement = r.finalBalanceDelta > 0 || r.breakevenMonthDelta < 0;
-    assert.ok(isImprovement, `result ${r.key} should improve on at least one axis: finalBalanceDelta=${r.finalBalanceDelta}, breakevenMonthDelta=${r.breakevenMonthDelta}`);
+    // A candidate must improve on at least one axis: final balance, breakeven,
+    // or goal progress (the latter is goal-aware ranking introduced with MSFT
+    // lever expansion — see sensitivityAnalysis.js computeGoalProgressDelta).
+    const isImprovement = r.finalBalanceDelta > 0
+      || r.breakevenMonthDelta < 0
+      || (r.goalProgressDelta || 0) > 0;
+    assert.ok(isImprovement, `result ${r.key} should improve on at least one axis: finalBalanceDelta=${r.finalBalanceDelta}, breakevenMonthDelta=${r.breakevenMonthDelta}, goalProgressDelta=${r.goalProgressDelta}`);
   }
 });
 
@@ -152,6 +157,13 @@ test('14. Fully-leveraged state returns empty top moves', () => {
     bcsAnnualTotal: 43400,
     bcsParentsAnnual: 43400, // external fully covers — family share is $0
     customLevers: [],
+    // Suppress the MSFT-offer / promotion / 401k / age65 candidates by having
+    // Chad already employed with the ladder + 401k enabled and override forced on.
+    chadJob: true,
+    chadL64Enabled: true,
+    chadL65Enabled: true,
+    chadJob401kEnabled: true,
+    chadAge65VestOverride: 'on',
   });
   const results = computeTopMoves(s, 10);
   assert.strictEqual(results.length, 0, `expected empty results when all levers active, got ${results.length}`);
@@ -177,6 +189,67 @@ test('14c. BCS candidate excluded when external already covers full tuition', ()
   const results = computeTopMoves(s, 10);
   const bcs = results.find(r => r.key === 'bcs_fully_covered');
   assert.ok(!bcs, 'bcs_fully_covered should NOT appear when external already covers everything');
+});
+
+test('14msft. "Take the MSFT offer" bundle is generated when chadJob=false', () => {
+  // Composite move that toggles chadJob + L64 + L65 + 401(k) max & match.
+  // Inspect via buildLeverCandidates (pre-filter) so we test the bundle
+  // structure regardless of whether goal/balance filters surface it.
+  const s = gatherStateWithOverrides({ chadJob: false });
+  const cands = buildLeverCandidates(s);
+  const msft = cands.find(c => c.id === 'take_msft_offer');
+  assert.ok(msft, 'take_msft_offer should be generated when chadJob=false');
+  assert.ok(msft.label.includes('L63') && msft.label.includes('L64') && msft.label.includes('L65'),
+    `Label should advertise the full ladder, got "${msft.label}"`);
+  // All ladder + 401k toggles flipped on
+  assert.strictEqual(msft.mutation.chadJob, true);
+  assert.strictEqual(msft.mutation.chadL64Enabled, true);
+  assert.strictEqual(msft.mutation.chadL65Enabled, true);
+  assert.strictEqual(msft.mutation.chadJob401kEnabled, true);
+  assert.strictEqual(msft.mutation.chadAge65VestOverride, 'on');
+});
+
+test('14msft-2. MSFT bundle preserves user-customized values (only fills zeros)', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: false,
+    chadJobSalary: 195000,           // user-tuned, higher than bundle default $165K
+    chadJob401kDeferral: 0,          // currently zero — bundle should fill in
+    chadL64Salary: 0,                // currently zero — bundle should fill in
+  });
+  const cands = buildLeverCandidates(s);
+  const msft = cands.find(c => c.id === 'take_msft_offer');
+  assert.ok(msft, 'take_msft_offer should be generated');
+  const m = msft.mutation;
+  assert.strictEqual(m.chadJobSalary, 195000, 'should preserve user-customized salary');
+  assert.strictEqual(m.chadJob401kDeferral, 24500, 'should fill in 401k deferral when zero');
+  assert.strictEqual(m.chadL64Salary, 220000, 'should fill in L64 salary when zero');
+  assert.strictEqual(m.chadJobSignOnCash, 50000, 'should fill in sign-on cash when zero');
+  assert.strictEqual(m.chadJob401kMatch, 12250, 'should fill in employer match');
+  assert.strictEqual(m.chadJob401kCatchupRoth, 11250, 'should fill in super catch-up');
+});
+
+test('14msft-3. MSFT bundle excluded when Chad already employed', () => {
+  const s = gatherStateWithOverrides({ chadJob: true });
+  const cands = buildLeverCandidates(s);
+  const msft = cands.find(c => c.id === 'take_msft_offer');
+  assert.ok(!msft, 'take_msft_offer should NOT appear when chadJob is already true');
+});
+
+test('14msft-4. MSFT bundle improves at least ONE axis of the standard goals', () => {
+  // From a no-job baseline, the bundle activates significant W-2 income that
+  // should improve at least one default goal (savings_floor at Y6 / cash flow
+  // breakeven at m36 / emergency fund $50K at m48). It also kills SSDI, so
+  // savings-only final balance can decline — that's expected. We assert
+  // goal-progress improvement instead.
+  const s = gatherStateWithOverrides({ chadJob: false });
+  const results = computeTopMoves(s, 20);
+  const msft = results.find(r => r.key === 'take_msft_offer');
+  assert.ok(msft, 'take_msft_offer should surface via the goal-aware filter');
+  const improvedSomething = msft.finalBalanceDelta > 0
+    || msft.breakevenMonthDelta < 0
+    || (msft.goalProgressDelta || 0) > 0;
+  assert.ok(improvedSomething,
+    `MSFT bundle should improve on at least one axis, got finalBalance=${msft.finalBalanceDelta}, breakeven=${msft.breakevenMonthDelta}, goalProgress=${msft.goalProgressDelta}`);
 });
 
 test('14d. Mutations re-run gatherState (derived fields refresh)', () => {

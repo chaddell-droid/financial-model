@@ -1,5 +1,6 @@
 import { computeProjection, findOperationalBreakevenIndex } from './projection.js';
 import { gatherState } from '../state/gatherState.js';
+import { evaluateAllGoals } from './goalEvaluation.js';
 
 /**
  * "Your Top 3 Moves" / Sensitivity analysis.
@@ -22,6 +23,35 @@ import { gatherState } from '../state/gatherState.js';
 
 export const BREAKEVEN_MULTIPLIER = 5000; // $5k/month weighted to equal 1 quarter earlier breakeven
 const HORIZON_SENTINEL_MONTHS = 72; // cap used when a scenario never breaks even
+
+// Each unit of normalized goal-progress improvement is worth this much
+// "score" — calibrated so a single goal flipping from missed (progress=0)
+// to met (progress=1) outweighs a $250K final-balance bump on its own.
+export const GOAL_PROGRESS_MULTIPLIER = 250000;
+
+/**
+ * Compute the goal-aware score boost for a state vs baseline.
+ * Returns 0 when state.goals is missing or empty (engine falls back to the
+ * hardcoded composite score in that case).
+ *
+ * Goal evaluation reads monthly balance, cash flow, net worth, and retireDebt
+ * — see goalEvaluation.js for the per-goal-type metric.
+ */
+export function computeGoalProgressDelta(baseGoalsEval, testProj, testState) {
+  if (!Array.isArray(baseGoalsEval) || baseGoalsEval.length === 0) return 0;
+  const testEval = evaluateAllGoals(
+    testState.goals || [],
+    testProj.monthlyData,
+    { wealthData: testProj.monthlyData, retireDebt: !!testState.retireDebt },
+  );
+  let totalDelta = 0;
+  for (let i = 0; i < testEval.length; i++) {
+    const before = baseGoalsEval[i]?.progress ?? 0;
+    const after = testEval[i]?.progress ?? 0;
+    totalDelta += (after - before);
+  }
+  return totalDelta;
+}
 
 // ─── Tier 2: parameter-sensitivity sweeps ───
 // Kept intentionally small — these are awareness items, not action items.
@@ -96,7 +126,120 @@ export function buildLeverCandidates(state) {
     });
   }
 
-  // 5. Custom levers — each INACTIVE one becomes a candidate at its max impact
+  // 5a. "Take the MSFT offer" — composite move that turns on chadJob, the L64
+  // and L65 promotion ladder, and 401(k) max-out + match in a single click.
+  // Each MSFT-typical value is filled in ONLY when the corresponding state
+  // field is currently 0 or false, so any custom values the user has tuned
+  // are preserved.
+  if (!state.chadJob) {
+    const orDefault = (current, fallback) => (current && current > 0) ? current : fallback;
+    const msftBundle = {
+      chadJob: true,
+      // L63 baseline — typical MSFT offer for an experienced senior IC
+      chadJobSalary: orDefault(state.chadJobSalary, 165000),
+      chadJobTaxRate: orDefault(state.chadJobTaxRate, 32),
+      chadJobStartMonth: state.chadJobStartMonth ?? 3,
+      chadJobHealthSavings: orDefault(state.chadJobHealthSavings, 4200),
+      chadJobNoFICA: false,
+      chadJobBonusPct: orDefault(state.chadJobBonusPct, 15),
+      chadJobBonusMonth: state.chadJobBonusMonth ?? 8,
+      chadJobBonusProrateFirst: state.chadJobBonusProrateFirst !== false,
+      chadJobStockRefresh: orDefault(state.chadJobStockRefresh, 60000),
+      chadJobRaisePct: orDefault(state.chadJobRaisePct, 3.5),
+      chadJobRefreshStartMonth: state.chadJobRefreshStartMonth ?? 12,
+      chadJobHireStockY1: orDefault(state.chadJobHireStockY1, 30000),
+      chadJobHireStockY2: orDefault(state.chadJobHireStockY2, 30000),
+      chadJobHireStockY3: orDefault(state.chadJobHireStockY3, 30000),
+      chadJobHireStockY4: orDefault(state.chadJobHireStockY4, 30000),
+      chadJobSignOnCash: orDefault(state.chadJobSignOnCash, 50000),
+      // L64 ladder
+      chadL64Enabled: true,
+      chadL64Month: state.chadL64Month ?? 24,
+      chadL64Salary: orDefault(state.chadL64Salary, 220000),
+      chadL64StockRefresh: orDefault(state.chadL64StockRefresh, 100000),
+      chadL64BonusPct: orDefault(state.chadL64BonusPct, 15),
+      // L65 ladder
+      chadL65Enabled: true,
+      chadL65Month: state.chadL65Month ?? 60,
+      chadL65Salary: orDefault(state.chadL65Salary, 280000),
+      chadL65StockRefresh: orDefault(state.chadL65StockRefresh, 150000),
+      chadL65BonusPct: orDefault(state.chadL65BonusPct, 20),
+      // 401(k) max-out + employer match (super catch-up for ages 60-63)
+      chadJob401kEnabled: true,
+      chadJob401kDeferral: orDefault(state.chadJob401kDeferral, 24500),
+      chadJob401kCatchupRoth: orDefault(state.chadJob401kCatchupRoth, 11250),
+      chadJob401kMatch: orDefault(state.chadJob401kMatch, 12250),
+      // Force age-65 vest continuation ON since Chad will retire at 65+ under
+      // the typical 6-yr horizon — locks in post-retirement RSU windfall.
+      chadAge65VestOverride: 'on',
+    };
+    // Approximate steady-state monthly impact for the panel: salary + bonus
+    // + refresh + 401k match, all annualized then divided by 12, rough net.
+    const grossAnnual = msftBundle.chadJobSalary
+      + msftBundle.chadJobSalary * (msftBundle.chadJobBonusPct / 100)
+      + msftBundle.chadJobStockRefresh
+      + msftBundle.chadJob401kMatch;
+    const netMonthly = Math.round(grossAnnual * (1 - msftBundle.chadJobTaxRate / 100) / 12);
+    candidates.push({
+      id: 'take_msft_offer',
+      label: 'Take the MSFT offer (L63 → L64 → L65 + 401(k) max & match)',
+      unit: '$/mo net',
+      monthlyImpact: netMonthly,
+      mutation: msftBundle,
+    });
+  }
+
+  // 5. Enable Chad's L64 promotion. Gated on chadJob — meaningless if Chad isn't employed.
+  if (state.chadJob && !state.chadL64Enabled && (state.chadL64Salary || 0) > 0) {
+    candidates.push({
+      id: 'enable_l64',
+      label: 'Promote to L64',
+      unit: '$/yr lift',
+      monthlyImpact: Math.round(((state.chadL64Salary || 0) - (state.chadJobSalary || 0)) / 12),
+      mutation: { chadL64Enabled: true },
+    });
+  }
+
+  // 6. Enable Chad's L65 promotion. Requires L64 also enabled (ladder convention).
+  if (state.chadJob && !state.chadL65Enabled && (state.chadL65Salary || 0) > 0) {
+    candidates.push({
+      id: 'enable_l65',
+      label: 'Promote to L65',
+      unit: '$/yr lift',
+      monthlyImpact: Math.round(((state.chadL65Salary || 0) - (state.chadJobSalary || 0)) / 12),
+      mutation: { chadL65Enabled: true },
+    });
+  }
+
+  // 7. Enable 401(k) — captures employer match ("free money") and tax-deferred savings.
+  //    Only suggested when Chad is employed and 401k is currently off.
+  if (state.chadJob && !state.chadJob401kEnabled) {
+    const matchAnnual = state.chadJob401kMatch || 0;
+    candidates.push({
+      id: 'enable_401k',
+      label: '401(k) — capture employer match',
+      unit: '$/yr match',
+      monthlyImpact: Math.round(matchAnnual / 12),
+      mutation: { chadJob401kEnabled: true },
+    });
+  }
+
+  // 8. Force age-65 RSU vest continuation ON (override 'auto' or 'off' → 'on').
+  //    Only meaningful when Chad has refresh grants and the override isn't already on.
+  if (state.chadJob && state.chadAge65VestOverride !== 'on'
+      && ((state.chadJobStockRefresh || 0) > 0
+          || (state.chadL64Enabled && (state.chadL64StockRefresh || 0) > 0)
+          || (state.chadL65Enabled && (state.chadL65StockRefresh || 0) > 0))) {
+    candidates.push({
+      id: 'age65_vest_on',
+      label: 'Force age-65 RSU vest continuation',
+      unit: 'rule override',
+      monthlyImpact: 0, // post-retirement windfall, not steady-state monthly
+      mutation: { chadAge65VestOverride: 'on' },
+    });
+  }
+
+  // 9. Custom levers — each INACTIVE one becomes a candidate at its max impact
   const customLevers = Array.isArray(state.customLevers) ? state.customLevers : [];
   for (const lv of customLevers) {
     if (lv.active) continue;
@@ -144,6 +287,11 @@ export function computeTopMoves(baseState, topN = 3) {
   const baseMonthly = baseProj.monthlyData;
   const baseQuarterly = baseProj.data;
   const baseFinalBalance = baseMonthly[baseMonthly.length - 1].balance;
+  // Pre-evaluate baseline goals so we can score goal-progress deltas per candidate.
+  const baseGoals = Array.isArray(baseState.goals) ? baseState.goals : [];
+  const baseGoalsEval = baseGoals.length > 0
+    ? evaluateAllGoals(baseGoals, baseMonthly, { wealthData: baseMonthly, retireDebt: !!baseState.retireDebt })
+    : [];
 
   const candidates = buildLeverCandidates(baseState);
   const results = [];
@@ -160,12 +308,17 @@ export function computeTopMoves(baseState, topN = 3) {
 
     const finalBalanceDelta = testFinalBalance - baseFinalBalance;
     const breakevenMonthDelta = computeBreakevenMonthDelta(baseQuarterly, testProj.data);
+    const goalProgressDelta = computeGoalProgressDelta(baseGoalsEval, testProj, testState);
 
-    // Score: dollars + months-earlier-breakeven weighted by BREAKEVEN_MULTIPLIER
-    const score = finalBalanceDelta + (-breakevenMonthDelta) * BREAKEVEN_MULTIPLIER;
+    // Score: dollars + months-earlier-breakeven weighted + goal-progress weighted.
+    // When the user has goals defined, goal-progress moves dominate; otherwise
+    // the engine falls back to the original composite.
+    const score = finalBalanceDelta
+      + (-breakevenMonthDelta) * BREAKEVEN_MULTIPLIER
+      + goalProgressDelta * GOAL_PROGRESS_MULTIPLIER;
 
-    // Include only genuine improvements on at least one axis
-    if (finalBalanceDelta <= 0 && breakevenMonthDelta >= 0) continue;
+    // Include only genuine improvements on at least one axis (incl. goal progress)
+    if (finalBalanceDelta <= 0 && breakevenMonthDelta >= 0 && goalProgressDelta <= 0) continue;
 
     results.push({
       key: cand.id,
@@ -176,6 +329,7 @@ export function computeTopMoves(baseState, topN = 3) {
       testValue: cand.monthlyImpact,
       finalBalanceDelta,
       breakevenMonthDelta,
+      goalProgressDelta,
       // `runwayDelta` kept as 0 for UI back-compat; the panel now reads breakevenMonthDelta
       runwayDelta: 0,
       score,

@@ -131,8 +131,12 @@ test('8. No duplicate ids across rungs', () => {
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== empty output ===');
 
-test('9. Fully-leveraged state returns empty cascade', () => {
-  // Mirror the "fully leveraged" scenario from sensitivityAnalysis.test.js
+test('9. Fully-leveraged state returns no DISCRETE cascade rungs', () => {
+  // After the MSFT lever-inventory expansion, the cascade always has continuous
+  // levers (chadJobSalary, chadL64Salary, etc.) it can tune toward their bounds —
+  // so an "empty cascade" in fully-leveraged state is no longer meaningful. The
+  // testable invariant is that no DISCRETE binary candidate (retire_debt,
+  // sell_van, take_msft_offer, etc.) surfaces when all binaries are flipped.
   const s = gatherStateWithOverrides({
     retireDebt: true,
     lifestyleCutsApplied: true,
@@ -141,9 +145,21 @@ test('9. Fully-leveraged state returns empty cascade', () => {
     bcsAnnualTotal: 43400,
     bcsParentsAnnual: 43400,
     customLevers: [],
+    chadJob: true,
+    chadL64Enabled: true,
+    chadL65Enabled: true,
+    chadJob401kEnabled: true,
+    chadAge65VestOverride: 'on',
   });
-  const result = computeMoveCascade(s, 5);
-  assert.strictEqual(result.length, 0, `expected 0 rungs when all levers active, got ${result.length}`);
+  const result = computeMoveCascade(s, 10);
+  const discreteIds = new Set([
+    'retire_debt', 'spending_cuts', 'sell_van', 'bcs_fully_covered',
+    'take_msft_offer', 'enable_l64', 'enable_l65', 'enable_401k', 'age65_vest_on',
+  ]);
+  for (const rung of result) {
+    assert.ok(!discreteIds.has(rung.id),
+      `Discrete candidate "${rung.id}" should not surface when all binaries are flipped`);
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -223,9 +239,15 @@ test('13. Lever activations produce known mutation keys', () => {
   const s = gatherStateWithOverrides({});
   const result = computeMoveCascade(s, 10);
   // Each selected rung must be one of the buildLeverCandidates outputs
-  const knownIds = new Set(['retire_debt', 'spending_cuts', 'sell_van', 'bcs_fully_covered']);
+  // (plus optimize:* prefixed continuous lever moves from moveCascade.js).
+  const knownIds = new Set([
+    'retire_debt', 'spending_cuts', 'sell_van', 'bcs_fully_covered',
+    'take_msft_offer', 'enable_l64', 'enable_l65', 'enable_401k', 'age65_vest_on',
+  ]);
   for (const rung of result) {
-    const isKnown = knownIds.has(rung.id) || rung.id.startsWith('custom:');
+    const isKnown = knownIds.has(rung.id)
+      || rung.id.startsWith('custom:')
+      || rung.id.startsWith('optimize:');
     assert.ok(isKnown, `unknown rung id: ${rung.id}`);
   }
 });

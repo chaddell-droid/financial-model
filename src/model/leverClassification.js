@@ -32,6 +32,11 @@ export const LEVER_CLASSIFICATION = Object.freeze({
   chadJob: { classification: LEVER_CLASS.BINARY },
   ssType: { classification: LEVER_CLASS.BINARY }, // enum-binary (ssdi vs ss)
   ssdiDenied: { classification: LEVER_CLASS.BINARY },
+  // MSFT promotion ladder + 401(k) toggles. Gated on chadJob via prereq map
+  // in moveCascade.js so the engine doesn't propose them when Chad isn't employed.
+  chadL64Enabled: { classification: LEVER_CLASS.BINARY },
+  chadL65Enabled: { classification: LEVER_CLASS.BINARY },
+  chadJob401kEnabled: { classification: LEVER_CLASS.BINARY },
 
   // ─── Bounded-continuous — Phase 2 optimizer-eligible ────────────────────
   // Bounds from Constraint Workshop 2026-04-23, signed off by Chad.
@@ -93,6 +98,150 @@ export const LEVER_CLASSIFICATION = Object.freeze({
     min: 0,
     max: 24, // 24-month window — waits for better market / replacement plan
     defaultStep: 1,
+  },
+
+  // ─── MSFT job/comp levers — gated on chadJob via prereq map ──────────
+  chadJobSalary: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 80000,                 // floor for L63 W-2; below this isn't a competitive offer
+    max: 220000,                // L63 ceiling at top of band
+    defaultStep: 5000,
+  },
+  chadJobBonusPct: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 20,                    // L63 bonus target ceiling
+    defaultStep: 1,
+  },
+  chadJobStockRefresh: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 100000,                // typical L63 refresh ceiling
+    defaultStep: 5000,
+  },
+  chadJobRaisePct: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 5,                     // 5% annual raise ceiling
+    defaultStep: 0.25,
+  },
+  chadJobHireStockY1: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 200000,
+    defaultStep: 5000,
+  },
+  chadJobHireStockY2: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 200000,
+    defaultStep: 5000,
+  },
+  chadJobHireStockY3: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 200000,
+    defaultStep: 5000,
+  },
+  chadJobHireStockY4: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 200000,
+    defaultStep: 5000,
+  },
+  chadJobSignOnCash: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 100000,
+    defaultStep: 5000,
+  },
+  chadJobRefreshStartMonth: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 24,                    // engine snaps to next August anyway, but this controls the floor
+    defaultStep: 1,
+  },
+  // 401(k) — gated on chadJob401kEnabled
+  chadJob401kDeferral: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 24500,                 // IRC §402(g) 2026 elective deferral limit
+    defaultStep: 500,
+  },
+  chadJob401kCatchupRoth: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 11250,                 // SECURE 2.0 super catch-up ages 60-63
+    defaultStep: 250,
+  },
+  chadJob401kMatch: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 12250,                 // typical employer match ceiling
+    defaultStep: 250,
+  },
+  // L64 promotion — gated on chadL64Enabled
+  chadL64Month: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 6,
+    max: 60,
+    defaultStep: 3,
+  },
+  chadL64Salary: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 180000,
+    max: 320000,
+    defaultStep: 5000,
+  },
+  chadL64StockRefresh: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 200000,
+    defaultStep: 5000,
+  },
+  chadL64BonusPct: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 30,
+    defaultStep: 1,
+  },
+  // L65 promotion — gated on chadL65Enabled
+  chadL65Month: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 12,
+    max: 120,
+    defaultStep: 3,
+  },
+  chadL65Salary: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 220000,
+    max: 400000,
+    defaultStep: 5000,
+  },
+  chadL65StockRefresh: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 300000,
+    defaultStep: 5000,
+  },
+  chadL65BonusPct: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 0,
+    max: 40,
+    defaultStep: 1,
+  },
+  // Retirement timing
+  chadWorkMonths: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 12,
+    max: 144,
+    defaultStep: 3,
+  },
+  sarahWorkMonths: {
+    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
+    min: 36,
+    max: 144,
+    defaultStep: 3,
   },
 
   // ─── Awareness-only — never recommended as actions ──────────────────────

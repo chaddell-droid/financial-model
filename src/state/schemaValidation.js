@@ -38,6 +38,9 @@ const RANGE = {
   // SS claiming
   ssClaimAge: { min: 62, max: 70 },
   ssPIA: { min: 0, max: 5000 },
+  // Sarah's spousal SS — current age + claim age (62–70 per SSA rules)
+  sarahCurrentAge: { min: 18, max: 100 },
+  sarahSpousalClaimAge: { min: 62, max: 70 },
   // Month offsets
   ssdiApprovalMonth: { min: 0, max: 120 },
   kidsAgeOutMonths: { min: 0, max: 120 },
@@ -81,6 +84,15 @@ const RANGE = {
   chadJob401kDeferral: { min: 0, max: 24500 },        // IRC §402(g) 2026 elective deferral limit
   chadJob401kCatchupRoth: { min: 0, max: 11250 },     // SECURE 2.0 super catch-up ages 60-63 ($11,250); regular 50+ = $8,000
   chadJob401kMatch: { min: 0, max: 50000 },           // No fixed cap; IRC §415(c) total annual additions = $70K base + catch-up
+  chadCurrentAge: { min: 18, max: 100 },              // Used for age-65 RSU vest continuation eligibility
+  chadL64Month: { min: 0, max: 120 },                 // Months after hire until L64 promotion (matches UI slider)
+  chadL64Salary: { min: 0, max: 1_000_000 },
+  chadL64StockRefresh: { min: 0, max: 1_000_000 },
+  chadL64BonusPct: { min: 0, max: 40 },                // Matches UI slider cap
+  chadL65Month: { min: 0, max: 180 },                  // Months after hire until L65 promotion (matches UI slider)
+  chadL65Salary: { min: 0, max: 1_000_000 },
+  chadL65StockRefresh: { min: 0, max: 1_000_000 },
+  chadL65BonusPct: { min: 0, max: 50 },                // Matches UI slider cap
   totalMonthlySpend: { min: 0 },
   oneTimeExtras: { min: 0 },
   oneTimeMonths: { min: 0, max: 72 },
@@ -128,6 +140,7 @@ const RANGE = {
 
 const ENUMS = {
   ssType: ['ssdi', 'ss'],
+  chadAge65VestOverride: ['auto', 'on', 'off'],
 };
 
 const VALID_GOAL_TYPES = new Set(['savings_floor', 'income_target', 'savings_target', 'net_worth_target']);
@@ -183,9 +196,15 @@ const MIGRATIONS = [
     to: 4,
     fn: (state) => {
       const result = { ...state };
-      // Convert sarahWorkYears (years) → sarahWorkMonths (months)
+      // Convert legacy sarahWorkYears (years) → sarahWorkMonths (months) ONLY when
+      // sarahWorkMonths is missing. The 1→2 migration injects sarahWorkYears=6
+      // for forward-compat, so a saved state with both keys would otherwise
+      // have its sarahWorkMonths silently overwritten with 72. Bug found by
+      // the saveLoadRoundtrip audit.
       if (result.sarahWorkYears !== undefined) {
-        result.sarahWorkMonths = (result.sarahWorkYears || 6) * 12;
+        if (result.sarahWorkMonths === undefined) {
+          result.sarahWorkMonths = (result.sarahWorkYears || 6) * 12;
+        }
         delete result.sarahWorkYears;
       }
       if (result.sarahWorkMonths === undefined) result.sarahWorkMonths = 72;

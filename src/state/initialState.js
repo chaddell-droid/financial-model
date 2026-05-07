@@ -29,10 +29,19 @@ export const INITIAL_STATE = {
   // SS retirement (configurable claiming age 62–70)
   ssClaimAge: 67,            // Claiming age (62–70); default FRA
   ssPIA: 4214,               // Primary Insurance Amount (benefit at FRA) — per SSA tool
-  ssFamilyTotal: 7099,       // Computed in gatherState from PIA + claim age
+  // Family-max cap = 1.5 × PIA (SSA's lower-bound family max; real formula tiered 150-188%).
+  // Default 6321 = 4214 × 1.5 — matches the cap applied in gatherState so default state is self-consistent.
+  ssFamilyTotal: 6321,       // Computed in gatherState from PIA + claim age, capped at 1.5 × PIA
   ssPersonal: 2933,          // Computed in gatherState from PIA + claim age
   ssStartMonth: 18,          // Computed in gatherState from claim age
   ssKidsAgeOutMonths: 18,    // Computed in gatherState from claim age
+
+  // Sarah's SS spousal benefit — up to 50% of Chad's PIA at her FRA, reduced for early claim.
+  // Active when (m >= sarahSpousalStartMonth) AND Chad has claimed (ssBenefit > 0).
+  // sarahSpousalStartMonth derived in gatherState from sarahCurrentAge → sarahSpousalClaimAge.
+  sarahSpousalEnabled: true,        // Master toggle to model Sarah's spousal benefit
+  sarahCurrentAge: 59,              // Sarah's current age (drives months-until-claim derivation)
+  sarahSpousalClaimAge: 67,         // Age at which Sarah claims spousal (62–70)
 
   // Chad Gets a Job
   chadJob: false,
@@ -62,6 +71,34 @@ export const INITIAL_STATE = {
   chadJob401kCatchupRoth: 0,    // Annual Roth catch-up $ (e.g., $11,250 ages 60-63, $8,000 age 64+)
   chadJob401kMatch: 0,          // Annual employer match $ (e.g., $12,250 = 50% of $24,500 deferral)
 
+  // Chad's current age. Used for age-65 RSU vest continuation eligibility.
+  // Default 61 matches the model's existing convention (chadAge = 67 + y at retirement
+  // assumes chadCurrentAge=61 and default chadRetirementMonth=72 → age 67 at retirement).
+  chadCurrentAge: 61,
+
+  // MSFT promotion ladder. Each level can be enabled independently. Promotion
+  // month is measured from hire date (chadJobStartMonth), not project start.
+  // When a promotion fires, the new salary becomes the compounding anchor for
+  // chadJobRaisePct (which is shared across all levels).
+  chadL64Enabled: false,
+  chadL64Month: 24,             // Months after hire until L64 promotion
+  chadL64Salary: 220000,         // New base salary at L64
+  chadL64StockRefresh: 0,        // New annual refresh grant size at L64
+  chadL64BonusPct: 15,           // Bonus % at L64
+  chadL65Enabled: false,
+  chadL65Month: 60,              // Months after hire until L65 promotion
+  chadL65Salary: 280000,         // New base salary at L65
+  chadL65StockRefresh: 0,        // New annual refresh grant size at L65
+  chadL65BonusPct: 20,           // Bonus % at L65
+
+  // Age-65 RSU vest continuation. When eligible, unvested refresh grants keep
+  // vesting on their original 5-yr schedule after Chad retires (no salary,
+  // bonus, or new grants — just the existing vests playing out).
+  // 'auto' = engine checks age at retirement
+  // 'on' = force eligibility on (regardless of age)
+  // 'off' = force eligibility off (regardless of age)
+  chadAge65VestOverride: 'auto',
+
   // Expenses
   totalMonthlySpend: null,   // Actual total spend from all accounts; when set, back-calculates baseExpenses
   oneTimeExtras: 0,          // Temporary extra costs per month (e.g. travel, medical, loan payoffs)
@@ -80,7 +117,7 @@ export const INITIAL_STATE = {
 
   // Spending Cuts — single slider amount (applied when lifestyleCutsApplied is true)
   lifestyleCutsApplied: false,
-  cutsOverride: 0,
+  cutsOverride: null,                // null = no override (use individual cut sliders); number = total cut amount
   cutOliver: 0,
   cutVacation: 0,
   cutShopping: 0,
@@ -210,12 +247,17 @@ export const MODEL_KEYS = [
   'msftPrice', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
+  'sarahSpousalEnabled', 'sarahCurrentAge', 'sarahSpousalClaimAge',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
   'chadJobRaisePct', 'chadJobBonusPct', 'chadJobBonusMonth', 'chadJobBonusProrateFirst',
   'chadJobStockRefresh', 'chadJobRefreshStartMonth', 'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
   'chadJobSignOnCash',
   'chadJob401kEnabled', 'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',
+  'chadCurrentAge',
+  'chadL64Enabled', 'chadL64Month', 'chadL64Salary', 'chadL64StockRefresh', 'chadL64BonusPct',
+  'chadL65Enabled', 'chadL65Month', 'chadL65Salary', 'chadL65StockRefresh', 'chadL65BonusPct',
+  'chadAge65VestOverride',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
   'expenseInflation', 'expenseInflationRate',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',

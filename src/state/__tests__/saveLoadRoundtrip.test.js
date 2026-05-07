@@ -1,0 +1,415 @@
+/**
+ * Save/load round-trip tests: every MODEL_KEY must survive a full
+ * gatherState → JSON.stringify → JSON.parse → migrate → validateAndSanitize cycle.
+ *
+ * Built after the user reported "save scenario, reload, very different numbers"
+ * and asked for an exhaustive audit. The strategy: for every persistent field,
+ * use a non-default value so any silent fallback to INITIAL_STATE shows up as
+ * a test failure.
+ *
+ * Run with: node src/state/__tests__/saveLoadRoundtrip.test.js
+ */
+import assert from 'node:assert';
+import { INITIAL_STATE, MODEL_KEYS } from '../initialState.js';
+import { gatherState } from '../gatherState.js';
+import { validateAndSanitize, migrate } from '../schemaValidation.js';
+
+let passed = 0;
+let failed = 0;
+
+function test(name, fn) {
+  try {
+    fn();
+    passed++;
+    console.log(`  PASS  ${name}`);
+  } catch (err) {
+    failed++;
+    console.log(`  FAIL  ${name}`);
+    console.log(`        ${err.message}`);
+  }
+}
+
+function roundTrip(stateOverrides) {
+  const fullState = { ...INITIAL_STATE, ...stateOverrides };
+  const gathered = gatherState(fullState);
+  const serialized = JSON.parse(JSON.stringify(gathered));
+  const migrated = migrate(serialized);
+  return validateAndSanitize(migrated);
+}
+
+console.log('\n=== Save/load round-trip — comprehensive MODEL_KEYS audit ===');
+
+/**
+ * Non-default values for EVERY MODEL_KEY. Each entry must differ from
+ * INITIAL_STATE so any silent fallback shows up as a mismatch on round-trip.
+ *
+ * If a new MODEL_KEY is added without a corresponding entry here, the
+ * "Every MODEL_KEY has a non-default test value" test fails.
+ */
+const NON_DEFAULT_VALUES = {
+  // Sarah's business
+  sarahRate: 230,
+  sarahMaxRate: 280,
+  sarahRateGrowth: 7,
+  sarahCurrentClients: 4.0,
+  sarahMaxClients: 5.0,
+  sarahClientGrowth: 12,
+  sarahTaxRate: 28,
+  // Work timelines
+  chadWorkMonths: 84,
+  sarahWorkMonths: 96,
+  // MSFT
+  msftPrice: 425.50,
+  msftGrowth: 8.5,
+  // Social Security — SSDI side
+  ssType: 'ss',                    // flipped from default 'ssdi'
+  ssdiApprovalMonth: 9,
+  ssdiDenied: true,                // flipped
+  ssdiPersonal: 4500,
+  ssdiFamilyTotal: 6750,
+  kidsAgeOutMonths: 42,
+  chadConsulting: 2500,
+  ssdiBackPayMonths: 24,
+  // Social Security — retirement side
+  ssClaimAge: 70,
+  ssPIA: 4500,
+  ssFamilyTotal: 6750,
+  ssPersonal: 5400,
+  ssStartMonth: 96,
+  ssKidsAgeOutMonths: 24,
+  // Sarah's spousal
+  sarahSpousalEnabled: false,      // flipped
+  sarahCurrentAge: 60,
+  sarahSpousalClaimAge: 70,
+  // Chad's job — basics
+  chadJob: true,                   // flipped
+  chadJobSalary: 195000,
+  chadJobTaxRate: 32,
+  chadJobStartMonth: 4,
+  chadJobHealthSavings: 5500,
+  chadJobNoFICA: true,             // flipped
+  chadJobPensionRate: 1.5,
+  chadJobPensionContrib: 4.5,
+  chadJobRaisePct: 4,
+  chadJobBonusPct: 18,
+  chadJobBonusMonth: 7,
+  chadJobBonusProrateFirst: false, // flipped
+  chadJobStockRefresh: 60000,
+  chadJobRefreshStartMonth: 8,
+  chadJobHireStockY1: 50000,
+  chadJobHireStockY2: 75000,
+  chadJobHireStockY3: 100000,
+  chadJobHireStockY4: 25000,
+  chadJobSignOnCash: 80000,
+  chadJob401kEnabled: true,        // flipped
+  chadJob401kDeferral: 23500,
+  chadJob401kCatchupRoth: 7500,
+  chadJob401kMatch: 11750,
+  chadCurrentAge: 62,
+  // MSFT promotion ladder
+  chadL64Enabled: true,
+  chadL64Month: 18,
+  chadL64Salary: 235000,
+  chadL64StockRefresh: 90000,
+  chadL64BonusPct: 22,
+  chadL65Enabled: true,
+  chadL65Month: 48,
+  chadL65Salary: 295000,
+  chadL65StockRefresh: 130000,
+  chadL65BonusPct: 28,
+  chadAge65VestOverride: 'on',     // flipped from 'auto'
+  // Expenses
+  totalMonthlySpend: 60000,        // non-null
+  oneTimeExtras: 5000,
+  oneTimeMonths: 12,
+  baseExpenses: 50000,
+  debtService: 7500,
+  expenseInflation: false,         // flipped
+  expenseInflationRate: 4,
+  // BCS tuition
+  bcsAnnualTotal: 50000,
+  bcsParentsAnnual: 27500,
+  bcsYearsLeft: 4,
+  // Spending cuts
+  lifestyleCutsApplied: true,      // flipped
+  cutsOverride: 1500,              // non-null
+  cutOliver: 200,
+  cutVacation: 300,
+  cutShopping: 100,
+  cutMedical: 50,
+  cutGym: 75,
+  cutAmazon: 80,
+  cutSaaS: 60,
+  cutEntertainment: 40,
+  cutGroceries: 150,
+  cutPersonalCare: 30,
+  cutSmallItems: 25,
+  // Trust + van + retirement debt + savings
+  trustIncomeNow: 1000,
+  trustIncomeFuture: 2500,
+  trustIncreaseMonth: 12,
+  vanSold: true,                   // flipped
+  vanMonthlySavings: 2700,
+  vanSalePrice: 160000,
+  vanLoanBalance: 195000,
+  vanSaleMonth: 18,
+  retireDebt: true,                // flipped
+  startingSavings: 250000,
+  investmentReturn: 12,
+  // Capital projects (legacy scalars)
+  moldCost: 65000,
+  moldInclude: true,               // flipped
+  roofCost: 45000,
+  roofInclude: true,               // flipped
+  otherProjects: 50000,
+  otherInclude: true,              // flipped
+  // Debts
+  debtCC: 95000,
+  debtPersonal: 60000,
+  debtIRS: 18500,
+  debtFirstmark: 22000,
+  // Net worth
+  starting401k: 500000,
+  return401k: 12,
+  homeEquity: 750000,
+  homeAppreciation: 5,
+  // Sequence of returns
+  seqBadY1: -15,
+  seqBadY2: -8,
+  // Arrays — set values that differ from INITIAL_STATE
+  capitalItems: [
+    { id: 'test-1', name: 'Test capital item', description: 'audit', cost: 50000, include: true, likelihood: 80 },
+  ],
+  customLevers: [
+    { id: 'lv-test', name: 'Test lever', description: 'audit', maxImpact: 5000, currentValue: 2500, active: true },
+  ],
+  leverConstraintsOverride: { sarahRate: { min: 100, max: 300 } },
+  milestones: [{ name: 'Custom milestone', month: 24, savings: 5000 }],
+  goals: [
+    { id: 'g-test', name: 'Custom goal', type: 'savings_target', targetAmount: 100000, targetMonth: 60, color: '#abcdef' },
+  ],
+};
+
+test('Every MODEL_KEY has a non-default test value', () => {
+  const missing = MODEL_KEYS.filter(k => !(k in NON_DEFAULT_VALUES));
+  if (missing.length > 0) {
+    throw new Error(
+      `MODEL_KEYS not exercised by this test: ${missing.join(', ')}\n` +
+      `        Add a non-default value to NON_DEFAULT_VALUES so save/load coverage stays complete.`
+    );
+  }
+});
+
+test('Every MODEL_KEY survives a full round-trip identically (or via documented transformation)', () => {
+  // gatherState recomputes some derived fields (ssPersonal, ssStartMonth, etc.
+  // when ssType='ss'; ssFamilyTotal capped at 1.5×PIA), and ssRate is clamped
+  // to sarahMaxRate. Allow those, but flag anything else.
+  const result = roundTrip(NON_DEFAULT_VALUES);
+  const drift = [];
+
+  // Fields that gatherState legitimately recomputes when ssType='ss'.
+  const SS_COMPUTED_KEYS = new Set(['ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths', 'ssFamilyTotal']);
+  // baseExpenses is back-calculated from totalMonthlySpend when totalMonthlySpend != null
+  // (gatherState lines 65-68). Document this divergence; verify separately below.
+  const RECOMPUTED_FROM_TOTAL_SPEND = new Set(['baseExpenses']);
+
+  for (const key of MODEL_KEYS) {
+    if (SS_COMPUTED_KEYS.has(key)) continue; // recomputed in gatherState
+    if (RECOMPUTED_FROM_TOTAL_SPEND.has(key)) continue;
+    const expected = NON_DEFAULT_VALUES[key];
+    const actual = result[key];
+    if (Array.isArray(expected) || (typeof expected === 'object' && expected !== null)) {
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        drift.push(`${key}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+      }
+    } else if (actual !== expected) {
+      drift.push(`${key}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    }
+  }
+  if (drift.length > 0) {
+    throw new Error(`Fields lost or mutated on round-trip:\n        ${drift.join('\n        ')}`);
+  }
+});
+
+test('baseExpenses is back-calculated from totalMonthlySpend (documented behavior)', () => {
+  // When totalMonthlySpend is set, gatherState replaces baseExpenses with
+  // totalMonthlySpend - debtService - vanMonthlySavings - statusQuoBcsMonthly.
+  // Verify the formula round-trips correctly.
+  const result = roundTrip({
+    totalMonthlySpend: 60000, debtService: 7500, vanMonthlySavings: 2700,
+    bcsAnnualTotal: 50000, baseExpenses: 99999, // baseExpenses input is intentionally ignored
+  });
+  const expectedStatusQuoBcs = Math.round(Math.max(0, 50000 - 25000) / 12); // 2083
+  const expectedBase = 60000 - 7500 - 2700 - expectedStatusQuoBcs;
+  assert.strictEqual(result.baseExpenses, expectedBase);
+});
+
+test('baseExpenses is preserved when totalMonthlySpend is null', () => {
+  const result = roundTrip({ totalMonthlySpend: null, baseExpenses: 50000 });
+  assert.strictEqual(result.baseExpenses, 50000);
+});
+
+test('Recomputed SS fields stay self-consistent on round-trip when ssType=ss', () => {
+  const result = roundTrip({ ssType: 'ss', ssClaimAge: 67, ssPIA: 4500 });
+  // ssPersonal = ssPIA × adjustment(67); 67 is FRA so factor ~1.0
+  if (!(result.ssPersonal >= 4400 && result.ssPersonal <= 4500)) {
+    throw new Error(`Expected ssPersonal ~4500 at FRA, got ${result.ssPersonal}`);
+  }
+  // ssStartMonth = (67-62)*12 + offset
+  if (result.ssStartMonth < 60 || result.ssStartMonth > 100) {
+    throw new Error(`ssStartMonth out of expected range: ${result.ssStartMonth}`);
+  }
+});
+
+test('null totalMonthlySpend and null cutsOverride survive round-trip', () => {
+  const result = roundTrip({ totalMonthlySpend: null, cutsOverride: null });
+  assert.strictEqual(result.totalMonthlySpend, null);
+  assert.strictEqual(result.cutsOverride, null);
+});
+
+test('All four boolean toggles in MSFT promotion ladder + age-65 round-trip', () => {
+  const flags = {
+    chadL64Enabled: true,
+    chadL65Enabled: true,
+    chadJob401kEnabled: true,
+    chadJob: true,
+    chadJobNoFICA: true,
+    chadJobBonusProrateFirst: false,
+    sarahSpousalEnabled: false,
+    expenseInflation: false,
+    lifestyleCutsApplied: true,
+    vanSold: true,
+    retireDebt: true,
+    moldInclude: true,
+    roofInclude: true,
+    otherInclude: true,
+    ssdiDenied: true,
+  };
+  const result = roundTrip(flags);
+  for (const [k, v] of Object.entries(flags)) {
+    if (result[k] !== v) {
+      throw new Error(`Boolean ${k}: expected ${v}, got ${result[k]}`);
+    }
+  }
+});
+
+test('chadAge65VestOverride enum survives all three values; invalid resets to default', () => {
+  for (const v of ['auto', 'on', 'off']) {
+    assert.strictEqual(roundTrip({ chadAge65VestOverride: v }).chadAge65VestOverride, v);
+  }
+  assert.strictEqual(roundTrip({ chadAge65VestOverride: 'invalid' }).chadAge65VestOverride, 'auto');
+});
+
+test('ssType enum round-trips both values', () => {
+  assert.strictEqual(roundTrip({ ssType: 'ssdi' }).ssType, 'ssdi');
+  assert.strictEqual(roundTrip({ ssType: 'ss' }).ssType, 'ss');
+});
+
+test('Schema RANGE clamping: chadL64Month=200 clamps to 120 (matches UI slider)', () => {
+  assert.strictEqual(roundTrip({ chadL64Month: 200 }).chadL64Month, 120);
+});
+
+test('Schema RANGE clamping: chadL65BonusPct=80 clamps to 50 (matches UI slider)', () => {
+  assert.strictEqual(roundTrip({ chadL65BonusPct: 80 }).chadL65BonusPct, 50);
+});
+
+test('msftPrice + msftGrowth float round-trip preserves decimals', () => {
+  const result = roundTrip({ msftPrice: 412.37, msftGrowth: 12.5 });
+  assert.strictEqual(result.msftPrice, 412.37);
+  assert.strictEqual(result.msftGrowth, 12.5);
+});
+
+test('Hire stock Y1-Y4 all round-trip', () => {
+  const result = roundTrip({
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 80000,
+    chadJobHireStockY3: 120000, chadJobHireStockY4: 30000,
+  });
+  assert.strictEqual(result.chadJobHireStockY1, 40000);
+  assert.strictEqual(result.chadJobHireStockY2, 80000);
+  assert.strictEqual(result.chadJobHireStockY3, 120000);
+  assert.strictEqual(result.chadJobHireStockY4, 30000);
+});
+
+test('401(k) fields all round-trip (including disabled state)', () => {
+  const enabled = roundTrip({ chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJob401kMatch: 12000 });
+  assert.strictEqual(enabled.chadJob401kEnabled, true);
+  assert.strictEqual(enabled.chadJob401kDeferral, 24500);
+  assert.strictEqual(enabled.chadJob401kCatchupRoth, 11250);
+  assert.strictEqual(enabled.chadJob401kMatch, 12000);
+  // Even when disabled, slider values should preserve so toggling back on restores them.
+  const disabled = roundTrip({ chadJob401kEnabled: false, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJob401kMatch: 12000 });
+  assert.strictEqual(disabled.chadJob401kEnabled, false);
+  assert.strictEqual(disabled.chadJob401kDeferral, 24500);
+  assert.strictEqual(disabled.chadJob401kCatchupRoth, 11250);
+  assert.strictEqual(disabled.chadJob401kMatch, 12000);
+});
+
+test('capitalItems array round-trips with all fields', () => {
+  const items = [
+    { id: 'a', name: 'Item A', description: 'd1', cost: 12000, include: true, likelihood: 75 },
+    { id: 'b', name: 'Item B', description: 'd2', cost: 20000, include: false, likelihood: 50 },
+  ];
+  const result = roundTrip({ capitalItems: items });
+  assert.deepStrictEqual(result.capitalItems, items);
+});
+
+test('customLevers array round-trips with all fields', () => {
+  const levers = [
+    { id: 'lv-1', name: 'Lever 1', description: 'desc', maxImpact: 10000, currentValue: 5000, active: true },
+  ];
+  const result = roundTrip({ customLevers: levers });
+  assert.deepStrictEqual(result.customLevers, levers);
+});
+
+test('milestones array round-trips with all fields', () => {
+  const ms = [
+    { name: 'm1', month: 12, savings: 5000 },
+    { name: 'm2', month: 36, savings: 25000 },
+  ];
+  const result = roundTrip({ milestones: ms });
+  assert.deepStrictEqual(result.milestones, ms);
+});
+
+test('goals array round-trips with all fields', () => {
+  const gs = [
+    { id: 'g1', name: 'G1', type: 'savings_target', targetAmount: 100000, targetMonth: 48, color: '#ff0000' },
+    { id: 'g2', name: 'G2', type: 'income_target', targetAmount: 5000, targetMonth: 24, color: '#00ff00' },
+  ];
+  const result = roundTrip({ goals: gs });
+  assert.deepStrictEqual(result.goals, gs);
+});
+
+test('leverConstraintsOverride round-trips an actual override', () => {
+  const override = { sarahRate: { min: 100, max: 300 }, chadJobSalary: { max: 250000 } };
+  const result = roundTrip({ leverConstraintsOverride: override });
+  assert.deepStrictEqual(result.leverConstraintsOverride, override);
+});
+
+test('leverConstraintsOverride null round-trips as null', () => {
+  assert.strictEqual(roundTrip({ leverConstraintsOverride: null }).leverConstraintsOverride, null);
+});
+
+test('Cuts: all 11 individual cut sliders round-trip', () => {
+  const cuts = {
+    cutOliver: 100, cutVacation: 200, cutShopping: 150, cutMedical: 50, cutGym: 75,
+    cutAmazon: 80, cutSaaS: 60, cutEntertainment: 40, cutGroceries: 90,
+    cutPersonalCare: 30, cutSmallItems: 25,
+  };
+  const result = roundTrip({ ...cuts, cutsOverride: null }); // null → individual cuts apply
+  for (const [k, v] of Object.entries(cuts)) {
+    assert.strictEqual(result[k], v, `Cut ${k} expected ${v}, got ${result[k]}`);
+  }
+});
+
+test('Schema version is bumped to CURRENT after migration', () => {
+  const result = roundTrip({});
+  if (typeof result.schemaVersion !== 'number' || result.schemaVersion < 1) {
+    throw new Error(`Schema version not set: ${result.schemaVersion}`);
+  }
+});
+
+console.log(`\n${'='.repeat(60)}`);
+console.log(`  ${passed} passed, ${failed} failed, ${passed + failed} total`);
+console.log(`${'='.repeat(60)}\n`);
+
+if (failed > 0) process.exit(1);

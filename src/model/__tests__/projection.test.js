@@ -156,8 +156,13 @@ test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth
   assert.strictEqual(s.ssStartMonth, 19, 'ssStartMonth = Oct 2027 (mid-month birthday +1)');
   assert.strictEqual(s.ssPersonal, 2950, 'ssPersonal = round(4214 * 0.70)');
   assert.strictEqual(s.ssKidsAgeOutMonths, 15, 'kids eligible 15 months (month 19-33)');
-  const childEach = Math.round(4214 * 0.5);
-  assert.strictEqual(s.ssFamilyTotal, 2950 + 2 * childEach, 'ssFamilyTotal = personal + 2 × child');
+  // ssFamilyTotal is the lesser of (personal + 2 × child) and the SSA family-max cap (1.5 × PIA).
+  // Uncapped: 2950 + 2 × round(4214 × 0.5) = 2950 + 4214 = 7164.
+  // Cap: round(4214 × 1.5) = 6321 → cap binds, so ssFamilyTotal = 6321.
+  const uncapped = 2950 + 2 * Math.round(4214 * 0.5);
+  const familyCap = Math.round(4214 * 1.5);
+  assert.strictEqual(s.ssFamilyTotal, Math.min(uncapped, familyCap), 'ssFamilyTotal = min(personal + 2 × child, 1.5 × PIA)');
+  assert.strictEqual(s.ssFamilyTotal, 6321, 'family-max cap binds at PIA=4214');
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[18].ssBenefit, 0, 'no SS before start month');
   assert.strictEqual(monthlyData[19].ssBenefit, s.ssFamilyTotal, 'ssFamilyTotal at SS start month');
@@ -275,76 +280,80 @@ test('14b-month. Bonus month is configurable (e.g. June)', () => {
     'second June = full bonus');
 });
 
-test('14d. Annual stock refresh: lumpy 5%/qtr Feb/May/Aug/Nov, 20 vests/grant', () => {
-  // Start month 0 = March 2026 (calendar 2). Vest months: Feb=1, May=4, Aug=7, Nov=10.
-  // Projection-month vest indices (calendar = (m+2)%12):
-  //   m=2 May, m=5 Aug, m=8 Nov, m=11 Feb, m=14 May, m=17 Aug, m=20 Nov, ...
+test('14d. Refresh grants: end-of-Aug cadence + 5%/qtr Feb/May/Aug/Nov, 20 vests/grant', () => {
+  // PROJECTION_START_MONTH=2 (March=0). Calendar Aug = (m+2)%12==7, so m%12==5: m=5,17,29,41,53...
+  // With refreshStartMonth=0, first refresh issues at m=5 (Aug yr1). First vest at next vest
+  // month after m=5 = m=8 (Nov). Subsequent grants at m=17, 29, 41, 53.
   const grant = 60000;
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJobStockRefresh: grant, chadJobRefreshStartMonth: 0, chadWorkMonths: 96,
+    msftGrowth: 0, // disable growth so refresh values are exactly 5% × grant
   });
   const { monthlyData } = runMonthlySimulation(s);
   const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
-  // Month 0: no vest yet (start month is grant date, no instant vest)
-  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet, 'no vest at grant date');
-  // Month 1 (April): not a vest month
-  assert.strictEqual(monthlyData[1].chadJobIncome, monthlySalaryNet, 'April: no vest');
-  // Month 2 (May): first vest of grant 1, 5% × $60K = $3K gross
+  // Months 0-7: no refresh vest yet (first grant issues m=5 Aug, first vest m=8 Nov).
+  for (const m of [0, 1, 2, 5, 7]) {
+    assert.strictEqual(monthlyData[m].chadJobStockRefreshNet, 0,
+      `month ${m}: no refresh vest before first grant's first vest at m=8`);
+  }
+  // Month 8 (Nov yr1): first vest of grant 1.
   const oneVestNet = Math.round(grant * 0.05 * 0.75);
-  assert.strictEqual(monthlyData[2].chadJobIncome, monthlySalaryNet + oneVestNet, 'May year 1: 1 grant × 5%');
-  // Month 5 (Aug): second vest of grant 1, still 1 grant active
-  assert.strictEqual(monthlyData[5].chadJobIncome, monthlySalaryNet + oneVestNet, 'Aug year 1: 1 grant × 5%');
-  // Month 14 (May year 2): grants 1 and 2 both vest. Grant 1 vest #5, grant 2 vest #1.
+  assert.strictEqual(monthlyData[8].chadJobStockRefreshNet, oneVestNet, 'Nov yr1: 1 grant × 5%');
+  // Month 11 (Feb yr2): grant 1 second vest, still 1 grant active.
+  assert.strictEqual(monthlyData[11].chadJobStockRefreshNet, oneVestNet, 'Feb yr2: 1 grant × 5%');
+  // Month 20 (Nov yr2): grant 1 still vesting + grant 2 (issued m=17 Aug yr2) first vest.
   const twoVestNet = Math.round(grant * 0.05 * 2 * 0.75);
-  assert.strictEqual(monthlyData[14].chadJobIncome, monthlySalaryNet + twoVestNet, 'May year 2: 2 grants × 5%');
-  // Month 50 (May year 5): 5 grants vest concurrently in steady state
+  assert.strictEqual(monthlyData[20].chadJobStockRefreshNet, twoVestNet, 'Nov yr2: 2 grants × 5%');
+  // Month 56 (Nov yr5): 5 grants (issued m=5,17,29,41,53) all active in 5-yr window.
   const fiveVestNet = Math.round(grant * 0.05 * 5 * 0.75);
-  assert.strictEqual(monthlyData[50].chadJobIncome, monthlySalaryNet + fiveVestNet, 'steady state: 5 grants × 5%');
+  assert.strictEqual(monthlyData[56].chadJobStockRefreshNet, fiveVestNet,
+    'steady state Nov yr5: 5 grants × 5%');
 });
 
-test('14d-refresh-start. Default refresh start = 12 months (MSFT default): no refresh in Y1', () => {
-  // Default chadJobRefreshStartMonth = 12. First grant issued at month 12, first vest at m=14 (May yr 2).
+test('14d-refresh-start. Default refreshStartMonth=12: first refresh at Aug yr2 (m=17)', () => {
+  // chadJobRefreshStartMonth=12 (default). firstAugustAtOrAfter(0+12)=17 (Aug yr2).
+  // First vest of grant 1 = next vest month after m=17 = m=20 (Nov yr2).
   const grant = 60000;
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
-    chadJobStockRefresh: grant, chadWorkMonths: 96,
-    // chadJobRefreshStartMonth omitted → uses default of 12
+    chadJobStockRefresh: grant, chadWorkMonths: 96, msftGrowth: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
-  // Months 0-13: no refresh vest (first grant not issued until month 12, first vest at m=14)
-  for (const m of [2, 5, 8, 11, 12, 13]) {
+  // Months 0-19: no refresh vest yet.
+  for (const m of [2, 5, 8, 11, 14, 17, 19]) {
     assert.strictEqual(monthlyData[m].chadJobStockRefreshNet, 0,
-      `month ${m}: no refresh vest before first grant matures`);
+      `month ${m}: no refresh vest before first vest at m=20`);
   }
-  // Month 14 (May year 2): first vest of grant 1
+  // m=20 (Nov yr2): first vest of grant 1.
   const oneVestNet = Math.round(grant * 0.05 * 0.75);
-  assert.strictEqual(monthlyData[14].chadJobStockRefreshNet, oneVestNet,
-    'm=14 (May yr 2): first refresh vest with default start month');
-  // Month 26 (May year 3): grant 1 (issued m=12) and grant 2 (issued m=24) both active
+  assert.strictEqual(monthlyData[20].chadJobStockRefreshNet, oneVestNet,
+    'm=20 (Nov yr2): first refresh vest with default start month');
+  // m=32 (Nov yr3): grant 1 (m=17) still vesting + grant 2 (m=29 Aug yr3) first vest.
   const twoVestNet = Math.round(grant * 0.05 * 2 * 0.75);
-  assert.strictEqual(monthlyData[26].chadJobStockRefreshNet, twoVestNet,
-    'm=26 (May yr 3): 2 grants vest');
+  assert.strictEqual(monthlyData[32].chadJobStockRefreshNet, twoVestNet,
+    'm=32 (Nov yr3): 2 grants vest');
 });
 
-test('14d-refresh-start-custom. Custom refresh start month (e.g. 6 months)', () => {
-  // First grant at start + 6 = month 6 (Sept yr 1). Sept is not a vest month, so first vest at m=8 (Nov).
+test('14d-refresh-start-custom. refreshStartMonth=6 still snaps to August (m=17)', () => {
+  // refreshStartMonth=6 = Sept yr1. firstAugustAtOrAfter(6) = 17 (Aug yr2 — next August).
+  // So even with chadJobRefreshStartMonth values < 12, the first refresh still
+  // lands on the next August. This matches the user's "all grants happen in Aug" rule.
   const grant = 60000;
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
-    chadJobStockRefresh: grant, chadJobRefreshStartMonth: 6, chadWorkMonths: 60,
+    chadJobStockRefresh: grant, chadJobRefreshStartMonth: 6, chadWorkMonths: 60, msftGrowth: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
   const oneVestNet = Math.round(grant * 0.05 * 0.75);
-  // Months 0-7: no refresh vest yet (grant issued m=6, first vest at next vest month after = m=8)
-  for (const m of [0, 2, 5, 6, 7]) {
+  // Pre-m=20: no refresh vest.
+  for (const m of [0, 5, 8, 11, 14, 17, 19]) {
     assert.strictEqual(monthlyData[m].chadJobStockRefreshNet, 0,
-      `month ${m}: no refresh vest before m=8`);
+      `month ${m}: no refresh vest before m=20`);
   }
-  // Month 8 (Nov yr 1): first vest of grant 1
-  assert.strictEqual(monthlyData[8].chadJobStockRefreshNet, oneVestNet,
-    'm=8 (Nov yr 1): first vest with refresh-start=6');
+  // m=20 (Nov yr2): first vest of grant 1 (issued m=17 Aug yr2).
+  assert.strictEqual(monthlyData[20].chadJobStockRefreshNet, oneVestNet,
+    'm=20 (Nov yr2): first vest snaps to August even with refreshStartMonth=6');
 });
 
 test('14e. One-time hire stock vests as anniversary lumps', () => {
@@ -1295,6 +1304,153 @@ test('Projection: SS at 62 — earnings test does not apply after FRA month', ()
   assert.ok(monthlyData[19].ssBenefit < s.ssFamilyTotal, 'earnings test reduces benefits before FRA');
   // At/after FRA (month >= 79): no earnings test
   assert.strictEqual(monthlyData[79].ssBenefit, s.ssPersonal, 'full personal benefit after FRA — no reduction');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SS Family-Max Cap + Sarah Spousal Benefit
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== SS Family-Max Cap + Sarah Spousal Benefit ===');
+
+test('P21. ssFamilyTotal capped at 1.5 × ssPIA (SSA family-max lower bound)', () => {
+  // PIA=4214, age 62 → personal 2950, kids window active (15 months).
+  // Uncapped family = 2950 + 2 × round(4214 × 0.5) = 7164.
+  // Cap = round(4214 × 1.5) = 6321 → cap binds.
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 62,
+  });
+  const familyCap = Math.round(4214 * 1.5);
+  assert.ok(
+    s.ssFamilyTotal <= familyCap + 1, // +1 tolerance for rounding
+    `P21 ssFamilyTotal should be capped at ~${familyCap}, got ${s.ssFamilyTotal}`,
+  );
+  assert.strictEqual(s.ssFamilyTotal, 6321, 'P21 cap exactly = round(4214 × 1.5) = 6321');
+});
+
+test('P21b. Cap does NOT bind at low PIA (uncapped family < 1.5 × PIA)', () => {
+  // PIA=2000, age 62 → personal = round(2000 × 0.7) = 1400.
+  // Uncapped family = 1400 + 2 × round(2000 × 0.5) = 3400.
+  // Cap = round(2000 × 1.5) = 3000 → cap binds and reduces 3400 → 3000.
+  // Use a PIA where the cap does NOT bind: pick a claim age where personal is high.
+  // age 67 → personal = 2000, kids aged out → family = personal = 2000. Cap = 3000. No bind.
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssPIA: 2000, ssClaimAge: 67,
+  });
+  assert.strictEqual(s.ssFamilyTotal, s.ssPersonal,
+    'P21b kids aged out at 67: family = personal, cap not binding');
+});
+
+test('P22. Sarah spousal SS flows after she reaches claim age and Chad has claimed', () => {
+  // Chad has a job, so SSDI is suppressed. After chadRetirementMonth=72, the
+  // post-employment auto-SS fallback kicks in and ssBenefit > 0 for Chad.
+  // Sarah reaches sarahSpousalClaimAge=67 in (67-59)*12 = 96 months from now.
+  // At m=96, Sarah's spousal should flow: 50% of PIA × ssAdjustmentFactor(67) = 4214 × 0.5 × 1.0 = 2107.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 190000, ssType: 'ssdi',
+    chadCurrentAge: 61, sarahCurrentAge: 59,
+    sarahSpousalEnabled: true, sarahSpousalClaimAge: 67,
+    ssPIA: 4214, ssClaimAge: 67,
+    sarahWorkMonths: 120, // extend horizon past month 96
+    chadWorkMonths: 72,
+  });
+  assert.strictEqual(s.sarahSpousalStartMonth, (67 - 59) * 12,
+    'P22 derived start month = (claimAge - currentAge) × 12');
+  assert.strictEqual(s.sarahSpousalAmount, 2107,
+    'P22 spousal amount = round(PIA × 0.5 × adjustmentFactor(67)) = 2107');
+  const { monthlyData } = runMonthlySimulation(s);
+  const m96 = monthlyData[96];
+  assert.ok(m96, 'P22 monthlyData should have entry at month 96');
+  // Chad has claimed by m=96 (post-retirement auto-SS fallback fires when m > chadRetirementMonth=72)
+  assert.ok(m96.ssBenefit > 0, `P22 Chad ssBenefit should be > 0 at m=96, got ${m96.ssBenefit}`);
+  assert.ok(
+    m96.sarahSpousal > 2000 && m96.sarahSpousal < 2200,
+    `P22 expected ~$2107 Sarah spousal at m=96, got ${m96.sarahSpousal}`,
+  );
+});
+
+test('P22b. Sarah spousal does NOT flow before she reaches claim age', () => {
+  // Even if Chad has claimed (e.g. SSDI active), Sarah cannot collect spousal
+  // until she reaches sarahSpousalClaimAge.
+  const s = gatherStateWithOverrides({
+    chadJob: false, ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
+    sarahCurrentAge: 59, sarahSpousalEnabled: true, sarahSpousalClaimAge: 67,
+    ssPIA: 4214, ssdiPersonal: 4214, ssdiFamilyTotal: 6321,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=0..(96-1): Chad receives SSDI, but Sarah is too young → no spousal.
+  assert.strictEqual(monthlyData[0].sarahSpousal, 0, 'P22b no spousal at m=0 (Sarah too young)');
+  assert.strictEqual(monthlyData[36].sarahSpousal, 0, 'P22b no spousal at m=36 (Sarah age 62)');
+  assert.strictEqual(monthlyData[71].sarahSpousal, 0, 'P22b no spousal at m=71 (Sarah age 64)');
+});
+
+test('P22c. Sarah spousal does NOT flow before Chad has claimed (ssBenefit === 0 gate)', () => {
+  // Sarah is already old enough to claim at m=0 (sarahCurrentAge=67), but Chad
+  // hasn't claimed yet (no SSDI, no job, ss claim age=70 → ssStartMonth far out),
+  // so spousal is gated to zero.
+  const s = gatherStateWithOverrides({
+    chadJob: false, ssType: 'ss', ssClaimAge: 70, ssPIA: 4214,
+    ssdiDenied: true, // suppress SSDI
+    sarahCurrentAge: 67, sarahSpousalEnabled: true, sarahSpousalClaimAge: 67,
+    sarahWorkMonths: 120,
+  });
+  // Sarah's start month = max(0, (67-67)*12) = 0 → eligible from m=0.
+  assert.strictEqual(s.sarahSpousalStartMonth, 0, 'P22c Sarah start month = 0 (already at claim age)');
+  const { monthlyData } = runMonthlySimulation(s);
+  // ssClaimAge 70 → ssStartMonth 115 (per constants). Before that, ssBenefit=0 → no spousal.
+  assert.strictEqual(monthlyData[0].ssBenefit, 0, 'P22c Chad has not claimed yet');
+  assert.strictEqual(monthlyData[0].sarahSpousal, 0, 'P22c no spousal until Chad claims');
+  assert.strictEqual(monthlyData[60].sarahSpousal, 0, 'P22c no spousal even at m=60 (Chad still not claimed)');
+});
+
+test('P23. Sarah spousal off → no spousal income at any month', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, sarahSpousalEnabled: false,
+    ssPIA: 4214, ssClaimAge: 67, sarahCurrentAge: 59,
+    sarahWorkMonths: 120, chadWorkMonths: 72,
+  });
+  // gatherState should set start month to 999 sentinel and amount to 0.
+  assert.strictEqual(s.sarahSpousalStartMonth, 999, 'P23 disabled toggle → start month sentinel = 999');
+  assert.strictEqual(s.sarahSpousalAmount, 0, 'P23 disabled toggle → amount = 0');
+  const { monthlyData } = runMonthlySimulation(s);
+  const anySpousal = monthlyData.some(d => (d.sarahSpousal || 0) > 0);
+  assert.strictEqual(anySpousal, false, 'P23 no spousal in any month when disabled');
+});
+
+test('P24. sarahSpousal field appears on every monthlyData row', () => {
+  // Contract test: every row exposes the field so downstream consumers
+  // (charts/tooltips) can read it without optional-chaining gymnastics.
+  const s = gatherStateWithOverrides({});
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const row of monthlyData) {
+    assert.ok('sarahSpousal' in row, `row at month ${row.month} missing sarahSpousal field`);
+    assert.strictEqual(typeof row.sarahSpousal, 'number', `row at month ${row.month}: sarahSpousal must be a number`);
+    assert.ok(Number.isFinite(row.sarahSpousal), `row at month ${row.month}: sarahSpousal must be finite`);
+  }
+});
+
+test('P24b. sarahSpousal flows into cashIncome (reconciles to sum of income components)', () => {
+  // When Sarah's spousal is active, cashIncome must include it.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 190000,
+    sarahCurrentAge: 59, sarahSpousalEnabled: true, sarahSpousalClaimAge: 67,
+    ssPIA: 4214, ssClaimAge: 67,
+    sarahWorkMonths: 120, chadWorkMonths: 72,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const m96 = monthlyData[96];
+  assert.ok(m96, 'P24b month 96 row exists');
+  assert.ok(m96.sarahSpousal > 0, 'P24b spousal active at m=96');
+  // cashIncome = sarahIncome + msftLump + trustLLC + ssBenefit + sarahSpousal + consulting + chadJobIncome + customLeverMonthly
+  const reconstructed =
+    (m96.sarahIncome || 0)
+    + (m96.msftLump || 0)
+    + (m96.trustLLC || 0)
+    + (m96.ssBenefit || 0)
+    + (m96.sarahSpousal || 0)
+    + (m96.consulting || 0)
+    + (m96.chadJobIncome || 0)
+    + (m96.customLeverMonthly || 0);
+  assert.strictEqual(m96.cashIncome, reconstructed,
+    `P24b cashIncome (${m96.cashIncome}) must equal sum of income components (${reconstructed})`);
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -2488,6 +2644,304 @@ test('K5. Combined: deferral + catch-up + match all flow into bal401k (no growth
   const delta = monthlyData[11].balance401k - noContribData[11].balance401k;
   assert.ok(Math.abs(delta - annualContribTotal) <= 12,
     `Year 1 401k delta should be ~$48K (±$12 rounding), got ${delta}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// MSFT Promotion Ladder (L63 → L64 → L65)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== MSFT Promotion Ladder ===');
+
+// Helper for promo tests — fixed inputs that make salary math clean.
+function promoBaseState(overrides = {}) {
+  return gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 200000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobRaisePct: 0, // disable raises to make salary math exact
+    chadJobBonusPct: 10, chadJobBonusMonth: 8, chadJobBonusProrateFirst: false,
+    chadJobNoFICA: false, chadJobPensionContrib: 0,
+    startingSavings: 5000000, return401k: 0, chadWorkMonths: 96,
+    ...overrides,
+  });
+}
+
+test('P1. L64 toggle off → salary at month 24 = chadJobSalary × (1+raise)^2', () => {
+  const s = promoBaseState({ chadJobRaisePct: 5, chadL64Enabled: false });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Month 24, year 2 of work, 5% raise compounded twice
+  const expectedGross = 200000 * Math.pow(1.05, 2) / 12;
+  const expectedNet = Math.round(expectedGross * 0.75); // tax 25%
+  near(monthlyData[24].chadJobSalaryNet, expectedNet, 2,
+    'P1 salary at month 24 (no L64)');
+});
+
+test('P2. L64 enabled, month=24 → salary jumps to chadL64Salary', () => {
+  const s = promoBaseState({ chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 240000 });
+  const { monthlyData } = runMonthlySimulation(s);
+  // No raise (chadJobRaisePct=0), so salary = chadL64Salary / 12 × 0.75
+  const expectedNet = Math.round(240000 / 12 * 0.75);
+  assert.strictEqual(monthlyData[24].chadJobSalaryNet, expectedNet,
+    `P2 salary at promotion month should jump to L64 base, got ${monthlyData[24].chadJobSalaryNet}, expected ${expectedNet}`);
+  // Pre-promotion month 23 still uses L63
+  const expectedL63 = Math.round(200000 / 12 * 0.75);
+  assert.strictEqual(monthlyData[23].chadJobSalaryNet, expectedL63,
+    `P2 salary at month 23 should still be L63`);
+});
+
+test('P3. L64 enabled, month=36 with raise → salary = L64Salary × (1+raise)^1', () => {
+  const s = promoBaseState({
+    chadJobRaisePct: 5, chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 240000
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Month 36 = 12 months past L64 promotion → 1 year of post-promotion raise
+  const expectedGross = 240000 * Math.pow(1.05, 1) / 12;
+  const expectedNet = Math.round(expectedGross * 0.75);
+  near(monthlyData[36].chadJobSalaryNet, expectedNet, 2,
+    'P3 salary at month 36 (1 yr post L64)');
+});
+
+test('P4. L65 enabled at month 60 → salary uses L65 base, raise from there', () => {
+  const s = promoBaseState({
+    chadJobRaisePct: 5,
+    chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 240000,
+    chadL65Enabled: true, chadL65Month: 60, chadL65Salary: 300000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Month 60: just hit L65, no raise yet
+  const expectedNet60 = Math.round(300000 / 12 * 0.75);
+  assert.strictEqual(monthlyData[60].chadJobSalaryNet, expectedNet60,
+    `P4 salary at L65 promotion month, got ${monthlyData[60].chadJobSalaryNet}`);
+  // Month 72 = 1 year past L65 → +5% on L65 base
+  const expectedNet72 = Math.round(300000 * 1.05 / 12 * 0.75);
+  near(monthlyData[72].chadJobSalaryNet, expectedNet72, 2,
+    'P4 salary at month 72 (1 yr post L65)');
+});
+
+test('P5. Bonus paid in Sept after L64 promotion uses chadL64BonusPct', () => {
+  // Calendar: PROJECTION_START_MONTH=2 → m=0 is March 2026. Sept (calendar idx 8)
+  // is at m where (m+2)%12=8 → m=6 (Sept yr 1), m=18 (Sept yr 2), etc.
+  // L64 fires at month 12 → by Sept yr 2 (m=18) we're L64.
+  const s = promoBaseState({
+    chadJobBonusPct: 10, chadJobBonusProrateFirst: false,
+    chadL64Enabled: true, chadL64Month: 12, chadL64Salary: 240000, chadL64BonusPct: 20,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=18: L64 base $240k, no raise. Bonus: $240k × 20% × 1.0 = $48k gross × 0.75 = $36000 net.
+  const expectedBonusNet = Math.round(240000 * 0.20 * 1.0 * 0.75);
+  assert.strictEqual(monthlyData[18].chadJobBonusNet, expectedBonusNet,
+    `P5 bonus at L64 should use 20% bonus pct, got ${monthlyData[18].chadJobBonusNet} expected ${expectedBonusNet}`);
+});
+
+test('P6. RSU grant issued during L63 keeps L63 grant size through full vest', () => {
+  // Aug cadence: refreshStartMonth=12 → firstAugustAtOrAfter(12)=m=17 (Aug yr2, monthsWorked=17, L63).
+  // Grant 2 at m=29 (Aug yr3, monthsWorked=29, ≥ L64Month=24 → L64). First vest of grant 1 = m=20 (Nov yr2).
+  const s = promoBaseState({
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12, msftGrowth: 0,
+    chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 240000, chadL64StockRefresh: 100000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=20 (Nov yr2): grant 1 (L63 size $50K) first vest. 5% × $50K × 0.75 = $1875.
+  const expectedVestL63 = Math.round(50000 * 0.05 * 0.75);
+  near(monthlyData[20].chadJobStockRefreshNet, expectedVestL63, 2,
+    'P6 first vest of grant 1 (L63-issued) at m=20 should be 5% of L63 grant');
+  // m=32 (Nov yr3): grant 1 still L63 size + grant 2 (issued m=29 Aug yr3, L64 size $100K)
+  // first vest. Combined: 5% × ($50K + $100K) × 0.75 = $5625.
+  const expectedVestM32 = Math.round((50000 * 0.05 + 100000 * 0.05) * 0.75);
+  near(monthlyData[32].chadJobStockRefreshNet, expectedVestM32, 3,
+    'P6 m=32 vest should include grant 1 (L63 size) + grant 2 (L64 size)');
+});
+
+test('P7. RSU grant issued during L64 uses L64 grant size for its full vest', () => {
+  // refreshStartMonth=24 → firstAugustAtOrAfter(24)=m=29 (Aug yr3, monthsWorked=29 ≥ L64Month=24 → L64).
+  // First vest of grant 1 = next vest month after m=29 = m=32 (Nov yr3).
+  const s = promoBaseState({
+    chadJobStockRefresh: 0, chadJobRefreshStartMonth: 24, msftGrowth: 0,
+    chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 240000, chadL64StockRefresh: 100000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const expectedVestL64 = Math.round(100000 * 0.05 * 0.75);
+  near(monthlyData[32].chadJobStockRefreshNet, expectedVestL64, 2,
+    'P7 first vest of L64-issued grant at m=32 should be 5% of L64 size');
+});
+
+test('P8. L65 month <= L64 month → L65 takes precedence', () => {
+  const s = promoBaseState({
+    chadL64Enabled: true, chadL64Month: 30, chadL64Salary: 240000,
+    chadL65Enabled: true, chadL65Month: 12, chadL65Salary: 300000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // At month 12 (L65 fires) salary should be $300K, not $240K.
+  const expectedNet = Math.round(300000 / 12 * 0.75);
+  assert.strictEqual(monthlyData[12].chadJobSalaryNet, expectedNet,
+    `P8 L65 takes precedence, got ${monthlyData[12].chadJobSalaryNet}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Age-65 RSU Vest Continuation
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Age-65 RSU Vest Continuation ===');
+
+test('P9. age 63, retire at 36mo → grant 1 (m=12) clears 1yr cliff and continues vesting', () => {
+  // Age at retirement = 63 + 36/12 = 66 → eligible. Grant 1 issued m=12, retirement m=36.
+  // Cliff check: 36 - 12 = 24 > 12 ✓ → grant 1 continues. First post-retirement vest = m=38 (May).
+  const s = promoBaseState({
+    chadCurrentAge: 63, chadWorkMonths: 36,
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
+    chadAge65VestOverride: 'auto',
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[38].chadJobSalaryNet, 0, 'P9 no salary post-retirement');
+  assert.ok(monthlyData[38].chadJobStockRefreshNet > 0,
+    `P9 RSU vest should continue past retirement when grant clears 1yr cliff, got ${monthlyData[38].chadJobStockRefreshNet}`);
+});
+
+test('P10. age 60, retire at 36mo → ineligible (age 63 < 65), no post-ret vests', () => {
+  const s = promoBaseState({
+    chadCurrentAge: 60, chadWorkMonths: 36,
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
+    chadAge65VestOverride: 'auto',
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[38].chadJobStockRefreshNet, 0,
+    `P10 no vests post-retirement when ineligible, got ${monthlyData[38].chadJobStockRefreshNet}`);
+});
+
+test('P11. Override=on with ineligible age → grant past 1yr cliff continues', () => {
+  const s = promoBaseState({
+    chadCurrentAge: 50, chadWorkMonths: 36, // age 53 at retirement, ineligible by age
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
+    chadAge65VestOverride: 'on',
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.ok(monthlyData[38].chadJobStockRefreshNet > 0,
+    `P11 override='on' should force continuation, got ${monthlyData[38].chadJobStockRefreshNet}`);
+});
+
+test('P12. Override=off with eligible age → vests stop at retirement', () => {
+  const s = promoBaseState({
+    chadCurrentAge: 70, chadWorkMonths: 36, // very eligible
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
+    chadAge65VestOverride: 'off',
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[38].chadJobStockRefreshNet, 0,
+    `P12 override='off' should stop vests, got ${monthlyData[38].chadJobStockRefreshNet}`);
+});
+
+test('P13. Post-retirement vest month: only stock refresh, no salary/bonus/hire/sign-on', () => {
+  const s = promoBaseState({
+    chadCurrentAge: 64, chadWorkMonths: 36, // age 67 at retirement
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
+    chadJobHireStockY1: 25000, chadJobHireStockY2: 20000,
+    chadJobSignOnCash: 10000,
+    chadAge65VestOverride: 'auto',
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const m38 = monthlyData[38];
+  assert.strictEqual(m38.chadJobSalaryNet, 0, 'P13 no salary post-retirement');
+  assert.strictEqual(m38.chadJobBonusNet, 0, 'P13 no bonus post-retirement');
+  assert.strictEqual(m38.chadJobStockHireNet, 0, 'P13 no hire stock post-retirement');
+  assert.strictEqual(m38.chadJobSignOnNet, 0, 'P13 no sign-on post-retirement');
+  assert.ok(m38.chadJobStockRefreshNet > 0, 'P13 refresh vests continue');
+  assert.strictEqual(m38.chadJobIncome, m38.chadJobStockRefreshNet,
+    'P13 chadJobIncome = stock refresh only');
+});
+
+test('P14. 1-year cliff: grant issued within 12mo of retirement is forfeited', () => {
+  // Grant issued m=12, retirement m=24 (gap = 12, NOT > 12 → forfeit).
+  // Sarah extends horizon so post-retirement months exist in the projection.
+  const s = promoBaseState({
+    chadCurrentAge: 63, chadWorkMonths: 24, sarahWorkMonths: 60,
+    chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
+    chadAge65VestOverride: 'on', // force eligibility on so cliff is the only filter
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=26 is a vest month past retirement. Grant 1 should be forfeited by cliff.
+  assert.strictEqual(monthlyData[26].chadJobStockRefreshNet, 0,
+    `P14 grant within 1yr cliff should forfeit, got ${monthlyData[26].chadJobStockRefreshNet}`);
+});
+
+test('P15. Extended horizon scenario does not crash savings (post-ret SS fallback)', () => {
+  // Default-ish scenario: Chad employed, refresh grants, age 61 retiring at 67.
+  // With age-65 vest applies + refresh grants, horizon extends 60 months past
+  // retirement. Auto-SS fallback ensures post-retirement income.
+  //
+  // NOTE: realistic scenarios may run negative over 60 mo of post-retirement
+  // expenses if savings + 401k don't cover the gap — that's REAL economic
+  // depletion, not a bug. The "no crash" assertion checks for an artifact:
+  // a sudden one-month cliff at the retirement boundary, which would indicate
+  // the simulation is mishandling the transition.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 190000, chadJobTaxRate: 27,
+    chadJobStockRefresh: 100000, chadJobRefreshStartMonth: 12,
+    chadCurrentAge: 61, chadAge65VestOverride: 'auto',
+    startingSavings: 200000, starting401k: 1000000,
+    ssPersonal: 2933,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Horizon extends to chadRetirementMonth + 60 when age-65 applies + grants.
+  const baseHorizon = Math.max(s.chadWorkMonths || 72, s.sarahWorkMonths || 72);
+  const expectedHorizon = Math.max(baseHorizon, s.chadRetirementMonth + 60);
+  assert.strictEqual(s.totalProjectionMonths, expectedHorizon,
+    `P15 horizon should extend to ${expectedHorizon}, got ${s.totalProjectionMonths}`);
+  assert.strictEqual(monthlyData.length, expectedHorizon + 1,
+    `P15 monthlyData should have ${expectedHorizon + 1} entries (months 0-N), got ${monthlyData.length}`);
+  // Auto-SS fallback should fire post-retirement.
+  const postRetMonth = s.chadRetirementMonth + 6;
+  assert.ok(monthlyData[postRetMonth].ssBenefit > 0,
+    `P15 post-retirement SS fallback should provide income at m=${postRetMonth}, got ${monthlyData[postRetMonth].ssBenefit}`);
+  // Post-retirement RSU vests should appear in vest months (the original feature ask).
+  const postRetVests = monthlyData
+    .filter(d => d.month > s.chadRetirementMonth && (d.chadJobStockRefreshNet || 0) > 0);
+  assert.ok(postRetVests.length > 0,
+    `P15 post-retirement RSU vests should be visible in monthlyData, found ${postRetVests.length}`);
+  // No retirement-boundary cliff: the month immediately after retirement should
+  // not show a sudden drop > 1.5× the typical post-retirement monthly burn.
+  // (Catches simulation artifacts like "all income disappears overnight" bugs.)
+  const balanceAtRet = monthlyData[s.chadRetirementMonth].balance + monthlyData[s.chadRetirementMonth].balance401k;
+  const balanceAfterRet = monthlyData[s.chadRetirementMonth + 1].balance + monthlyData[s.chadRetirementMonth + 1].balance401k;
+  const oneMonthDrop = balanceAtRet - balanceAfterRet;
+  // Typical monthly expense ≈ $60K at retirement with inflation. Cliff would be > $200K.
+  assert.ok(oneMonthDrop < 200000,
+    `P15 retirement-boundary cliff: balance dropped $${oneMonthDrop} in one month at retirement, suggesting a simulation artifact`);
+});
+
+test('P16. Auto-SS fallback uses ssPIA × FRA factor, not stale ssPersonal', () => {
+  // User has ssType='ssdi' (so gatherState skips ss-recompute) and chadJob=true.
+  // ssPersonal stays at default 2933, but ssPIA is $4214.
+  // Auto-SS fallback should compute 4214 * ssAdjustmentFactor(67) = 4214 (FRA),
+  // NOT use stale ssPersonal=2933.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 190000, chadJobTaxRate: 27,
+    chadJobStockRefresh: 100000, chadJobRefreshStartMonth: 12,
+    chadCurrentAge: 61, chadAge65VestOverride: 'auto',
+    ssType: 'ssdi', // SSDI path — gatherState doesn't recompute ssPersonal
+    ssPIA: 4214, ssClaimAge: 67, // user's actual SS retirement at FRA
+    startingSavings: 200000, starting401k: 1000000,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Post-retirement month 73: should show full FRA amount, not stale ssPersonal.
+  const postRet = monthlyData[s.chadRetirementMonth + 1];
+  // Allow ±1 for rounding. Expect ~4214, not 2933.
+  assert.ok(Math.abs(postRet.ssBenefit - 4214) <= 2,
+    `P16 expected post-retirement SS = $4214 (PIA at FRA), got $${postRet.ssBenefit}`);
+});
+
+test('P17. Income chart data: post-retirement vest months have nonzero chadJobIncome', () => {
+  // Regression guard against the original "no retirement vests on income chart"
+  // complaint. The data the chart consumes (monthlyData) MUST contain post-
+  // retirement vests when age-65 rule applies + grants exist.
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 190000, chadJobStockRefresh: 100000,
+    chadJobRefreshStartMonth: 12, chadCurrentAge: 61,
+    chadAge65VestOverride: 'auto',
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const postRetIncomeMonths = monthlyData.filter(d =>
+    d.month > s.chadRetirementMonth && (d.chadJobIncome || 0) > 0
+  );
+  assert.ok(postRetIncomeMonths.length >= 4,
+    `P17 expected at least 4 post-retirement income months (Feb/May/Aug/Nov), got ${postRetIncomeMonths.length}`);
+  assert.ok(postRetIncomeMonths[0].chadJobStockRefreshNet > 0,
+    `P17 post-retirement chadJobIncome should be from stock refresh`);
 });
 
 // ════════════════════════════════════════════════════════════════════════

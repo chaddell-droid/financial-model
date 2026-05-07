@@ -7,6 +7,7 @@
  */
 
 import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP } from './constants.js';
+import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
 
 // Mirror the projection's quarterly stock-vest helpers (kept in sync).
 function isStockVestMonth(m) {
@@ -128,16 +129,15 @@ export function buildTaxSchedule(s) {
   const years = Math.ceil((months + 1) / 12);
   const expenseRatio = (s.taxSchCExpenseRatio ?? 25) / 100;
   const chadJob = s.chadJob || false;
-  const chadJobStartMonth = s.chadJobStartMonth ?? 3;
+  const chadJobStartMonth = s.chadJobStartMonth ?? 0;  // matches INITIAL_STATE; chadLevels.js uses the same default
   const chadRetirementMonth = s.chadRetirementMonth || 72;
   const sarahRetirementMonth = s.sarahWorkMonths || 72;
-  const chadJobSalary = s.chadJobSalary || 0;
   const chadJobRaisePct = (s.chadJobRaisePct || 0) / 100;
-  const chadJobBonusPct = (s.chadJobBonusPct || 0) / 100;
   const chadJobBonusMonth = s.chadJobBonusMonth ?? 8;
   const chadJobBonusProrateFirst = s.chadJobBonusProrateFirst !== false;
-  const chadJobStockRefresh = s.chadJobStockRefresh || 0;
   const chadJobRefreshStartMonth = s.chadJobRefreshStartMonth ?? 12;
+  // L63 baseline values (chadJobSalary, chadJobBonusPct, chadJobStockRefresh)
+  // are pulled per-month via levelAtMonthsWorked() to support promotions.
   const chadJobHireStock = [
     s.chadJobHireStockY1 || 0,
     s.chadJobHireStockY2 || 0,
@@ -145,9 +145,18 @@ export function buildTaxSchedule(s) {
     s.chadJobHireStockY4 || 0,
   ];
   const chadJobSignOnCash = s.chadJobSignOnCash || 0;
+  // MSFT growth scales each refresh-grant vest's gross dollars (mirrors
+  // projection.js so tax engine W-2 stock numbers match cashflow). Multiplier
+  // is from issue → vest, so a $50K grant in year 3 has fewer shares than
+  // the same $50K grant in year 1.
+  const msftGrowthPct = s.msftGrowth || 0;
+  const msftMultIssueToVest = (issueMonth, vestMonth) => Math.pow(1 + msftGrowthPct / 100, (vestMonth - issueMonth) / 12);
   // FIX #1: Pull NoFICA + pension contrib pct so we can flow them into the tax engine.
   const chadJobNoFICA = !!s.chadJobNoFICA;
   const chadJobPensionContribPct = (s.chadJobPensionContrib || 0) / 100;
+  // Age-65 RSU vest continuation — kept in sync with projection.js. When applies=true,
+  // refresh grants issued before retirement keep vesting (and adding to W-2) post-retirement.
+  const age65Vest = age65VestEligibility(s, chadRetirementMonth);
   // 401(k): pre-tax deferral reduces W-2 wages reported on Box 1. Roth catch-up does NOT.
   // Gated by master toggle chadJob401kEnabled — matches projection.js semantics.
   const chadJob401kEnabled = !!s.chadJob401kEnabled;
@@ -181,53 +190,78 @@ export function buildTaxSchedule(s) {
         annualSarahGross += Math.round(rate * clients * DAYS_PER_MONTH);
       }
 
-      if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
+      const inWorkWindow = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
+      const inVestContinuation = chadJob && m > chadRetirementMonth && age65Vest.applies;
+      if (inWorkWindow) {
         chadMonthsEmployed++;
         const monthsWorked = m - chadJobStartMonth;
-        const yearsWorked = Math.floor(monthsWorked / 12);
-        const annualSalaryCurr = chadJobSalary * Math.pow(1 + chadJobRaisePct, yearsWorked);
+        const lvl = levelAtMonthsWorked(monthsWorked, s);
+        // Math.floor: raises step on each anniversary of the current level
+        // (matches projection.js semantics for pre-promotion years).
+        const yearsAtCurrentLevel = Math.floor((monthsWorked - lvl.promoMonthsWorked) / 12);
+        const annualSalaryCurr = lvl.salary * Math.pow(1 + chadJobRaisePct, yearsAtCurrentLevel);
         chadAnnualSalary += annualSalaryCurr / 12;
 
-        // Lump-sum bonus paid in configured calendar month
+        // Lump-sum bonus paid in configured calendar month — uses level's bonus pct
         const calendarMonthOfYear = (m + PROJECTION_START_MONTH) % 12;
-        if (chadJobBonusPct > 0 && monthsWorked > 0 && calendarMonthOfYear === chadJobBonusMonth) {
+        if (lvl.bonusPct > 0 && monthsWorked > 0 && calendarMonthOfYear === chadJobBonusMonth) {
           let bonusFraction;
           if (monthsWorked >= 12) bonusFraction = 1;
           else if (chadJobBonusProrateFirst) bonusFraction = monthsWorked / 12;
           else bonusFraction = 0;
-          chadAnnualBonus += annualSalaryCurr * chadJobBonusPct * bonusFraction;
+          chadAnnualBonus += annualSalaryCurr * lvl.bonusPct * bonusFraction;
         }
 
         // Stock comp — lumpy events sum into the calendar year they occur in.
-        // Refresh: first grant at start + chadJobRefreshStartMonth, then every 12 months.
-        // 5% of each active grant on Feb/May/Aug/Nov.
-        if (chadJobStockRefresh > 0 && isStockVestMonth(m)) {
-          const monthsSinceFirstRefresh = monthsWorked - chadJobRefreshStartMonth;
-          if (monthsSinceFirstRefresh >= 0) {
-            const maxGrantIdx = Math.floor(monthsSinceFirstRefresh / 12);
-            for (let g = 0; g <= maxGrantIdx; g++) {
-              const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
-              if (issueMonth >= m) break;
-              const firstVest = nextStockVestMonthAfter(issueMonth);
-              if (m < firstVest) continue;
-              const vestIdx = (m - firstVest) / 3;
-              if (vestIdx >= 0 && vestIdx < 20) {
-                chadAnnualStock += chadJobStockRefresh * 0.05;
-              }
+        // Refresh: ALWAYS issued end-of-August (MSFT review cycle). First refresh
+        // = first August at or after chadJobStartMonth + chadJobRefreshStartMonth.
+        // Grant size locked at issuance month.
+        if (isStockVestMonth(m)) {
+          const firstRefreshIssue = firstAugustAtOrAfter(chadJobStartMonth + chadJobRefreshStartMonth);
+          for (let g = 0; ; g++) {
+            const issueMonth = firstRefreshIssue + 12 * g;
+            if (issueMonth >= m) break;
+            const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
+            if (grantSize <= 0) continue;
+            const firstVest = nextStockVestMonthAfter(issueMonth);
+            if (m < firstVest) continue;
+            const vestIdx = (m - firstVest) / 3;
+            if (vestIdx >= 0 && vestIdx < 20) {
+              chadAnnualStock += grantSize * 0.05 * msftMultIssueToVest(issueMonth, m);
             }
           }
         }
-        // Hire stock: lump on each work anniversary.
+        // Hire stock: lump on each work anniversary. Y1-Y4 sliders are
+        // dollars-at-hire; vests appreciate with msftGrowth from hire month.
         if (monthsWorked > 0 && monthsWorked % 12 === 0) {
           const yearIdx = monthsWorked / 12 - 1;
           if (yearIdx >= 0 && yearIdx < 4) {
-            chadAnnualStock += chadJobHireStock[yearIdx];
+            chadAnnualStock += chadJobHireStock[yearIdx] * msftMultIssueToVest(chadJobStartMonth, m);
           }
         }
         // Cash sign-on: 50% on hire date, 50% on 1-yr anniversary
         if (chadJobSignOnCash > 0) {
           if (monthsWorked === 0 || monthsWorked === 12) {
             chadAnnualSignOn += chadJobSignOnCash * 0.5;
+          }
+        }
+      } else if (inVestContinuation && isStockVestMonth(m)) {
+        // Post-retirement RSU vest continuation with 1-year cliff: grants
+        // issued within 12 months of retirement are forfeited. Mirrors
+        // projection.js for tax-engine consistency.
+        const firstRefreshIssue = firstAugustAtOrAfter(chadJobStartMonth + chadJobRefreshStartMonth);
+        for (let g = 0; ; g++) {
+          const issueMonth = firstRefreshIssue + 12 * g;
+          if (issueMonth >= m) break;
+          if (issueMonth > chadRetirementMonth) break;
+          if (!clearsOneYearCliff(issueMonth, chadRetirementMonth)) continue;
+          const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
+          if (grantSize <= 0) continue;
+          const firstVest = nextStockVestMonthAfter(issueMonth);
+          if (m < firstVest) continue;
+          const vestIdx = (m - firstVest) / 3;
+          if (vestIdx >= 0 && vestIdx < 20) {
+            chadAnnualStock += grantSize * 0.05 * msftMultIssueToVest(issueMonth, m);
           }
         }
       }
@@ -263,7 +297,11 @@ export function buildTaxSchedule(s) {
     const chad401kDeferralDollar = chadJob && chadMonthsEmployed > 0
       ? Math.round(chadJob401kDeferralAnnual * (chadMonthsEmployed / 12))
       : 0;
+    // BUG #2: chadW2 is the INCOME-TAX base (Box 1) — reduced by pre-tax pension AND
+    // pre-tax 401(k). chadW2FicaBase is the FICA base (Box 3/5) — full gross. Pre-tax
+    // pension and 401(k) deferral DO NOT reduce SS/Medicare wages.
     const chadW2 = Math.max(0, chadW2Gross - pensionDollar - chad401kDeferralDollar);
+    const chadW2FicaBase = chadJob ? chadW2Gross : 0;
 
     // Inflation-adjusted brackets and SALT cap
     const inflationFactor = s.taxInflationAdjust
@@ -290,6 +328,7 @@ export function buildTaxSchedule(s) {
     // Full household tax (Sarah + Chad)
     const fullTax = calculateTax({
       w2Wages: chadW2,
+      w2FicaBase: chadW2FicaBase, // BUG #2: full gross for FICA, reduced w2Wages for income tax
       w2Withholding: taxInputs.w2Withholding,
       schCNet,
       capGainLoss: taxInputs.capGainLoss,
@@ -311,6 +350,7 @@ export function buildTaxSchedule(s) {
     // W-2 only tax (for marginal attribution — what would tax be without Sarah?)
     const w2OnlyTax = calculateTax({
       w2Wages: chadW2,
+      w2FicaBase: chadW2FicaBase, // BUG #2: full gross for FICA, reduced w2Wages for income tax
       w2Withholding: taxInputs.w2Withholding,
       schCNet: 0,
       capGainLoss: taxInputs.capGainLoss,

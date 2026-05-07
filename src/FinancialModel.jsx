@@ -126,6 +126,9 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
+    chadCurrentAge, chadAge65VestOverride,
+    chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
+    chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
     totalMonthlySpend, oneTimeExtras, oneTimeMonths, baseExpenses, debtService, expenseInflation, expenseInflationRate,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
@@ -626,6 +629,10 @@ export default function FinancialModel() {
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
+    chadCurrentAge, chadAge65VestOverride,
+    chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
+    chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
+    msftPrice, msftGrowth,
     chadWorkMonths,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -640,6 +647,10 @@ export default function FinancialModel() {
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
+    chadCurrentAge, chadAge65VestOverride,
+    chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
+    chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
+    msftPrice, msftGrowth,
     chadWorkMonths,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -656,6 +667,9 @@ export default function FinancialModel() {
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
+    // Milestone month slider max should match the actual projection horizon,
+    // not a hardcoded 60. Derived from monthlyDetail length (= horizon + 1).
+    totalProjectionMonths: Math.max(0, (monthlyDetail?.length || 73) - 1),
     onFieldChange: set,
   }), [
     totalMonthlySpend, effectiveBaseExpenses, debtService,
@@ -668,6 +682,7 @@ export default function FinancialModel() {
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
+    monthlyDetail,
   ]);
 
   const stableGatherState = useCallback(() => gatherState(), [state]);
@@ -785,6 +800,17 @@ export default function FinancialModel() {
     presentMode,
     compareProjections,
   ]);
+
+  // 401(k) detail chart props — exposes monthly contribution/match/balance breakdown
+  // for the Plan tab's Chad401kChart panel.
+  const chad401kChartProps = useMemo(() => ({
+    monthlyDetail,
+    starting401k,
+    return401k,
+    chadJob,
+    chadRetirementMonth: chadWorkMonths || 72,
+    chadJob401kEnabled,
+  }), [monthlyDetail, starting401k, return401k, chadJob, chadWorkMonths, chadJob401kEnabled]);
 
   // Stable risk-tab variants with instanceId baked in (avoids inline spread that defeats memo)
   const riskSavingsDrawdownProps = useMemo(

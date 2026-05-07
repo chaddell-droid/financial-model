@@ -143,10 +143,13 @@ console.log('\n=== 3. Chad Job/Consulting End ===');
       `expected chadJobIncome === 0 at month 37, got ${monthlyData[37].chadJobIncome}`);
   });
 
-  test('3.3 Health savings end at retirement: expenses increase by 4200', () => {
+  test('3.3 Health savings PERSIST past retirement (no expense cliff)', () => {
+    // Updated May 2026: employer health subsidy persists post-retirement (retiree
+    // benefits / Sarah's practice / Medicare cover the gap). Expenses should NOT
+    // jump up by $4,200 at retirement.
     const delta = monthlyData[37].expenses - monthlyData[36].expenses;
-    assert.strictEqual(delta, 4200,
-      `expense increase at retirement should be 4200 (health savings end), got ${delta}`);
+    assert.ok(Math.abs(delta) < 500,
+      `health subsidy should persist post-retirement; small inflation delta expected, got ${delta}`);
   });
 
   test('3.4 Consulting also stops at retirement (m=37)', () => {
@@ -299,9 +302,10 @@ console.log('\n=== 6. Health Insurance Savings Window ===');
       `month 36 expenses should be ${baseExpenses - 4200}, got ${monthlyData[36].expenses}`);
   });
 
-  test('6.4 Health savings end at retirement (m=37)', () => {
-    assert.strictEqual(monthlyData[37].expenses, baseExpenses,
-      `month 37 expenses should be baseline ${baseExpenses}, got ${monthlyData[37].expenses}`);
+  test('6.4 Health savings PERSIST past retirement (m=37)', () => {
+    // Updated May 2026: subsidy continues post-retirement; expenses stay reduced.
+    assert.strictEqual(monthlyData[37].expenses, baseExpenses - 4200,
+      `month 37 expenses should be ${baseExpenses - 4200} (subsidy persists), got ${monthlyData[37].expenses}`);
   });
 }
 

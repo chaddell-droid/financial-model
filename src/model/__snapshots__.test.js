@@ -2153,10 +2153,12 @@ test('R2: month-0 chadJobIncome with job', () => {
 });
 
 // R3 — SS at 62 first eligible month (month 19 = 7 months after start + offset)
+// SSA family-max cap (1.5 × PIA) binds at PIA=4214: round(4214 × 1.5) = 6321.
+// Pre-cap value would have been personal(2950) + 2 × child(2107) = 7164.
 test('R3: SS at 62 benefit at month 19', () => {
   const s = gatherState({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[19].ssBenefit, 7164);
+  assert.strictEqual(monthlyData[19].ssBenefit, 6321);
 });
 
 // R4 — SS at FRA (67) first month, extended horizon
@@ -2246,11 +2248,16 @@ test('R15: chadJobIncome with no-FICA flag at month 0', () => {
   assert.strictEqual(monthlyData[0].chadJobIncome, 5413);
 });
 
-// R16 — Pension deduction reduces take-home
+// R16 — Pension deduction reduces take-home (FICA-correct)
+// FICA-correctness fix: pension is pre-tax for federal income tax but FICA still applies.
+// At $80K salary, 6% pension, 25% income tax (incl. FICA):
+//   monthlyGross = 6667; netMult = 1 - 0.25 = 0.75 → 5000.
+//   pensionDeduction = 400; pensionCashflowMult = 1 - 0.25 + 0.0765 = 0.8265 → 330.6.
+//   net = 5000 - 330.6 = 4669 (was 4600 under the old "pension is also FICA-exempt" bug).
 test('R16: chadJobIncome with 6% pension contribution at month 0', () => {
   const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobPensionContrib: 6, chadJobSalary: 80000, chadJobTaxRate: 25 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[0].chadJobIncome, 4600);
+  assert.strictEqual(monthlyData[0].chadJobIncome, 4669);
 });
 
 // R17 — totalMonthlySpend back-calculates baseExpenses

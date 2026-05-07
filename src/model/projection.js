@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, buildQuarterlySchedule } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, buildQuarterlySchedule, ssAdjustmentFactor } from './constants.js';
 
 /**
  * Helpers for lumpy stock-vest calendar math.
@@ -16,6 +16,7 @@ function nextStockVestMonthAfter(month) {
   return month + 3; // fallback (shouldn't hit — vest months are every 3 months)
 }
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
+import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
 
 export function findOperationalBreakevenIndex(rows) {
   if (!Array.isArray(rows)) return -1;
@@ -72,16 +73,17 @@ export function runMonthlySimulation(s) {
   // chadJobTaxRate is the ALL-IN effective income tax rate.
   // No-FICA adds 6.2% back (non-SS-covered employer saves that portion).
   // Pension contribution is deducted automatically from gross.
-  const chadJobStartMonth = s.chadJobStartMonth ?? 3;
+  const chadJobStartMonth = s.chadJobStartMonth ?? 0;  // matches INITIAL_STATE; chadLevels.js uses the same default
   const ficaSavings = s.chadJobNoFICA ? 0.062 : 0;
   const pensionContrib = (s.chadJobPensionContrib || 0) / 100;
-  const chadJobBaseSalary = s.chadJobSalary || 0;
   const chadJobRaisePct = (s.chadJobRaisePct || 0) / 100;
-  const chadJobBonusPct = (s.chadJobBonusPct || 0) / 100;
   const chadJobBonusMonth = s.chadJobBonusMonth ?? 8; // 0=Jan, 8=Sept
   const chadJobBonusProrateFirst = s.chadJobBonusProrateFirst !== false;
-  const chadJobStockRefresh = s.chadJobStockRefresh || 0;
   const chadJobRefreshStartMonth = s.chadJobRefreshStartMonth ?? 12;
+  // Salary, bonus pct, and refresh size are now resolved per-month via
+  // levelAtMonthsWorked() so promotions can step them up. The L63 baseline
+  // values (chadJobSalary, chadJobBonusPct, chadJobStockRefresh) remain on
+  // state and are returned by levelAtMonthsWorked when no promotion has fired.
   const chadJobHireStock = [
     s.chadJobHireStockY1 || 0,
     s.chadJobHireStockY2 || 0,
@@ -98,10 +100,35 @@ export function runMonthlySimulation(s) {
   const chadJob401kCatchupRothMonthly = chadJob401kEnabled ? (s.chadJob401kCatchupRoth || 0) / 12 : 0;
   const chadJob401kMatchMonthly = chadJob401kEnabled ? (s.chadJob401kMatch || 0) / 12 : 0;
   const chadJobTaxRate = (s.chadJobTaxRate ?? 25) / 100;
-  // Pension is deducted from salary only (not bonuses or RSUs, per typical employer rules)
-  const chadJobSalaryNetMult = 1 - chadJobTaxRate + ficaSavings - pensionContrib;
+  // Pension is deducted from salary only (not bonuses or RSUs, per typical employer rules).
+  // FICA correctness: pre-tax pension reduces federal income tax base (Box 1) but FICA
+  // (SS+Medicare) still applies on the full gross. So the per-dollar cashflow effect of a
+  // pension contribution is: lose $1 of cash, save income tax (chadJobTaxRate which already
+  // bakes in FICA when noFICA is false), but still pay FICA on that dollar.
+  const chadJobSalaryNetMult = 1 - chadJobTaxRate + ficaSavings;
+  // FICA still applies to pension (1.45% Medicare-only when noFICA=true, full 7.65% otherwise).
+  const ficaRateOnPension = s.chadJobNoFICA ? 0.0145 : 0.0765;
+  // Cashflow loss per pension dollar: 1 - chadJobTaxRate (saves income tax) + ficaRateOnPension (still pays FICA).
+  const pensionCashflowMult = 1 - chadJobTaxRate + ficaRateOnPension;
   const chadJobBonusNetMult = 1 - chadJobTaxRate + ficaSavings;
+  // Post-retirement RSU vests come from former employer's W-2 — full FICA always applies.
+  const chadJobBonusNetMultPostRet = 1 - chadJobTaxRate;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
+  // MSFT stock-price growth applied to refresh-grant vests. Refresh sliders
+  // are nominal dollars at issue: a $50K grant in year 3 buys fewer shares
+  // than a $50K grant in year 1 because MSFT has appreciated. Each vest's
+  // dollar payout scales from ISSUE → VEST (not from project start), so
+  // share count drops over time but each grant's own vests grow within its
+  // 5-yr cycle.
+  const msftGrowthPct = s.msftGrowth || 0;
+  const msftMultIssueToVest = (issueMonth, vestMonth) => Math.pow(1 + msftGrowthPct / 100, (vestMonth - issueMonth) / 12);
+
+  // Age-65 RSU vest continuation. Decided once per simulation based on Chad's
+  // age at retirement (or override). When applies=true, refresh grants issued
+  // BEFORE retirement keep vesting on their original 5-yr schedule after the
+  // last paycheck. Salary/bonus/hire-stock/sign-on/401k all still stop at
+  // chadRetirementMonth — only refresh vests continue.
+  const age65Vest = age65VestEligibility(s, chadRetirementMonth);
 
   // 401k and home equity — tracked alongside savings for deficit drawdown
   const monthly401kRate = Math.pow(1 + (s.return401k ?? 8) / 100, 1/12) - 1;
@@ -146,23 +173,39 @@ export function runMonthlySimulation(s) {
     let chadJob401kContribGross = 0;   // Pre-tax + Roth contribution this month (excludes match)
     let chadJob401kMatchGross = 0;     // Employer match this month
     let chadCurrentAnnualSalary = 0;
-    if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
+    const inWorkWindow = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
+    const inVestContinuation = chadJob && m > chadRetirementMonth && age65Vest.applies;
+    if (inWorkWindow) {
       const monthsWorked = m - chadJobStartMonth;
-      const yearsWorked = Math.floor(monthsWorked / 12);
-      chadCurrentAnnualSalary = chadJobBaseSalary * Math.pow(1 + chadJobRaisePct, yearsWorked);
+      const lvl = levelAtMonthsWorked(monthsWorked, s);
+      // Raises compound on anniversary of the current level (or hire if pre-promotion).
+      // Math.floor preserves the existing pre-promotion test contract (raises step on
+      // each completed year of work, not continuously).
+      const yearsAtCurrentLevel = Math.floor((monthsWorked - lvl.promoMonthsWorked) / 12);
+      chadCurrentAnnualSalary = lvl.salary * Math.pow(1 + chadJobRaisePct, yearsAtCurrentLevel);
       const monthlySalaryGross = chadCurrentAnnualSalary / 12;
-      // Pre-tax deferral reduces taxable salary BEFORE applying the netMult (federal + FICA savings).
+      // Pre-tax 401(k) deferral reduces taxable salary BEFORE applying the netMult (federal + FICA savings).
       // Roth catch-up does NOT reduce taxable salary (post-tax) but still leaves cashflow.
       const taxableSalaryGross = Math.max(0, monthlySalaryGross - chadJob401kDeferralMonthly);
-      chadJobSalaryNet = Math.round(taxableSalaryGross * chadJobSalaryNetMult - chadJob401kCatchupRothMonthly);
+      // Pension is pre-tax for federal income tax but FICA still applies on full gross.
+      // Apply the salary netMult to the full taxable gross, then subtract the pension dollar
+      // weighted by its own cashflow mult (saves income tax, still pays FICA).
+      const pensionDeduction = monthlySalaryGross * pensionContrib;
+      chadJobSalaryNet = Math.round(
+        taxableSalaryGross * chadJobSalaryNetMult
+        - pensionDeduction * pensionCashflowMult
+        - chadJob401kCatchupRothMonthly
+      );
       chadJob401kContribGross = Math.round(chadJob401kDeferralMonthly + chadJob401kCatchupRothMonthly);
       chadJob401kMatchGross = Math.round(chadJob401kMatchMonthly);
       chadJob401kFlow = chadJob401kContribGross; // outflow from take-home (employee side)
 
       // Lump-sum bonus on the configured calendar month, after at least 1 month
       // of employment (so a same-month start doesn't pay an instant bonus).
+      // Bonus % comes from current level — bonus paid at promotion year uses
+      // the new level's pct on whatever salary is in effect at the bonus month.
       const calendarMonthOfYear = (m + PROJECTION_START_MONTH) % 12;
-      if (chadJobBonusPct > 0 && monthsWorked > 0 && calendarMonthOfYear === chadJobBonusMonth) {
+      if (lvl.bonusPct > 0 && monthsWorked > 0 && calendarMonthOfYear === chadJobBonusMonth) {
         let bonusFraction;
         if (monthsWorked >= 12) {
           bonusFraction = 1;
@@ -171,38 +214,43 @@ export function runMonthlySimulation(s) {
         } else {
           bonusFraction = 0; // strict eligibility — no bonus until 1 full year
         }
-        chadJobBonusGross = chadCurrentAnnualSalary * chadJobBonusPct * bonusFraction;
+        chadJobBonusGross = chadCurrentAnnualSalary * lvl.bonusPct * bonusFraction;
         chadJobBonusNet = Math.round(chadJobBonusGross * chadJobBonusNetMult);
       }
 
       // Stock comp — both schedules are lumpy.
-      // Refresh: first grant issued at start + chadJobRefreshStartMonth (default 12 for
-      // MSFT — after first review). Subsequent grants every 12 months thereafter.
-      // Each grant vests 5% on the next Feb/May/Aug/Nov (skipping same-month-as-issuance),
-      // then every 3 months for 20 quarterly vests total (5 years).
+      // Refresh: ALWAYS issued end-of-August (MSFT performance review cycle).
+      // First refresh = first August at or after chadJobStartMonth + chadJobRefreshStartMonth
+      // (default refreshStartMonth=12 = "after first review"). Subsequent grants
+      // every 12 months (still August). Each grant vests 5% per quarter on
+      // Feb/May/Aug/Nov for 20 quarters (5 years).
+      // Grant SIZE is determined by the level in effect at the grant's issuance
+      // month, so a grant issued during L63 keeps L63 size through its full
+      // 5-year vest even after Chad is promoted to L64.
       let refreshGrossThisMonth = 0;
-      if (chadJobStockRefresh > 0 && isStockVestMonth(m)) {
-        const monthsSinceFirstRefresh = monthsWorked - chadJobRefreshStartMonth;
-        if (monthsSinceFirstRefresh >= 0) {
-          const maxGrantIdx = Math.floor(monthsSinceFirstRefresh / 12);
-          for (let g = 0; g <= maxGrantIdx; g++) {
-            const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
-            if (issueMonth >= m) break; // no instant vest on grant date
-            const firstVest = nextStockVestMonthAfter(issueMonth);
-            if (m < firstVest) continue;
-            const vestIdx = (m - firstVest) / 3; // integer — both endpoints are vest months
-            if (vestIdx >= 0 && vestIdx < 20) {
-              refreshGrossThisMonth += chadJobStockRefresh * 0.05;
-            }
+      if (isStockVestMonth(m) && monthsWorked >= 0) {
+        const firstRefreshIssue = firstAugustAtOrAfter(chadJobStartMonth + chadJobRefreshStartMonth);
+        for (let g = 0; ; g++) {
+          const issueMonth = firstRefreshIssue + 12 * g;
+          if (issueMonth >= m) break; // no instant vest on grant date; stops iteration once future
+          const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
+          if (grantSize <= 0) continue;
+          const firstVest = nextStockVestMonthAfter(issueMonth);
+          if (m < firstVest) continue;
+          const vestIdx = (m - firstVest) / 3; // integer — both endpoints are vest months
+          if (vestIdx >= 0 && vestIdx < 20) {
+            refreshGrossThisMonth += grantSize * 0.05 * msftMultIssueToVest(issueMonth, m);
           }
         }
       }
       // Hire stock: lump on each work anniversary (start + 12, +24, +36, +48).
+      // Each Y1-Y4 slider value is the dollar value AT HIRE; vests appreciate
+      // with msftGrowth from hire month → vest month (matches refresh treatment).
       let hireGrossThisMonth = 0;
       if (monthsWorked > 0 && monthsWorked % 12 === 0) {
         const yearIdx = monthsWorked / 12 - 1; // m=startMonth+12 → Y1 amount
         if (yearIdx >= 0 && yearIdx < 4) {
-          hireGrossThisMonth = chadJobHireStock[yearIdx];
+          hireGrossThisMonth = chadJobHireStock[yearIdx] * msftMultIssueToVest(chadJobStartMonth, m);
         }
       }
       chadJobStockGross = refreshGrossThisMonth + hireGrossThisMonth;
@@ -219,14 +267,57 @@ export function runMonthlySimulation(s) {
       }
 
       chadJobIncome = chadJobSalaryNet + chadJobBonusNet + chadJobStockRefreshNet + chadJobStockHireNet + chadJobSignOnNet;
+    } else if (inVestContinuation && isStockVestMonth(m)) {
+      // Post-retirement RSU vest continuation under the age-65 rule.
+      //
+      // 1-year cliff: only grants issued > 12 months before retirement keep
+      // vesting. Grants issued in the final pre-retirement year are forfeited
+      // (matches MSFT and most employer policies — the first vest typically
+      // hasn't happened yet for those grants). User-specified rule.
+      //
+      // Salary, bonus, hire stock, sign-on, 401(k) all stop at retirement —
+      // only refresh vests continue. FICA still applies via former employer's W-2.
+      const firstRefreshIssue = firstAugustAtOrAfter(chadJobStartMonth + chadJobRefreshStartMonth);
+      let refreshGrossThisMonth = 0;
+      for (let g = 0; ; g++) {
+        const issueMonth = firstRefreshIssue + 12 * g;
+        if (issueMonth >= m) break;
+        if (issueMonth > chadRetirementMonth) break; // no grants issued post-retirement
+        if (!clearsOneYearCliff(issueMonth, chadRetirementMonth)) continue;
+        const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
+        if (grantSize <= 0) continue;
+        const firstVest = nextStockVestMonthAfter(issueMonth);
+        if (m < firstVest) continue;
+        const vestIdx = (m - firstVest) / 3;
+        if (vestIdx >= 0 && vestIdx < 20) {
+          refreshGrossThisMonth += grantSize * 0.05 * msftMultIssueToVest(issueMonth, m);
+        }
+      }
+      if (refreshGrossThisMonth > 0) {
+        chadJobStockGross = refreshGrossThisMonth;
+        // BUG #5: Former-employer W-2 always withholds full FICA — the noFICA toggle from
+        // active employment does NOT carry over post-retirement. Use a netMult without
+        // the ficaSavings addback for these vest checks.
+        chadJobStockRefreshNet = Math.round(refreshGrossThisMonth * chadJobBonusNetMultPostRet);
+        chadJobIncome = chadJobStockRefreshNet;
+      }
     }
 
     // SS/SSDI income — SS retirement can coexist with job (earnings test applies);
     // SSDI requires no job (SGA rules)
+    //
+    // ssBenefit is the TOTAL benefit (personal + family auxiliary if kids eligible).
+    // ssBenefitPersonal is the personal-only amount that would apply if no kids
+    // were eligible. Charts use the difference (ssBenefit - ssBenefitPersonal) to
+    // show kids' auxiliary share. CRITICAL: ssBenefitPersonal must reflect what
+    // THIS month's simulation actually produced, not a stale stored value, so the
+    // chart tooltip correctly attributes the kids portion only when kids are active.
     let ssBenefit = 0;
+    let ssBenefitPersonal = 0;
     if (useSS) {
       if (m >= ssStartMonth) {
         ssBenefit = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
+        ssBenefitPersonal = ssPersonal;
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
       // FIX #8: Kids age-out is CALENDAR-ANCHORED (TWINS_AGE_OUT_MONTH), not relative
@@ -235,7 +326,43 @@ export function runMonthlySimulation(s) {
       // The legacy `kidsAgeOutMonths` state field (default 36) is preserved for back-compat
       // (still used to bound auxiliary back-pay months above), but ignored on this path.
       ssBenefit = m < TWINS_AGE_OUT_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
+      ssBenefitPersonal = s.ssdiPersonal || 0;
     }
+    // Post-employment auto-SS retirement: when Chad finishes his W-2 job and
+    // no SS income is currently flowing (e.g., ssType='ssdi' was suppressed by
+    // chadJob), default to his FRA-equivalent SS retirement. We compute fresh
+    // from ssPIA + ssClaimAge so this works even when gatherState's ss-recompute
+    // block was skipped (it only fires for ssType='ss'). Falls through to
+    // ssdiPersonal if user explicitly configured SSDI amounts but not SS PIA.
+    if (ssBenefit === 0 && chadJob && m > chadRetirementMonth) {
+      const claimAge = s.ssClaimAge || 67;
+      const piaForFallback = s.ssPIA || 0;
+      // BUG #7: Drop the SSDI-tertiary fallback. SSDI is a different benefit type (disability)
+      // and is NOT a valid stand-in for a SS retirement benefit when ssPIA is unset. Fall
+      // through to ssPersonal (the SS retirement default) instead.
+      const computedSS = piaForFallback > 0
+        ? Math.round(piaForFallback * ssAdjustmentFactor(claimAge))
+        : (ssPersonal || 0);
+      ssBenefit = computedSS;
+      ssBenefitPersonal = computedSS; // post-retirement: kids are aged out, personal == total
+    }
+
+    // Sarah's spousal SS — flows once she reaches sarahSpousalClaimAge AND Chad
+    // has claimed (signaled by ssBenefit > 0, which covers SSDI, SS retirement,
+    // and the post-retirement auto-SS fallback above). When the toggle is off,
+    // gatherState sets sarahSpousalStartMonth=999 so this branch never fires.
+    // Tracked as a separate field on monthlyData so charts can show "Chad SS"
+    // vs "Sarah spousal" distinctly; flows into cashIncome below.
+    let sarahSpousal = 0;
+    const sarahSpousalEnabled = s.sarahSpousalEnabled !== false;
+    if (
+      sarahSpousalEnabled
+      && m >= (s.sarahSpousalStartMonth ?? 999)
+      && ssBenefit > 0
+    ) {
+      sarahSpousal = s.sarahSpousalAmount || 0;
+    }
+
     // Consulting: only when not employed full-time
     const consulting = (m > chadRetirementMonth) ? 0
       : chadJob ? 0
@@ -261,24 +388,27 @@ export function runMonthlySimulation(s) {
       // FIX #7b: Refresh grants vest 60 months (5 years × 4 quarters) from issuance.
       // Old logic: Math.min(5, floor(...) + 1) — never dropped below 5 even when
       // grant 1 had expired after 5+ years. New logic: count grants whose 60-month
-      // vesting window still includes month m.
-      let activeRefreshForSS = 0;
-      if (chadJobStockRefresh > 0) {
-        const monthsSinceFirstRefreshForSS = (m - chadJobStartMonth) - chadJobRefreshStartMonth;
-        if (monthsSinceFirstRefreshForSS >= 0) {
-          const numGrantsIssued = Math.floor(monthsSinceFirstRefreshForSS / 12) + 1;
-          for (let g = 0; g < numGrantsIssued; g++) {
-            const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
-            if (m - issueMonth < 60) activeRefreshForSS++;
-          }
+      // vesting window still includes month m. Each grant carries the size in
+      // effect at its issuance month (level-aware after promotions).
+      let annualStockFromRefresh = 0;
+      const monthsSinceFirstRefreshForSS = (m - chadJobStartMonth) - chadJobRefreshStartMonth;
+      if (monthsSinceFirstRefreshForSS >= 0) {
+        const numGrantsIssued = Math.floor(monthsSinceFirstRefreshForSS / 12) + 1;
+        for (let g = 0; g < numGrantsIssued; g++) {
+          const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
+          if (m - issueMonth >= 60) continue; // grant fully vested, stop counting
+          const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
+          annualStockFromRefresh += grantSize * 0.20; // 20% per year
         }
       }
-      const annualStockProjected = activeRefreshForSS * 0.20 * chadJobStockRefresh
-        + hireStockForSS;
+      const annualStockProjected = annualStockFromRefresh + hireStockForSS;
       // Sign-on cash: 50% in employment year 0, 50% in year 1.
       const signOnYear = yearsWorkedForSS === 0 || yearsWorkedForSS === 1 ? chadJobSignOnCash * 0.5 : 0;
+      // Bonus pct comes from current level (month m) — bonus due this year reflects
+      // promotion if Chad has been promoted by m.
+      const currentBonusPct = levelAtMonthsWorked(m - chadJobStartMonth, s).bonusPct;
       const annualEarned = isEmployed
-        ? chadCurrentAnnualSalary * (1 + chadJobBonusPct) + annualStockProjected + signOnYear  // salary + bonus + RSU + sign-on
+        ? chadCurrentAnnualSalary * (1 + currentBonusPct) + annualStockProjected + signOnYear  // salary + bonus + RSU + sign-on
         : consulting * 12;                                                                       // annualized consulting
       if (annualEarned > 0) {
         if (m >= SS_FRA_MONTH) {
@@ -340,8 +470,12 @@ export function runMonthlySimulation(s) {
       expenses -= milestoneSavings;
       expenseBreakdown.milestones = -milestoneSavings;
     }
-    // Employer health insurance saves on premiums
-    if (chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth) {
+    // Employer health insurance savings — applied for ALL months once Chad has
+    // started his job (no retirement boundary). User-specified: post-retirement
+    // healthcare is covered by retiree benefits / Sarah's practice / Medicare,
+    // so expenses should NOT jump up at retirement when the employer subsidy
+    // would otherwise end.
+    if (chadJob && m >= chadJobStartMonth) {
       expenses -= chadJobHealthSavings;
       expenseBreakdown.healthInsurance = -chadJobHealthSavings;
     }
@@ -356,8 +490,10 @@ export function runMonthlySimulation(s) {
 
     // Canonical monthly cash-flow rows use actual vest timing so they reconcile to
     // savings balance changes. Keep smoothed MSFT as an explicit secondary series.
-    const cashIncome = sarahIncome + msftLump + trustLLC + ssBenefit + consulting + chadJobIncome + customLeverMonthly;
-    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssBenefit + consulting + chadJobIncome + customLeverMonthly;
+    // sarahSpousal flows in alongside ssBenefit; tracked separately on the row so
+    // tooltips can attribute "Chad SS" vs "Sarah spousal" distinctly.
+    const cashIncome = sarahIncome + msftLump + trustLLC + ssBenefit + sarahSpousal + consulting + chadJobIncome + customLeverMonthly;
+    const cashIncomeSmoothed = sarahIncome + msftSmoothed + trustLLC + ssBenefit + sarahSpousal + consulting + chadJobIncome + customLeverMonthly;
 
     balance += investReturn;
     balance += (cashIncome - expenses);
@@ -408,7 +544,9 @@ export function runMonthlySimulation(s) {
     const ssBenefitType = ssBenefit > 0 ? (useSS ? 'retirement' : 'ssdi') : null;
     monthlyData.push({
       month: m,
-      sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, consulting, chadJobIncome,
+      sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, ssBenefitPersonal,
+      sarahSpousal, // Sarah's spousal SS benefit (50% of Chad's PIA at her FRA, reduced for early claim)
+      consulting, chadJobIncome,
       chadJobSalaryNet, chadJobBonusNet, chadJobStockRefreshNet, chadJobStockHireNet, chadJobSignOnNet,
       chadJob401kContribGross, chadJob401kMatchGross, chadJob401kFlow, // 401(k) breakdown for tooltips/audit
       customLeverMonthly, // FIX RA-2: expose on row so charts/tooltips can sum back to cashIncome

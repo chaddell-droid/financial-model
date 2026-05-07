@@ -124,13 +124,13 @@ test('C6a: chadJobIncome row exposes salary/bonus/stock breakdown for tooltip', 
     const sum = row.chadJobSalaryNet + row.chadJobBonusNet + row.chadJobStockRefreshNet + row.chadJobStockHireNet + row.chadJobSignOnNet;
     assert.strictEqual(sum, row.chadJobIncome, `Month ${i}: breakdown must sum to chadJobIncome`);
   }
-  // Month 6 = first September → bonus paid (lump). Refresh vests are at m=2,5,8,11 (May/Aug/Nov/Feb), not Sept.
+  // Month 6 = first September → bonus paid (lump). Refresh issues at Aug (m=5) so first vest is m=8 (Nov).
   assert.ok(monthlyData[6].chadJobSalaryNet > 0, 'm6: salary > 0');
   assert.ok(monthlyData[6].chadJobBonusNet > 0, 'm6 (Sept): bonus > 0');
   // Month 12 = anniversary → hire stock lump
   assert.ok(monthlyData[12].chadJobStockHireNet > 0, 'm12: hire stock anniversary lump');
-  // Month 5 = Aug → refresh quarterly vest
-  assert.ok(monthlyData[5].chadJobStockRefreshNet > 0, 'm5 (Aug): refresh vest');
+  // Month 8 = Nov → first refresh vest after Aug grant (m=5 issue, m=8 first vest)
+  assert.ok(monthlyData[8].chadJobStockRefreshNet > 0, 'm8 (Nov): first refresh vest after Aug issue');
 });
 
 // ════════════════════════════════════════════════════════════════════════

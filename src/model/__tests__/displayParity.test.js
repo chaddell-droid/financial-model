@@ -40,10 +40,20 @@ console.log('\n=== Section 1: chadJobMonthlyNet Parity ===');
 
 function computeUiChadJobMonthlyNet(overrides) {
   const salary = overrides.chadJobSalary || 80000;
-  const taxRate = overrides.chadJobTaxRate ?? 25;
-  const ficaSavings = overrides.chadJobNoFICA ? 0.062 : 0;
+  const taxRate = (overrides.chadJobTaxRate ?? 25) / 100;
+  const noFICA = !!overrides.chadJobNoFICA;
+  const ficaSavings = noFICA ? 0.062 : 0;
   const pensionContribPct = (overrides.chadJobPensionContrib || 0) / 100;
-  return Math.round(salary * (1 - taxRate / 100 + ficaSavings - pensionContribPct) / 12);
+  // FICA-correct math (mirrors projection.js):
+  //   salaryNetMult = 1 - taxRate + ficaSavings
+  //   pensionCashflowMult = 1 - taxRate + ficaRateOnPension (Medicare-only when noFICA)
+  //   net = monthlyGross * salaryNetMult - pensionDeduction * pensionCashflowMult
+  const ficaRateOnPension = noFICA ? 0.0145 : 0.0765;
+  const salaryNetMult = 1 - taxRate + ficaSavings;
+  const pensionCashflowMult = 1 - taxRate + ficaRateOnPension;
+  const monthlyGross = salary / 12;
+  const pensionDeduction = monthlyGross * pensionContribPct;
+  return Math.round(monthlyGross * salaryNetMult - pensionDeduction * pensionCashflowMult);
 }
 
 test('D1: chadJobMonthlyNet — basic 80K/25% tax', () => {
@@ -76,20 +86,26 @@ test('D3: chadJobMonthlyNet — with NoFICA', () => {
     `Engine month 0 chadJobIncome (${monthlyData[0].chadJobIncome}) should match UI (${uiNet})`);
 });
 
-test('D4: chadJobMonthlyNet — with 6% pension contrib', () => {
+test('D4: chadJobMonthlyNet — with 6% pension contrib (FICA-correct)', () => {
+  // Pension is pre-tax for federal income tax but FICA still applies on full gross.
+  // 80K/12 = 6667; netMult=0.75 → 5000; pensionDed=400 × pensionMult(0.8265) = 330.6.
+  // Net = 5000 - 330.6 = 4669 (was 4600 under the old "pension is also FICA-exempt" bug).
   const overrides = { chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 25, chadJobPensionContrib: 6, chadJobStartMonth: 0 };
   const uiNet = computeUiChadJobMonthlyNet(overrides);
-  assert.strictEqual(uiNet, 4600, `UI formula should yield 4600, got ${uiNet}`);
+  assert.strictEqual(uiNet, 4669, `UI formula should yield 4669, got ${uiNet}`);
   const s = gatherStateWithOverrides(overrides);
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].chadJobIncome, uiNet,
     `Engine month 0 chadJobIncome (${monthlyData[0].chadJobIncome}) should match UI (${uiNet})`);
 });
 
-test('D5: chadJobMonthlyNet — NoFICA + 6% pension', () => {
+test('D5: chadJobMonthlyNet — NoFICA + 6% pension (Medicare-only on pension)', () => {
+  // Under noFICA, only Medicare 1.45% applies — pensionMult = 1 - 0.25 + 0.0145 = 0.7645.
+  // 80K/12 = 6667; salaryNetMult = 1 - 0.25 + 0.062 = 0.812 → 5413.
+  // pensionDed = 400 × 0.7645 = 305.8 → net = 5413 - 305.8 = 5108 (was 5013 under the old bug).
   const overrides = { chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 25, chadJobNoFICA: true, chadJobPensionContrib: 6, chadJobStartMonth: 0 };
   const uiNet = computeUiChadJobMonthlyNet(overrides);
-  assert.strictEqual(uiNet, 5013, `UI formula should yield 5013, got ${uiNet}`);
+  assert.strictEqual(uiNet, 5108, `UI formula should yield 5108, got ${uiNet}`);
   const s = gatherStateWithOverrides(overrides);
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].chadJobIncome, uiNet,
@@ -189,19 +205,20 @@ test('D11: netImpactSteady — SSDI with FICA savings', () => {
   assert.strictEqual(netImpactSteady, 5399);
 });
 
-test('D12: netImpactSteady — SS path with pension contrib', () => {
+test('D12: netImpactSteady — SS path with pension contrib (FICA-correct)', () => {
+  // Pension is pre-tax for federal income tax but FICA still applies on full gross.
+  // Net = 4669 (was 4600 under old bug). netImpactSteady tracks accordingly.
   const overrides = {
     ssType: 'ss', ssClaimAge: 67, ssPIA: 4214,
     chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 25, chadJobHealthSavings: 4200,
     chadJobPensionContrib: 6, chadJobStartMonth: 0,
   };
   const chadJobMonthlyNet = computeUiChadJobMonthlyNet(overrides);
-  assert.strictEqual(chadJobMonthlyNet, 4600, `With 6% pension: 4600, got ${chadJobMonthlyNet}`);
+  assert.strictEqual(chadJobMonthlyNet, 4669, `With 6% pension: 4669, got ${chadJobMonthlyNet}`);
   const s = gatherStateWithOverrides(overrides);
   const personalRate = s.ssPersonal;
   const netImpactSteady = chadJobMonthlyNet + overrides.chadJobHealthSavings - personalRate;
-  assert.strictEqual(netImpactSteady, 4600 + 4200 - 4214, `netImpactSteady = 4586, got ${netImpactSteady}`);
-  assert.strictEqual(netImpactSteady, 4586);
+  assert.strictEqual(netImpactSteady, 4669 + 4200 - personalRate, `netImpactSteady should follow chadJobMonthlyNet`);
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -492,8 +509,11 @@ test('D-NoFICA: BridgeChart chadJobMonthlyNet matches engine with chadJobNoFICA=
 });
 
 test('D-Pension: BridgeChart chadJobMonthlyNet matches engine with pension contrib', () => {
-  // Parity test: pension contribution path. With 10% employee pension contrib at $80K/25%:
-  // monthlyNet = 80000 * (1 - 0.25 + 0 - 0.10) / 12 = 80000 * 0.65 / 12 = 4333.33 → 4333
+  // FICA-correct math (May 2026): pension contribution is pre-tax for federal income
+  // tax but FICA STILL applies on the gross. Per dollar pension: cashflow loss =
+  // 1 - taxRate + ficaRateOnPension (= 1 - 0.25 + 0.0765 = 0.8265).
+  // Without pension: 80000 × 0.75 / 12 = 5000.
+  // With 10% pension ($666.67/mo): 5000 - 666.67 × 0.8265 = 5000 - 551 = 4449.
   const overrides = { chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 25, chadJobPensionContrib: 10, chadJobStartMonth: 0 };
   const s = gatherStateWithOverrides(overrides);
   const { monthlyData } = runMonthlySimulation(s);
@@ -501,13 +521,13 @@ test('D-Pension: BridgeChart chadJobMonthlyNet matches engine with pension contr
   const engineSalaryNet = monthlyData[0].chadJobSalaryNet;
   assert.strictEqual(chadJobMonthlyNet, engineSalaryNet,
     `BridgeChart chadJobMonthlyNet (${chadJobMonthlyNet}) must match engine (${engineSalaryNet})`);
-  assert.strictEqual(chadJobMonthlyNet, 4333, `Expected 4333 with 10% pension at $80K/25%, got ${chadJobMonthlyNet}`);
+  assert.strictEqual(chadJobMonthlyNet, 4449, `Expected 4449 with 10% pension at $80K/25% (FICA-correct), got ${chadJobMonthlyNet}`);
 
-  // OLD UI formula would have given 5000 (ignored pension) — confirm divergence
-  const oldUiFormula = Math.round((80000) * (1 - 25 / 100) / 12);
-  assert.strictEqual(oldUiFormula, 5000);
+  // OLD UI formula (treated pension as both income-tax AND FICA exempt) would give 4333. Confirm divergence.
+  const oldUiFormula = Math.round((80000) * (1 - 25 / 100 - 0.10) / 12);
+  assert.strictEqual(oldUiFormula, 4333);
   assert.notStrictEqual(oldUiFormula, engineSalaryNet,
-    `OLD UI formula (${oldUiFormula}) MUST diverge from engine (${engineSalaryNet}) for this test to be meaningful`);
+    `OLD UI formula (${oldUiFormula}) MUST diverge from engine (${engineSalaryNet}) — pension is FICA-applicable`);
 });
 
 test('D-Lever: IncomeCompositionChart total includes customLeverMonthly (FIX #6)', () => {

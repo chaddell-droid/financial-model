@@ -169,11 +169,22 @@ export function calculateTax(inputs) {
     // When true, the employee SS portion (6.2% × min(wages, SS_WAGE_BASE)) is zero,
     // but Medicare 1.45% and Additional Medicare 0.9% still apply.
     noFICA = false,
+
+    // BUG #2: Separate FICA base from income-tax base. Pre-tax 401(k) deferrals AND
+    // pre-tax pension contributions reduce Box 1 (federal income tax base = w2Wages
+    // here) but Box 3/5 (SS+Medicare) wages stay at gross. So FICA must be computed
+    // on a separate, larger base. Defaults to w2Wages for back-compat with callers
+    // that haven't been updated.
+    w2FicaBase = null,
   } = inputs;
+  // If w2FicaBase wasn't passed, fall back to w2Wages (pre-bug behavior).
+  const effectiveW2FicaBase = w2FicaBase !== null ? w2FicaBase : w2Wages;
 
   // SE tax — shared by all modes
   // Pass noFICA so SE-side SS cap interaction with W-2 wages is correct.
-  const se = computeSelfEmploymentTax(schCNet, w2Wages, noFICA);
+  // BUG #2: SE tax uses the FICA base for the SS-cap interaction (that's what was
+  // actually paid SS tax on), not the income-tax-reduced w2Wages.
+  const se = computeSelfEmploymentTax(schCNet, effectiveW2FicaBase, noFICA);
 
   // --- Projection mode: simplified marginal rate calculation ---
   if (marginalRateOverride !== null) {
@@ -239,15 +250,19 @@ export function calculateTax(inputs) {
     ? flatCredits
     : (ctcChildren * CTC_AMOUNT + odcDependents * ODC_AMOUNT);
 
-  // Additional Medicare
+  // Additional Medicare — applies to MEDICARE wages (full gross including pre-tax
+  // 401(k) and pension), not Box 1 income. Use the FICA base, same as the regular
+  // Medicare 1.45% in computeW2EmployeeFica.
   let addlMedicareOwed = 0;
   if (!skipAdditionalMedicare) {
-    const aml = computeAdditionalMedicare({ w2Wages, seBase: se.seBase });
+    const aml = computeAdditionalMedicare({ w2Wages: effectiveW2FicaBase, seBase: se.seBase });
     addlMedicareOwed = aml.addlMedicareOwed;
   }
 
   // FIX #1: Employee-side W-2 FICA — SS portion suppressed when noFICA=true.
-  const w2Fica = computeW2EmployeeFica(w2Wages, noFICA);
+  // BUG #2: Use the FICA base (full gross including pre-tax 401(k) and pension)
+  // rather than the post-deduction w2Wages used for income tax.
+  const w2Fica = computeW2EmployeeFica(effectiveW2FicaBase, noFICA);
 
   // Total tax
   const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicareOwed + w2Fica.ficaTax;

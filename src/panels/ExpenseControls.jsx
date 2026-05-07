@@ -13,6 +13,7 @@ const ExpenseControls = ({
   vanMonthlySavings,
   milestones,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
+  totalProjectionMonths,
   hideCapital = false,
   onFieldChange,
 }) => {
@@ -124,7 +125,7 @@ const ExpenseControls = ({
                       commitStrategy={commitStrategy}
                       testId={`expense-milestone-month-${i}`}
                       ariaLabel={`Milestone ${i + 1} month`}
-                      min={3} max={60} format={(v) => v + "mo"} color={COLORS.textMuted} />
+                      min={3} max={totalProjectionMonths || 144} format={(v) => v + "mo"} color={COLORS.textMuted} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <Slider label="" value={ms.savings} onChange={(v) => { const u = [...milestones]; u[i] = {...u[i], savings: v}; set('milestones')(u); }}

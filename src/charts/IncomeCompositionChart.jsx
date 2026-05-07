@@ -190,9 +190,14 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                     const s = sources[si];
                     const val = vals[si];
                     if (val <= 0) continue;
-                    if (s.key === 'ssBenefit' && ssBenefitPersonal > 0 && val > ssBenefitPersonal) {
-                      tooltipSources.push({ label: `${s.label} (personal)`, color: s.color, value: ssBenefitPersonal });
-                      tooltipSources.push({ label: `${s.label} (kids)`, color: s.color, value: val - ssBenefitPersonal, indent: true });
+                    if (s.key === 'ssBenefit' && (d.ssBenefitPersonal || 0) > 0 && val > (d.ssBenefitPersonal || 0)) {
+                      // Use the per-row ssBenefitPersonal computed by the simulation, NOT the
+                      // prop ssBenefitPersonal (which is the stored ssPersonal — stale when
+                      // ssType='ssdi' or when the auto-SS post-retirement fallback is active).
+                      // This ensures the "(kids)" split only appears when kids' auxiliary
+                      // benefits are actually contributing to that month's total.
+                      tooltipSources.push({ label: `${s.label} (personal)`, color: s.color, value: d.ssBenefitPersonal });
+                      tooltipSources.push({ label: `${s.label} (kids)`, color: s.color, value: val - d.ssBenefitPersonal, indent: true });
                     } else if (s.key === 'chadJobIncome' && (
                       (d.chadJobBonusNet || 0) > 0 || (d.chadJobStockRefreshNet || 0) > 0 || (d.chadJobStockHireNet || 0) > 0 || (d.chadJobSignOnNet || 0) > 0
                     )) {

@@ -28,6 +28,10 @@ export default function MonteCarloPanel({
   const containerRef = useRef(null);
   const svgW = useContainerWidth(containerRef);
   const [mcTooltip, setMcTooltip] = useState(null);
+  // Which reserve to chart. Defaults to 'savings' for back-compat with the
+  // historical view; users can flip to 'netWorth' / '401k' / 'home' to see
+  // total wealth, retirement assets, or home equity dynamics.
+  const [reserveView, setReserveView] = useState('savings');
 
   if (presentMode) return null;
 
@@ -123,7 +127,16 @@ export default function MonteCarloPanel({
 
           {/* Results */}
           {mcResults && (() => {
-            const { bands, solvencyRate, medianTrough, medianFinal, p10Final, p90Final } = mcResults;
+            const { solvencyRate, savingsOnlySolvencyRate, drawdownFiredCount, medianTrough, medianFinal, p10Final, p90Final } = mcResults;
+            // Pick the bands + final values to display based on the reserve toggle.
+            const reserveOpts = {
+              savings: { bands: mcResults.bands, label: 'Savings', medianFinalLocal: medianFinal, p10FinalLocal: p10Final, p90FinalLocal: p90Final },
+              netWorth: { bands: mcResults.bandsNetWorth || mcResults.bands, label: 'Net worth', medianFinalLocal: mcResults.medianFinalNetWorth ?? medianFinal, p10FinalLocal: mcResults.p10FinalNetWorth ?? p10Final, p90FinalLocal: mcResults.p90FinalNetWorth ?? p90Final },
+              k401: { bands: mcResults.bands401k || mcResults.bands, label: '401(k)', medianFinalLocal: mcResults.medianFinal401k ?? 0, p10FinalLocal: mcResults.p10Final401k ?? 0, p90FinalLocal: mcResults.p90Final401k ?? 0 },
+              home: { bands: mcResults.bandsHomeEquity || mcResults.bands, label: 'Home equity', medianFinalLocal: mcResults.medianFinalHomeEquity ?? 0, p10FinalLocal: mcResults.p10FinalHomeEquity ?? 0, p90FinalLocal: mcResults.p90FinalHomeEquity ?? 0 },
+            };
+            const view = reserveOpts[reserveView] || reserveOpts.savings;
+            const bands = view.bands;
             const months = bands[0].series.length - 1;
             const svgH = 260;
             const padL = 60;
@@ -157,12 +170,15 @@ export default function MonteCarloPanel({
             });
 
             const medianPath = bands[medianIdx].series.map((v, m) => `${m === 0 ? "M" : "L"} ${xOf(m).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
-            const detPath = savingsData.filter(d => d.month <= months).map(d => `${d.month === 0 ? "M" : "L"} ${xOf(d.month).toFixed(1)},${yOf(d.balance).toFixed(1)}`).join(" ");
+            // Deterministic overlay only available for savings view (savingsData is savings-only).
+            const detPath = reserveView === 'savings'
+              ? savingsData.filter(d => d.month <= months).map(d => `${d.month === 0 ? "M" : "L"} ${xOf(d.month).toFixed(1)},${yOf(d.balance).toFixed(1)}`).join(" ")
+              : null;
             const legendItems = buildLegendItems([
-              { id: 'mc-p50', label: 'Typical path (P50)', color: '#22d3ee', type: 'line' },
+              { id: 'mc-p50', label: `Typical ${view.label.toLowerCase()} path (P50)`, color: '#22d3ee', type: 'line' },
               { id: 'mc-mid-band', label: 'Likely middle range (P25-P75)', color: '#22d3ee', type: 'band', opacity: 0.12 },
               { id: 'mc-wide-band', label: 'Wide range (P10-P90)', color: '#22d3ee', type: 'band', opacity: 0.06 },
-              { id: 'mc-base', label: 'Deterministic base case', color: '#94a3b8', type: 'dashed' },
+              ...(reserveView === 'savings' ? [{ id: 'mc-base', label: 'Deterministic base case', color: '#94a3b8', type: 'dashed' }] : []),
             ]);
 
             const solvColor = solvencyRate >= 0.95 ? COLORS.green : solvencyRate >= 0.80 ? COLORS.yellow : COLORS.red;
@@ -175,7 +191,7 @@ export default function MonteCarloPanel({
               const relX = (e.clientX - rect.left) / rect.width * svgW;
               const m = Math.round(((relX - padL) / plotW) * months);
               if (m < 0 || m > months) { setMcTooltip(null); return; }
-              const detVal = savingsData.find(d => d.month === m)?.balance;
+              const detVal = reserveView === 'savings' ? savingsData.find(d => d.month === m)?.balance : null;
               setMcTooltip({
                 month: m,
                 pctX: ((relX - padL) / plotW) * 100,
@@ -188,24 +204,30 @@ export default function MonteCarloPanel({
               });
             };
 
+            // Stricter solvency tier colors
+            const strictColor = savingsOnlySolvencyRate >= 0.95 ? COLORS.green : savingsOnlySolvencyRate >= 0.80 ? COLORS.yellow : COLORS.red;
+            // Net worth final colors (use the chosen view's finals)
+            const finalColor = (v) => v >= 0 ? COLORS.green : COLORS.red;
+
             return (
               <div>
-                {/* Stats row */}
+                {/* Stats row — TWO tiers: solvency tiers + view-specific finals */}
                 <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700, marginBottom: 6 }}>
                   Primary answers
                 </div>
-                <div style={{ display: "flex", gap: 2, marginBottom: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 2, marginBottom: 8, flexWrap: "wrap" }}>
                   {[
-                    { label: "Chance of staying solvent", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} paths never dip below zero`, color: solvColor },
-                    { label: "Typical lowest point", value: fmtFull(medianTrough), sub: "Median trough across paths", color: medianTrough >= 0 ? COLORS.green : COLORS.red },
-                    { label: "Typical finish", value: fmtFull(medianFinal), sub: `Median balance at Y${Math.round(months / 12)}`, color: medianFinal >= 0 ? COLORS.green : COLORS.red },
-                    { label: "Bad-luck finish", value: fmtFull(p10Final), sub: "10th percentile ending balance", color: p10Final >= 0 ? COLORS.yellow : COLORS.red },
-                    { label: "Good-luck finish", value: fmtFull(p90Final), sub: "90th percentile ending balance", color: COLORS.green },
+                    { label: "Stayed solvent (any reserve)", value: `${(solvencyRate * 100).toFixed(1)}%`, sub: `${solvEmoji} ${Math.round(solvencyRate * mcResults.numSims)}/${mcResults.numSims} paths — savings stayed ≥ $0 every month (reserves bailed it out if needed)`, color: solvColor, accent: true },
+                    { label: "Never tapped reserves", value: `${((savingsOnlySolvencyRate ?? 0) * 100).toFixed(1)}%`, sub: `${Math.round((savingsOnlySolvencyRate ?? 0) * mcResults.numSims)}/${mcResults.numSims} paths never drew from 401(k) or home equity`, color: strictColor, accent: true },
+                    { label: "Typical lowest savings", value: fmtFull(medianTrough), sub: "Median trough across paths", color: finalColor(medianTrough) },
+                    { label: `Typical ${view.label.toLowerCase()} finish`, value: fmtFull(view.medianFinalLocal), sub: `Median ${view.label.toLowerCase()} at Y${Math.round(months / 12)}`, color: finalColor(view.medianFinalLocal) },
+                    { label: "Bad-luck finish (P10)", value: fmtFull(view.p10FinalLocal), sub: `10th-percentile ${view.label.toLowerCase()}`, color: finalColor(view.p10FinalLocal) },
+                    { label: "Good-luck finish (P90)", value: fmtFull(view.p90FinalLocal), sub: `90th-percentile ${view.label.toLowerCase()}`, color: COLORS.green },
                   ].map((item, i) => (
                     <div key={i} style={{
                       flex: 1, minWidth: 110,
                       background: COLORS.bgDeep, borderRadius: 6, padding: "6px 10px",
-                      border: i === 0 ? `1px solid ${solvColor}33` : "1px solid #1e293b"
+                      border: item.accent ? `1px solid ${item.color}33` : "1px solid #1e293b"
                     }}>
                       <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>{item.label}</div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -216,9 +238,48 @@ export default function MonteCarloPanel({
                   ))}
                 </div>
 
+                {/* Drawdown summary — only when reserves were touched */}
+                {drawdownFiredCount > 0 && (
+                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12, padding: "6px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid #1e293b` }}>
+                    <span style={{ color: COLORS.yellow, fontWeight: 700 }}>Drawdown waterfall fired in {drawdownFiredCount}/{mcResults.numSims} paths.</span>
+                    {' '}
+                    Median 401(k) drawn: <span style={{ color: COLORS.amber }}>{fmtFull(mcResults.medianWithdrawal401k || 0)}</span>;
+                    {' '}P90: <span style={{ color: COLORS.red }}>{fmtFull(mcResults.p90Withdrawal401k || 0)}</span>.
+                    {' '}Median home HELOC: <span style={{ color: COLORS.amber }}>{fmtFull(mcResults.medianWithdrawalHome || 0)}</span>;
+                    {' '}P90: <span style={{ color: COLORS.red }}>{fmtFull(mcResults.p90WithdrawalHome || 0)}</span>.
+                    {' '}<span style={{ fontStyle: 'italic', color: COLORS.borderLight }}>Note: 401(k) draws don't model income tax or early-withdrawal penalty.</span>
+                  </div>
+                )}
+
+                {/* View toggle — pick which reserve to chart */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700 }}>View:</span>
+                  {[
+                    { id: 'savings', label: 'Savings' },
+                    { id: 'netWorth', label: 'Net worth (savings + 401k + home)' },
+                    { id: 'k401', label: '401(k)' },
+                    { id: 'home', label: 'Home equity' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setReserveView(opt.id)}
+                      data-testid={`mc-view-${opt.id}`}
+                      style={{
+                        padding: '3px 10px', fontSize: 10, borderRadius: 12,
+                        border: `1px solid ${reserveView === opt.id ? COLORS.cyan : COLORS.border}`,
+                        background: reserveView === opt.id ? `${COLORS.cyan}22` : 'transparent',
+                        color: reserveView === opt.id ? COLORS.cyan : COLORS.textMuted,
+                        cursor: 'pointer', fontWeight: reserveView === opt.id ? 700 : 500,
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Fan chart with tooltip */}
                 <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700, marginBottom: 6 }}>
-                  Range of outcomes
+                  {view.label} — range of outcomes
                 </div>
                 <div data-testid="monte-carlo-fan-chart-hover-surface" style={{ position: "relative" }}>
                   <svg data-testid="monte-carlo-fan-chart" viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
@@ -265,8 +326,8 @@ export default function MonteCarloPanel({
                     <path d={bands[4].series.map((v, m) => `${m === 0 ? "M" : "L"} ${xOf(m).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ")}
                       fill="none" stroke={COLORS.cyan} strokeWidth="0.5" opacity="0.3" />
 
-                    {/* Deterministic base case (dashed) */}
-                    <path d={detPath} fill="none" stroke={COLORS.textMuted} strokeWidth="1.5" strokeDasharray="6,4" opacity="0.5" />
+                    {/* Deterministic base case (dashed) — only on savings view */}
+                    {detPath && <path d={detPath} fill="none" stroke={COLORS.textMuted} strokeWidth="1.5" strokeDasharray="6,4" opacity="0.5" />}
 
                     {/* Median line (bold) */}
                     <path d={medianPath} fill="none" stroke={COLORS.cyan} strokeWidth="2.5" strokeLinejoin="round" />

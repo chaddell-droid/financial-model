@@ -417,7 +417,7 @@ export const TOOLS = Object.freeze([
   {
     name: 'monteCarloSummary',
     description:
-      'Run a Monte Carlo simulation over investment-return / business-growth / MSFT-growth / SSDI-delay variability and return solvency rate, percentile bands, median trough, and goal success rates. Use when the user asks about risk, downside scenarios, "what could go wrong", or confidence bands.',
+      'Run a Monte Carlo simulation over investment-return / business-growth / MSFT-growth / SSDI-delay variability. Returns BOTH solvency rates (savings-only solvency = "never had to dip into reserves" AND total solvency = "didn\'t go bankrupt because reserves bailed it out") plus percentile bands and final values for SAVINGS, 401(k), HOME EQUITY, and NET WORTH. Includes cumulative drawdown stats (median + p90 401k withdrawal, home HELOC). Use whenever the user asks about risk, downside, confidence bands, or whether the plan would have to tap reserves.',
     input_schema: MONTE_CARLO_SCHEMA,
     handler: (state, args = {}) => {
       const N = args.runs ?? 250;
@@ -433,9 +433,9 @@ export const TOOLS = Object.freeze([
       const goals = state.goals || [];
       const opts = args.seed != null ? { seed: args.seed } : {};
       const mc = runMonteCarlo(state, mcParams, goals, opts);
-      // Drop the per-month bands beyond a sample to keep output compact.
+      // Compact band output: sample at year boundaries instead of every month.
       const sampleMonths = [0, 12, 24, 36, 48, 60, 72];
-      const compactBands = mc.bands.map((b) => ({
+      const compactBands = (bands) => bands.map((b) => ({
         pct: b.pct,
         sampled: sampleMonths.filter((m) => m < b.series.length).map((m) => ({ month: m, value: r(b.series[m]) })),
         finalValue: r(b.series[b.series.length - 1]),
@@ -443,12 +443,52 @@ export const TOOLS = Object.freeze([
       return {
         ok: true,
         numSims: mc.numSims,
+        // Solvency tiers
         solvencyRate: r2(mc.solvencyRate * 100) / 100,
+        savingsOnlySolvencyRate: r2(mc.savingsOnlySolvencyRate * 100) / 100,
+        drawdownFiredCount: mc.drawdownFiredCount,
+        // Savings (post-drawdown)
+        savings: {
+          medianTrough: r(mc.medianTrough),
+          medianFinal: r(mc.medianFinal),
+          p10Final: r(mc.p10Final),
+          p90Final: r(mc.p90Final),
+          bands: compactBands(mc.bands),
+        },
+        // 401(k)
+        balance401k: {
+          medianFinal: r(mc.medianFinal401k),
+          p10Final: r(mc.p10Final401k),
+          p90Final: r(mc.p90Final401k),
+          bands: compactBands(mc.bands401k),
+        },
+        // Home equity (post-HELOC if any drawdown fired)
+        homeEquity: {
+          medianFinal: r(mc.medianFinalHomeEquity),
+          p10Final: r(mc.p10FinalHomeEquity),
+          p90Final: r(mc.p90FinalHomeEquity),
+          bands: compactBands(mc.bandsHomeEquity),
+        },
+        // Net worth — sum of all three
+        netWorth: {
+          medianFinal: r(mc.medianFinalNetWorth),
+          p10Final: r(mc.p10FinalNetWorth),
+          p90Final: r(mc.p90FinalNetWorth),
+          bands: compactBands(mc.bandsNetWorth),
+        },
+        // Cost of the drawdown waterfall (cumulative withdrawals across the horizon)
+        drawdowns: {
+          medianWithdrawal401k: r(mc.medianWithdrawal401k),
+          p90Withdrawal401k: r(mc.p90Withdrawal401k),
+          medianWithdrawalHome: r(mc.medianWithdrawalHome),
+          p90WithdrawalHome: r(mc.p90WithdrawalHome),
+        },
+        // Top-level back-compat (advisors may still reference these short names)
         medianTrough: r(mc.medianTrough),
         medianFinal: r(mc.medianFinal),
         p10Final: r(mc.p10Final),
         p90Final: r(mc.p90Final),
-        bands: compactBands,
+        bands: compactBands(mc.bands),
         goalSuccessRates: mc.goalSuccessRates.map((g) => ({ goalId: g.goalId, successRate: r2(g.successRate * 100) / 100 })),
         params: mc.params,
       };

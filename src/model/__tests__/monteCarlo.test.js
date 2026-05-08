@@ -337,6 +337,134 @@ test('12. Solvency rate is between 0 and 1', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// 9. Total-wealth tracking (401k + home equity + net worth)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Monte Carlo — total wealth tracking ===');
+
+test('13. Result exposes bands401k, bandsHomeEquity, bandsNetWorth alongside savings bands', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 50 });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  for (const key of ['bands401k', 'bandsHomeEquity', 'bandsNetWorth']) {
+    assert.ok(Array.isArray(result[key]), `${key} should be an array`);
+    assert.strictEqual(result[key].length, 5, `${key} should have 5 percentile bands`);
+    for (const band of result[key]) {
+      assert.strictEqual(band.series.length, 73, `${key} bands should have 73 entries (months 0-72)`);
+    }
+  }
+});
+
+test('14. Net worth = savings + 401k + home equity at the median final', () => {
+  const base = gatherStateWithOverrides({ ssType: 'ss' }); // less variance for cleaner check
+  const mc = mcParams({
+    mcNumSims: 100,
+    mcInvestVol: 0, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  // With zero volatility, every sim is identical, so median final NW should
+  // equal medianFinal + medianFinal401k + medianFinalHomeEquity exactly.
+  const sum = result.medianFinal + result.medianFinal401k + result.medianFinalHomeEquity;
+  near(result.medianFinalNetWorth, sum, 5, 'medianFinalNetWorth should equal sum of medians at zero volatility');
+});
+
+test('15. 401k final percentiles are in p10 ≤ p50 ≤ p90 order', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 100 });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  assert.ok(result.p10Final401k <= result.medianFinal401k,
+    `p10 401k (${result.p10Final401k}) should be <= median (${result.medianFinal401k})`);
+  assert.ok(result.medianFinal401k <= result.p90Final401k,
+    `median 401k (${result.medianFinal401k}) should be <= p90 (${result.p90Final401k})`);
+});
+
+test('16. Net worth final percentiles are in p10 ≤ p50 ≤ p90 order', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 100 });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  assert.ok(result.p10FinalNetWorth <= result.medianFinalNetWorth);
+  assert.ok(result.medianFinalNetWorth <= result.p90FinalNetWorth);
+});
+
+test('17. 401k bands grow from starting401k under positive return when no drawdown fires', () => {
+  // To isolate 401k growth, give the household enough savings that the
+  // drawdown waterfall never fires (savings stays ≥ 0 every month).
+  // 401k should then just compound at return401k.
+  const base = gatherStateWithOverrides({
+    ssType: 'ss',                 // suppress SSDI randomness
+    chadJob: true, chadJobSalary: 200000,  // strong income → savings stays positive
+    starting401k: 478000,
+    return401k: 8,
+    startingSavings: 1000000,     // big buffer so no drawdown
+  });
+  const mc = mcParams({
+    mcNumSims: 50,
+    mcInvestVol: 0, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  const median = result.bands401k.find(b => b.pct === 50);
+  const finalK = median.series[median.series.length - 1];
+  // 478K compounded at 8%/yr for 6 years (72 months) ≈ 758K. Since chadJob is
+  // on but 401k contributions are off (chadJob401kEnabled defaults to false),
+  // the only growth is interest. Expect final > starting.
+  assert.ok(finalK > 478000,
+    `401k median final (${finalK}) should exceed starting (478000) under positive return when no drawdown fires`);
+  // And drawdowns should not have fired in this scenario.
+  assert.strictEqual(result.drawdownFiredCount, 0,
+    `Drawdown should not have fired in this no-deficit scenario; got ${result.drawdownFiredCount}/${result.numSims}`);
+});
+
+console.log('\n=== Monte Carlo — solvency tiers + withdrawals ===');
+
+test('18. savingsOnlySolvencyRate is between 0 and 1, and ≤ solvencyRate', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 100 });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  assert.ok(result.savingsOnlySolvencyRate >= 0 && result.savingsOnlySolvencyRate <= 1);
+  assert.ok(result.savingsOnlySolvencyRate <= result.solvencyRate,
+    `savingsOnlySolvencyRate (${result.savingsOnlySolvencyRate}) must be ≤ solvencyRate (${result.solvencyRate}); strict subset`);
+});
+
+test('19. drawdownFiredCount + (savingsOnlySolvencyRate * N) sums coherently', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 100 });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  // savingsOnlySolvencyRate = (N - drawdownFiredCount) / N
+  // → drawdownFiredCount = N - savingsOnlySolvencyRate * N
+  const expected = result.numSims - Math.round(result.savingsOnlySolvencyRate * result.numSims);
+  assert.strictEqual(result.drawdownFiredCount, expected,
+    `drawdownFiredCount (${result.drawdownFiredCount}) should equal N - savingsOnlySolvencyRate*N (${expected})`);
+});
+
+test('20. Withdrawal stats are non-negative and percentiles ordered', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 100 });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  assert.ok(result.medianWithdrawal401k >= 0);
+  assert.ok(result.p90Withdrawal401k >= result.medianWithdrawal401k,
+    `p90 withdrawal (${result.p90Withdrawal401k}) should be ≥ median (${result.medianWithdrawal401k})`);
+  assert.ok(result.medianWithdrawalHome >= 0);
+  assert.ok(result.p90WithdrawalHome >= result.medianWithdrawalHome);
+});
+
+test('21. Zero-volatility run produces identical 401k bands across percentiles', () => {
+  const base = gatherStateWithOverrides({ ssType: 'ss' });
+  const mc = mcParams({
+    mcNumSims: 50,
+    mcInvestVol: 0, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(base, mc, [], { seed: 42 });
+  const p10 = result.bands401k.find(b => b.pct === 10);
+  const p90 = result.bands401k.find(b => b.pct === 90);
+  for (let m = 0; m < p10.series.length; m++) {
+    assert.strictEqual(p10.series[m], p90.series[m],
+      `Month ${m}: 401k p10 should equal p90 with zero vol`);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

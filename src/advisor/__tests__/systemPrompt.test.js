@@ -64,34 +64,109 @@ test('Includes both ages and retirement timing', () => {
   assert.ok(summary.includes('72'));
 });
 
-test('Reflects MSFT job ON state with promotions', () => {
+test('Reflects MSFT job ON state with promotions in active block', () => {
   const state = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 165000,
-    chadL64Enabled: true, chadL64Month: 24,
-    chadL65Enabled: true, chadL65Month: 60,
+    chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 220000,
+    chadL65Enabled: true, chadL65Month: 60, chadL65Salary: 280000,
   });
   const summary = summarizeHousehold(state);
-  assert.ok(summary.includes('ENABLED'), 'should mark chadJob enabled');
-  assert.ok(summary.includes('165,000'), 'should include salary with thousands separator');
-  assert.ok(summary.includes('L64 promotion: ENABLED'));
-  assert.ok(summary.includes('L65 promotion: ENABLED'));
+  assert.ok(summary.includes('Chad\'s MSFT W-2 (ACTIVE)'), 'should mark MSFT job ACTIVE');
+  assert.ok(summary.includes('165,000'), 'should include salary');
+  assert.ok(summary.includes('L64'), 'should mention L64');
+  assert.ok(summary.includes('L65'), 'should mention L65');
+  assert.ok(summary.includes('220,000'), 'should include L64 salary');
+  assert.ok(summary.includes('280,000'), 'should include L65 salary');
 });
 
-test('Reflects MSFT job OFF state', () => {
+test('Reflects MSFT job OFF state in INACTIVE LEVERS', () => {
   const state = gatherStateWithOverrides({ chadJob: false });
   const summary = summarizeHousehold(state);
-  assert.ok(summary.includes('NOT ENABLED'));
+  // The MSFT W-2 should NOT appear under "Active income" when chadJob=false.
+  const activeIdx = summary.indexOf('Active income');
+  const inactiveIdx = summary.indexOf('Inactive levers');
+  assert.ok(activeIdx >= 0, 'should have Active income section');
+  assert.ok(inactiveIdx > activeIdx, 'should have Inactive levers section after active');
+  // The "MSFT W-2 (ACTIVE)" text should NOT appear because chadJob is off.
+  assert.ok(!summary.includes('MSFT W-2 (ACTIVE)'), 'should NOT mark MSFT W-2 as active');
+  // chadJob=false should appear under Inactive levers
+  assert.ok(summary.includes('chadJob=false'), 'inactive lever should reference chadJob=false');
 });
 
-test('401(k) block surfaces deferral/match when enabled', () => {
+test('401(k) block surfaces deferral/match when enabled (in active block)', () => {
   const state = gatherStateWithOverrides({
     chadJob: true, chadJob401kEnabled: true,
     chadJob401kDeferral: 24500, chadJob401kMatch: 12000,
   });
   const summary = summarizeHousehold(state);
-  assert.ok(summary.includes('401(k): ENABLED'));
+  assert.ok(summary.includes('401(k) ACTIVE'));
   assert.ok(summary.includes('24,500'));
   assert.ok(summary.includes('12,000'));
+});
+
+test('401(k) appears in INACTIVE LEVERS when toggle off but chadJob on', () => {
+  const state = gatherStateWithOverrides({
+    chadJob: true, chadJob401kEnabled: false,
+    chadJob401kDeferral: 24500, chadJob401kMatch: 12000,
+  });
+  const summary = summarizeHousehold(state);
+  assert.ok(!summary.includes('401(k) ACTIVE'), '401k should not be active');
+  assert.ok(summary.includes('401(k)') && summary.includes('toggle off'),
+    '401k should be listed as inactive lever');
+});
+
+test('SSDI + W-2 conflict surfaces a plan-consistency warning', () => {
+  // Both chadJob (high salary) and ssType=ssdi (not denied) are active — real-world conflict.
+  const state = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 165000,
+    ssType: 'ssdi', ssdiDenied: false,
+  });
+  const summary = summarizeHousehold(state);
+  assert.ok(summary.includes('Plan-consistency notes'), 'should include warnings section');
+  assert.ok(summary.toLowerCase().includes('sga') || summary.toLowerCase().includes('substantial gainful'),
+    'warning should mention SGA cap');
+  assert.ok(summary.toLowerCase().includes('mutually exclusive'),
+    'warning should call out mutual exclusivity');
+});
+
+test('No exclusivity warning when chadJob is off and SSDI is on', () => {
+  const state = gatherStateWithOverrides({
+    chadJob: false, ssType: 'ssdi', ssdiDenied: false,
+  });
+  const summary = summarizeHousehold(state);
+  // Either no warnings section, or warnings don't include the SSDI+W-2 conflict.
+  assert.ok(!summary.includes('SSDI + Chad\'s W-2'),
+    'should NOT have SSDI+W-2 conflict warning when chadJob is off');
+});
+
+test('Spousal-without-SS warning when sarahSpousalEnabled but no SS branch active', () => {
+  const state = gatherStateWithOverrides({
+    chadJob: true,           // employed → SSDI typically wouldn't apply but ssType is still set
+    ssType: 'ssdi', ssdiDenied: true,  // SSDI denied → no SS branch active
+    sarahSpousalEnabled: true,
+  });
+  const summary = summarizeHousehold(state);
+  assert.ok(summary.includes('Sarah\'s spousal'), 'should reference spousal benefit warning');
+  assert.ok(summary.toLowerCase().includes('will not flow') || summary.toLowerCase().includes('won\'t flow') || summary.toLowerCase().includes('not flow'),
+    'should explain spousal won\'t flow without active SS branch');
+});
+
+test('Active income summary lists all currently-flowing sources in one line', () => {
+  const state = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 165000, chadL64Enabled: true, chadL65Enabled: true,
+    ssType: 'ss',
+  });
+  const summary = summarizeHousehold(state);
+  assert.ok(summary.includes('Active income sources:'), 'should have active income one-liner');
+  assert.ok(summary.includes("L63→L64→L65"), 'should describe ladder progression');
+});
+
+test('Tool philosophy mentions active vs inactive distinction', () => {
+  const state = gatherStateWithOverrides({});
+  const [, , philosophy] = buildSystemPrompt(state);
+  assert.ok(philosophy.text.toLowerCase().includes('active'), 'philosophy should reference active branches');
+  assert.ok(philosophy.text.toLowerCase().includes('inactive') || philosophy.text.toLowerCase().includes('turned off'),
+    'philosophy should reference inactive levers');
 });
 
 test('Includes debts with totals', () => {
@@ -117,15 +192,16 @@ test('Deterministic — same state produces identical summary', () => {
   assert.strictEqual(a, b);
 });
 
-test('summarizeHousehold output is bounded — under 6000 chars', () => {
+test('summarizeHousehold output is bounded — under 8000 chars', () => {
   // Token-budget guard. Even with all features on, the summary should fit comfortably.
+  // Bumped from 6000 → 8000 after adding ACTIVE/INACTIVE structuring and warning blocks.
   const state = gatherStateWithOverrides({
     chadJob: true, chadL64Enabled: true, chadL65Enabled: true,
     chadJob401kEnabled: true, vanSold: true, lifestyleCutsApplied: true,
     cutsOverride: 1500, ssType: 'ss',
   });
   const summary = summarizeHousehold(state);
-  assert.ok(summary.length < 6000, `summary length ${summary.length} exceeds soft cap`);
+  assert.ok(summary.length < 8000, `summary length ${summary.length} exceeds soft cap`);
 });
 
 test('buildSystemPromptString concatenates blocks with separators', () => {

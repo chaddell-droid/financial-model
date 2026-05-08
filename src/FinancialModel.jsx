@@ -27,6 +27,7 @@ import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
 import TrackTab from './panels/tabs/TrackTab.jsx';
 import ActualsTab from './panels/tabs/ActualsTab.jsx';
+const AdvisorPane = lazy(() => import('./panels/AdvisorPane.jsx'));
 import { sanitizeMonthlyActuals } from './model/csvParser.js';
 import { getCurrentModelMonth, buildReforecast } from './model/checkIn.js';
 import { getShellWidthBucket } from './ui/tokens.js';
@@ -1127,6 +1128,22 @@ export default function FinancialModel() {
           presentMode={presentMode}
         />
       )}
+
+      {effectiveTab === 'advisor' && (
+        <Suspense fallback={<div style={{ padding: 24, color: '#94a3b8' }}>Loading advisor…</div>}>
+          <AdvisorPane
+            state={state}
+            gatherState={stableGatherState}
+            onApplyMove={(mutation) => {
+              if (!mutation || typeof mutation !== 'object') return;
+              for (const [field, value] of Object.entries(mutation)) {
+                set(field)(value);
+              }
+            }}
+            scenarioName={state.scenarioName || null}
+          />
+        </Suspense>
+      )}
     </>
   ), [
     effectiveTab,
@@ -1175,6 +1192,7 @@ export default function FinancialModel() {
     goalResults,
     stableGatherState,
     railConfig, RAIL_COMPONENTS, railPropsMap,
+    state, set,                  // advisor pane reads state + uses set() to apply moves
   ]);
 
   const plannerRail = (

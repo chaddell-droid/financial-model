@@ -2131,7 +2131,9 @@ test('TabBar includes Track and Actuals tabs', () => {
   const source = fs.readFileSync(new URL('../components/TabBar.jsx', import.meta.url), 'utf8');
   assert.ok(source.includes("id: 'track'"), 'TabBar should have a track tab');
   assert.ok(source.includes("id: 'actuals'"), 'TabBar should have an actuals tab');
-  assert.ok(source.includes('repeat(7'), 'TabBar grid should have 7 columns');
+  // Advisor tab was added when the CFP advisor pane shipped — 8th tab.
+  assert.ok(source.includes("id: 'advisor'"), 'TabBar should have an advisor tab');
+  assert.ok(source.includes('repeat(8'), 'TabBar grid should have 8 columns');
 });
 
 // === Integration Regression Snapshots ===

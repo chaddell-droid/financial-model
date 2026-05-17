@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildIncomeSources } from '../charts/chartUtils.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
+import { getSsBenefitLabelForMonth } from './ssBenefitLabel.js';
 
 /**
  * Monthly income composition vs expenses chart.
@@ -211,14 +212,20 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                     const s = sources[si];
                     const val = vals[si];
                     if (val <= 0) continue;
-                    if (s.key === 'ssBenefit' && (d.ssBenefitPersonal || 0) > 0 && val > (d.ssBenefitPersonal || 0)) {
-                      // Use the per-row ssBenefitPersonal computed by the simulation, NOT the
-                      // prop ssBenefitPersonal (which is the stored ssPersonal — stale when
-                      // ssType='ssdi' or when the auto-SS post-retirement fallback is active).
-                      // This ensures the "(kids)" split only appears when kids' auxiliary
-                      // benefits are actually contributing to that month's total.
-                      tooltipSources.push({ label: `${s.label} (personal)`, color: s.color, value: d.ssBenefitPersonal });
-                      tooltipSources.push({ label: `${s.label} (kids)`, color: s.color, value: val - d.ssBenefitPersonal, indent: true });
+                    if (s.key === 'ssBenefit') {
+                      // Label is driven by the engine's per-month ssBenefitType so
+                      // chadJob + postJobBenefit='ssRetirement' correctly shows
+                      // "SS Retirement" rather than the stale pre-job "SSDI" label.
+                      const monthLabel = getSsBenefitLabelForMonth(d.ssBenefitType, ssType);
+                      if ((d.ssBenefitPersonal || 0) > 0 && val > (d.ssBenefitPersonal || 0)) {
+                        // Kids auxiliary contribution — only SSDI's family benefit
+                        // includes a kids supplement above personal, so when val
+                        // exceeds personal we split into (personal) + (kids).
+                        tooltipSources.push({ label: `${monthLabel} (personal)`, color: s.color, value: d.ssBenefitPersonal });
+                        tooltipSources.push({ label: `${monthLabel} (kids)`, color: s.color, value: val - d.ssBenefitPersonal, indent: true });
+                      } else {
+                        tooltipSources.push({ label: monthLabel, color: s.color, value: val });
+                      }
                     } else if (s.key === 'chadJobIncome' && (
                       (d.chadJobBonusNet || 0) > 0 || (d.chadJobStockRefreshNet || 0) > 0 || (d.chadJobStockHireNet || 0) > 0 || (d.chadJobSignOnNet || 0) > 0
                     )) {

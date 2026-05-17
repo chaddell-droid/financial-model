@@ -29,6 +29,13 @@ export const INITIAL_STATE = {
   // SS retirement (configurable claiming age 62–70)
   ssClaimAge: 67,            // Claiming age (62–70); default FRA
   ssPIA: 4214,               // Primary Insurance Amount (benefit at FRA) — per SSA tool
+  // After Chad's W-2 job ends — what benefit (if any) replaces it?
+  //   'ssRetirement' — pay SS retirement amount once Chad reaches ssClaimAge (age-gated)
+  //   'ssdi'         — pay SSDI personal/family immediately after job ends
+  //   'none'         — no post-job benefit
+  // Only consulted when chadJob=true. The pre-job ssType field still controls
+  // the SSDI/SS branch when chadJob=false.
+  postJobBenefit: 'ssRetirement',
   // Family-max cap = 1.5 × PIA (SSA's lower-bound family max; real formula tiered 150-188%).
   // Default 6321 = 4214 × 1.5 — matches the cap applied in gatherState so default state is self-consistent.
   ssFamilyTotal: 6321,       // Computed in gatherState from PIA + claim age, capped at 1.5 × PIA
@@ -247,6 +254,7 @@ export const MODEL_KEYS = [
   'msftPrice', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
+  'postJobBenefit',
   'sarahSpousalEnabled', 'sarahCurrentAge', 'sarahSpousalClaimAge',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',

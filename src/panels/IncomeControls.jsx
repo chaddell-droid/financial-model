@@ -26,6 +26,7 @@ const IncomeControls = ({
   chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct, chadAge65VestOverride,
   msftPrice, msftGrowth,
   chadWorkMonths,
+  postJobBenefit,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   hideVan = false,
@@ -165,6 +166,55 @@ const IncomeControls = ({
                   <Slider label="Effective tax rate" value={chadJobTaxRate} onChange={set('chadJobTaxRate')} commitStrategy={commitStrategy} min={10} max={40} color={COLORS.greenDark} format={(v) => v + "%"} />
                   <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} commitStrategy={commitStrategy} min={0} max={24} color={COLORS.greenDark} format={(v) => v === 0 ? "Now" : v + " mo"} />
                   <Slider label="Chad works for" value={chadWorkMonths} onChange={set('chadWorkMonths')} commitStrategy={commitStrategy} min={12} max={144} step={3} color={COLORS.greenDark} format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
+
+                  {/* After Chad's job ends — selects post-employment benefit source.
+                      Defaults to SS Retirement (age-gated by ssClaimAge). Previously
+                      the engine paid the FRA amount immediately regardless of age. */}
+                  {(() => {
+                    const effectivePostJobBenefit = postJobBenefit || 'ssRetirement';
+                    const chadAgeAtRetireExact = (chadCurrentAge || 0) + ((chadWorkMonths || 0) / 12);
+                    const claimAge = ssClaimAge || 67;
+                    const gapYears = effectivePostJobBenefit === 'ssRetirement'
+                      ? Math.max(0, claimAge - chadAgeAtRetireExact)
+                      : 0;
+                    const helperText = effectivePostJobBenefit === 'ssRetirement'
+                      ? (gapYears > 0
+                          ? `Pays once Chad reaches age ${claimAge} (${gapYears.toFixed(1)} yr gap after job ends).`
+                          : `Pays immediately on retirement (already past claim age ${claimAge}).`)
+                      : effectivePostJobBenefit === 'ssdi'
+                        ? `SSDI personal/family pays the month after the job ends. Kids' auxiliary ages out at TWINS_AGE_OUT_MONTH.`
+                        : `No income flows after the job ends — use this to model the gap explicitly.`;
+                    const opt = (val, label) => ({ val, label, selected: effectivePostJobBenefit === val });
+                    return (
+                      <div data-testid="post-job-benefit-block" style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+                        <div style={{ fontSize: 10, color: COLORS.blueLight, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
+                          After Chad's job ends
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {[opt('ssRetirement', 'SS Retirement'), opt('ssdi', 'SSDI'), opt('none', 'None')].map(o => (
+                            <button
+                              key={o.val}
+                              onClick={() => set('postJobBenefit')(o.val)}
+                              data-testid={`post-job-benefit-${o.val}`}
+                              aria-label={`Post-job benefit: ${o.label}`}
+                              style={{
+                                flex: 1, padding: "6px 8px", borderRadius: 4, cursor: "pointer",
+                                fontSize: 11, fontWeight: 600, fontFamily: "'Inter', sans-serif",
+                                border: o.selected ? `1px solid ${COLORS.blue}` : `1px solid ${COLORS.border}`,
+                                background: o.selected ? "#1e3a5f" : COLORS.bgCard,
+                                color: o.selected ? COLORS.blue : COLORS.textDim,
+                              }}
+                            >
+                              {o.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 6, fontStyle: "italic", lineHeight: 1.4 }}>
+                          {helperText}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Employer Retirement & Tax */}
                   <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>

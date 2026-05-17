@@ -141,6 +141,7 @@ const RANGE = {
 const ENUMS = {
   ssType: ['ssdi', 'ss'],
   chadAge65VestOverride: ['auto', 'on', 'off'],
+  postJobBenefit: ['ssRetirement', 'ssdi', 'none'],
 };
 
 const VALID_GOAL_TYPES = new Set(['savings_floor', 'income_target', 'savings_target', 'net_worth_target']);

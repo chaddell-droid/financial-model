@@ -77,6 +77,8 @@ const NON_DEFAULT_VALUES = {
   ssPersonal: 5400,
   ssStartMonth: 96,
   ssKidsAgeOutMonths: 24,
+  // Post-job benefit selector (flipped from default 'ssRetirement')
+  postJobBenefit: 'ssdi',
   // Sarah's spousal
   sarahSpousalEnabled: false,      // flipped
   sarahCurrentAge: 60,

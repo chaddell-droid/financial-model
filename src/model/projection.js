@@ -328,23 +328,44 @@ export function runMonthlySimulation(s) {
       ssBenefit = m < TWINS_AGE_OUT_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
       ssBenefitPersonal = s.ssdiPersonal || 0;
     }
-    // Post-employment auto-SS retirement: when Chad finishes his W-2 job and
-    // no SS income is currently flowing (e.g., ssType='ssdi' was suppressed by
-    // chadJob), default to his FRA-equivalent SS retirement. We compute fresh
-    // from ssPIA + ssClaimAge so this works even when gatherState's ss-recompute
-    // block was skipped (it only fires for ssType='ss'). Falls through to
-    // ssdiPersonal if user explicitly configured SSDI amounts but not SS PIA.
+    // Post-employment benefit: when Chad finishes his W-2 job and no SS income
+    // is currently flowing (the pre-job ssType branch was suppressed by chadJob),
+    // pay whatever post-job benefit the user selected. Three modes:
+    //   'ssRetirement' (default) — pay PIA-adjusted SS amount, but only once Chad
+    //                              has reached ssClaimAge (age-gated). If he retires
+    //                              early, there's a gap until claim age.
+    //   'ssdi'                   — pay SSDI personal/family immediately after the
+    //                              job ends (with kids age-out via TWINS_AGE_OUT_MONTH).
+    //   'none'                   — no post-job benefit.
+    // postJobBenefit defaults to 'ssRetirement' so saved scenarios from before this
+    // field existed get the conservative age-gated behavior, NOT the prior bug
+    // (which paid the FRA amount immediately regardless of Chad's actual age).
+    let postJobBenefitTypeThisMonth = null;
     if (ssBenefit === 0 && chadJob && m > chadRetirementMonth) {
-      const claimAge = s.ssClaimAge || 67;
-      const piaForFallback = s.ssPIA || 0;
-      // BUG #7: Drop the SSDI-tertiary fallback. SSDI is a different benefit type (disability)
-      // and is NOT a valid stand-in for a SS retirement benefit when ssPIA is unset. Fall
-      // through to ssPersonal (the SS retirement default) instead.
-      const computedSS = piaForFallback > 0
-        ? Math.round(piaForFallback * ssAdjustmentFactor(claimAge))
-        : (ssPersonal || 0);
-      ssBenefit = computedSS;
-      ssBenefitPersonal = computedSS; // post-retirement: kids are aged out, personal == total
+      const postJobMode = s.postJobBenefit || 'ssRetirement';
+      if (postJobMode === 'ssRetirement') {
+        const claimAge = s.ssClaimAge || 67;
+        const chadAgeMonths = ((s.chadCurrentAge || 0) * 12) + m;
+        // Age gate: only pay once Chad has reached the claim age.
+        if (chadAgeMonths >= claimAge * 12) {
+          const piaForFallback = s.ssPIA || 0;
+          const computedSS = piaForFallback > 0
+            ? Math.round(piaForFallback * ssAdjustmentFactor(claimAge))
+            : (ssPersonal || 0);
+          ssBenefit = computedSS;
+          ssBenefitPersonal = computedSS;
+          postJobBenefitTypeThisMonth = 'retirement';
+        }
+      } else if (postJobMode === 'ssdi') {
+        // SSDI starts the month after retirement. Kids auxiliary uses the
+        // same TWINS_AGE_OUT_MONTH calendar anchor as the pre-job SSDI branch.
+        ssBenefit = m < TWINS_AGE_OUT_MONTH
+          ? (s.ssdiFamilyTotal || 0)
+          : (s.ssdiPersonal || 0);
+        ssBenefitPersonal = s.ssdiPersonal || 0;
+        postJobBenefitTypeThisMonth = 'ssdi';
+      }
+      // 'none' — leave ssBenefit at 0
     }
 
     // Sarah's spousal SS — flows once she reaches sarahSpousalClaimAge AND Chad
@@ -541,7 +562,13 @@ export function runMonthlySimulation(s) {
       homeEquity -= withdrawalHome;
     }
 
-    const ssBenefitType = ssBenefit > 0 ? (useSS ? 'retirement' : 'ssdi') : null;
+    // Label the benefit source so charts/tooltips show 'SSDI' vs 'SS retirement'
+    // correctly. Pre-job: useSS toggle decides. Post-job: the postJobBenefit
+    // fallback set postJobBenefitTypeThisMonth explicitly. Prior bug labeled
+    // post-job SS-retirement amounts as 'ssdi' just because useSS=false.
+    const ssBenefitType = ssBenefit > 0
+      ? (postJobBenefitTypeThisMonth || (useSS ? 'retirement' : 'ssdi'))
+      : null;
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, ssBenefitPersonal,

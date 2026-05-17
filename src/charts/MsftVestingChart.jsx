@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { getMsftPrice } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
+import { getCurrentModelMonth } from '../model/checkIn.js';
 import Slider from '../components/Slider.jsx';
 
 function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange }) {
@@ -17,6 +18,18 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
     }
     return totals;
   }, [vestEvents]);
+
+  // Current projection month (0 = March 2026). Used to mark past/in-flight vests
+  // as "Vested" so Chad can distinguish historical payouts from upcoming runway.
+  // Pure display only — does not alter any totals or per-bar amounts.
+  const currentModelMonth = useMemo(() => getCurrentModelMonth(), []);
+  const vestStatus = useMemo(() => vestEvents.map(v => {
+    // endMonth/startMonth may be missing on older test fixtures; treat as "future" if so.
+    if (typeof v.endMonth !== 'number') return 'future';
+    if (v.endMonth < currentModelMonth) return 'past';
+    if (v.startMonth <= currentModelMonth && currentModelMonth <= v.endMonth) return 'inflight';
+    return 'future';
+  }), [vestEvents, currentModelMonth]);
 
   const handleRefreshPrice = useCallback(async () => {
     setFetching(true);
@@ -51,8 +64,13 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
     background: "#1e293b", borderRadius: 12, padding: "16px 20px",
     border: "1px solid #f59e0b33", marginBottom: 24
   }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-      <h3 style={{ fontSize: 14, color: "#f59e0b", margin: 0, fontWeight: 700 }}>MSFT Vesting Runway — Actual Quarterly Payouts</h3>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <h3 style={{ fontSize: 14, color: "#f59e0b", margin: 0, fontWeight: 700 }}>Legacy MSFT Vesting (Pre-Job Grants) — Actual Quarterly Payouts</h3>
+        <div style={{ fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
+          From Chad&apos;s prior MSFT grants (scheduled through Aug &apos;28) — runs in parallel to any new-job stock comp shown elsewhere in the Income tab.
+        </div>
+      </div>
       <span data-testid="msft-vesting-total-remaining" style={{ fontSize: 12, color: "#94a3b8" }}>Total remaining: <span style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(totalRemainingVesting)}</span></span>
     </div>
     <div style={{ display: "flex", gap: 3, height: 80, alignItems: "flex-end", position: "relative" }}>
@@ -61,6 +79,11 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
         const barH = (v.net / maxNet) * 60;
         const isLow = v.net < 15000;
         const isHovered = hoveredIdx === i;
+        const status = vestStatus[i]; // 'past' | 'inflight' | 'future'
+        const isPast = status === 'past';
+        const isInflight = status === 'inflight';
+        // Dim past vests; in-flight vests keep full color but get a "now" outline.
+        const barOpacity = isPast ? 0.42 : 1;
         return (
           <div
             key={i}
@@ -68,12 +91,14 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
             onMouseEnter={() => setHoveredIdx(i)}
             onMouseLeave={() => setHoveredIdx(null)}
             data-testid={`msft-vest-bar-${i}`}
+            data-vest-status={status}
           >
             <div style={{
-              fontSize: 10, color: isLow ? "#f87171" : "#f59e0b",
+              fontSize: 10,
+              color: isPast ? "#64748b" : (isLow ? "#f87171" : "#f59e0b"),
               fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", fontWeight: 600
             }}>
-              {fmtFull(v.net)}
+              {isPast ? '✓ ' : ''}{fmtFull(v.net)}
             </div>
             <div style={{
               fontSize: 9, color: "#475569",
@@ -86,9 +111,12 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
               background: isLow
                 ? "linear-gradient(180deg, #f87171, #dc2626)"
                 : "linear-gradient(180deg, #fbbf24, #f59e0b)",
-              outline: isHovered ? "2px solid #fcd34d" : "none",
-              outlineOffset: isHovered ? 1 : 0,
-              transition: "outline 0.1s",
+              opacity: barOpacity,
+              outline: isHovered
+                ? "2px solid #fcd34d"
+                : (isInflight ? "1px dashed #fcd34d" : "none"),
+              outlineOffset: isHovered ? 1 : (isInflight ? 1 : 0),
+              transition: "outline 0.1s, opacity 0.1s",
             }} />
           </div>
         );

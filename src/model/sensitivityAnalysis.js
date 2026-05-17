@@ -173,13 +173,33 @@ export function buildLeverCandidates(state) {
       // the typical 6-yr horizon — locks in post-retirement RSU windfall.
       chadAge65VestOverride: 'on',
     };
-    // Approximate steady-state monthly impact for the panel: salary + bonus
-    // + refresh + 401k match, all annualized then divided by 12, rough net.
-    const grossAnnual = msftBundle.chadJobSalary
-      + msftBundle.chadJobSalary * (msftBundle.chadJobBonusPct / 100)
-      + msftBundle.chadJobStockRefresh
-      + msftBundle.chadJob401kMatch;
-    const netMonthly = Math.round(grossAnnual * (1 - msftBundle.chadJobTaxRate / 100) / 12);
+    // Approximate steady-state monthly impact for the panel — mirrors the
+    // w2* hoisted block in IncomeControls.jsx (which itself mirrors
+    // projection.js's msftMultIssueToVest formula). Includes hire stock
+    // (Y1-Y4) and applies msftGrowth to both hire stock and refresh.
+    // Engine score is computed separately via computeProjection (line 305+),
+    // so this is purely the "+$X/mo" display chip.
+    const w2Growth = (state.msftGrowth || 0) / 100;
+    const salaryNetAnnual = msftBundle.chadJobSalary * (1 - msftBundle.chadJobTaxRate / 100);
+    const bonusGrossAnnual = msftBundle.chadJobSalary * (msftBundle.chadJobBonusPct / 100);
+    const bonusNetAnnual = bonusGrossAnnual * (1 - msftBundle.chadJobTaxRate / 100);
+    // Refresh steady-state: average of grants issued at month 0 and vesting
+    // over years 0.5..4.5 (matches IncomeControls w2RefreshSteadyMult).
+    const refreshSteadyMult = w2Growth === 0 ? 1
+      : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + w2Growth, t), 0) / 5;
+    const refreshNetAnnual = (msftBundle.chadJobStockRefresh || 0)
+      * (1 - msftBundle.chadJobTaxRate / 100) * refreshSteadyMult;
+    // Hire stock: each tranche grown by (1+g)^n then averaged over 4-yr vest.
+    const hireGrownTotal = (msftBundle.chadJobHireStockY1 || 0) * Math.pow(1 + w2Growth, 1)
+                         + (msftBundle.chadJobHireStockY2 || 0) * Math.pow(1 + w2Growth, 2)
+                         + (msftBundle.chadJobHireStockY3 || 0) * Math.pow(1 + w2Growth, 3)
+                         + (msftBundle.chadJobHireStockY4 || 0) * Math.pow(1 + w2Growth, 4);
+    const hireNetAvgAnnual = hireGrownTotal * (1 - msftBundle.chadJobTaxRate / 100) / 4;
+    // 401(k) match is employer contribution — counted as steady-state benefit,
+    // not taxed at withdrawal here (rough proxy for the panel chip).
+    const matchAnnual = msftBundle.chadJob401kMatch || 0;
+    const netAnnual = salaryNetAnnual + bonusNetAnnual + refreshNetAnnual + hireNetAvgAnnual + matchAnnual;
+    const netMonthly = Math.round(netAnnual / 12);
     candidates.push({
       id: 'take_msft_offer',
       label: 'Take the MSFT offer (L63 → L64 → L65 + 401(k) max & match)',

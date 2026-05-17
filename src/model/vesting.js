@@ -29,7 +29,17 @@ export function getVestEvents(msftGrowth, msftPrice) {
   return VEST_SHARES.map(v => {
     const price = getMsftPrice(v.endMonth, msftGrowth, msftPrice);
     const gross = v.shares * price;
-    return { label: v.label, shares: v.shares, gross, net: Math.round(gross * 0.8), price: Math.round(price * 100) / 100 };
+    return {
+      label: v.label,
+      shares: v.shares,
+      gross,
+      net: Math.round(gross * 0.8),
+      price: Math.round(price * 100) / 100,
+      // Projection-month bounds (0 = March 2026) carried through so charts can
+      // distinguish past/in-flight vests from future ones. Does not affect math.
+      startMonth: v.startMonth,
+      endMonth: v.endMonth,
+    };
   });
 }
 

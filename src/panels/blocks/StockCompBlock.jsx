@@ -14,12 +14,30 @@ function StockCompBlock({
   chadJobStockRefresh, chadJobRefreshStartMonth,
   chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
   chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
+  chadJobTaxRate, chadJobNoFICA, msftGrowth,
   onFieldChange,
 }) {
   if (!chadJob) return null;
   const set = onFieldChange;
   const commitStrategy = 'release';
-  const totalHireStock = (chadJobHireStockY1 || 0) + (chadJobHireStockY2 || 0) + (chadJobHireStockY3 || 0) + (chadJobHireStockY4 || 0);
+  const y1 = chadJobHireStockY1 || 0;
+  const y2 = chadJobHireStockY2 || 0;
+  const y3 = chadJobHireStockY3 || 0;
+  const y4 = chadJobHireStockY4 || 0;
+  const totalHireStock = y1 + y2 + y3 + y4;
+  // === Vest-avg projection — mirrors src/model/projection.js:253 (msftMultIssueToVest)
+  // and the W-2 diagnostic in src/panels/IncomeControls.jsx (w2HireGrownTotal/w2HireNetAvgYr).
+  // Y1-Y4 hire lumps vest at hire+12, +24, +36, +48 months, scaled by (1+g)^n.
+  // Net = grown gross × bonusMult / 4 yrs (annual avg take-home from hire stock).
+  const w2Growth = (msftGrowth || 0) / 100;
+  const taxRateDec = (chadJobTaxRate ?? 25) / 100;
+  const ficaSavings = chadJobNoFICA ? 0.062 : 0;
+  const bonusMult = 1 - taxRateDec + ficaSavings;
+  const hireGrownTotal = y1 * Math.pow(1 + w2Growth, 1)
+                       + y2 * Math.pow(1 + w2Growth, 2)
+                       + y3 * Math.pow(1 + w2Growth, 3)
+                       + y4 * Math.pow(1 + w2Growth, 4);
+  const hireNetAvgYr = totalHireStock > 0 ? hireGrownTotal * bonusMult / 4 : 0;
   const annualContrib = (chadJob401kDeferral || 0) + (chadJob401kCatchupRoth || 0);
   const annualToBalance = annualContrib + (chadJob401kMatch || 0);
   const monthlyOutflow = Math.round(annualContrib / 12);
@@ -45,9 +63,22 @@ function StockCompBlock({
         <Slider label="Year 3 vest" value={chadJobHireStockY3 || 0} onChange={set('chadJobHireStockY3')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
         <Slider label="Year 4 vest" value={chadJobHireStockY4 || 0} onChange={set('chadJobHireStockY4')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
         {totalHireStock > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
-            <span style={{ color: COLORS.textDim }}>Total hire stock:</span>
-            <span style={{ color: COLORS.blue, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(totalHireStock)}</span>
+          <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+              <span style={{ color: COLORS.textDim }}>Grant total:</span>
+              <span style={{ color: COLORS.blue, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(totalHireStock)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+              <span style={{ color: COLORS.textDim }}>
+                Vest avg <span style={{ color: COLORS.amber }}>(g={((msftGrowth || 0)).toFixed(0)}%)</span>:
+              </span>
+              <span style={{ color: COLORS.greenDark, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+                {fmtFull(Math.round(hireNetAvgYr))}/yr
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, lineHeight: 1.4 }}>
+              Net annual avg over 4-yr vest, MSFT growth applied per anniversary (mirrors engine).
+            </div>
           </div>
         )}
       </div>

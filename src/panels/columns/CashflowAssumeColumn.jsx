@@ -34,6 +34,9 @@ function CashflowAssumeColumn({ incomeControlsProps, ...props }) {
           chadJob401kDeferral={vp.chadJob401kDeferral}
           chadJob401kCatchupRoth={vp.chadJob401kCatchupRoth}
           chadJob401kMatch={vp.chadJob401kMatch}
+          chadJobTaxRate={vp.chadJobTaxRate}
+          chadJobNoFICA={vp.chadJobNoFICA}
+          msftGrowth={vp.msftGrowth}
           onFieldChange={vp.onFieldChange || props.onFieldChange}
         />
       </div>

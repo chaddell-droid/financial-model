@@ -43,7 +43,8 @@ Workflow:
   5. **\`topMoves\` and \`moveCascade\`** when the user asks "what should I do".
   6. **\`monteCarloSummary\`** for risk and downside questions.
   7. **\`taxBreakdown\`** for tax-bracket and post-retirement-tax questions.
-  8. **\`vestSchedule\`** for RSU-specific questions.
+  8. **\`vestSchedule\`** for RSU grant-by-grant schedules.
+  9. **\`getStockCompProjection\`** for steady-state "how much will my W-2 + RSU comp be worth?" questions — returns the SAME numbers as the W-2 Net Diagnostic in the IncomeControls UI, including MSFT-growth-adjusted refresh and hire-stock Y1-Y4. Use when the user asks about take-home, bonus net, refresh grants in steady state, or hire-stock grown to vest year.
 
 When you are uncertain whether a tool can answer, **call it and see** — failing is cheaper than guessing. If a tool returns \`{ok: false, error: ...}\`, read the error, fix your input, and retry, or explain the limitation to the user.
 

@@ -6,6 +6,7 @@ import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OF
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { levelAtMonthsWorked, age65VestEligibility, projectedPostRetirementVests, vestSchedule } from '../model/chadLevels.js';
+import { computeW2Diagnostic } from '../model/w2Diagnostic.js';
 
 const IncomeControls = ({
   ssType,
@@ -43,61 +44,41 @@ const IncomeControls = ({
   const ficaSavings = chadJobNoFICA ? 0.062 : 0;
   const pensionContribPct = (chadJobPensionContrib || 0) / 100;
   // === W-2 component calculations — used by BOTH the W-2 diagnostic AND the SSDI comparison.
-  // Mirrors src/model/projection.js exactly. Any drift here is a display-parity bug
-  // (per CLAUDE.md). Keep formulas synced.
-  const k401Enabled = !!chadJob401kEnabled;
-  const w2Deferral = k401Enabled ? (chadJob401kDeferral || 0) : 0;
-  const w2Catchup = k401Enabled ? (chadJob401kCatchupRoth || 0) : 0;
-  const taxRateDec = effectiveTaxRate / 100;
-  // Salary / bonus mults exclude pension — pension is subtracted separately
-  // with its own cashflow mult (mirrors projection.js:108, 112).
-  const w2SalaryMult = 1 - taxRateDec + ficaSavings;
-  const w2BonusMult = 1 - taxRateDec + ficaSavings;
-  // Pension cashflow mult — mirrors projection.js:110-112. FICA still applies
-  // on pension dollars (1.45% Medicare-only when noFICA=true, else 7.65%).
-  const ficaRateOnPension = chadJobNoFICA ? 0.0145 : 0.0765;
-  const w2PensionCashflowMult = 1 - taxRateDec + ficaRateOnPension;
-  const w2MonthlyGross = effectiveSalary / 12;
-  const w2TaxableMo = Math.max(0, w2MonthlyGross - w2Deferral / 12);
-  const w2AfterTaxMo = w2TaxableMo * w2SalaryMult;
-  const w2PensionDeductionMo = w2MonthlyGross * pensionContribPct;
-  const w2PensionCashflowMo = w2PensionDeductionMo * w2PensionCashflowMult;
-  // Salary net = (gross − deferral) × salaryMult − pension × pensionCashflowMult − catchup
-  const w2SalaryNetMo = Math.round(w2AfterTaxMo - w2PensionCashflowMo - w2Catchup / 12);
-  const w2AnnualSalaryNet = w2SalaryNetMo * 12;
-  const w2BonusGrossYr = effectiveSalary * (chadJobBonusPct || 0) / 100;
-  const w2BonusNetYr = w2BonusGrossYr * w2BonusMult;
-  // MSFT growth applied to RSU vests in the engine (projection.js:124). The
-  // steady-state display MUST apply the same growth, else it understates RSU
-  // value when msftGrowth > 0.
-  const w2Growth = (msftGrowth || 0) / 100;
-  // Refresh in steady state: 5 grants in flight, each vesting over 5 years
-  // (4 quarterly vests per year). Time-weighted avg multiplier across all
-  // 5 grants ≈ mean of (1+g)^(k − 0.5) for k = 1..5.
-  const w2RefreshSteadyMult = w2Growth === 0 ? 1
-    : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + w2Growth, t), 0) / 5;
-  const w2RefreshNetYr = (chadJobStockRefresh || 0) * w2BonusMult * w2RefreshSteadyMult;
-  // Hire stock: Y1-Y4 lumps vest at hire+12, +24, +36, +48 months.
-  // Engine scales each by (1+g)^n (projection.js:253 via msftMultIssueToVest).
-  const w2HireY1 = chadJobHireStockY1 || 0;
-  const w2HireY2 = chadJobHireStockY2 || 0;
-  const w2HireY3 = chadJobHireStockY3 || 0;
-  const w2HireY4 = chadJobHireStockY4 || 0;
-  const w2HireTotalAtHire = w2HireY1 + w2HireY2 + w2HireY3 + w2HireY4;
-  const w2HireGrownTotal = w2HireY1 * Math.pow(1 + w2Growth, 1)
-                         + w2HireY2 * Math.pow(1 + w2Growth, 2)
-                         + w2HireY3 * Math.pow(1 + w2Growth, 3)
-                         + w2HireY4 * Math.pow(1 + w2Growth, 4);
-  const w2HireNetAvgYr = w2HireGrownTotal * w2BonusMult / 4;
-  const w2TotalAvgYr = w2AnnualSalaryNet + w2BonusNetYr + w2RefreshNetYr + w2HireNetAvgYr;
-  const w2TotalAvgMo = Math.round(w2TotalAvgYr / 12);
-  // chadJobMonthlyNet now matches the salary cashflow walk exactly (was: salary × naive mult / 12,
-  // which ignored 401k deferral, Roth catch-up, and used a flat pension subtraction not matching
-  // engine). Preserved name so existing display callers don't break.
+  // Single source of truth: src/model/w2Diagnostic.js (also consumed by advisor
+  // `getStockCompProjection` tool). Mirrors src/model/projection.js exactly. Any
+  // drift here is a display-parity bug (per CLAUDE.md). Edit w2Diagnostic.js, not here.
+  const _w2 = computeW2Diagnostic({
+    chadJob, chadJobSalary, chadJobTaxRate, chadJobHealthSavings, chadJobNoFICA,
+    chadJobBonusPct, chadJobStockRefresh, chadJobRefreshStartMonth,
+    chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
+    chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth,
+    chadJobPensionContrib, msftGrowth,
+  });
+  const w2SalaryMult = _w2.salaryMult;
+  const w2BonusMult = _w2.bonusMult;
+  const w2PensionCashflowMult = _w2.pensionCashflowMult;
+  const w2RefreshSteadyMult = _w2.refreshSteadyMult;
+  const w2MonthlyGross = _w2.monthlyGross;
+  const w2TaxableMo = _w2.taxableMo;
+  const w2PensionDeductionMo = _w2.pensionDeductionMo;
+  const w2PensionCashflowMo = _w2.pensionCashflowMo;
+  const w2SalaryNetMo = _w2.salaryNetMo;
+  const w2AnnualSalaryNet = _w2.annualSalaryNet;
+  const w2BonusGrossYr = _w2.bonusGrossYr;
+  const w2BonusNetYr = _w2.bonusNetYr;
+  const w2HireY1 = _w2.chadJobHireStockY1;
+  const w2HireY2 = _w2.chadJobHireStockY2;
+  const w2HireY3 = _w2.chadJobHireStockY3;
+  const w2HireY4 = _w2.chadJobHireStockY4;
+  const w2HireTotalAtHire = _w2.hireTotalAtHire;
+  const w2HireGrownTotal = _w2.hireGrownTotal;
+  const w2HireNetAvgYr = _w2.hireNetAvgYr;
+  const w2RefreshNetYr = _w2.refreshNetYrSteady;
+  const w2TotalAvgYr = _w2.totalAvgYr;
+  const w2TotalAvgMo = _w2.totalAvgMo;
+  // chadJobMonthlyNet preserved for legacy display callers.
   const chadJobMonthlyNet = w2SalaryNetMo;
-  // Monthly equivalent of annual health benefit — used by SSDI comparison
-  // (which sums monthly values). effectiveHealthSavings is annual ($4,200/yr default).
-  const monthlyHealthSavings = effectiveHealthSavings / 12;
+  const monthlyHealthSavings = _w2.monthlyHealthSavings;
   const ssEarningsLimit = 22320;
   const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
   const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
@@ -650,14 +631,14 @@ const IncomeControls = ({
                         const monthlyGross = w2MonthlyGross;
                         const ficaPct = chadJobNoFICA ? 6.2 : 0;
                         const pensionPct = chadJobPensionContrib || 0;
-                        const deferral = w2Deferral;
-                        const catchup = w2Catchup;
-                        const match = k401Enabled ? (chadJob401kMatch || 0) : 0;
+                        const deferral = chadJob401kEnabled ? (chadJob401kDeferral || 0) : 0;
+                        const catchup = chadJob401kEnabled ? (chadJob401kCatchupRoth || 0) : 0;
+                        const match = chadJob401kEnabled ? (chadJob401kMatch || 0) : 0;
                         const salaryMult = w2SalaryMult;
                         const bonusMult = w2BonusMult;
                         const pensionCashflowMult = w2PensionCashflowMult;
                         const taxableSalaryMo = w2TaxableMo;
-                        const afterTaxSalaryMo = w2AfterTaxMo;
+                        const afterTaxSalaryMo = w2TaxableMo * w2SalaryMult;
                         const pensionCashflowMo = w2PensionCashflowMo;
                         const salaryNetMo = w2SalaryNetMo;
                         const bonusNetYr = w2BonusNetYr;

@@ -25,6 +25,7 @@ import { computeMoveCascade } from '../model/moveCascade.js';
 import { runMonteCarlo } from '../model/monteCarlo.js';
 import { buildTaxSchedule } from '../model/taxProjection.js';
 import { vestSchedule, projectedPostRetirementVests } from '../model/chadLevels.js';
+import { computeW2Diagnostic, W2_DIAGNOSTIC_NOTES } from '../model/w2Diagnostic.js';
 import { MODEL_KEYS } from '../state/initialState.js';
 import { causalDelta } from './diffMonthly.js';
 
@@ -139,6 +140,14 @@ const VEST_SCHEDULE_SCHEMA = {
   type: 'object',
   properties: {
     includePostRetirement: { type: 'boolean', description: 'If true, include post-retirement windfall summary.' },
+  },
+  additionalProperties: false,
+};
+
+const STOCK_COMP_PROJECTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    includeNotes: { type: 'boolean', description: 'If true, include explanatory notes about steady-state model assumptions.' },
   },
   additionalProperties: false,
 };
@@ -554,6 +563,71 @@ export const TOOLS = Object.freeze([
           firstVestMonth: w.firstVestMonth,
           lastVestMonth: w.lastVestMonth,
         };
+      }
+      return result;
+    },
+  },
+  {
+    name: 'getStockCompProjection',
+    description:
+      'Return the steady-state W-2 + MSFT stock-comp diagnostic for Chad: salary net, bonus net, RSU refresh grown by MSFT growth, and hire-stock Y1-Y4 each grown to its vest year. Uses the SAME formulas as the on-screen W-2 Net Diagnostic in IncomeControls (shared source: src/model/w2Diagnostic.js, which mirrors projection.js). Use this when the user asks "how much will my MSFT stock comp be worth?", "what does my W-2 net look like?", or "how is hire stock taxed and grown?". If chadJob is false, returns jobNotEnabled=true with zero totals.',
+    input_schema: STOCK_COMP_PROJECTION_SCHEMA,
+    handler: (state, args = {}) => {
+      const d = computeW2Diagnostic(state);
+      if (!d.chadJob) {
+        return {
+          ok: true,
+          jobNotEnabled: true,
+          message: 'chadJob is OFF — no W-2 stock comp is flowing in this scenario. Turn on Chad\'s MSFT W-2 to see projected comp.',
+          inputs: { chadJobSalary: 0, msftGrowth: r2(d.msftGrowth), chadJobTaxRate: r2(d.chadJobTaxRate), chadJobNoFICA: d.chadJobNoFICA },
+          totals: { totalAvgMo: 0, totalAvgYr: 0 },
+        };
+      }
+      const result = {
+        ok: true,
+        jobNotEnabled: false,
+        inputs: {
+          chadJobSalary: r(d.chadJobSalary),
+          msftGrowth: r2(d.msftGrowth),
+          chadJobTaxRate: r2(d.chadJobTaxRate),
+          chadJobNoFICA: d.chadJobNoFICA,
+          chadJobBonusPct: r2(d.chadJobBonusPct),
+        },
+        multipliers: {
+          salaryMult: r2(d.salaryMult),
+          bonusMult: r2(d.bonusMult),
+          refreshSteadyMult: Math.round(d.refreshSteadyMult * 10000) / 10000,
+        },
+        salary: {
+          monthlyGross: r(d.monthlyGross),
+          salaryNetMo: r(d.salaryNetMo),
+          annualSalaryNet: r(d.annualSalaryNet),
+        },
+        bonus: {
+          bonusGrossYr: r(d.bonusGrossYr),
+          bonusNetYr: r(d.bonusNetYr),
+        },
+        refresh: {
+          refreshGrant: r(d.refreshGrant),
+          refreshSteadyMult: Math.round(d.refreshSteadyMult * 10000) / 10000,
+          refreshNetYrSteady: r(d.refreshNetYrSteady),
+        },
+        hireStock: {
+          hireY1: r(d.chadJobHireStockY1),
+          hireY2: r(d.chadJobHireStockY2),
+          hireY3: r(d.chadJobHireStockY3),
+          hireY4: r(d.chadJobHireStockY4),
+          hireTotalAtHire: r(d.hireTotalAtHire),
+          hireGrownTotal: r(d.hireGrownTotal),
+          hireNetAvgYr: r(d.hireNetAvgYr),
+        },
+        totals: {
+          totalAvgMo: r(d.totalAvgMo),
+          totalAvgYr: r(d.totalAvgYr),
+        },
+      };
+      if (args.includeNotes) {
+        result.notes = W2_DIAGNOSTIC_NOTES;
       }
       return result;
     },

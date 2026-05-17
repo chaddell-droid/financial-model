@@ -285,14 +285,16 @@ function buildDynamicBridgeSignals({
     const msftDelta = getRowDelta(currentRow, previousRow, 'msftSmoothed');
     if (msftDelta <= -BRIDGE_MAJOR_DROP) {
       let markerId = `msft_stepdown_${month}`;
-      let markerLabel = 'MSFT step-down';
+      let markerBase = 'MSFT step-down';
       if (toNumber(currentRow?.msftSmoothed, 0) <= 0) {
         markerId = 'msft_end';
-        markerLabel = 'MSFT ends';
+        markerBase = 'MSFT ends';
       } else if (month >= 18 && Math.abs(msftDelta) >= 5000) {
         markerId = 'msft_cliff';
-        markerLabel = 'MSFT cliff';
+        markerBase = 'MSFT cliff';
       }
+
+      const markerLabel = `${markerBase}: ${formatMonthlyCurrency(msftDelta)}`;
 
       pushUniqueTimelineItem(events, {
         id: markerId,
@@ -300,12 +302,13 @@ function buildDynamicBridgeSignals({
         month,
         kind: 'cliff',
         priority: markerId === 'msft_end' ? 4 : 3,
+        impact: msftDelta,
       });
 
       if (markerId.startsWith('msft_stepdown_')) {
         pushUniqueTimelineItem(drivers, {
           id: markerId,
-          label: markerLabel,
+          label: markerBase,
           impact: msftDelta,
           month,
           group: 'drops_off',
@@ -444,8 +447,8 @@ export function buildBridgeStoryModel({
       kind: 'transition',
     });
   }
-  if (cliffLoss > 0) events.push({ id: 'msft_cliff', label: 'MSFT cliff', month: 18, kind: 'cliff' });
-  if (endLoss > 0) events.push({ id: 'msft_end', label: 'MSFT ends', month: 30, kind: 'cliff' });
+  if (cliffLoss > 0) events.push({ id: 'msft_cliff', label: `MSFT cliff: ${formatMonthlyCurrency(-cliffLoss)}`, month: 18, kind: 'cliff', impact: -cliffLoss });
+  if (endLoss > 0) events.push({ id: 'msft_end', label: `MSFT ends: ${formatMonthlyCurrency(-endLoss)}`, month: 30, kind: 'cliff', impact: -endLoss });
   if (bcsEndMonth > 0 && bcsFamilyMonthly > 0) {
     events.push({ id: 'bcs_end', label: 'BCS ends', month: bcsEndMonth, kind: 'transition' });
   }

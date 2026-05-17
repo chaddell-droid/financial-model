@@ -31,7 +31,7 @@ const baseState = () => gatherStateWithOverrides({
 console.log('\n=== TOOLS metadata ===');
 
 test('Exactly 11 tools registered', () => {
-  assert.strictEqual(TOOL_NAMES.length, 11);
+  assert.strictEqual(TOOL_NAMES.length, 12);
 });
 
 test('Every tool has name, description, input_schema, handler', () => {
@@ -45,7 +45,7 @@ test('Every tool has name, description, input_schema, handler', () => {
 
 test('toolsForAnthropic strips handler', () => {
   const exported = toolsForAnthropic();
-  assert.strictEqual(exported.length, 11);
+  assert.strictEqual(exported.length, 12);
   for (const t of exported) {
     assert.ok(t.name && t.description && t.input_schema);
     assert.ok(!('handler' in t), 'handler should not leak to API payload');

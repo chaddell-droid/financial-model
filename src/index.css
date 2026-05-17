@@ -297,7 +297,12 @@ body.plan-split-dragging * { cursor: col-resize !important; user-select: none !i
 /* Assumptions horizontal grid */
 .plan-workspace .plan-assume-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  /* minmax(0, 1fr) forces equal-third columns regardless of intrinsic content
+     width. Plain `1fr` lets wide descendants (e.g. the RSU vesting-schedule
+     table, which gains columns as chadWorkMonths grows) push the column wider,
+     which previously made the income column ~945px while the others stayed
+     ~483px and the card visibly oscillated as sliders moved. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 1px;
   background: var(--plan-line);
   border-radius: 8px;
@@ -308,6 +313,14 @@ body.plan-split-dragging * { cursor: col-resize !important; user-select: none !i
   background: var(--plan-panel);
   display: flex;
   flex-direction: column;
+  /* Companion to minmax(0,1fr): allow flex/grid items to shrink below their
+     intrinsic content size. overflow-x: auto means any descendant that's
+     wider than the column (e.g. the per-year RSU vesting-schedule table when
+     Chad's work duration grows) gets its own horizontal scrollbar rather
+     than pushing the whole column wider. */
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 .plan-workspace .plan-assume-head {
   display: flex; justify-content: space-between; align-items: center;

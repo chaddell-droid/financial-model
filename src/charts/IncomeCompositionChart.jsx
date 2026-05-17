@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildIncomeSources } from '../charts/chartUtils.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
@@ -184,7 +185,11 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
 
             return (
               <div key={i} style={{ flex: 1, height: "100%", position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", cursor: "default" }}
-                onMouseEnter={() => {
+                onMouseEnter={(e) => {
+                  // Capture bar's viewport rect so the tooltip (rendered via portal
+                  // at document.body) can position itself with position:fixed —
+                  // escapes any local stacking context that would clip it.
+                  const barRect = e.currentTarget.getBoundingClientRect();
                   const tooltipSources = [];
                   for (let si = 0; si < sources.length; si++) {
                     const s = sources[si];
@@ -243,7 +248,7 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                     }
                   }
                   // Use smoothedNet (total - expenses) for consistency with bar heights
-                  setIncomeTooltip({ pctX, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseComponents, net: smoothedNet });
+                  setIncomeTooltip({ pctX, barRect, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseComponents, net: smoothedNet });
                 }}>
                 {/* Stacked segments */}
                 <div style={{ width: "100%", display: "flex", flexDirection: "column-reverse" }}>
@@ -315,22 +320,43 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
           ))}
         </div>
 
-        {/* Tooltip */}
-        {incomeTooltip && (
+        {/* Tooltip — rendered via React portal at document.body so it escapes
+            any local stacking context. Positioned with position:fixed using the
+            hovered bar's viewport rect. Sits BELOW the bar when there's room,
+            flips ABOVE the bar when near the viewport bottom. Horizontal
+            position is clamped to the viewport edges so it never overflows. */}
+        {incomeTooltip && incomeTooltip.barRect && createPortal((() => {
+          const TOOLTIP_W = 320;             // approximate width used for edge clamping
+          const TOOLTIP_GAP = 12;            // gap between bar and tooltip
+          const ESTIMATED_H = 360;           // approximate height for flip decision
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          const barCenterX = incomeTooltip.barRect.left + incomeTooltip.barRect.width / 2;
+          // Horizontal clamping in viewport pixels so tooltip never overflows screen
+          const half = TOOLTIP_W / 2;
+          const clampedX = Math.max(half + 8, Math.min(vw - half - 8, barCenterX));
+          // Flip above bar if below bar there isn't room (cursor near viewport bottom)
+          const roomBelow = vh - incomeTooltip.barRect.bottom;
+          const flipAbove = roomBelow < ESTIMATED_H + TOOLTIP_GAP;
+          const topPx = flipAbove
+            ? incomeTooltip.barRect.top - TOOLTIP_GAP
+            : incomeTooltip.barRect.bottom + TOOLTIP_GAP;
+          const transformY = flipAbove ? "-100%" : "0";
+          return (
           <div style={{
-            position: "absolute",
-            left: `${incomeTooltip.pctX}%`,
-            top: annotationRowH + 10,
-            transform: "translateX(-50%)",
+            position: "fixed",
+            left: clampedX,
+            top: topPx,
+            transform: `translate(-50%, ${transformY})`,
             background: "#0f172a",
             border: "1px solid #475569",
             borderRadius: 8,
             padding: "10px 14px",
             pointerEvents: "none",
-            zIndex: 10,
+            zIndex: 9999,
             whiteSpace: "nowrap",
             boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-            minWidth: 180
+            minWidth: 180,
           }}>
             <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 700, marginBottom: 6, borderBottom: "1px solid #334155", paddingBottom: 4 }}>
               {incomeTooltip.label}
@@ -379,7 +405,8 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
               </div>
             </div>
           </div>
-        )}
+          );
+        })(), document.body)}
       </div>
 
       {/* Legend */}

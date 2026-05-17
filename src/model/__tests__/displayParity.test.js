@@ -843,6 +843,207 @@ test('D42: advanceNeeded with retireDebt=true + moldInclude=true', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Section: W-2 Net Diagnostic Display Parity (W2-1 … W2-10)
+// Locks the IncomeControls.jsx W-2 diagnostic block formulas to the engine.
+// These guard against the four bugs found in the 2026-05-16 audit:
+//   Bug 1 — pension parity (UI baked pension into salaryMult, engine handles it separately)
+//   Bug 2 — hire stock avg ignored MSFT growth
+//   Bug 3 — RSU refresh steady state ignored MSFT growth
+//   Bug 4 — SSDI comparison used salary-only chadJobMonthlyNet + annual health as monthly
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Section: W-2 Net Diagnostic Display Parity ===');
+
+// Mirrors the hoisted w2* block at top of IncomeControls.jsx. Any drift between
+// this helper and that block is a display-parity bug.
+function computeUiW2Diagnostic(s) {
+  const effectiveSalary = s.chadJobSalary || 80000;
+  const effectiveTaxRate = s.chadJobTaxRate ?? 25;
+  const effectiveHealthSavings = s.chadJobHealthSavings ?? 4200;
+  const ficaSavings = s.chadJobNoFICA ? 0.062 : 0;
+  const pensionContribPct = (s.chadJobPensionContrib || 0) / 100;
+  const k401Enabled = !!s.chadJob401kEnabled;
+  const deferral = k401Enabled ? (s.chadJob401kDeferral || 0) : 0;
+  const catchup = k401Enabled ? (s.chadJob401kCatchupRoth || 0) : 0;
+  const taxRateDec = effectiveTaxRate / 100;
+  const salaryMult = 1 - taxRateDec + ficaSavings;
+  const bonusMult = 1 - taxRateDec + ficaSavings;
+  const ficaRateOnPension = s.chadJobNoFICA ? 0.0145 : 0.0765;
+  const pensionCashflowMult = 1 - taxRateDec + ficaRateOnPension;
+  const monthlyGross = effectiveSalary / 12;
+  const taxableMo = Math.max(0, monthlyGross - deferral / 12);
+  const afterTaxMo = taxableMo * salaryMult;
+  const pensionDeductionMo = monthlyGross * pensionContribPct;
+  const pensionCashflowMo = pensionDeductionMo * pensionCashflowMult;
+  const salaryNetMo = Math.round(afterTaxMo - pensionCashflowMo - catchup / 12);
+  const annualSalaryNet = salaryNetMo * 12;
+  const bonusGrossYr = effectiveSalary * (s.chadJobBonusPct || 0) / 100;
+  const bonusNetYr = bonusGrossYr * bonusMult;
+  const g = (s.msftGrowth || 0) / 100;
+  const refreshSteadyMult = g === 0 ? 1
+    : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + g, t), 0) / 5;
+  const refreshNetYr = (s.chadJobStockRefresh || 0) * bonusMult * refreshSteadyMult;
+  const hireY1 = s.chadJobHireStockY1 || 0;
+  const hireY2 = s.chadJobHireStockY2 || 0;
+  const hireY3 = s.chadJobHireStockY3 || 0;
+  const hireY4 = s.chadJobHireStockY4 || 0;
+  const hireGrownTotal = hireY1 * Math.pow(1 + g, 1)
+                       + hireY2 * Math.pow(1 + g, 2)
+                       + hireY3 * Math.pow(1 + g, 3)
+                       + hireY4 * Math.pow(1 + g, 4);
+  const hireNetAvgYr = hireGrownTotal * bonusMult / 4;
+  const totalAvgMo = Math.round((annualSalaryNet + bonusNetYr + refreshNetYr + hireNetAvgYr) / 12);
+  return {
+    salaryNetMo, annualSalaryNet, bonusNetYr, refreshNetYr, hireNetAvgYr,
+    totalAvgMo, refreshSteadyMult, pensionCashflowMult, pensionCashflowMo,
+    monthlyHealthSavings: effectiveHealthSavings / 12,
+  };
+}
+
+test('W2-1: salary walk with 401k deferral + Roth catch-up matches engine', () => {
+  // 180K salary, 25% tax, $24.5K deferral, $11.25K Roth → walk: 15000 − 2042 = 12958 × 0.75 − 938 = 8781
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  assert.strictEqual(ui.salaryNetMo, 8781, `Expected $8,781/mo, got ${ui.salaryNetMo}`);
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobSalaryNet, ui.salaryNetMo,
+    `Engine salaryNet (${monthlyData[0].chadJobSalaryNet}) must match UI walk (${ui.salaryNetMo})`);
+});
+
+test('W2-2: pension cashflow mult uses Medicare-only rate when NoFICA', () => {
+  // Engine line 110: ficaRateOnPension = 0.0145 when noFICA, 0.0765 otherwise.
+  const noFica = computeUiW2Diagnostic({ chadJobSalary: 180000, chadJobTaxRate: 25, chadJobNoFICA: true, chadJobPensionContrib: 5 });
+  const withFica = computeUiW2Diagnostic({ chadJobSalary: 180000, chadJobTaxRate: 25, chadJobNoFICA: false, chadJobPensionContrib: 5 });
+  assert.ok(Math.abs(noFica.pensionCashflowMult - (1 - 0.25 + 0.0145)) < 1e-9,
+    `NoFICA pension mult should be ${1 - 0.25 + 0.0145}, got ${noFica.pensionCashflowMult}`);
+  assert.ok(Math.abs(withFica.pensionCashflowMult - (1 - 0.25 + 0.0765)) < 1e-9,
+    `Standard pension mult should be ${1 - 0.25 + 0.0765}, got ${withFica.pensionCashflowMult}`);
+});
+
+test('W2-3: pension salary walk matches engine with 5% pension (full FICA)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobPensionContrib: 5,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobSalaryNet, ui.salaryNetMo,
+    `Engine salaryNet (${monthlyData[0].chadJobSalaryNet}) must match UI walk (${ui.salaryNetMo}) with pension=5%`);
+});
+
+test('W2-4: hire stock avg applies MSFT growth (Y1−Y4 each × (1+g)^n)', () => {
+  // With g=10%, Y1*1.1 + Y2*1.21 + Y3*1.331 + Y4*1.4641, all × bonusMult ÷ 4.
+  const overrides = {
+    chadJobSalary: 180000, chadJobTaxRate: 25, msftGrowth: 10,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  const expectedGrown = 40000 * 1.1 + 40000 * 1.21 + 40000 * 1.331 + 40000 * 1.4641;
+  const expectedNetAvgYr = expectedGrown * 0.75 / 4;
+  assert.ok(Math.abs(ui.hireNetAvgYr - expectedNetAvgYr) < 1,
+    `Hire stock avg (g=10%): expected ~${expectedNetAvgYr.toFixed(0)}, got ${ui.hireNetAvgYr.toFixed(0)}`);
+  // Sanity: with g=0, value should be flat sum × bonusMult ÷ 4 = $30,000/yr
+  const flat = computeUiW2Diagnostic({ ...overrides, msftGrowth: 0 });
+  assert.strictEqual(Math.round(flat.hireNetAvgYr), 30000,
+    `With g=0, hire avg should be flat $30,000, got ${flat.hireNetAvgYr}`);
+});
+
+test('W2-5: refresh steady-state mult averages 5 grants × 5yr vest with MSFT growth', () => {
+  // g=10%: mult = mean of (1.1)^(0.5,1.5,2.5,3.5,4.5) = mean of (1.0488, 1.1537, 1.2691, 1.3960, 1.5355) ≈ 1.2806
+  const overrides = {
+    chadJobSalary: 180000, chadJobTaxRate: 25, msftGrowth: 10,
+    chadJobStockRefresh: 40000,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  const expectedMult = [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1.1, t), 0) / 5;
+  assert.ok(Math.abs(ui.refreshSteadyMult - expectedMult) < 1e-6,
+    `Refresh mult (g=10%): expected ${expectedMult.toFixed(4)}, got ${ui.refreshSteadyMult.toFixed(4)}`);
+  const expectedNetYr = 40000 * 0.75 * expectedMult;
+  assert.ok(Math.abs(ui.refreshNetYr - expectedNetYr) < 1,
+    `Refresh net/yr (g=10%): expected ~${expectedNetYr.toFixed(0)}, got ${ui.refreshNetYr.toFixed(0)}`);
+  // Zero growth → mult = 1
+  const flat = computeUiW2Diagnostic({ ...overrides, msftGrowth: 0 });
+  assert.strictEqual(flat.refreshSteadyMult, 1, `g=0 → mult must be exactly 1`);
+  assert.strictEqual(flat.refreshNetYr, 30000, `g=0 refresh net = $30,000/yr`);
+});
+
+test('W2-6: monthlyHealthSavings divides annual by 12', () => {
+  const ui = computeUiW2Diagnostic({ chadJobHealthSavings: 4200 });
+  assert.strictEqual(ui.monthlyHealthSavings, 350, `$4,200/yr ÷ 12 = $350/mo, got ${ui.monthlyHealthSavings}`);
+  const ui2 = computeUiW2Diagnostic({ chadJobHealthSavings: 6000 });
+  assert.strictEqual(ui2.monthlyHealthSavings, 500, `$6,000/yr ÷ 12 = $500/mo, got ${ui2.monthlyHealthSavings}`);
+});
+
+test('W2-7: SSDI net impact uses W-2 total monthly + monthly health (not salary-only + annual)', () => {
+  // Bug 4 regression. Inputs from the audit screenshot:
+  // 180K, 25% tax, 20% bonus, $40K refresh, $40K×4 hire stock, MSFT growth 0, default health $4,200/yr, family $6,321, personal $4,214
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
+    chadJobBonusPct: 20, chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0, chadJobHealthSavings: 4200,
+    ssType: 'ssdi', ssdiFamilyTotal: 6321, ssdiPersonal: 4214,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  // totalAvgMo should be ≈ ($105,372 + $27,000 + $30,000 + $30,000) / 12 = $16,031
+  assert.strictEqual(ui.totalAvgMo, 16031, `Expected total avg $16,031/mo, got ${ui.totalAvgMo}`);
+  // Correct SSDI net impact: W-2 total + monthly health − rate
+  const netFamily = Math.round(ui.totalAvgMo + ui.monthlyHealthSavings - 6321);
+  const netSteady = Math.round(ui.totalAvgMo + ui.monthlyHealthSavings - 4214);
+  assert.strictEqual(netFamily, 10060, `Family net should be 10060, got ${netFamily}`);
+  assert.strictEqual(netSteady, 12167, `Steady net should be 12167, got ${netSteady}`);
+});
+
+test('W2-8: totalAvgMo includes salary + bonus + refresh + hire stock (with MSFT growth)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25,
+    chadJobBonusPct: 20, chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 8,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  // Verify each component sums into totalAvgMo
+  const sumAnnual = ui.annualSalaryNet + ui.bonusNetYr + ui.refreshNetYr + ui.hireNetAvgYr;
+  assert.strictEqual(ui.totalAvgMo, Math.round(sumAnnual / 12),
+    `totalAvgMo (${ui.totalAvgMo}) should equal sum of components ÷ 12 (${Math.round(sumAnnual / 12)})`);
+  // With g=8%, RSU + hire stock components must be HIGHER than the g=0 baseline.
+  const flat = computeUiW2Diagnostic({ ...overrides, msftGrowth: 0 });
+  assert.ok(ui.refreshNetYr > flat.refreshNetYr, `MSFT growth should increase refresh value`);
+  assert.ok(ui.hireNetAvgYr > flat.hireNetAvgYr, `MSFT growth should increase hire stock value`);
+});
+
+test('W2-9: salary walk + pension matches engine end-to-end ($180K, 5% pension, no FICA, 401k)', () => {
+  // Stress test of pension + deferral + catch-up + FICA-exempt employer
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobNoFICA: true, chadJobStartMonth: 0,
+    chadJobPensionContrib: 5,
+    chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
+  };
+  const ui = computeUiW2Diagnostic(overrides);
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobSalaryNet, ui.salaryNetMo,
+    `Engine salaryNet (${monthlyData[0].chadJobSalaryNet}) must match UI walk (${ui.salaryNetMo}) under combined deductions`);
+});
+
+test('W2-10: degenerate inputs return finite numbers (no NaN)', () => {
+  // chadJobSalary=0 falls through `|| 80000` default (matches UI behavior).
+  // The salary walk should still produce finite numbers, never NaN.
+  const ui = computeUiW2Diagnostic({});
+  assert.ok(Number.isFinite(ui.salaryNetMo), `salaryNetMo must be finite, got ${ui.salaryNetMo}`);
+  assert.ok(Number.isFinite(ui.totalAvgMo), `totalAvgMo must be finite, got ${ui.totalAvgMo}`);
+  assert.ok(Number.isFinite(ui.refreshNetYr), `refreshNetYr must be finite, got ${ui.refreshNetYr}`);
+  assert.ok(Number.isFinite(ui.hireNetAvgYr), `hireNetAvgYr must be finite, got ${ui.hireNetAvgYr}`);
+  assert.ok(Number.isFinite(ui.monthlyHealthSavings), `monthlyHealthSavings must be finite`);
+  assert.ok(Number.isFinite(ui.pensionCashflowMult), `pensionCashflowMult must be finite`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'═'.repeat(60)}`);

@@ -42,7 +42,62 @@ const IncomeControls = ({
   // Match projection.js formula: tax rate is all-in, FICA adds 6.2% back, pension is deducted
   const ficaSavings = chadJobNoFICA ? 0.062 : 0;
   const pensionContribPct = (chadJobPensionContrib || 0) / 100;
-  const chadJobMonthlyNet = Math.round(effectiveSalary * (1 - effectiveTaxRate / 100 + ficaSavings - pensionContribPct) / 12);
+  // === W-2 component calculations — used by BOTH the W-2 diagnostic AND the SSDI comparison.
+  // Mirrors src/model/projection.js exactly. Any drift here is a display-parity bug
+  // (per CLAUDE.md). Keep formulas synced.
+  const k401Enabled = !!chadJob401kEnabled;
+  const w2Deferral = k401Enabled ? (chadJob401kDeferral || 0) : 0;
+  const w2Catchup = k401Enabled ? (chadJob401kCatchupRoth || 0) : 0;
+  const taxRateDec = effectiveTaxRate / 100;
+  // Salary / bonus mults exclude pension — pension is subtracted separately
+  // with its own cashflow mult (mirrors projection.js:108, 112).
+  const w2SalaryMult = 1 - taxRateDec + ficaSavings;
+  const w2BonusMult = 1 - taxRateDec + ficaSavings;
+  // Pension cashflow mult — mirrors projection.js:110-112. FICA still applies
+  // on pension dollars (1.45% Medicare-only when noFICA=true, else 7.65%).
+  const ficaRateOnPension = chadJobNoFICA ? 0.0145 : 0.0765;
+  const w2PensionCashflowMult = 1 - taxRateDec + ficaRateOnPension;
+  const w2MonthlyGross = effectiveSalary / 12;
+  const w2TaxableMo = Math.max(0, w2MonthlyGross - w2Deferral / 12);
+  const w2AfterTaxMo = w2TaxableMo * w2SalaryMult;
+  const w2PensionDeductionMo = w2MonthlyGross * pensionContribPct;
+  const w2PensionCashflowMo = w2PensionDeductionMo * w2PensionCashflowMult;
+  // Salary net = (gross − deferral) × salaryMult − pension × pensionCashflowMult − catchup
+  const w2SalaryNetMo = Math.round(w2AfterTaxMo - w2PensionCashflowMo - w2Catchup / 12);
+  const w2AnnualSalaryNet = w2SalaryNetMo * 12;
+  const w2BonusGrossYr = effectiveSalary * (chadJobBonusPct || 0) / 100;
+  const w2BonusNetYr = w2BonusGrossYr * w2BonusMult;
+  // MSFT growth applied to RSU vests in the engine (projection.js:124). The
+  // steady-state display MUST apply the same growth, else it understates RSU
+  // value when msftGrowth > 0.
+  const w2Growth = (msftGrowth || 0) / 100;
+  // Refresh in steady state: 5 grants in flight, each vesting over 5 years
+  // (4 quarterly vests per year). Time-weighted avg multiplier across all
+  // 5 grants ≈ mean of (1+g)^(k − 0.5) for k = 1..5.
+  const w2RefreshSteadyMult = w2Growth === 0 ? 1
+    : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + w2Growth, t), 0) / 5;
+  const w2RefreshNetYr = (chadJobStockRefresh || 0) * w2BonusMult * w2RefreshSteadyMult;
+  // Hire stock: Y1-Y4 lumps vest at hire+12, +24, +36, +48 months.
+  // Engine scales each by (1+g)^n (projection.js:253 via msftMultIssueToVest).
+  const w2HireY1 = chadJobHireStockY1 || 0;
+  const w2HireY2 = chadJobHireStockY2 || 0;
+  const w2HireY3 = chadJobHireStockY3 || 0;
+  const w2HireY4 = chadJobHireStockY4 || 0;
+  const w2HireTotalAtHire = w2HireY1 + w2HireY2 + w2HireY3 + w2HireY4;
+  const w2HireGrownTotal = w2HireY1 * Math.pow(1 + w2Growth, 1)
+                         + w2HireY2 * Math.pow(1 + w2Growth, 2)
+                         + w2HireY3 * Math.pow(1 + w2Growth, 3)
+                         + w2HireY4 * Math.pow(1 + w2Growth, 4);
+  const w2HireNetAvgYr = w2HireGrownTotal * w2BonusMult / 4;
+  const w2TotalAvgYr = w2AnnualSalaryNet + w2BonusNetYr + w2RefreshNetYr + w2HireNetAvgYr;
+  const w2TotalAvgMo = Math.round(w2TotalAvgYr / 12);
+  // chadJobMonthlyNet now matches the salary cashflow walk exactly (was: salary × naive mult / 12,
+  // which ignored 401k deferral, Roth catch-up, and used a flat pension subtraction not matching
+  // engine). Preserved name so existing display callers don't break.
+  const chadJobMonthlyNet = w2SalaryNetMo;
+  // Monthly equivalent of annual health benefit — used by SSDI comparison
+  // (which sums monthly values). effectiveHealthSavings is annual ($4,200/yr default).
+  const monthlyHealthSavings = effectiveHealthSavings / 12;
   const ssEarningsLimit = 22320;
   const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
   const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
@@ -572,10 +627,13 @@ const IncomeControls = ({
                     // for kidsAgeOutMonths in the SSDI branch.
                     const familyMonths = isSSPath ? (ssKidsAgeOutMonths ?? 18) : (kidsAgeOutMonths ?? 36);
                     const lostBackPayMonthly = !isSSPath && !ssdiDenied ? Math.round((ssdiBackPayActual || 0) / 72) : 0;
-                    // Net impact uses personal (long-term) rate since family rate is temporary
-                    const netImpactSteady = chadJobMonthlyNet + effectiveHealthSavings - personalRate;
+                    // Net impact uses total W-2 monthly net (salary + bonus + RSU + hire stock,
+                    // all averaged with MSFT growth applied) plus the MONTHLY health benefit.
+                    // Previously used salary-only `chadJobMonthlyNet` and annual `effectiveHealthSavings`
+                    // as if it were monthly — both bugs systematically distorted the comparison.
+                    const netImpactSteady = Math.round(w2TotalAvgMo + monthlyHealthSavings - personalRate);
                     const netColorSteady = netImpactSteady >= 0 ? COLORS.greenDark : COLORS.amber;
-                    const netImpactFamily = chadJobMonthlyNet + effectiveHealthSavings - familyRate;
+                    const netImpactFamily = Math.round(w2TotalAvgMo + monthlyHealthSavings - familyRate);
                     const netColorFamily = netImpactFamily >= 0 ? COLORS.greenDark : COLORS.red;
                     const label = isSSPath ? 'SS' : 'SSDI';
                     return (
@@ -584,30 +642,32 @@ const IncomeControls = ({
                         <span style={{ color: COLORS.textDim }}>Monthly after tax:</span>
                         <span style={{ color: COLORS.greenDark, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>+{fmtFull(chadJobMonthlyNet)}</span>
                       </div>
-                      {/* W-2 net computation diagnostic — exposes every input feeding chadJobMonthlyNet */}
+                      {/* W-2 net computation diagnostic — exposes every input feeding chadJobMonthlyNet.
+                          All numeric values come from the hoisted w2* vars (top of component) so the
+                          diagnostic display and the SSDI comparison always show the same numbers. */}
                       {(() => {
                         const annualGross = chadJobSalary || 0;
-                        const monthlyGross = annualGross / 12;
+                        const monthlyGross = w2MonthlyGross;
                         const ficaPct = chadJobNoFICA ? 6.2 : 0;
                         const pensionPct = chadJobPensionContrib || 0;
-                        const k401Enabled = !!chadJob401kEnabled;
-                        const deferral = k401Enabled ? (chadJob401kDeferral || 0) : 0;
-                        const catchup = k401Enabled ? (chadJob401kCatchupRoth || 0) : 0;
+                        const deferral = w2Deferral;
+                        const catchup = w2Catchup;
                         const match = k401Enabled ? (chadJob401kMatch || 0) : 0;
-                        const taxRateDec = effectiveTaxRate / 100;
-                        const salaryMult = 1 - taxRateDec + ficaPct / 100 - pensionPct / 100;
-                        const bonusMult = 1 - taxRateDec + ficaPct / 100;
-                        const taxableSalaryMo = Math.max(0, monthlyGross - deferral / 12);
-                        const afterTaxSalaryMo = taxableSalaryMo * salaryMult;
-                        const salaryNetMo = Math.round(afterTaxSalaryMo - catchup / 12);
-                        const bonusGrossYr = annualGross * (chadJobBonusPct || 0) / 100;
-                        const bonusNetYr = bonusGrossYr * bonusMult;
-                        const refreshNetYr = (chadJobStockRefresh || 0) * bonusMult;
-                        const hireTotal = (chadJobHireStockY1 || 0) + (chadJobHireStockY2 || 0) + (chadJobHireStockY3 || 0) + (chadJobHireStockY4 || 0);
-                        const hireNetAvgYr = hireTotal * bonusMult / 4;
-                        const annualSalaryNet = salaryNetMo * 12;
-                        const totalAvgYr = annualSalaryNet + bonusNetYr + refreshNetYr + hireNetAvgYr;
-                        const totalAvgMo = Math.round(totalAvgYr / 12);
+                        const salaryMult = w2SalaryMult;
+                        const bonusMult = w2BonusMult;
+                        const pensionCashflowMult = w2PensionCashflowMult;
+                        const taxableSalaryMo = w2TaxableMo;
+                        const afterTaxSalaryMo = w2AfterTaxMo;
+                        const pensionCashflowMo = w2PensionCashflowMo;
+                        const salaryNetMo = w2SalaryNetMo;
+                        const bonusNetYr = w2BonusNetYr;
+                        const refreshNetYr = w2RefreshNetYr;
+                        const refreshSteadyMult = w2RefreshSteadyMult;
+                        const hireTotalAtHire = w2HireTotalAtHire;
+                        const hireNetAvgYr = w2HireNetAvgYr;
+                        const annualSalaryNet = w2AnnualSalaryNet;
+                        const totalAvgMo = w2TotalAvgMo;
+                        const msftGrowthPct = (msftGrowth || 0);
                         const hiddenPension = pensionPct > 0 && (chadJobPensionRate || 0) === 0;
                         const rowStyle = { display: "flex", justifyContent: "space-between", marginTop: 1, fontSize: 10 };
                         const monoStyle = { fontFamily: "'JetBrains Mono', monospace" };
@@ -639,25 +699,37 @@ const IncomeControls = ({
                             <div style={rowStyle}><span>Employer match (to 401k bal, not cashflow)</span><span style={{ ...monoStyle, color: match > 0 ? COLORS.green : COLORS.textDim }}>{match > 0 ? `${fmtFull(match)}/yr` : '—'}</span></div>
 
                             <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Multipliers</div>
-                            <div style={rowStyle}><span>Salary net mult (1 − tax + fica − pension)</span><span style={monoStyle}>{salaryMult.toFixed(4)}</span></div>
-                            <div style={rowStyle}><span>Bonus / RSU / sign-on net mult (no pension)</span><span style={monoStyle}>{bonusMult.toFixed(4)}</span></div>
+                            <div style={rowStyle}><span>Salary net mult (1 − tax + fica)</span><span style={monoStyle}>{salaryMult.toFixed(4)}</span></div>
+                            <div style={rowStyle}><span>Bonus / RSU / sign-on net mult (1 − tax + fica)</span><span style={monoStyle}>{bonusMult.toFixed(4)}</span></div>
+                            {pensionPct > 0 && (
+                              <div style={rowStyle}><span>Pension cashflow mult (1 − tax + FICA-on-pension)</span><span style={monoStyle}>{pensionCashflowMult.toFixed(4)}</span></div>
+                            )}
 
                             <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Salary cashflow walk</div>
                             <div style={rowStyle}><span>Monthly gross</span><span style={monoStyle}>{fmtFull(Math.round(monthlyGross))}</span></div>
                             <div style={rowStyle}><span>− 401(k) deferral / 12</span><span style={monoStyle}>−{fmtFull(Math.round(deferral / 12))}</span></div>
                             <div style={rowStyle}><span>= Taxable salary</span><span style={monoStyle}>{fmtFull(Math.round(taxableSalaryMo))}</span></div>
                             <div style={rowStyle}><span>× salary mult</span><span style={monoStyle}>{fmtFull(Math.round(afterTaxSalaryMo))}</span></div>
+                            {pensionPct > 0 && (
+                              <div style={rowStyle}><span>− Pension × pension mult</span><span style={monoStyle}>−{fmtFull(Math.round(pensionCashflowMo))}</span></div>
+                            )}
                             <div style={rowStyle}><span>− Roth catch-up / 12</span><span style={monoStyle}>−{fmtFull(Math.round(catchup / 12))}</span></div>
                             <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>= Salary net (cashflow)</span><span style={monoStyle}>{fmtFull(salaryNetMo)}/mo</span></div>
 
                             <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Annual W-2 (steady state, all components)</div>
                             <div style={rowStyle}><span>Salary net (12 × monthly)</span><span style={monoStyle}>{fmtFull(annualSalaryNet)}/yr</span></div>
                             <div style={rowStyle}><span>Bonus net (paid Sept lump)</span><span style={monoStyle}>{fmtFull(Math.round(bonusNetYr))}/yr</span></div>
-                            <div style={rowStyle}><span>RSU refresh net (steady state)</span><span style={monoStyle}>{fmtFull(Math.round(refreshNetYr))}/yr</span></div>
-                            <div style={rowStyle}><span>Hire stock net (avg over 4 yr)</span><span style={monoStyle}>{fmtFull(Math.round(hireNetAvgYr))}/yr</span></div>
+                            <div style={rowStyle}>
+                              <span>RSU refresh net {msftGrowthPct !== 0 ? `(steady state · ×${refreshSteadyMult.toFixed(3)} for ${msftGrowthPct}% MSFT growth)` : '(steady state)'}</span>
+                              <span style={monoStyle}>{fmtFull(Math.round(refreshNetYr))}/yr</span>
+                            </div>
+                            <div style={rowStyle}>
+                              <span>Hire stock net {msftGrowthPct !== 0 ? `(avg over 4 yr · ${msftGrowthPct}% MSFT growth applied)` : '(avg over 4 yr)'}</span>
+                              <span style={monoStyle}>{fmtFull(Math.round(hireNetAvgYr))}/yr</span>
+                            </div>
                             <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>Avg total monthly W-2 net</span><span style={monoStyle}>{fmtFull(totalAvgMo)}/mo</span></div>
                             <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 3 }}>
-                              "Monthly after tax" above shows salary only. Bonus, RSUs, and sign-on land in specific months — average above includes them.
+                              "Monthly after tax" above shows salary only. Bonus, RSUs, and sign-on land in specific months — average above includes them. RSU and hire-stock totals reflect projected MSFT growth from grant to vest (matches engine).
                             </div>
                             {/* Promotion projections — show monthly net at L64 and L65 if those toggles are on. */}
                             {(chadL64Enabled || chadL65Enabled) && (() => {
@@ -665,10 +737,12 @@ const IncomeControls = ({
                                 const gross = salary || 0;
                                 const monGross = gross / 12;
                                 const taxableMo = Math.max(0, monGross - deferral / 12);
-                                const salNet = Math.round(taxableMo * salaryMult - catchup / 12);
+                                const pensionMo = monGross * pensionPct / 100 * pensionCashflowMult;
+                                const salNet = Math.round(taxableMo * salaryMult - pensionMo - catchup / 12);
                                 const bPct = (bonusPctRaw || 0) / 100;
                                 const bonusYr = gross * bPct * bonusMult;
-                                const refreshYr = (refresh || 0) * bonusMult;
+                                // Apply same steady-state MSFT growth mult to L64/L65 refresh as L63 (matches engine treatment).
+                                const refreshYr = (refresh || 0) * bonusMult * refreshSteadyMult;
                                 const totalMo = Math.round((salNet * 12 + bonusYr + refreshYr) / 12);
                                 return (
                                   <div key={label} style={rowStyle}>
@@ -690,22 +764,25 @@ const IncomeControls = ({
                       })()}
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
                         <span style={{ color: COLORS.textDim }}>Health insurance saved:</span>
-                        <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>+{fmtFull(effectiveHealthSavings)}</span>
+                        <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
+                          +{fmtFull(Math.round(monthlyHealthSavings))}/mo
+                          <span style={{ color: COLORS.textDim, fontSize: 10, marginLeft: 4 }}>(+{fmtFull(effectiveHealthSavings)}/yr)</span>
+                        </span>
                       </div>
                       {familyMonths > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, paddingTop: 4, borderTop: `1px solid ${COLORS.bgCard}` }}>
                           <span style={{ color: COLORS.textDim }}>Lost {label} ({familyMonths} mo w/ twins):</span>
-                          <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(familyRate)}</span>
+                          <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(familyRate)}/mo</span>
                         </div>
                       )}
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
                         <span style={{ color: COLORS.textDim }}>Lost {label} (after twins age out):</span>
-                        <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(personalRate)}</span>
+                        <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(personalRate)}/mo</span>
                       </div>
                       {lostBackPayMonthly > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
                           <span style={{ color: COLORS.textDim }}>Lost SSDI back pay (net of fee, amortized over 6yr):</span>
-                          <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(lostBackPayMonthly)}</span>
+                          <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(lostBackPayMonthly)}/mo</span>
                         </div>
                       )}
                       {familyMonths > 0 && (

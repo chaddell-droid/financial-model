@@ -183,8 +183,24 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
             // Consistent net: total income (smoothed) minus expenses
             const smoothedNet = total - d.expenses;
 
+            const isHovered = incomeTooltip?.label === formatMonthLabel(d.month);
+            const anyHovered = !!incomeTooltip;
             return (
-              <div key={i} style={{ flex: 1, height: "100%", position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", cursor: "default" }}
+              <div key={i} style={{
+                flex: 1,
+                height: "100%",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                cursor: "default",
+                background: isHovered ? "rgba(148,163,184,0.10)" : "transparent",
+                outline: isHovered ? "1px solid rgba(148,163,184,0.45)" : "none",
+                outlineOffset: -1,
+                borderRadius: 3,
+                transition: "background 0.12s ease, outline-color 0.12s ease",
+              }}
                 onMouseEnter={(e) => {
                   // Capture bar's viewport rect so the tooltip (rendered via portal
                   // at document.body) can position itself with position:fixed —
@@ -251,16 +267,24 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
                   setIncomeTooltip({ pctX, barRect, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseComponents, net: smoothedNet });
                 }}>
                 {/* Stacked segments */}
-                <div style={{ width: "100%", display: "flex", flexDirection: "column-reverse" }}>
+                <div style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column-reverse",
+                  filter: isHovered ? "brightness(1.18) saturate(1.25) drop-shadow(0 0 6px rgba(255,255,255,0.18))" : "none",
+                  transition: "filter 0.12s ease",
+                }}>
                   {sources.map((s, si) => {
                     const segH = (vals[si] / stackMax) * stackH;
+                    // Three states: this bar hovered (full), another bar hovered (dim heavily), idle (current).
+                    const segOpacity = isHovered ? 1.0 : (anyHovered ? 0.32 : 0.7);
                     return segH > 0 ? (
                       <div key={si} style={{
                         height: segH,
                         background: s.color,
-                        opacity: incomeTooltip?.label === formatMonthLabel(d.month) ? 0.9 : 0.7,
+                        opacity: segOpacity,
                         borderRadius: (si === sources.length - 1 || vals.slice(si + 1).every(v => v === 0)) ? "2px 2px 0 0" : 0,
-                        transition: "opacity 0.15s ease"
+                        transition: "opacity 0.12s ease"
                       }} />
                     ) : null;
                   })}

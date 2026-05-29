@@ -634,13 +634,18 @@ export default function FinancialModel() {
       const yr = idx >= 0 ? sched[idx] : sched[0];
       const b = yr.chadW2OnlyTax;
       if (!b) return null;
+      const combinedTax = b.ficaTotal + b.fedTax;
       return {
         year: idx >= 0 ? idx : 0,
+        // Everything below is on the SAME year-0 gross (b.ficaBase) so the rows reconcile.
+        ficaBase: b.ficaBase,
+        ficaSS: b.ficaSS,
+        ficaMedicare: b.ficaMedicare,
+        ficaAddlMedicare: b.ficaAddlMedicare,
+        ficaTotal: b.ficaTotal,
         fedTax: b.fedTax,
-        fica: b.fica,
-        addlMedicare: b.addlMedicare,
-        totalTax: b.totalTax,
-        effectiveRate: yr.chadEffectiveRate || 0,
+        combinedTax,
+        effectivePct: b.ficaBase > 0 ? combinedTax / b.ficaBase : 0,
       };
     } catch {
       return null;

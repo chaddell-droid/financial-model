@@ -767,25 +767,42 @@ const IncomeControls = ({
                               The multiplier is a FLAT all-in effective rate (income tax + FICA folded into your {effectiveTaxRate}% assumption). The real, traceable split is below — same engine as the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span>.
                             </div>
 
-                            {/* Real tax breakdown — FICA computed by the engine on the W-2 gross;
-                                federal pulled from the household tax schedule (chadTaxBreakdown). */}
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Tax breakdown (from the Tax-tab engine)</div>
-                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>FICA base (gross W-2 wages)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaBaseAnnual))}/yr</span></div>
-                            <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: w2FicaSS > 0 ? COLORS.text : COLORS.textDim }}>{fmtFull(Math.round(w2FicaSS))}/yr</span></div>
-                            <div style={rowStyle}><span>FICA — Medicare (1.45%)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaMedicare))}/yr</span></div>
-                            {w2FicaAddlMedicare > 0 && (
-                              <div style={rowStyle}><span>Additional Medicare (0.9% over {fmtFull(250000)})</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAddlMedicare))}/yr</span></div>
-                            )}
-                            <div style={{ ...rowStyle, fontWeight: 600 }}><span>FICA total</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAllInTotal))}/yr · {(w2FicaEffectivePct * 100).toFixed(1)}% of gross</span></div>
-                            {chadTaxBreakdown && (
+                            {/* Real tax breakdown. When the household tax schedule is available
+                                (chadTaxBreakdown), show FICA + federal ALL on the same year-N gross
+                                so they reconcile and sum. Otherwise fall back to FICA-only on the
+                                steady-state gross (exact; depends only on wages). */}
+                            {chadTaxBreakdown ? (
                               <>
-                                <div style={rowStyle}><span>Federal income tax {chadTaxBreakdown.year != null ? `(yr ${chadTaxBreakdown.year}, household)` : '(household)'}</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.fedTax))}/yr</span></div>
-                                <div style={{ ...rowStyle, fontWeight: 600 }}><span>All-in effective rate on W-2 (engine)</span><span style={monoStyle}>{(chadTaxBreakdown.effectiveRate * 100).toFixed(1)}% <span style={{ color: COLORS.textDim, fontWeight: 400 }}>vs {effectiveTaxRate}% assumed</span></span></div>
+                                <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Tax breakdown (Tax-tab engine · year {chadTaxBreakdown.year})</div>
+                                <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>FICA base (gross W-2 wages, this year)</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.ficaBase))}/yr</span></div>
+                                <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: chadTaxBreakdown.ficaSS > 0 ? COLORS.text : COLORS.textDim }}>{fmtFull(Math.round(chadTaxBreakdown.ficaSS))}/yr</span></div>
+                                <div style={rowStyle}><span>FICA — Medicare (1.45%)</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.ficaMedicare))}/yr</span></div>
+                                {chadTaxBreakdown.ficaAddlMedicare > 0 && (
+                                  <div style={rowStyle}><span>Additional Medicare (0.9% over {fmtFull(250000)})</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.ficaAddlMedicare))}/yr</span></div>
+                                )}
+                                <div style={rowStyle}><span>FICA total</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.ficaTotal))}/yr</span></div>
+                                <div style={rowStyle}><span>Federal income tax (after credits)</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.fedTax))}/yr</span></div>
+                                <div style={{ ...rowStyle, fontWeight: 600, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>Combined tax (FICA + federal)</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.combinedTax))}/yr</span></div>
+                                <div style={{ ...rowStyle, fontWeight: 600 }}><span>All-in effective rate on W-2 (engine)</span><span style={monoStyle}>{(chadTaxBreakdown.effectivePct * 100).toFixed(1)}% <span style={{ color: COLORS.textDim, fontWeight: 400 }}>vs {effectiveTaxRate}% assumed</span></span></div>
+                                <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
+                                  Engine numbers for projection year {chadTaxBreakdown.year} on the full household return, so this gross ({fmtFull(Math.round(chadTaxBreakdown.ficaBase))}) is year-{chadTaxBreakdown.year} — smaller than the {fmtFull(Math.round(totalGrossYr))} steady-state gross above (RSU refresh ramps over 5 years). See the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span> for year-by-year detail. No state income tax is modeled.
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Tax breakdown (FICA — exact)</div>
+                                <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>FICA base (steady-state gross W-2 wages)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaBaseAnnual))}/yr</span></div>
+                                <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: w2FicaSS > 0 ? COLORS.text : COLORS.textDim }}>{fmtFull(Math.round(w2FicaSS))}/yr</span></div>
+                                <div style={rowStyle}><span>FICA — Medicare (1.45%)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaMedicare))}/yr</span></div>
+                                {w2FicaAddlMedicare > 0 && (
+                                  <div style={rowStyle}><span>Additional Medicare (0.9% over {fmtFull(250000)})</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAddlMedicare))}/yr</span></div>
+                                )}
+                                <div style={{ ...rowStyle, fontWeight: 600 }}><span>FICA total</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAllInTotal))}/yr · {(w2FicaEffectivePct * 100).toFixed(1)}% of gross</span></div>
+                                <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
+                                  FICA is exact (depends only on gross wages). See the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span> for precise federal tax. No state income tax is modeled.
+                                </div>
                               </>
                             )}
-                            <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
-                              FICA is exact (depends only on gross wages).{chadTaxBreakdown ? ' Federal is the engine’s real number for the current projection year on the full household return; ' : ' '}see the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span> for full year-by-year detail. No state income tax is modeled.
-                            </div>
 
                             <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Salary cashflow walk</div>
                             <div style={rowStyle}><span>Monthly gross</span><span style={monoStyle}>{fmtFull(Math.round(monthlyGross))}</span></div>

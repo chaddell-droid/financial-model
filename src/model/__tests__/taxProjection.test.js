@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildTaxSchedule, inflateBrackets, getTaxInputs } from '../taxProjection.js';
-import { BRACKETS_MFJ_2025 } from '../taxConstants.js';
+import { BRACKETS_MFJ_2025, SS_WAGE_BASE } from '../taxConstants.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 const approx = (val, expected, tolerance = 1) =>
@@ -224,5 +224,27 @@ describe('buildTaxSchedule', () => {
     // Year 0 should have SS income of ~$72K (6000*12)
     expect(schedule[0]).toBeDefined();
     expect(schedule[0].fullTax.ssTaxableIncome).toBeGreaterThan(0);
+  });
+
+  // chadW2OnlyTax powers the W-2 Net Diagnostic's "Tax breakdown" — FICA + federal
+  // must all be on the SAME year-0 gross so they reconcile and sum.
+  it('chadW2OnlyTax exposes a year-0 FICA breakdown that reconciles with the engine', () => {
+    const s = makeState({ chadJob: true, chadJobSalary: 300000 });
+    const e = buildTaxSchedule(s)[0].chadW2OnlyTax;
+    expect(e).toBeDefined();
+    const base = e.ficaBase;
+    expect(base).toBeGreaterThan(0);
+    approx(e.ficaSS, Math.min(base, SS_WAGE_BASE) * 0.062, 1);        // SS capped at wage base
+    approx(e.ficaMedicare, base * 0.0145, 1);                         // Medicare uncapped
+    approx(e.ficaAddlMedicare, Math.max(0, base - 250000) * 0.009, 1);// Addl Medicare over $250k
+    approx(e.ficaTotal, e.ficaSS + e.ficaMedicare + e.ficaAddlMedicare, 1);
+    expect(e.fedTax).toBeGreaterThanOrEqual(0);
+  });
+
+  it('chadW2OnlyTax suppresses the SS portion under a non-FICA employer', () => {
+    const s = makeState({ chadJob: true, chadJobSalary: 300000, chadJobNoFICA: true });
+    const e = buildTaxSchedule(s)[0].chadW2OnlyTax;
+    expect(e.ficaSS).toBe(0);
+    approx(e.ficaMedicare, e.ficaBase * 0.0145, 1); // Medicare still applies
   });
 });

@@ -20,7 +20,7 @@ function nextStockVestMonthAfter(month) {
   return month + 3;
 }
 import { BRACKETS_MFJ_2026, getSaltCapForYear } from './taxConstants.js';
-import { calculateTax } from './taxEngine.js';
+import { calculateTax, computeAdditionalMedicare } from './taxEngine.js';
 
 /**
  * Inflate bracket thresholds by a compounding factor.
@@ -373,6 +373,11 @@ export function buildTaxSchedule(s) {
     const sarahAnnualTax = Math.max(0, fullTax.totalTax - w2OnlyTax.totalTax);
     const chadAnnualTax = w2OnlyTax.totalTax;
 
+    // Chad-only FICA actually PAID this year (additional Medicare is withheld, so use
+    // the gross amount, not the return-net "owed"). Shared by the W-2 diagnostic breakdown.
+    const chadAddlMedicarePaid = computeAdditionalMedicare({ w2Wages: chadW2FicaBase, seBase: 0 }).addlMedicare;
+    const chadFicaTotalPaid = w2OnlyTax.w2FicaSS + w2OnlyTax.w2FicaMedicare + chadAddlMedicarePaid;
+
     // Sarah's effective rate on gross revenue (combined expenses + tax burden)
     const sarahEffectiveOnGross = annualSarahGross > 0
       ? (annualSarahGross * expenseRatio + sarahAnnualTax) / annualSarahGross
@@ -397,10 +402,15 @@ export function buildTaxSchedule(s) {
 
       // Chad-only tax components (from the W-2-only counterfactual) so the W-2 Net
       // Diagnostic can show a REAL federal/FICA split instead of a flat-rate guess.
+      // ALL on the same year-0 gross (chadW2FicaBase) so FICA + federal reconcile.
+      // ficaAddlMedicare is the amount PAID (withheld), not the return-net "owed".
       chadW2OnlyTax: {
+        ficaBase: chadW2FicaBase,               // gross W-2 wages (Box 3/5) this year
+        ficaSS: w2OnlyTax.w2FicaSS,             // min(gross, wage base) × 6.2% (0 if noFICA)
+        ficaMedicare: w2OnlyTax.w2FicaMedicare, // gross × 1.45%
+        ficaAddlMedicare: chadAddlMedicarePaid, // (gross − $250k)₊ × 0.9% (withheld)
+        ficaTotal: chadFicaTotalPaid,           // SS + Medicare + additional Medicare
         fedTax: Math.max(0, w2OnlyTax.fedTax - w2OnlyTax.totalCredits), // income tax after credits
-        fica: w2OnlyTax.w2FicaTax,            // employee SS + base Medicare
-        addlMedicare: w2OnlyTax.addlMedicareOwed,
         totalTax: w2OnlyTax.totalTax,
       },
       annualSarahGross,

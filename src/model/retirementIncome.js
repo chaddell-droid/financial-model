@@ -2,11 +2,14 @@ function getSurvivorStartMonth(chadPassesAge) {
   return (chadPassesAge - 67) * 12;
 }
 
-function getPensionAtMonth(t, pensionMonthly, chadAlive) {
+export function getPensionAtMonth(t, pensionMonthly, chadAlive) {
   if (pensionMonthly <= 0) return 0;
-  const pensionCola = 1.03; // WA PERS COLA cap
-  const yearsFromStart = Math.floor(t / 12);
-  const pensionWithCola = Math.round(pensionMonthly * Math.pow(pensionCola, yearsFromStart));
+  // Held FLAT in real terms (owner decision 2026-05-28). The model is a REAL
+  // (inflation-adjusted) model; a nominal ~3% COLA roughly tracks inflation and
+  // is therefore ~constant in today's dollars — exactly like the SS streams,
+  // which are also held flat. Previously this grew by Math.pow(1.03, years),
+  // which double-counted inflation inside a real-dollar model (finding 2.1).
+  const pensionWithCola = Math.round(pensionMonthly);
   // Full pension while Chad is alive; survivor gets 50%
   return chadAlive ? pensionWithCola : Math.round(pensionWithCola * 0.5);
 }

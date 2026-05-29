@@ -25,9 +25,16 @@ export function computeSSTaxableAmount(annualSSBenefit, otherAGI) {
   );
   if (provisional <= SS_PROVISIONAL_THRESHOLD_2) return Math.round(tier1);
 
+  // IRS Pub 915 / 1040 SS Benefits Worksheet caps the tier-1 carry-in at
+  // 50% of the band between the two thresholds (= $6,000 MFJ). The full
+  // uncapped tier1 above overstates taxable SS when provisional > THRESHOLD_2.
+  const tier1AddBack = Math.min(
+    (SS_PROVISIONAL_THRESHOLD_2 - SS_PROVISIONAL_THRESHOLD_1) * SS_TAXABLE_TIER_1,
+    tier1
+  );
   const tier2 = Math.min(
     annualSSBenefit * SS_TAXABLE_TIER_2,
-    tier1 + (provisional - SS_PROVISIONAL_THRESHOLD_2) * 0.85
+    (provisional - SS_PROVISIONAL_THRESHOLD_2) * 0.85 + tier1AddBack
   );
   return Math.round(tier2);
 }

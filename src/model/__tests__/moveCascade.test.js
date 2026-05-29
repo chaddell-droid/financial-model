@@ -5,6 +5,7 @@
 import assert from 'node:assert';
 import { computeMoveCascade } from '../moveCascade.js';
 import { computeProjection } from '../projection.js';
+import { getEndingResourceValue } from '../projectionMetrics.js';
 import { gatherState, gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
@@ -261,20 +262,22 @@ console.log('\n=== cascade vs single-move sanity ===');
 test('14. Applying all cascade mutations yields the engine-claimed cumulative delta', () => {
   // Verifies the cascade's cumulative claim is achievable: if we manually apply
   // every rung's mutation through gatherState, the resulting projection should
-  // have finalBalance = baseline + lastRung.cumulativeFinalBalanceDelta.
+  // have total ending resources = baseline + lastRung.cumulativeFinalBalanceDelta.
+  // The cascade scores by total ending RESOURCES (savings + 401k + home equity),
+  // not savings-only — see finding 1.3 — so this check must use the same metric.
   const s = gatherStateWithOverrides({});
   const result = computeMoveCascade(s, 5);
   if (result.length === 0) return; // no cascade, nothing to verify
 
   const baselineProj = computeProjection(s);
-  const baselineFinal = baselineProj.monthlyData[baselineProj.monthlyData.length - 1].balance;
+  const baselineFinal = getEndingResourceValue(baselineProj.monthlyData);
 
   let composed = s;
   for (const rung of result) {
     composed = gatherState({ ...composed, ...rung.mutation });
   }
   const composedProj = computeProjection(composed);
-  const composedFinal = composedProj.monthlyData[composedProj.monthlyData.length - 1].balance;
+  const composedFinal = getEndingResourceValue(composedProj.monthlyData);
   const actualCumDelta = Math.round(composedFinal - baselineFinal);
   const claimedCumDelta = result[result.length - 1].cumulativeFinalBalanceDelta;
 

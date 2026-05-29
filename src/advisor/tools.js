@@ -570,7 +570,7 @@ export const TOOLS = Object.freeze([
   {
     name: 'getStockCompProjection',
     description:
-      'Return the steady-state W-2 + MSFT stock-comp diagnostic for Chad: salary net, bonus net, RSU refresh grown by MSFT growth, and hire-stock Y1-Y4 each grown to its vest year. Uses the SAME formulas as the on-screen W-2 Net Diagnostic in IncomeControls (shared source: src/model/w2Diagnostic.js, which mirrors projection.js). Use this when the user asks "how much will my MSFT stock comp be worth?", "what does my W-2 net look like?", or "how is hire stock taxed and grown?". If chadJob is false, returns jobNotEnabled=true with zero totals.',
+      'Return the steady-state W-2 + MSFT stock-comp diagnostic for Chad: salary net, bonus net, RSU refresh grown by MSFT growth, hire-stock Y1-Y4 each grown to its vest year, the one-time sign-on bonus (gross/net, 50% hire / 50% 1-yr — excluded from steady-state totals), total annual GROSS comp, and blended take-home %. Uses the SAME formulas as the on-screen W-2 Net Diagnostic in IncomeControls (shared source: src/model/w2Diagnostic.js, which mirrors projection.js). Use this when the user asks "how much will my MSFT stock comp be worth?", "what does my W-2 net look like?", "what fraction do I keep?", "what about my sign-on bonus?", or "how is hire stock taxed and grown?". If chadJob is false, returns jobNotEnabled=true with zero totals.',
     input_schema: STOCK_COMP_PROJECTION_SCHEMA,
     handler: (state, args = {}) => {
       const d = computeW2Diagnostic(state);
@@ -621,9 +621,29 @@ export const TOOLS = Object.freeze([
           hireGrownTotal: r(d.hireGrownTotal),
           hireNetAvgYr: r(d.hireNetAvgYr),
         },
+        // Sign-on cash — ONE-TIME (50% on hire, 50% on 1-yr anniversary), taxed with
+        // the active-employment bonus mult. Deliberately NOT included in totals below.
+        signOn: {
+          signOnGross: r(d.signOnGross),
+          signOnNet: r(d.signOnNet),
+        },
         totals: {
           totalAvgMo: r(d.totalAvgMo),
           totalAvgYr: r(d.totalAvgYr),
+          // Steady-state GROSS comp (excludes one-time sign-on) — the net denominator.
+          totalGrossYr: r(d.totalGrossYr),
+          blendedTakeHomePct: r2(d.blendedTakeHomePct),
+        },
+        // Real FICA breakdown computed by the tax engine on the W-2 gross (traceable;
+        // SS capped at the wage base, 0 under a non-FICA employer). Informational —
+        // not part of the net totals above.
+        fica: {
+          base: r(d.ficaBaseAnnual),
+          socialSecurity: r(d.ficaSocialSecurity),
+          medicare: r(d.ficaMedicare),
+          additionalMedicare: r(d.ficaAddlMedicare),
+          total: r(d.ficaAllInTotal),
+          effectivePct: r2(d.ficaEffectivePct),
         },
       };
       if (args.includeNotes) {

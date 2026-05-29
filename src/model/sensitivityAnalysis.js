@@ -1,6 +1,7 @@
 import { computeProjection, findOperationalBreakevenIndex } from './projection.js';
 import { gatherState } from '../state/gatherState.js';
 import { evaluateAllGoals } from './goalEvaluation.js';
+import { getEndingResourceValue } from './projectionMetrics.js';
 
 /**
  * "Your Top 3 Moves" / Sensitivity analysis.
@@ -13,7 +14,8 @@ import { evaluateAllGoals } from './goalEvaluation.js';
  *    (investment return, inflation, MSFT growth). Context, not actions.
  *
  * Impact metrics:
- *  • finalBalanceDelta — ending-horizon savings change (baseline vs. test)
+ *  • finalBalanceDelta — ending-horizon total RESOURCES change (savings +
+ *    401k + home equity; via getEndingResourceValue), baseline vs. test
  *  • breakevenMonthDelta — signed months; negative = earlier breakeven (good),
  *    positive = later (bad). Uses findOperationalBreakevenIndex.
  *
@@ -306,7 +308,11 @@ export function computeTopMoves(baseState, topN = 3) {
   const baseProj = computeProjection(baseState);
   const baseMonthly = baseProj.monthlyData;
   const baseQuarterly = baseProj.data;
-  const baseFinalBalance = baseMonthly[baseMonthly.length - 1].balance;
+  // Score by total ending RESOURCES (savings + 401k + home equity), not
+  // savings-only, so value-creating moves that shift money into the 401k/home
+  // buckets (e.g., 401(k) deferral capturing the employer match) are not
+  // filtered out as "negative" by the savings-only delta guard. See finding 1.3.
+  const baseFinalBalance = getEndingResourceValue(baseMonthly);
   // Pre-evaluate baseline goals so we can score goal-progress deltas per candidate.
   const baseGoals = Array.isArray(baseState.goals) ? baseState.goals : [];
   const baseGoalsEval = baseGoals.length > 0
@@ -323,8 +329,7 @@ export function computeTopMoves(baseState, topN = 3) {
     // `bcsFamilyMonthly` in place and the projection would charge the old share.
     const testState = gatherState({ ...baseState, ...cand.mutation });
     const testProj = computeProjection(testState);
-    const testMonthly = testProj.monthlyData;
-    const testFinalBalance = testMonthly[testMonthly.length - 1].balance;
+    const testFinalBalance = getEndingResourceValue(testProj.monthlyData);
 
     const finalBalanceDelta = testFinalBalance - baseFinalBalance;
     const breakevenMonthDelta = computeBreakevenMonthDelta(baseQuarterly, testProj.data);
@@ -443,7 +448,8 @@ function buildIncomePathwayCandidates(state) {
  */
 export function computeIncomePathways(baseState, topN = 3) {
   const baseProj = computeProjection(baseState);
-  const baseFinalBalance = baseProj.monthlyData[baseProj.monthlyData.length - 1].balance;
+  // Net-worth (total ending resources), not savings-only — see finding 1.3.
+  const baseFinalBalance = getEndingResourceValue(baseProj.monthlyData);
 
   const candidates = buildIncomePathwayCandidates(baseState);
   const results = [];
@@ -451,7 +457,7 @@ export function computeIncomePathways(baseState, topN = 3) {
   for (const cand of candidates) {
     const testState = gatherState({ ...baseState, ...cand.mutation });
     const testProj = computeProjection(testState);
-    const testFinalBalance = testProj.monthlyData[testProj.monthlyData.length - 1].balance;
+    const testFinalBalance = getEndingResourceValue(testProj.monthlyData);
     const finalBalanceDelta = testFinalBalance - baseFinalBalance;
 
     if (finalBalanceDelta <= 0) continue;
@@ -478,7 +484,8 @@ export function computeIncomePathways(baseState, topN = 3) {
  */
 export function computeSensitivities(baseState, topN = 2) {
   const baseProj = computeProjection(baseState);
-  const baseFinalBalance = baseProj.monthlyData[baseProj.monthlyData.length - 1].balance;
+  // Net-worth (total ending resources), not savings-only — see finding 1.3.
+  const baseFinalBalance = getEndingResourceValue(baseProj.monthlyData);
 
   const results = [];
   for (const sweep of SENSITIVITY_SWEEPS) {
@@ -488,7 +495,7 @@ export function computeSensitivities(baseState, topN = 2) {
     // Re-gather so derivations (e.g. inflation effect on baseExpenses) are fresh.
     const testState = gatherState({ ...baseState, [sweep.key]: baseValue + sweep.delta });
     const testProj = computeProjection(testState);
-    const testFinalBalance = testProj.monthlyData[testProj.monthlyData.length - 1].balance;
+    const testFinalBalance = getEndingResourceValue(testProj.monthlyData);
     const finalBalanceDelta = testFinalBalance - baseFinalBalance;
 
     results.push({

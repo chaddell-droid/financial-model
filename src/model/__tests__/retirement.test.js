@@ -17,6 +17,7 @@ import {
   getRetirementSSInfo,
   getRetirementIncomePlan,
   getRetirementPhaseSummary,
+  getPensionAtMonth,
   sliceRetirementContext,
 } from '../retirementIncome.js';
 import { getBlendedReturns, getNumCohorts } from '../historicalReturns.js';
@@ -712,6 +713,90 @@ test('worst cohort yields positive SWR with realistic parameters', () => {
   }
 
   assert.ok(minSWR > 0, `worst cohort SWR (${minSWR.toFixed(0)}) should be positive with realistic params`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section 10: Pension held FLAT in real terms (finding 2.1)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Pension Real-Dollar (no nominal COLA growth) ===');
+
+test('P1: pension at year 20 ~= pension at year 0 (no nominal COLA in a real model)', () => {
+  // Realistic fixture (~$800/mo PERS Plan 2), NOT the $5k headline.
+  // Previously this grew by 1.03^20 ≈ 1.806x; owner decision: hold flat in real terms like SS.
+  const pensionMonthly = 800;
+  const year0 = getPensionAtMonth(0, pensionMonthly, true);
+  const year20 = getPensionAtMonth(20 * 12, pensionMonthly, true);
+  near(year20, year0, 1, 'pension year 20 should ~= year 0 (flat in real terms)');
+  eq(year0, 800, 'pension year 0 = base monthly');
+});
+
+test('P2: pension is constant across the full couple-phase horizon (flat real)', () => {
+  const pensionMonthly = 800;
+  for (let yr = 0; yr <= 30; yr++) {
+    eq(getPensionAtMonth(yr * 12, pensionMonthly, true), 800,
+      `pension at year ${yr} should remain flat at 800`);
+  }
+});
+
+test('P3: survivor pension is exactly 50% and also flat in real terms', () => {
+  const pensionMonthly = 800;
+  eq(getPensionAtMonth(0, pensionMonthly, false), 400, 'survivor year 0 = 50%');
+  eq(getPensionAtMonth(20 * 12, pensionMonthly, false), 400, 'survivor year 20 = 50%, unchanged');
+});
+
+test('P4: zero pension stays zero', () => {
+  eq(getPensionAtMonth(120, 0, true), 0);
+  eq(getPensionAtMonth(120, 0, false), 0);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section 11: simulatePath credits guaranteed income at/below floor (finding 2.2)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== simulatePath floor is a hard clamp, not an income cutoff ===');
+
+test('S1: survivor-phase pool RECOVERS above floor when scaled spend < guaranteed income', () => {
+  // Survivor-phase fixture from report §2.2:
+  //   supplementalFlows = 5000/mo (guaranteed income)
+  //   scaling = 1.0 (couple) then 0.5 (survivor)
+  //   withdrawal = 9000/mo, pool0 = 10000, returns = 0, floor = 0
+  // Couple phase: net drain = 9000*1.0 - 5000 = 4000/mo -> hits floor fast.
+  // Survivor phase: net = 9000*0.5 - 5000 = -500/mo -> pool should RECOVER.
+  const T = 120;
+  const blended = zeros(T);                 // returns = 0
+  const flows = filled(T, 5000);            // guaranteed income 5000/mo
+  const scaling = new Float64Array(T);
+  for (let t = 0; t < T; t++) scaling[t] = t < 12 ? 1.0 : 0.5;
+  const sim = simulatePath(blended, 0, T, 9000, flows, scaling, 10_000, 0, zeros(T));
+
+  assert.ok(sim.finalPool > 0,
+    `survivor-phase pool should recover above 0, got ${sim.finalPool}`);
+  eq(sim.everDepleted, true, 'pool did touch the floor during the couple phase');
+});
+
+test('S2: guaranteed income is credited every month even after touching the floor', () => {
+  // Pure income, no withdrawal: once at floor, income must still accrue.
+  const T = 24;
+  const blended = zeros(T);
+  const flows = filled(T, 1000);            // 1000/mo guaranteed
+  const scaling = ones(T);
+  // Start at 0 (== floor) with no withdrawal: pool must climb from income.
+  const sim = simulatePath(blended, 0, T, 0, flows, scaling, 0, 0, zeros(T));
+  assert.ok(sim.finalPool > 0,
+    `income must accrue from the floor, got finalPool ${sim.finalPool}`);
+});
+
+test('S3: floor is still a hard clamp (pool never reported below floor)', () => {
+  const T = 24;
+  const blended = zeros(T);
+  const flows = zeros(T);                   // no guaranteed income
+  const scaling = ones(T);
+  // Big withdrawal, no income, no recovery: must clamp at floor, not go negative.
+  const sim = simulatePath(blended, 0, T, 50_000, flows, scaling, 10_000, 0, zeros(T));
+  for (const p of sim.yearlyPools) {
+    assert.ok(p >= 0, `pool snapshot ${p} should never be below floor 0`);
+  }
+  eq(sim.finalPool, 0, 'no income + heavy spend stays clamped at floor');
+  eq(sim.everDepleted, true);
 });
 
 // ════════════════════════════════════════════════════════════════════════

@@ -138,6 +138,22 @@ export function gatherState(state) {
   // never from LEVER_CLASSIFICATION directly.
   s.effectiveLeverConstraints = computeEffectiveLeverConstraints(s.leverConstraintsOverride);
 
+  // Finding 2.4: clamp Sarah's optimizer/curve bounds to the user's own
+  // scenario caps. The engine clamps the effective value at sarahMaxRate /
+  // sarahMaxClients (projection.js), so the impact curve is flat above the cap
+  // and the optimizer must not recommend an unachievable value above it.
+  // Guard min <= max so a tight cap never produces an inverted window.
+  if (s.effectiveLeverConstraints.sarahRate && typeof s.sarahMaxRate === 'number') {
+    const c = s.effectiveLeverConstraints.sarahRate;
+    c.max = Math.min(c.max, s.sarahMaxRate);
+    if (c.min > c.max) c.min = c.max;
+  }
+  if (s.effectiveLeverConstraints.sarahCurrentClients && typeof s.sarahMaxClients === 'number') {
+    const c = s.effectiveLeverConstraints.sarahCurrentClients;
+    c.max = Math.min(c.max, s.sarahMaxClients);
+    if (c.min > c.max) c.min = c.max;
+  }
+
   return s;
 }
 

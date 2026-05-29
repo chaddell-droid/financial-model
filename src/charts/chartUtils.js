@@ -116,6 +116,7 @@ export const INCOME_SOURCES = [
   { key: "msftVesting",   label: "MSFT Vesting",      color: "#ea580c" }, // orange-600 (warmer/redder than amber to separate from Trust)
   // ─── Entitlement (magenta) — sits above MSFT per user preference ───
   { key: "ssBenefit",     label: "SS Benefit",        color: "#ec4899" }, // pink-500
+  { key: "sarahSpousal",  label: "Sarah Spousal SS",  color: "#f9a8d4" }, // pink-300, lighter sibling of SS (same entitlement family)
   { key: "trustLLC",      label: "Trust / LLC",       color: "#f59e0b" }, // amber-500
   { key: "investReturn",  label: "Invest Returns",    color: "#fcd34d" }, // amber-300, lightest
 ];

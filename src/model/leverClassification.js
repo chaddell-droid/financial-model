@@ -14,6 +14,8 @@
  * effective bounds to downstream consumers (Phase 2 optimizer, slider UI).
  */
 
+import { SGA_LIMIT } from './constants.js';
+
 export const LEVER_CLASS = Object.freeze({
   BINARY: 'binary',
   BOUNDED_CONTINUOUS: 'bounded-continuous',
@@ -74,8 +76,10 @@ export const LEVER_CLASSIFICATION = Object.freeze({
   chadConsulting: {
     classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
     min: 0,
-    max: 1620, // SSDI Substantial Gainful Activity (SGA) cap — non-blind,
-    // 2025 value per SSA. Verify annually at ssa.gov/oact/cola/sga.html.
+    max: SGA_LIMIT, // SSDI Substantial Gainful Activity (SGA) cap — non-blind.
+    // Sourced from the engine constant (constants.js) so the optimizer bound and
+    // the projection clamp (projection.js, `Math.min(chadConsulting, SGA_LIMIT)`)
+    // can never drift apart. Verify annually at ssa.gov/oact/cola/sga.html.
     // Going above SGA triggers SSDI loss, which defeats the purpose of
     // marginal-income optimization. User can override via
     // `leverConstraintsOverride.chadConsulting.max` when SSA updates.

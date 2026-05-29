@@ -434,7 +434,15 @@ test('simulatePath flags intra-year depletion even if inheritance rescues later'
   rescueFlows[2] = 8000;
   const sim = simulatePath(blended, 0, 12, 600, supplementalFlows, scaling, 1000, 0, rescueFlows);
   eq(sim.everDepleted, true);
-  eq(sim.finalPool, 2600);
+  // Trajectory (floor 0, r=0, withdraw 600/mo):
+  //   m0: 1000-600 = 400; m1: 400-600 -> clamp 0 (depleted);
+  //   m2: 0 - 600 + 8000 (guaranteed income) + 8000 (rescue) = 15400;
+  //   m3..m11 (9 mo): 15400 - 9*600 = 10000.
+  // Finding 2.2 fix: guaranteed income (supplementalFlows[2]=8000) is now credited
+  // at the floor month too — previously ONLY the rescue flow was applied while at the
+  // floor, dropping the $8000 of guaranteed income, which under-stated the final pool
+  // (old value 2600 = the rescue-only path). everDepleted still flags the m1 dip.
+  eq(sim.finalPool, 10000);
 });
 test('simulatePath supports scheduled monthly withdrawals', () => {
   const blended = new Float64Array(12);

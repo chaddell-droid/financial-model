@@ -98,23 +98,21 @@ export function simulatePath(blended, start, T, monthlyW, supplementalFlows, sca
     for (let m = 0; m < 12; m++) {
       const t = y * 12 + m;
       const scheduledWithdrawal = hasWithdrawalSchedule ? monthlyW[t] : monthlyW;
-      if (pool > floor) {
-        pool = (pool - scheduledWithdrawal * scaling[t] + supplementalFlows[t]) * (1 + blended[start + t]);
-        if (pool < floor) pool = floor;
-        if (pool <= floor) everDepleted = true;
-        if (pool > floor) {
-          consecutiveDepleted = 0;
-        } else {
-          consecutiveDepleted++;
-          if (consecutiveDepleted > maxConsecutiveDepleted) maxConsecutiveDepleted = consecutiveDepleted;
-        }
-      } else {
+      // Apply guaranteed income (supplementalFlows) + any rescue flow + growth EVERY
+      // month — the floor is only a hard clamp, never an income cutoff. This matches
+      // the closed-form computeSWR (which always credits supplementalFlows) and
+      // pwaStrategies.js. Previously, once the pool touched the floor it was pinned
+      // forever and SS/pension/trust stopped accruing (finding 2.2), which made
+      // survivor-phase cohorts flatline even when scaled spend < guaranteed income.
+      const rescue = (rescueFlows && rescueFlows[t] > 0) ? rescueFlows[t] : 0;
+      pool = (pool - scheduledWithdrawal * scaling[t] + supplementalFlows[t] + rescue) * (1 + blended[start + t]);
+      if (pool < floor) pool = floor;
+      if (pool <= floor) {
         everDepleted = true;
         consecutiveDepleted++;
         if (consecutiveDepleted > maxConsecutiveDepleted) maxConsecutiveDepleted = consecutiveDepleted;
-        if (rescueFlows && rescueFlows[t] > 0) {
-          pool += rescueFlows[t];
-        }
+      } else {
+        consecutiveDepleted = 0;
       }
     }
   }

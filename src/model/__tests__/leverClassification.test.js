@@ -20,6 +20,7 @@ import {
   getOptimizerEligibleLevers,
   computeEffectiveLeverConstraints,
 } from '../leverClassification.js';
+import { SGA_LIMIT } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -102,9 +103,11 @@ test('9. cutsOverride bounds are 0-3000 (total aggressive cut ceiling)', () => {
   assert.strictEqual(LEVER_CLASSIFICATION.cutsOverride.max, 3000);
 });
 
-test('10. chadConsulting ceiling is SSDI SGA cap ($1,620 for 2025 non-blind)', () => {
+test('10. chadConsulting ceiling is the SSDI SGA cap (SGA_LIMIT, currently $1,690 for 2026 non-blind)', () => {
   assert.strictEqual(LEVER_CLASSIFICATION.chadConsulting.min, 0);
-  assert.strictEqual(LEVER_CLASSIFICATION.chadConsulting.max, 1620);
+  // Drift guard: the optimizer bound must track the engine's SGA_LIMIT constant,
+  // not a re-typed literal. (Finding 2.5 — bound was stale at 1620 vs engine 1690.)
+  assert.strictEqual(LEVER_CLASSIFICATION.chadConsulting.max, SGA_LIMIT);
 });
 
 test('11. chadJobStartMonth ceiling is 12 months (realistic W-2 planning window)', () => {
@@ -207,7 +210,7 @@ test('21. Null override yields workshop defaults for every optimizer-eligible le
   const eff = computeEffectiveLeverConstraints(null);
   assert.strictEqual(eff.sarahRate.min, 200);
   assert.strictEqual(eff.sarahRate.max, 300);
-  assert.strictEqual(eff.chadConsulting.max, 1620);
+  assert.strictEqual(eff.chadConsulting.max, SGA_LIMIT); // tracks engine SGA_LIMIT (Finding 2.5)
   // No binary or awareness-only leaks through
   assert.strictEqual(eff.retireDebt, undefined);
   assert.strictEqual(eff.investmentReturn, undefined);

@@ -18,7 +18,7 @@ function MiniIncomeExpenseChart({ monthlyDetail, ssType, onTabChange }) {
   const sources = buildIncomeSources(ssType);
 
   const maxIncome = Math.max(...data.map(d =>
-    d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) +
+    d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0) + (d.sarahSpousal || 0) +
     (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0)));
   const maxExpense = Math.max(...data.map(d => d.expenses));
   const stackMax = Math.max(maxIncome, maxExpense) * 1.1 || 1;

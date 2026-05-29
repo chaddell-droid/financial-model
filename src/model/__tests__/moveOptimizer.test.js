@@ -186,6 +186,37 @@ test('14. For a state at the lower bound, optimizer recommends moving up', () =>
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// User-cap clamping — optimizer must respect sarahMaxRate / sarahMaxClients
+// (Finding 2.4 — effective lever bounds must be clamped to the scenario caps)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== user-cap clamping (sarahMaxRate / sarahMaxClients) ===');
+
+test('15. sarahRate optimum on INITIAL_STATE respects sarahMaxRate cap', () => {
+  // INITIAL_STATE: sarahRate=200, sarahMaxRate=250. The engine clamps the
+  // effective rate at sarahMaxRate, so the impact curve is flat above 250 and
+  // the optimizer must not recommend a value above the user's own ceiling.
+  const s = gatherStateWithOverrides({});
+  const constraint = s.effectiveLeverConstraints.sarahRate;
+  const { value } = optimizeContinuousLever(s, 'sarahRate', constraint);
+  assert.ok(
+    value <= s.sarahMaxRate + 1e-6,
+    `optimizer recommended sarahRate ${value} above user cap ${s.sarahMaxRate}`,
+  );
+});
+
+test('16. sarahCurrentClients optimum on INITIAL_STATE respects sarahMaxClients cap', () => {
+  // INITIAL_STATE: sarahCurrentClients=3.75, sarahMaxClients=4.5. Engine clamps
+  // effective clients at sarahMaxClients; optimizer must not exceed it.
+  const s = gatherStateWithOverrides({});
+  const constraint = s.effectiveLeverConstraints.sarahCurrentClients;
+  const { value } = optimizeContinuousLever(s, 'sarahCurrentClients', constraint);
+  assert.ok(
+    value <= s.sarahMaxClients + 1e-6,
+    `optimizer recommended sarahCurrentClients ${value} above user cap ${s.sarahMaxClients}`,
+  );
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

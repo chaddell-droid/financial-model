@@ -274,6 +274,35 @@ test('14d. Mutations re-run gatherState (derived fields refresh)', () => {
   );
 });
 
+test('14e. enable_401k surfaces with POSITIVE net-worth delta in a solvent household (finding 1.3)', () => {
+  // Regression for finding 1.3: scoring must rank by total ending RESOURCES
+  // (savings + 401k + home equity), not savings-only final balance. A 401(k)
+  // deferral REDUCES take-home (savings) while the employer match + tax-deferred
+  // growth land in the segregated bal401k bucket. Scored savings-only, the move
+  // looks NEGATIVE and is filtered out at the `<= 0` guard, hiding the single
+  // best "free employer match" move. Scored on net worth, it is clearly positive.
+  const s = gatherStateWithOverrides({
+    chadJob: true,
+    chadJobSalary: 200000,
+    chadJobTaxRate: 30,
+    chadJobStartMonth: 0,
+    chadJob401kDeferral: 23000,
+    chadJob401kMatch: 12000,
+    startingSavings: 2_000_000,
+    starting401k: 100000,
+    return401k: 8,
+    chadWorkMonths: 60,
+    chadJob401kEnabled: false,
+  });
+  const moves = computeTopMoves(s, 10);
+  const k401 = moves.find(m => m.key === 'enable_401k');
+  assert.ok(k401, 'enable_401k should surface in a solvent household (was hidden by savings-only scoring)');
+  assert.ok(
+    k401.finalBalanceDelta > 0,
+    `enable_401k net-worth delta should be POSITIVE (free match + tax-deferred growth), got ${k401.finalBalanceDelta}`
+  );
+});
+
 test('15. No hardcoded parameter sweeps (sarahRate, etc.) in Tier 1', () => {
   // Top moves should NOT include things Chad doesn't control as levers.
   const s = gatherStateWithOverrides({});

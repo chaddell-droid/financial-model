@@ -8,6 +8,7 @@ import {
 } from './sensitivityAnalysis.js';
 import { evaluateAllGoals } from './goalEvaluation.js';
 import { optimizeContinuousLever } from './moveOptimizer.js';
+import { getEndingResourceValue } from './projectionMetrics.js';
 
 // ─── Continuous-lever candidate generation (Story 2.3) ─────────────────────
 // Conditional activation gates for continuous levers that only apply when a
@@ -217,7 +218,10 @@ export function computeMoveCascade(baseState, count = 3) {
   const baselineProj = computeProjection(baseState);
   const baselineMonthly = baselineProj.monthlyData;
   if (!baselineMonthly || baselineMonthly.length === 0) return [];
-  const baselineFinalBalance = baselineMonthly[baselineMonthly.length - 1].balance;
+  // Score by total ending RESOURCES (savings + 401k + home equity), not
+  // savings-only, so moves that shift value into the 401k/home buckets are not
+  // filtered out as "negative" by the savings-only delta guard. See finding 1.3.
+  const baselineFinalBalance = getEndingResourceValue(baselineMonthly);
   const baselineQuarterly = baselineProj.data;
 
   const results = [];
@@ -244,7 +248,7 @@ export function computeMoveCascade(baseState, count = 3) {
       const composedState = gatherState({ ...workingState, ...cand.mutation });
       const composedProj = computeProjection(composedState);
       const composedMonthly = composedProj.monthlyData;
-      const composedFinalBalance = composedMonthly[composedMonthly.length - 1].balance;
+      const composedFinalBalance = getEndingResourceValue(composedMonthly);
       const composedQuarterly = composedProj.data;
 
       // Marginal impact vs current working state — drives selection
@@ -291,8 +295,7 @@ export function computeMoveCascade(baseState, count = 3) {
     // Standalone reference: apply ONLY this move to the ORIGINAL baseline
     const standaloneState = gatherState({ ...baseState, ...best.cand.mutation });
     const standaloneProj = computeProjection(standaloneState);
-    const standaloneMonthly = standaloneProj.monthlyData;
-    const standaloneFinalBalance = standaloneMonthly[standaloneMonthly.length - 1].balance;
+    const standaloneFinalBalance = getEndingResourceValue(standaloneProj.monthlyData);
     const standaloneFinalDelta = Math.round(standaloneFinalBalance - baselineFinalBalance);
     const standaloneBreakevenDelta = computeBreakevenMonthDelta(baselineQuarterly, standaloneProj.data);
 

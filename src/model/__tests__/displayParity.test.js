@@ -10,6 +10,10 @@ import { runMonthlySimulation, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides, gatherState } from '../../state/gatherState.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
 import { DAYS_PER_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
+import { computeW2Diagnostic } from '../w2Diagnostic.js';
+import { projectedPostRetirementVests } from '../chadLevels.js';
+import { computeW2EmployeeFica, computeAdditionalMedicare } from '../taxEngine.js';
+import { SS_WAGE_BASE } from '../taxConstants.js';
 
 let passed = 0;
 let failed = 0;
@@ -576,6 +580,44 @@ test('D-Lever: IncomeCompositionChart total includes customLeverMonthly (FIX #6)
   }
 });
 
+test('D-Spousal: IncomeCompositionChart total includes sarahSpousal (FIX 2.3)', () => {
+  // FIX 2.3 (P2 display-parity): The IncomeCompositionChart computeTotal() and the
+  // maxIncome reducer omit Sarah's spousal SS, so the stacked bar / KPI under-report
+  // household income by exactly row.sarahSpousal on long-horizon SS scenarios.
+  // Engine truth (projection.js:517): cashIncomeSmoothed includes sarahSpousal.
+  // sarahSpousal becomes nonzero only after Sarah reaches her spousal claim age AND
+  // Chad has claimed (ssBenefit > 0) — invisible on the default 72-month horizon.
+  const overrides = { ssType: 'ss', sarahWorkMonths: 120, chadWorkMonths: 120, ssStartMonth: 18 };
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  const row = monthlyData.find(r => r.sarahSpousal > 0);
+  assert.ok(row, 'Fixture must produce a month with sarahSpousal > 0');
+  assert.ok(row.sarahSpousal > 0, `Expected sarahSpousal > 0, got ${row.sarahSpousal}`);
+
+  // Engine identity (projection.js:517) — cashIncomeSmoothed includes sarahSpousal.
+  const engineSum = row.sarahIncome + row.msftSmoothed + row.trustLLC + row.ssBenefit
+    + row.sarahSpousal + row.consulting + row.chadJobIncome + row.customLeverMonthly;
+  assert.strictEqual(engineSum, row.cashIncomeSmoothed,
+    `Engine identity: components incl. sarahSpousal (${engineSum}) must equal cashIncomeSmoothed (${row.cashIncomeSmoothed})`);
+
+  // OLD chart computeTotal() (pre-FIX 2.3) omitted sarahSpousal — prove it diverges.
+  // investReturn is deliberately NOT in cashIncomeSmoothed, so we strip it for parity.
+  const oldComputeTotal = (d) => d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0)
+    + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0) + (d.customLeverMonthly || 0);
+  const oldChartTotalNoInvest = oldComputeTotal(row) - (row.investReturn || 0);
+  assert.notStrictEqual(oldChartTotalNoInvest, row.cashIncomeSmoothed,
+    `OLD chart computeTotal (${oldChartTotalNoInvest}) MUST diverge from cashIncomeSmoothed (${row.cashIncomeSmoothed}) by sarahSpousal (${row.sarahSpousal})`);
+  assert.strictEqual(row.cashIncomeSmoothed - oldChartTotalNoInvest, row.sarahSpousal,
+    `OLD chart total is short by exactly sarahSpousal`);
+
+  // NEW chart computeTotal() (post-FIX 2.3) adds (d.sarahSpousal || 0) — must match engine.
+  const newComputeTotal = (d) => d.sarahIncome + d.msftSmoothed + (d.ssBenefit || 0) + (d.trustLLC || 0)
+    + (d.sarahSpousal || 0) + (d.chadJobIncome || 0) + d.consulting + (d.investReturn || 0) + (d.customLeverMonthly || 0);
+  const newChartTotalNoInvest = newComputeTotal(row) - (row.investReturn || 0);
+  assert.strictEqual(newChartTotalNoInvest, row.cashIncomeSmoothed,
+    `NEW chart computeTotal minus investReturn (${newChartTotalNoInvest}) must equal cashIncomeSmoothed (${row.cashIncomeSmoothed})`);
+});
+
 test('D-Sarah: SarahPracticeChart points match engine monthlyData[m].sarahIncome', () => {
   // Parity test for FIX M-Sarah: when SarahPracticeChart receives monthlyDetail,
   // its computed `net` for each month must equal the engine's row sarahIncome.
@@ -1041,6 +1083,230 @@ test('W2-10: degenerate inputs return finite numbers (no NaN)', () => {
   assert.ok(Number.isFinite(ui.hireNetAvgYr), `hireNetAvgYr must be finite, got ${ui.hireNetAvgYr}`);
   assert.ok(Number.isFinite(ui.monthlyHealthSavings), `monthlyHealthSavings must be finite`);
   assert.ok(Number.isFinite(ui.pensionCashflowMult), `pensionCashflowMult must be finite`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section: W-2 EXPORTED-function lock + post-retirement vest multiplier
+// (Part 2 §2c tests #1 and #8, plus completeness-field lock tests)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Section: W-2 exported function + post-ret multiplier ===');
+
+// Helper mirroring the panel/matrix POST-RETIREMENT vest net multiplier.
+// Engine truth: projection.js:115 chadJobBonusNetMultPostRet = 1 - taxRate (NO FICA
+// add-back — former-employer W-2 always withholds full FICA, so the active-employment
+// noFICA toggle does NOT carry over post-retirement). This is the multiplier the
+// IncomeControls windfall summary (~L388-391) and vest-matrix subtotals (~L444-446,
+// L454) MUST use. The pre-fix code used (1 - tax + ficaSavings).
+function postRetVestNetMult(taxRatePct) {
+  return 1 - taxRatePct / 100;
+}
+
+test('W2-8b (Bug 1.2): post-ret vest net uses (1 − tax), NOT (1 − tax + 0.062), with noFICA=true', () => {
+  // Reproduces finding 1.2. State from the report numeric example.
+  const overrides = {
+    chadJob: true, chadJobNoFICA: true, chadJobTaxRate: 25, chadJobStockRefresh: 100000,
+    chadJobStartMonth: 0, chadRetirementMonth: 60, chadCurrentAge: 62,
+    chadJobRefreshStartMonth: 12, msftGrowth: 0,
+  };
+  const gross = projectedPostRetirementVests(overrides).grossWindfall;
+  assert.ok(gross > 0, `Fixture must produce a post-retirement windfall, got ${gross}`);
+  // Correct (engine-consistent) net multiplier: 1 − tax, no FICA add-back.
+  const correctNet = Math.round(gross * postRetVestNetMult(25));
+  // The WRONG (active-employment) net the panel used to compute.
+  const wrongNet = Math.round(gross * (1 - 0.25 + 0.062));
+  assert.notStrictEqual(correctNet, wrongNet,
+    `Fixture must distinguish correct vs FICA-add-back net (both ${correctNet}) — needs noFICA on`);
+  // This is the value the panel MUST now display (post-fix).
+  const netWindfall = Math.round(gross * postRetVestNetMult(effOverride(overrides)));
+  assert.strictEqual(netWindfall, correctNet,
+    `Post-ret windfall net must be round(gross × (1 − tax)) = ${correctNet}, got ${netWindfall}`);
+  assert.notStrictEqual(netWindfall, wrongNet,
+    `Post-ret windfall net must NOT include the 6.2% FICA add-back (${wrongNet})`);
+});
+
+// Local helper: resolve effective tax rate the same way IncomeControls does.
+function effOverride(o) { return o.chadJobTaxRate ?? 25; }
+
+test('W2-REAL (§2c#1): EXPORTED computeW2Diagnostic field-by-field for the W2-7 audit input', () => {
+  // Same input as W2-7 (the audit screenshot). Lock the REAL exported function,
+  // not the re-implemented computeUiW2Diagnostic copy.
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
+    chadJobBonusPct: 20, chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0, chadJobHealthSavings: 4200,
+    ssType: 'ssdi', ssdiFamilyTotal: 6321, ssdiPersonal: 4214,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const d = computeW2Diagnostic(s);
+
+  // Salary walk: 180000/12 = 15000; − 24500/12 = 2041.67 → taxable 12958.33;
+  // × 0.75 = 9718.75; − 11250/12 = 937.5 → 8781.25 → round 8781.
+  assert.strictEqual(d.salaryNetMo, 8781, `salaryNetMo expected 8781, got ${d.salaryNetMo}`);
+  assert.strictEqual(d.annualSalaryNet, 8781 * 12, `annualSalaryNet expected ${8781 * 12}, got ${d.annualSalaryNet}`);
+  // Bonus: 180000 × 0.20 = 36000 gross × 0.75 = 27000.
+  assert.strictEqual(Math.round(d.bonusGrossYr), 36000, `bonusGrossYr expected 36000, got ${d.bonusGrossYr}`);
+  assert.strictEqual(Math.round(d.bonusNetYr), 27000, `bonusNetYr expected 27000, got ${Math.round(d.bonusNetYr)}`);
+  // Refresh: g=0 → mult 1; 40000 × 0.75 = 30000.
+  assert.strictEqual(d.refreshSteadyMult, 1, `refreshSteadyMult expected 1 (g=0), got ${d.refreshSteadyMult}`);
+  assert.strictEqual(Math.round(d.refreshNetYrSteady), 30000, `refreshNetYrSteady expected 30000, got ${Math.round(d.refreshNetYrSteady)}`);
+  // Hire: g=0 → grownTotal 160000; × 0.75 / 4 = 30000.
+  assert.strictEqual(Math.round(d.hireNetAvgYr), 30000, `hireNetAvgYr expected 30000, got ${Math.round(d.hireNetAvgYr)}`);
+  // Pension cashflow: 0 (no pension contrib).
+  assert.strictEqual(Math.round(d.pensionCashflowMo), 0, `pensionCashflowMo expected 0, got ${d.pensionCashflowMo}`);
+  // Monthly health: 4200/12 = 350.
+  assert.strictEqual(d.monthlyHealthSavings, 350, `monthlyHealthSavings expected 350, got ${d.monthlyHealthSavings}`);
+  // Total avg: (105372 + 27000 + 30000 + 30000) / 12 = 16031.
+  assert.strictEqual(d.totalAvgMo, 16031, `totalAvgMo expected 16031, got ${d.totalAvgMo}`);
+
+  // Engine parity: month-0 salary net must equal the exported diagnostic salaryNetMo.
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[0].chadJobSalaryNet, d.salaryNetMo,
+    `Engine month-0 chadJobSalaryNet (${monthlyData[0].chadJobSalaryNet}) must equal exported salaryNetMo (${d.salaryNetMo})`);
+});
+
+test('W2-REAL-parity: exported computeW2Diagnostic agrees with computeUiW2Diagnostic copy', () => {
+  // Field-by-field equality between the two implementations (closes §2a#3 drift gap).
+  const cases = [
+    { chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJobBonusPct: 20, chadJobStockRefresh: 40000, chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000, msftGrowth: 0, chadJobHealthSavings: 4200 },
+    { chadJob: true, chadJobSalary: 120000, chadJobTaxRate: 28, chadJobNoFICA: true, chadJobPensionContrib: 5, chadJobStockRefresh: 50000, msftGrowth: 10, chadJobHealthSavings: 6000 },
+    { chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 22, chadJobHireStockY1: 10000, chadJobHireStockY2: 20000, msftGrowth: 8 },
+  ];
+  for (const o of cases) {
+    const ui = computeUiW2Diagnostic(o);
+    const d = computeW2Diagnostic(gatherStateWithOverrides(o));
+    near(d.salaryNetMo, ui.salaryNetMo, 0, 'salaryNetMo');
+    near(d.annualSalaryNet, ui.annualSalaryNet, 0, 'annualSalaryNet');
+    near(d.bonusNetYr, ui.bonusNetYr, 1e-6, 'bonusNetYr');
+    near(d.refreshNetYrSteady, ui.refreshNetYr, 1e-6, 'refreshNetYr');
+    near(d.hireNetAvgYr, ui.hireNetAvgYr, 1e-6, 'hireNetAvgYr');
+    near(d.refreshSteadyMult, ui.refreshSteadyMult, 1e-9, 'refreshSteadyMult');
+    near(d.pensionCashflowMult, ui.pensionCashflowMult, 1e-9, 'pensionCashflowMult');
+    near(d.totalAvgMo, ui.totalAvgMo, 0, 'totalAvgMo');
+    near(d.monthlyHealthSavings, ui.monthlyHealthSavings, 1e-9, 'monthlyHealthSavings');
+  }
+});
+
+test('W2-SignOn: computeW2Diagnostic returns signOnGross/signOnNet, kept OUT of totalAvgYr', () => {
+  // Sign-on: 50% on hire + 50% at 1-yr, both taxed with the active bonus mult.
+  // The diagnostic surfaces the FULL sign-on (both halves) as a one-time, NON-steady line.
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000, chadJobSignOnCash: 100000, msftGrowth: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const d = computeW2Diagnostic(s);
+  assert.strictEqual(d.signOnGross, 100000, `signOnGross expected 100000, got ${d.signOnGross}`);
+  // bonusMult = 1 − 0.25 = 0.75 → 75000 net.
+  assert.strictEqual(Math.round(d.signOnNet), 75000, `signOnNet expected 75000, got ${Math.round(d.signOnNet)}`);
+  // Must NOT be folded into the steady-state total.
+  const dNoSignOn = computeW2Diagnostic(gatherStateWithOverrides({ ...overrides, chadJobSignOnCash: 0 }));
+  assert.strictEqual(d.totalAvgYr, dNoSignOn.totalAvgYr,
+    `Sign-on must NOT change totalAvgYr (steady state): ${d.totalAvgYr} vs ${dNoSignOn.totalAvgYr}`);
+  assert.strictEqual(d.totalAvgMo, dNoSignOn.totalAvgMo,
+    `Sign-on must NOT change totalAvgMo (steady state)`);
+});
+
+test('W2-SignOn-engine: diagnostic signOnNet matches engine sign-on halves (50/50)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobSignOnCash: 100000, msftGrowth: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const d = computeW2Diagnostic(s);
+  const { monthlyData } = runMonthlySimulation(s);
+  // Engine pays 50% at month 0, 50% at month 12 (each × bonus mult). Sum = full sign-on net.
+  const m0 = monthlyData[0].chadJobSignOnNet || 0;
+  const m12 = monthlyData[12].chadJobSignOnNet || 0;
+  assert.ok(m0 > 0 && m12 > 0, `Engine should pay sign-on at m0 (${m0}) and m12 (${m12})`);
+  assert.strictEqual(m0 + m12, Math.round(d.signOnNet),
+    `Engine sign-on halves (${m0 + m12}) must equal diagnostic signOnNet (${Math.round(d.signOnNet)})`);
+});
+
+test('W2-GrossTotal: computeW2Diagnostic returns totalGrossYr = salary + bonus + refresh×mult + hireGrown', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const d = computeW2Diagnostic(s);
+  const expected = 180000 + d.bonusGrossYr + 40000 * d.refreshSteadyMult + d.hireGrownTotal;
+  near(d.totalGrossYr, expected, 1e-6, 'totalGrossYr');
+  // g=0: 180000 + 36000 + 40000 + 160000 = 416000.
+  assert.strictEqual(Math.round(d.totalGrossYr), 416000, `totalGrossYr expected 416000, got ${Math.round(d.totalGrossYr)}`);
+  // Sign-on is NOT part of steady-state gross either.
+  const dSignOn = computeW2Diagnostic(gatherStateWithOverrides({ ...overrides, chadJobSignOnCash: 100000 }));
+  assert.strictEqual(Math.round(dSignOn.totalGrossYr), 416000, `Sign-on must not change totalGrossYr`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section W2-FICA: real, traceable FICA breakdown (replaces fabricated 6.2/1.45 labels)
+// The diagnostic must surface FICA dollars computed by the tax engine on Chad's
+// steady-state W-2 gross (Box 3/5 = totalGrossYr), NOT hardcoded statutory rates.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Section W2-FICA: real FICA breakdown ===');
+
+test('W2-FICA: SS/Medicare/Addl computed on the W-2 gross via the tax engine', () => {
+  // Fixture matches W2-GrossTotal: totalGrossYr = 416,000 at g=0.
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0,
+  };
+  const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
+  assert.strictEqual(Math.round(d.ficaBaseAnnual), 416000, 'FICA base = steady-state W-2 gross');
+  // SS: min(gross, wage base) × 6.2%  → min(416000, 184500) × 0.062 = 11,439
+  near(d.ficaSocialSecurity, SS_WAGE_BASE * 0.062, 1e-6, 'ficaSocialSecurity');
+  assert.strictEqual(Math.round(d.ficaSocialSecurity), 11439, 'SS capped at wage base');
+  // Medicare: gross × 1.45% = 6,032
+  near(d.ficaMedicare, 416000 * 0.0145, 1e-6, 'ficaMedicare');
+  assert.strictEqual(Math.round(d.ficaMedicare), 6032, 'Medicare uncapped');
+  // Additional Medicare: 0.9% over $250k = (416000 − 250000) × 0.009 = 1,494
+  assert.strictEqual(Math.round(d.ficaAddlMedicare), 1494, 'Additional Medicare over threshold');
+});
+
+test('W2-FICA: reconciles exactly with taxEngine.computeW2EmployeeFica (single source)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0,
+  };
+  const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
+  const fica = computeW2EmployeeFica(d.ficaBaseAnnual, false);
+  const aml = computeAdditionalMedicare({ w2Wages: d.ficaBaseAnnual, seBase: 0 });
+  near(d.ficaSocialSecurity, fica.ssTax, 1e-6, 'SS matches engine');
+  near(d.ficaMedicare, fica.medTax, 1e-6, 'Medicare matches engine');
+  near(d.ficaTotal, fica.ficaTax, 1e-6, 'ficaTotal = engine ficaTax (SS + base Medicare)');
+  near(d.ficaAddlMedicare, aml.addlMedicare, 1e-6, 'addl Medicare matches engine');
+});
+
+test('W2-FICA: no-FICA employer suppresses SS but keeps Medicare', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0, chadJobNoFICA: true,
+  };
+  const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
+  assert.strictEqual(d.ficaSocialSecurity, 0, 'no SS withheld under a non-FICA employer');
+  assert.strictEqual(Math.round(d.ficaMedicare), 6032, 'Medicare still applies');
+});
+
+test('W2-FICA: adding the breakdown does NOT change net totals (engine parity preserved)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0,
+  };
+  const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
+  // totalAvgYr is still ONLY the four steady-state net components — FICA is informational.
+  near(d.totalAvgYr, d.annualSalaryNet + d.bonusNetYr + d.refreshNetYrSteady + d.hireNetAvgYr, 1e-6, 'totalAvgYr unchanged');
 });
 
 // ════════════════════════════════════════════════════════════════════════

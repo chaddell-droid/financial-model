@@ -382,9 +382,14 @@ test('C31: All income arrays have non-negative values', () => {
   }
 });
 
-test('C32: Pension income grows over time (COLA 3%/yr): pensionIncome[120] > pensionIncome[0]', () => {
-  assert.ok(retCtx.pensionIncome[120] > retCtx.pensionIncome[0],
-    `pensionIncome[120] ${retCtx.pensionIncome[120]} should be > pensionIncome[0] ${retCtx.pensionIncome[0]}`);
+test('C32: Pension income is FLAT in real terms (owner decision 2026-05-28): pensionIncome[120] === pensionIncome[0]', () => {
+  // This is a REAL (inflation-adjusted) model. A nominal ~3% COLA roughly tracks
+  // inflation, so the pension is ~constant in today's dollars — held flat like the
+  // SS streams (finding 2.1). Months 0 and 120 are both in the couple phase here
+  // (survivorStartMonth = (85-67)*12 = 216), so both equal the full base pension.
+  assert.strictEqual(retCtx.pensionIncome[120], retCtx.pensionIncome[0],
+    `pensionIncome[120] ${retCtx.pensionIncome[120]} should equal pensionIncome[0] ${retCtx.pensionIncome[0]} (flat real-dollar pension)`);
+  assert.strictEqual(retCtx.pensionIncome[0], 800, 'base pension = 800/mo in real dollars');
 });
 
 test("C33: phases array contains only 'couple' and 'survivor' values", () => {

@@ -21,6 +21,7 @@
  *   - Hire stock Y1-Y4 vest on anniversaries; each scaled by (1+g)^n
  *     (engine: projection.js:253 via msftMultIssueToVest).
  */
+import { computeW2EmployeeFica, computeAdditionalMedicare } from './taxEngine.js';
 
 /**
  * Compute the W-2 steady-state diagnostic from gathered state.
@@ -47,6 +48,7 @@ export function computeW2Diagnostic(state) {
   const chadJob401kDeferral = chadJob401kEnabled ? (state.chadJob401kDeferral || 0) : 0;
   const chadJob401kCatchupRoth = chadJob401kEnabled ? (state.chadJob401kCatchupRoth || 0) : 0;
   const chadJobPensionContrib = state.chadJobPensionContrib || 0;
+  const chadJobSignOnCash = state.chadJobSignOnCash || 0;
   const msftGrowth = state.msftGrowth || 0;
 
   // ─── Derived multipliers ──────────────────────────────────────────────────
@@ -87,9 +89,40 @@ export function computeW2Diagnostic(state) {
                        + chadJobHireStockY4 * Math.pow(1 + growth, 4);
   const hireNetAvgYr = hireGrownTotal * bonusMult / 4;
 
+  // ─── Sign-on cash (ONE-TIME, non-steady) ──────────────────────────────────
+  // Engine (projection.js:261-266): 50% paid on hire month, 50% on 1-yr anniversary,
+  // each taxed with the active-employment bonus multiplier. The diagnostic surfaces
+  // the FULL sign-on (both halves) as a one-time line. This is deliberately NOT
+  // folded into totalAvgYr/totalAvgMo (those are the recurring steady-state numbers).
+  const signOnGross = chadJobSignOnCash;
+  const signOnNet = chadJobSignOnCash * bonusMult;
+
   // ─── Totals ───────────────────────────────────────────────────────────────
   const totalAvgYr = annualSalaryNet + bonusNetYr + refreshNetYr + hireNetAvgYr;
   const totalAvgMo = Math.round(totalAvgYr / 12);
+  // Total annual GROSS comp (steady state, excludes one-time sign-on) — the
+  // denominator for the net total. Mirrors the components rolled into totalAvgYr.
+  const totalGrossYr = effectiveSalary + bonusGrossYr + chadJobStockRefresh * refreshSteadyMult + hireGrownTotal;
+  // Blended steady-state take-home fraction (net ÷ gross). Guard divide-by-zero.
+  const blendedTakeHomePct = totalGrossYr > 0 ? totalAvgYr / totalGrossYr : 0;
+
+  // ─── Real FICA breakdown (traceable, computed by the tax engine) ──────────
+  // The flat salary/bonus multiplier above bundles income tax + FICA into one
+  // effective rate. FICA itself is exact and depends ONLY on Chad's gross W-2
+  // wages (Box 3/5 = full steady-state gross, excl. one-time sign-on), so we
+  // compute it precisely here via the same functions the Tax tab uses:
+  //   SS       = min(gross, SS_WAGE_BASE) × 6.2%   (0 when noFICA employer)
+  //   Medicare = gross × 1.45%
+  //   Addl Med = (gross − $250k)₊ × 0.9%
+  // These are informational — they are NOT folded into the net totals above
+  // (those keep the flat-multiplier engine-parity formula).
+  const ficaBaseAnnual = totalGrossYr;
+  const { ssTax: ficaSocialSecurity, medTax: ficaMedicare, ficaTax: ficaTotal } =
+    computeW2EmployeeFica(ficaBaseAnnual, chadJobNoFICA);
+  const { addlMedicare: ficaAddlMedicare } =
+    computeAdditionalMedicare({ w2Wages: ficaBaseAnnual, seBase: 0 });
+  const ficaAllInTotal = ficaTotal + ficaAddlMedicare;
+  const ficaEffectivePct = ficaBaseAnnual > 0 ? ficaAllInTotal / ficaBaseAnnual : 0;
 
   // ─── Monthly health benefit equivalent (used by SSDI comparison) ─────────
   const monthlyHealthSavings = effectiveHealthSavings / 12;
@@ -111,6 +144,7 @@ export function computeW2Diagnostic(state) {
     chadJob401kDeferral,
     chadJob401kCatchupRoth,
     chadJobPensionContrib,
+    chadJobSignOnCash,
     msftGrowth,
 
     // Multipliers
@@ -118,6 +152,21 @@ export function computeW2Diagnostic(state) {
     bonusMult,
     pensionCashflowMult,
     refreshSteadyMult,
+    // The salary/bonus net mult is a FLAT all-in effective-rate approximation (the
+    // single chadJobTaxRate bundles income tax + FICA). This is the user's assumption;
+    // multIncomeTaxPct exposes it. The precise federal/FICA/state split comes from the
+    // Tax-tab engine (taxEngine.js / taxProjection.js) — surfaced via the real FICA
+    // fields below and the chadTaxBreakdown prop threaded into IncomeControls.
+    multIncomeTaxPct: effectiveTaxRate,        // the flat all-in effective rate assumption, %
+
+    // Real FICA breakdown (computed by the tax engine on the W-2 gross — traceable)
+    ficaBaseAnnual,            // Box 3/5 wages the FICA figures are computed on
+    ficaSocialSecurity,        // min(gross, SS_WAGE_BASE) × 6.2% (0 if noFICA employer)
+    ficaMedicare,              // gross × 1.45%
+    ficaAddlMedicare,          // (gross − $250k)₊ × 0.9%
+    ficaTotal,                 // SS + base Medicare (= computeW2EmployeeFica.ficaTax)
+    ficaAllInTotal,            // ficaTotal + additional Medicare
+    ficaEffectivePct,          // ficaAllInTotal ÷ gross
 
     // Salary walk
     monthlyGross,
@@ -140,9 +189,15 @@ export function computeW2Diagnostic(state) {
     hireGrownTotal,
     hireNetAvgYr,
 
+    // Sign-on cash (one-time, NON-steady — not in totals)
+    signOnGross,
+    signOnNet,
+
     // Totals
     totalAvgYr,
     totalAvgMo,
+    totalGrossYr,
+    blendedTakeHomePct,
 
     // Health
     monthlyHealthSavings,

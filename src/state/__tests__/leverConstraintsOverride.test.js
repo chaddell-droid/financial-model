@@ -59,18 +59,26 @@ test('2. Reducer clears override to null', () => {
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== gatherState effectiveLeverConstraints ===');
 
-test('3. gatherState with null override returns workshop defaults', () => {
+test('3. gatherState with null override returns workshop defaults, clamped to user cap', () => {
+  // Finding 2.4: effective sarahRate.max is clamped to the scenario's
+  // sarahMaxRate. INITIAL_STATE sarahMaxRate=250, so the workshop default of
+  // 300 is clamped down to 250. Raising the cap above 300 leaves the workshop
+  // default intact.
   const s = gatherStateWithOverrides({ leverConstraintsOverride: null });
   assert.strictEqual(s.effectiveLeverConstraints.sarahRate.min, 200);
-  assert.strictEqual(s.effectiveLeverConstraints.sarahRate.max, 300);
+  assert.strictEqual(s.effectiveLeverConstraints.sarahRate.max, 250); // clamped to sarahMaxRate (was 300)
+
+  const sHighCap = gatherStateWithOverrides({ leverConstraintsOverride: null, sarahMaxRate: 400 });
+  assert.strictEqual(sHighCap.effectiveLeverConstraints.sarahRate.max, 300); // workshop default (cap not binding)
 });
 
-test('4. gatherState merges partial override (min only) with default max', () => {
+test('4. gatherState merges partial override (min only) with default max, clamped to user cap', () => {
   const s = gatherStateWithOverrides({
     leverConstraintsOverride: { sarahRate: { min: 220 } },
   });
   assert.strictEqual(s.effectiveLeverConstraints.sarahRate.min, 220);
-  assert.strictEqual(s.effectiveLeverConstraints.sarahRate.max, 300); // default
+  // default max 300, clamped to INITIAL_STATE sarahMaxRate=250 (Finding 2.4)
+  assert.strictEqual(s.effectiveLeverConstraints.sarahRate.max, 250);
 });
 
 test('5. gatherState merges partial override (max only) with default min', () => {
@@ -81,12 +89,21 @@ test('5. gatherState merges partial override (max only) with default min', () =>
   assert.strictEqual(s.effectiveLeverConstraints.chadConsulting.max, 1700);
 });
 
-test('6. gatherState merges full override (min + max)', () => {
+test('6. gatherState merges full override (min + max), clamped to user cap', () => {
+  // Override sets max=350 but the scenario sarahMaxRate caps the achievable
+  // value; with a high enough sarahMaxRate the override max survives unclamped.
   const s = gatherStateWithOverrides({
     leverConstraintsOverride: { sarahRate: { min: 250, max: 350 } },
+    sarahMaxRate: 350,
   });
   assert.strictEqual(s.effectiveLeverConstraints.sarahRate.min, 250);
   assert.strictEqual(s.effectiveLeverConstraints.sarahRate.max, 350);
+
+  // With the default INITIAL_STATE cap (250), the same override max is clamped.
+  const sClamped = gatherStateWithOverrides({
+    leverConstraintsOverride: { sarahRate: { min: 250, max: 350 } },
+  });
+  assert.strictEqual(sClamped.effectiveLeverConstraints.sarahRate.max, 250); // clamped to sarahMaxRate (Finding 2.4)
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -95,11 +112,14 @@ test('6. gatherState merges full override (min + max)', () => {
 console.log('\n=== optimizer respects override ===');
 
 test('7. Optimizer output differs with different override bounds', () => {
-  const sDefault = gatherStateWithOverrides({});
+  // sarahMaxRate raised to 300 so the workshop default ceiling (300) is the
+  // binding cap for the default case (Finding 2.4 clamps to sarahMaxRate).
+  const sDefault = gatherStateWithOverrides({ sarahMaxRate: 300 });
   const defaultBounds = sDefault.effectiveLeverConstraints.sarahRate;
   const defaultResult = optimizeContinuousLever(sDefault, 'sarahRate', defaultBounds);
 
   const sTighter = gatherStateWithOverrides({
+    sarahMaxRate: 300,
     leverConstraintsOverride: { sarahRate: { min: 200, max: 250 } }, // tighter cap
   });
   const tighterBounds = sTighter.effectiveLeverConstraints.sarahRate;

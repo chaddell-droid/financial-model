@@ -7,6 +7,7 @@ import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { levelAtMonthsWorked, age65VestEligibility, projectedPostRetirementVests, vestSchedule } from '../model/chadLevels.js';
 import { computeW2Diagnostic } from '../model/w2Diagnostic.js';
+import { SS_WAGE_BASE } from '../model/taxConstants.js';
 
 const IncomeControls = ({
   ssType,
@@ -33,6 +34,7 @@ const IncomeControls = ({
   hideTrust = false,
   hideStockComp = false,
   onFieldChange,
+  chadTaxBreakdown,
 }) => {
   useRenderMetric('IncomeControls');
   const set = onFieldChange;
@@ -53,7 +55,7 @@ const IncomeControls = ({
     chadJobBonusPct, chadJobStockRefresh, chadJobRefreshStartMonth,
     chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
     chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth,
-    chadJobPensionContrib, msftGrowth,
+    chadJobPensionContrib, chadJobSignOnCash, msftGrowth,
   });
   const w2SalaryMult = _w2.salaryMult;
   const w2BonusMult = _w2.bonusMult;
@@ -75,8 +77,19 @@ const IncomeControls = ({
   const w2HireGrownTotal = _w2.hireGrownTotal;
   const w2HireNetAvgYr = _w2.hireNetAvgYr;
   const w2RefreshNetYr = _w2.refreshNetYrSteady;
+  // Real FICA breakdown (computed by the tax engine on the W-2 gross — traceable).
+  const w2FicaBaseAnnual = _w2.ficaBaseAnnual;
+  const w2FicaSS = _w2.ficaSocialSecurity;
+  const w2FicaMedicare = _w2.ficaMedicare;
+  const w2FicaAddlMedicare = _w2.ficaAddlMedicare;
+  const w2FicaAllInTotal = _w2.ficaAllInTotal;
+  const w2FicaEffectivePct = _w2.ficaEffectivePct;
   const w2TotalAvgYr = _w2.totalAvgYr;
   const w2TotalAvgMo = _w2.totalAvgMo;
+  const w2TotalGrossYr = _w2.totalGrossYr;
+  const w2BlendedTakeHomePct = _w2.blendedTakeHomePct;
+  const w2SignOnGross = _w2.signOnGross;
+  const w2SignOnNet = _w2.signOnNet;
   // chadJobMonthlyNet preserved for legacy display callers.
   const chadJobMonthlyNet = w2SalaryNetMo;
   const monthlyHealthSavings = _w2.monthlyHealthSavings;
@@ -254,7 +267,7 @@ const IncomeControls = ({
                           );
                         })()}
                         <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
-                          {chadJobPensionRate}% × {(Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, +3%/yr COLA
+                          {chadJobPensionRate}% × {(Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, flat in today's $ (COLA ≈ inflation)
                         </div>
                       </>
                     )}
@@ -386,9 +399,12 @@ const IncomeControls = ({
                             };
                             const w = projectedPostRetirementVests(synthState);
                             const taxRateDec = effectiveTaxRate / 100;
-                            const ficaPctDec = chadJobNoFICA ? 0.062 : 0;
-                            const bonusMult = 1 - taxRateDec + ficaPctDec;
-                            const netWindfall = Math.round(w.grossWindfall * bonusMult);
+                            // Post-retirement vests come from the FORMER employer's W-2, which
+                            // ALWAYS withholds full FICA — the active-employment noFICA toggle does
+                            // NOT carry over (mirrors projection.js:115 chadJobBonusNetMultPostRet).
+                            // So NO 6.2% FICA add-back here, unlike the in-employment bonus mult.
+                            const postRetNetMult = 1 - taxRateDec;
+                            const netWindfall = Math.round(w.grossWindfall * postRetNetMult);
                             const hasGrants = w.grossWindfall > 0 || w.forfeitedGrants > 0;
                             return (
                               <div style={{ marginTop: 6, padding: "6px 8px", background: hasGrants ? "#1a3a2a" : "#3a2e1a", borderRadius: 4, border: `1px solid ${hasGrants ? COLORS.greenDark : COLORS.amber}55`, fontSize: 10, color: hasGrants ? COLORS.greenDark : COLORS.amber, lineHeight: 1.5 }}>
@@ -443,7 +459,11 @@ const IncomeControls = ({
                     // Display NET dollars (after tax) — matches how user thinks of cashflow.
                     const taxRateDec = effectiveTaxRate / 100;
                     const ficaPctDec = chadJobNoFICA ? 0.062 : 0;
+                    // In-employment vests use the active net mult (with FICA add-back when noFICA).
                     const netMult = 1 - taxRateDec + ficaPctDec;
+                    // Post-retirement vests come from the FORMER employer's W-2 — full FICA always
+                    // withheld, so NO add-back (mirrors projection.js:115 chadJobBonusNetMultPostRet).
+                    const postRetNetMult = 1 - taxRateDec;
                     const fmtCell = (v) => v > 0 ? '$' + (v / 1000).toFixed(2) + 'K' : '—';
                     const fmtTotal = (v) => v > 0 ? '$' + (v / 1000).toFixed(2) + 'K' : '—';
 
@@ -451,7 +471,7 @@ const IncomeControls = ({
                     // (vm > retMonth) so partial years are handled correctly. The Y? (post-ret)
                     // shading and (retire mid-yr) tag are driven by sched.postRetYearTotals,
                     // which keeps shading and subtotals consistent.
-                    const postRetTotalsByGrant = activeGrants.map(g => (g.postRetGross || 0) * netMult);
+                    const postRetTotalsByGrant = activeGrants.map(g => (g.postRetGross || 0) * postRetNetMult);
                     const postRetGrandTotal = postRetTotalsByGrant.reduce((a, b) => a + b, 0);
                     const eligibleGrantCount = activeGrants.filter(g => g.postRetVested).length;
 
@@ -517,7 +537,7 @@ const IncomeControls = ({
                                       const origIdx = sched.grants.indexOf(g);
                                       const gross = sched.cells[yi][origIdx] || 0;
                                       const net = gross * netMult;
-                                      const postRetNet = (sched.postRetCells[yi][origIdx] || 0) * netMult;
+                                      const postRetNet = (sched.postRetCells[yi][origIdx] || 0) * postRetNetMult;
                                       const isDone = g.lastVestYear > 0 && yr > g.lastVestYear;
                                       const showPostInline = isStraddle && postRetNet > 0 && postRetNet < net;
                                       return (
@@ -541,7 +561,7 @@ const IncomeControls = ({
                                       {fmtTotal(rowTotalNet)}
                                       {isStraddle && yearPostRetTotal > 0 && (
                                         <span style={{ fontSize: 9, color: COLORS.amber, fontWeight: 400, marginLeft: 4 }}>
-                                          ({fmtCell(yearPostRetTotal * netMult)})
+                                          ({fmtCell(yearPostRetTotal * postRetNetMult)})
                                         </span>
                                       )}
                                     </td>
@@ -698,6 +718,14 @@ const IncomeControls = ({
                         const hireNetAvgYr = w2HireNetAvgYr;
                         const annualSalaryNet = w2AnnualSalaryNet;
                         const totalAvgMo = w2TotalAvgMo;
+                        const totalAvgYr = w2TotalAvgYr;
+                        const totalGrossYr = w2TotalGrossYr;
+                        const blendedTakeHomePct = w2BlendedTakeHomePct;
+                        const signOnGross = w2SignOnGross;
+                        const signOnNet = w2SignOnNet;
+                        // 401(k) economic value to the household (added to the 401k balance incl. match).
+                        const k401AnnualToBalance = deferral + catchup + match;
+                        const k401MonthlyToBalance = k401AnnualToBalance / 12;
                         const msftGrowthPct = (msftGrowth || 0);
                         const hiddenPension = pensionPct > 0 && (chadJobPensionRate || 0) === 0;
                         const rowStyle = { display: "flex", justifyContent: "space-between", marginTop: 1, fontSize: 10 };
@@ -735,6 +763,29 @@ const IncomeControls = ({
                             {pensionPct > 0 && (
                               <div style={rowStyle}><span>Pension cashflow mult (1 − tax + FICA-on-pension)</span><span style={monoStyle}>{pensionCashflowMult.toFixed(4)}</span></div>
                             )}
+                            <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
+                              The multiplier is a FLAT all-in effective rate (income tax + FICA folded into your {effectiveTaxRate}% assumption). The real, traceable split is below — same engine as the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span>.
+                            </div>
+
+                            {/* Real tax breakdown — FICA computed by the engine on the W-2 gross;
+                                federal pulled from the household tax schedule (chadTaxBreakdown). */}
+                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Tax breakdown (from the Tax-tab engine)</div>
+                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>FICA base (gross W-2 wages)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaBaseAnnual))}/yr</span></div>
+                            <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: w2FicaSS > 0 ? COLORS.text : COLORS.textDim }}>{fmtFull(Math.round(w2FicaSS))}/yr</span></div>
+                            <div style={rowStyle}><span>FICA — Medicare (1.45%)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaMedicare))}/yr</span></div>
+                            {w2FicaAddlMedicare > 0 && (
+                              <div style={rowStyle}><span>Additional Medicare (0.9% over {fmtFull(250000)})</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAddlMedicare))}/yr</span></div>
+                            )}
+                            <div style={{ ...rowStyle, fontWeight: 600 }}><span>FICA total</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAllInTotal))}/yr · {(w2FicaEffectivePct * 100).toFixed(1)}% of gross</span></div>
+                            {chadTaxBreakdown && (
+                              <>
+                                <div style={rowStyle}><span>Federal income tax {chadTaxBreakdown.year != null ? `(yr ${chadTaxBreakdown.year}, household)` : '(household)'}</span><span style={monoStyle}>{fmtFull(Math.round(chadTaxBreakdown.fedTax))}/yr</span></div>
+                                <div style={{ ...rowStyle, fontWeight: 600 }}><span>All-in effective rate on W-2 (engine)</span><span style={monoStyle}>{(chadTaxBreakdown.effectiveRate * 100).toFixed(1)}% <span style={{ color: COLORS.textDim, fontWeight: 400 }}>vs {effectiveTaxRate}% assumed</span></span></div>
+                              </>
+                            )}
+                            <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
+                              FICA is exact (depends only on gross wages).{chadTaxBreakdown ? ' Federal is the engine’s real number for the current projection year on the full household return; ' : ' '}see the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span> for full year-by-year detail. No state income tax is modeled.
+                            </div>
 
                             <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Salary cashflow walk</div>
                             <div style={rowStyle}><span>Monthly gross</span><span style={monoStyle}>{fmtFull(Math.round(monthlyGross))}</span></div>
@@ -759,8 +810,37 @@ const IncomeControls = ({
                               <span style={monoStyle}>{fmtFull(Math.round(hireNetAvgYr))}/yr</span>
                             </div>
                             <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>Avg total monthly W-2 net</span><span style={monoStyle}>{fmtFull(totalAvgMo)}/mo</span></div>
+                            <div style={rowStyle}><span>Total annual W-2 net (take-home)</span><span style={monoStyle}>{fmtFull(Math.round(totalAvgYr))}/yr</span></div>
+
+                            {/* Gross comp denominator + blended take-home %. */}
+                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Total comp (steady state, gross → net)</div>
+                            <div style={rowStyle}><span>Total annual gross comp</span><span style={monoStyle}>{fmtFull(Math.round(totalGrossYr))}/yr</span></div>
+                            <div style={rowStyle}><span>Total annual net comp</span><span style={{ ...monoStyle, color: COLORS.greenDark }}>{fmtFull(Math.round(totalAvgYr))}/yr</span></div>
+                            <div style={rowStyle}><span>Blended take-home %</span><span style={monoStyle}>{(blendedTakeHomePct * 100).toFixed(1)}%</span></div>
+                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>↳ salary gross → net</span><span style={monoStyle}>{fmtFull(annualGross)} → {fmtFull(annualSalaryNet)}</span></div>
+                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>↳ bonus gross → net</span><span style={monoStyle}>{fmtFull(Math.round(w2BonusGrossYr))} → {fmtFull(Math.round(bonusNetYr))}</span></div>
+                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>↳ hire stock (grown) gross → net (avg/yr)</span><span style={monoStyle}>{fmtFull(Math.round(w2HireGrownTotal / 4))} → {fmtFull(Math.round(hireNetAvgYr))}</span></div>
+
+                            {/* Economic value to household = cash net + 401(k) incl. match. */}
+                            {k401AnnualToBalance > 0 && (
+                              <>
+                                <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Economic value to household</div>
+                                <div style={rowStyle}><span>Cash net</span><span style={monoStyle}>{fmtFull(totalAvgMo)}/mo</span></div>
+                                <div style={rowStyle}><span>+ 401(k) incl. match (to balance)</span><span style={{ ...monoStyle, color: COLORS.green }}>+{fmtFull(Math.round(k401MonthlyToBalance))}/mo</span></div>
+                                <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>= Total economic value</span><span style={monoStyle}>{fmtFull(Math.round(totalAvgMo + k401MonthlyToBalance))}/mo</span></div>
+                              </>
+                            )}
+
+                            {/* Sign-on bonus — ONE-TIME, NOT in the steady-state average above. */}
+                            {signOnGross > 0 && (
+                              <>
+                                <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Sign-on bonus (one-time, not in average)</div>
+                                <div style={rowStyle}><span>Sign-on gross (50% hire / 50% 1-yr)</span><span style={monoStyle}>{fmtFull(Math.round(signOnGross))}</span></div>
+                                <div style={rowStyle}><span>Sign-on net (× bonus mult)</span><span style={{ ...monoStyle, color: COLORS.greenDark }}>{fmtFull(Math.round(signOnNet))}</span></div>
+                              </>
+                            )}
                             <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 3 }}>
-                              "Monthly after tax" above shows salary only. Bonus, RSUs, and sign-on land in specific months — average above includes them. RSU and hire-stock totals reflect projected MSFT growth from grant to vest (matches engine).
+                              "Monthly after tax" above shows salary only. Bonus, RSUs, and sign-on land in specific months — average above includes them (sign-on is one-time and excluded). RSU and hire-stock totals reflect projected MSFT growth from grant to vest (matches engine).
                             </div>
                             {/* Promotion projections — show monthly net at L64 and L65 if those toggles are on. */}
                             {(chadL64Enabled || chadL65Enabled) && (() => {

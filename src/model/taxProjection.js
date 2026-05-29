@@ -394,6 +394,15 @@ export function buildTaxSchedule(s) {
       annualTotalTax: fullTax.totalTax,
       annualSarahTax: sarahAnnualTax,
       annualChadTax: chadAnnualTax,
+
+      // Chad-only tax components (from the W-2-only counterfactual) so the W-2 Net
+      // Diagnostic can show a REAL federal/FICA split instead of a flat-rate guess.
+      chadW2OnlyTax: {
+        fedTax: Math.max(0, w2OnlyTax.fedTax - w2OnlyTax.totalCredits), // income tax after credits
+        fica: w2OnlyTax.w2FicaTax,            // employee SS + base Medicare
+        addlMedicare: w2OnlyTax.addlMedicareOwed,
+        totalTax: w2OnlyTax.totalTax,
+      },
       annualSarahGross,
       schCNet,
       chadW2,           // FIX #1: W-2 wages AFTER pension + 401(k) deferral reduction (taxable)

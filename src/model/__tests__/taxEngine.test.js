@@ -743,6 +743,20 @@ describe("computeSSTaxableAmount", () => {
     expect(computeSSTaxableAmount(50000, 80000)).toBe(42500);
   });
 
+  it("caps the tier-1 add-back at $6,000 when over the upper threshold", () => {
+    // $30K AGI + $40K SS: provisional = $50K, above $44K
+    // tier-1 add-back capped at min(6000, (50000-32000)*0.5=9000) = 6000
+    // tier2 = min(0.85*40000=34000, (50000-44000)*0.85=5100 + 6000) = 11100
+    expect(computeSSTaxableAmount(40000, 30000)).toBe(11100);
+  });
+
+  it("applies the $6,000 cap on a benefit-heavy SSDI case", () => {
+    // $40K AGI + $75,852 SS: provisional = $77,926, above $44K
+    // add-back = min(6000, (77926-32000)*0.5=22963) = 6000
+    // tier2 = min(0.85*75852=64474, (77926-44000)*0.85=28837 + 6000) = 34837
+    expect(computeSSTaxableAmount(75852, 40000)).toBe(34837);
+  });
+
   it("returns 0 for zero SS benefit", () => {
     expect(computeSSTaxableAmount(0, 50000)).toBe(0);
   });

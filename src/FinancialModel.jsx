@@ -9,6 +9,7 @@ import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { withProvenanceAll, DEFAULT_PROVENANCE, buildRecommendationProvenance } from './state/scenarioProvenance.js';
 import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState, deriveCapitalItemsFromLegacy } from './state/gatherState.js';
+import { buildTaxSchedule } from './model/taxProjection.js';
 import { saveModelState, loadModelState } from './state/autoSave.js';
 import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
@@ -621,6 +622,31 @@ export default function FinancialModel() {
     msftGrowth,
   ]);
 
+  // Real federal/FICA breakdown for the W-2 Net Diagnostic, from the same engine as
+  // the Tax tab. FICA is exact; federal is the household return for the first working
+  // year (representative). Falls back to null (pane then shows FICA-only) on any error.
+  const chadTaxBreakdown = useMemo(() => {
+    if (!chadJob) return null;
+    try {
+      const sched = buildTaxSchedule(gatherState());
+      if (!sched || sched.length === 0) return null;
+      const idx = sched.findIndex((e) => e.chadW2Gross > 0);
+      const yr = idx >= 0 ? sched[idx] : sched[0];
+      const b = yr.chadW2OnlyTax;
+      if (!b) return null;
+      return {
+        year: idx >= 0 ? idx : 0,
+        fedTax: b.fedTax,
+        fica: b.fica,
+        addlMedicare: b.addlMedicare,
+        totalTax: b.totalTax,
+        effectiveRate: yr.chadEffectiveRate || 0,
+      };
+    } catch {
+      return null;
+    }
+  }, [state]);
+
   const incomeControlsProps = useMemo(() => ({
     ssType, ssdiDenied,
     ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
@@ -639,6 +665,7 @@ export default function FinancialModel() {
     postJobBenefit,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
+    chadTaxBreakdown,
     onFieldChange: set,
   }), [
     ssType, ssdiDenied,
@@ -658,6 +685,7 @@ export default function FinancialModel() {
     postJobBenefit,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
+    chadTaxBreakdown,
   ]);
 
   const expenseControlsProps = useMemo(() => ({

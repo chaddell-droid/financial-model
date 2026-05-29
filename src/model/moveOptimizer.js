@@ -2,8 +2,9 @@
  * Golden-Section Search Optimizer for bounded-continuous levers.
  *
  * Finds the specific numeric value for a continuous lever that maximizes the
- * plan's end-of-horizon final balance, searching only within user-defined
- * realistic bounds (from the Constraint Workshop).
+ * plan's end-of-horizon total RESOURCES (savings + 401k + home equity, via
+ * getEndingResourceValue), searching only within user-defined realistic bounds
+ * (from the Constraint Workshop).
  *
  * Why golden section: the impact-vs-value curve for a continuous lever on a
  * horizon-level financial projection is typically unimodal within its valid
@@ -29,6 +30,7 @@
 
 import { computeProjection } from './projection.js';
 import { gatherState } from '../state/gatherState.js';
+import { getEndingResourceValue } from './projectionMetrics.js';
 
 /** Golden ratio conjugate — (√5 − 1) / 2 ≈ 0.618033988… */
 const GOLDEN = (Math.sqrt(5) - 1) / 2;
@@ -74,15 +76,17 @@ export function optimizeContinuousLever(state, leverKey, constraints) {
     throw new Error(`optimizeContinuousLever: '${leverKey}' min (${min}) > max (${max})`);
   }
 
-  // Precompute the baseline final balance once — every eval during the search
-  // compares against this fixed reference.
+  // Precompute the baseline final value once — every eval during the search
+  // compares against this fixed reference. Use total ending RESOURCES (savings
+  // + 401k + home equity), not savings-only, so the optimizer maximizes net
+  // worth rather than depleting 401k/home buckets. See finding 1.3.
   const baseProj = computeProjection(state);
-  const baseFinal = baseProj.monthlyData[baseProj.monthlyData.length - 1].balance;
+  const baseFinal = getEndingResourceValue(baseProj.monthlyData);
 
   const evalImpactAt = (v) => {
     const testState = gatherState({ ...state, [leverKey]: v });
     const testProj = computeProjection(testState);
-    const testFinal = testProj.monthlyData[testProj.monthlyData.length - 1].balance;
+    const testFinal = getEndingResourceValue(testProj.monthlyData);
     return testFinal - baseFinal;
   };
 

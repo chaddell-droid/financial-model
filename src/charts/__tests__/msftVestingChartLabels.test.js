@@ -168,6 +168,40 @@ test('Chart consumes getCurrentModelMonth so today-marker logic is wired up', ()
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// 4. Live-price fetch: no hardcoded API key (remediation 2026-06-09, 1.6)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Live-price fetch credential hygiene ===');
+
+test('The old committed Alpha Vantage key is gone from the chart source', () => {
+  assert.ok(
+    !chartSource.includes('TNLBGSM5GKK3GEAT'),
+    'The leaked Alpha Vantage key must never reappear in source (rotate it — it lives in git history)',
+  );
+});
+
+test('Alpha Vantage fallback reads the key from import.meta.env.VITE_ALPHA_VANTAGE_KEY', () => {
+  assert.ok(
+    chartSource.includes('VITE_ALPHA_VANTAGE_KEY'),
+    'Chart must source the Alpha Vantage key from the VITE_ALPHA_VANTAGE_KEY env var',
+  );
+  assert.ok(
+    /apikey=\$\{/.test(chartSource),
+    'The Alpha Vantage URL must interpolate the key (apikey=${...}), never embed a literal',
+  );
+});
+
+test('Without a key, the Alpha Vantage endpoint is skipped (conditional push), Yahoo stays primary', () => {
+  assert.ok(
+    /if\s*\(\s*alphaVantageKey\s*\)/.test(chartSource),
+    'Alpha Vantage endpoint must be added only when a key is configured',
+  );
+  const yahooIdx = chartSource.indexOf('query1.finance.yahoo.com');
+  const alphaIdx = chartSource.indexOf('alphavantage.co');
+  assert.ok(yahooIdx >= 0 && alphaIdx >= 0 && yahooIdx < alphaIdx,
+    'Keyless Yahoo endpoint must remain the primary (listed before the Alpha Vantage fallback)');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

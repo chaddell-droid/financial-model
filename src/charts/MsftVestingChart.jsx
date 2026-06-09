@@ -4,6 +4,22 @@ import { fmtFull } from '../model/formatters.js';
 import { getCurrentModelMonth } from '../model/checkIn.js';
 import Slider from '../components/Slider.jsx';
 
+// Optional Alpha Vantage key for the live-price fallback. Never hardcoded:
+// set VITE_ALPHA_VANTAGE_KEY in .env (gitignored — see .env.example). When
+// absent, the keyless Yahoo endpoint remains the only price source.
+// Same defensive pattern as src/advisor/keyStore.js readEnvKey().
+function readAlphaVantageKey() {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta && import.meta.env) {
+      const v = import.meta.env.VITE_ALPHA_VANTAGE_KEY;
+      if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+    }
+  } catch (_) {
+    // ignore — node tests have no import.meta.env
+  }
+  return null;
+}
+
 function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGrowth, onMsftGrowthChange, onMsftPriceChange }) {
   const [fetching, setFetching] = useState(false);
   const [hoveredIdx, setHoveredIdx] = useState(null);
@@ -39,11 +55,16 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
         url: 'https://corsproxy.io/?' + encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/MSFT?range=1d&interval=1d'),
         parse: (data) => data?.chart?.result?.[0]?.meta?.regularMarketPrice,
       },
-      {
-        url: 'https://corsproxy.io/?' + encodeURIComponent('https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=MSFT&apikey=TNLBGSM5GKK3GEAT&datatype=json'),
-        parse: (data) => parseFloat(data?.['Global Quote']?.['05. price']),
-      },
     ];
+    // Alpha Vantage fallback only when a key is configured via env; with no
+    // key we gracefully skip it and rely solely on Yahoo (primary).
+    const alphaVantageKey = readAlphaVantageKey();
+    if (alphaVantageKey) {
+      endpoints.push({
+        url: 'https://corsproxy.io/?' + encodeURIComponent(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=MSFT&apikey=${alphaVantageKey}&datatype=json`),
+        parse: (data) => parseFloat(data?.['Global Quote']?.['05. price']),
+      });
+    }
     for (const ep of endpoints) {
       try {
         const res = await fetch(ep.url);

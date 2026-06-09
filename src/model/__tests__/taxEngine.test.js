@@ -1,4 +1,15 @@
-import { describe, it, expect } from "vitest";
+/**
+ * Tax engine unit tests.
+ *
+ * Run with:
+ *   node src/model/__tests__/taxEngine.test.js
+ *
+ * Ported from vitest to the project's plain-node assert harness
+ * (remediation plan 2026-06-09, Phase 0.3). Assertion bodies are unchanged;
+ * the describe/it/expect shim below provides vitest-compatible semantics on
+ * top of node:assert so the 90+ original assertions did not need rewriting.
+ */
+import assert from 'node:assert';
 import {
   computeSelfEmploymentTax,
   computeFederalTax,
@@ -9,6 +20,80 @@ import {
   computeSSTaxableAmount,
   calculateTax,
 } from "../taxEngine.js";
+
+// ── Minimal vitest-compatible harness (plain node) ──────────────────────
+let passed = 0;
+let failed = 0;
+const suiteStack = [];
+
+function describe(name, fn) {
+  suiteStack.push(name);
+  console.log(`\n=== ${suiteStack.join(' › ')} ===`);
+  try {
+    fn();
+  } catch (err) {
+    failed++;
+    console.log(`  FAIL  (suite-level setup threw)`);
+    console.log(`        ${err.message}`);
+  } finally {
+    suiteStack.pop();
+  }
+}
+describe.skip = (name) => {
+  console.log(`\n  SKIP  suite "${name}"`);
+};
+
+function it(name, fn) {
+  try {
+    fn();
+    passed++;
+    console.log(`  PASS  ${name}`);
+  } catch (err) {
+    failed++;
+    console.log(`  FAIL  ${name}`);
+    console.log(`        ${err.message}`);
+  }
+}
+it.skip = (name) => {
+  console.log(`  SKIP  ${name}`);
+};
+
+function expect(actual) {
+  return {
+    toBe(expected) {
+      assert.strictEqual(actual, expected);
+    },
+    toBeCloseTo(expected, precision = 2) {
+      const tolerance = 0.5 * Math.pow(10, -precision);
+      assert.ok(
+        Math.abs(actual - expected) < tolerance,
+        `expected ${actual} to be close to ${expected} (precision ${precision})`
+      );
+    },
+    toBeGreaterThan(e) {
+      assert.ok(actual > e, `expected ${actual} > ${e}`);
+    },
+    toBeGreaterThanOrEqual(e) {
+      assert.ok(actual >= e, `expected ${actual} >= ${e}`);
+    },
+    toBeLessThan(e) {
+      assert.ok(actual < e, `expected ${actual} < ${e}`);
+    },
+    toBeLessThanOrEqual(e) {
+      assert.ok(actual <= e, `expected ${actual} <= ${e}`);
+    },
+    toBeDefined() {
+      assert.notStrictEqual(actual, undefined, 'expected value to be defined');
+    },
+    toHaveProperty(key) {
+      assert.ok(
+        actual != null && key in actual,
+        `expected object to have property "${key}"`
+      );
+    },
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────
 
 const approx = (val, expected, tolerance = 1) =>
   expect(Math.abs(val - expected)).toBeLessThanOrEqual(tolerance);
@@ -789,3 +874,12 @@ describe("calculateTax — SS benefit taxation integration", () => {
     expect(r.ssTaxableIncome).toBeGreaterThan(0);
   });
 });
+
+// ============================================================
+// Summary
+// ============================================================
+console.log(`\n${'='.repeat(50)}`);
+console.log(`  ${passed} passed, ${failed} failed, ${passed + failed} total`);
+console.log(`${'='.repeat(50)}\n`);
+
+if (failed > 0) process.exit(1);

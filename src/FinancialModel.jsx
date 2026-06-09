@@ -11,6 +11,7 @@ import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState, deriveCapitalItemsFromLegacy } from './state/gatherState.js';
 import { buildTaxSchedule } from './model/taxProjection.js';
 import { saveModelState, loadModelState } from './state/autoSave.js';
+import { sanitizeCheckInHistory } from './state/schemaValidation.js';
 import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
 import KeyMetrics from './components/KeyMetrics.jsx';
@@ -316,9 +317,13 @@ export default function FinancialModel() {
       try {
         const result = await window.storage.get("fin-check-ins");
         if (result && result.value) {
-          const parsed = JSON.parse(result.value);
-          if (Array.isArray(parsed)) {
-            dispatch({ type: 'RESTORE_STATE', state: { checkInHistory: parsed } });
+          // Dedicated restore (mirrors monthlyActuals below). NEVER route this
+          // partial payload through RESTORE_STATE: checkInHistory is not a
+          // MODEL_KEY, so validateAndSanitize would drop it AND reset every
+          // other model field to defaults (remediation 1.1 data-loss bug).
+          const parsed = sanitizeCheckInHistory(JSON.parse(result.value));
+          if (parsed.length > 0) {
+            dispatch({ type: 'SET_FIELD', field: 'checkInHistory', value: parsed });
           }
         }
       } catch (e) { /* no saved check-ins */ }

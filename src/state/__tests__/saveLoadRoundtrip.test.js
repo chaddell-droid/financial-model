@@ -10,6 +10,7 @@
  * Run with: node src/state/__tests__/saveLoadRoundtrip.test.js
  */
 import assert from 'node:assert';
+import fs from 'node:fs';
 import { INITIAL_STATE, MODEL_KEYS } from '../initialState.js';
 import { gatherState } from '../gatherState.js';
 import { validateAndSanitize, migrate } from '../schemaValidation.js';
@@ -401,6 +402,56 @@ test('Cuts: all 11 individual cut sliders round-trip', () => {
   for (const [k, v] of Object.entries(cuts)) {
     assert.strictEqual(result[k], v, `Cut ${k} expected ${v}, got ${result[k]}`);
   }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Goal types — GoalPanel ↔ schemaValidation parity (remediation 1.2).
+// VALID_GOAL_TYPES was missing 'debt_free', so the sanitizer silently
+// DELETED every Debt Free goal on save/load. These tests derive the type
+// list from GoalPanel's source so the two can never drift apart again.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Goal types — GoalPanel ↔ schemaValidation parity ===');
+
+function readGoalPanelTypes() {
+  const source = fs.readFileSync(new URL('../../panels/GoalPanel.jsx', import.meta.url), 'utf8');
+  const block = source.match(/const GOAL_TYPES = \[([\s\S]*?)\];/);
+  assert.ok(block, 'GOAL_TYPES array must exist in GoalPanel.jsx');
+  const types = [...block[1].matchAll(/value:\s*'([a-z_]+)'/g)].map(m => m[1]);
+  assert.ok(types.length >= 5, `expected at least 5 goal types in GoalPanel, found ${types.length}`);
+  return types;
+}
+
+test('a goal of EVERY type GoalPanel offers survives migrate + validateAndSanitize', () => {
+  const types = readGoalPanelTypes();
+  const goals = types.map((type, i) => ({
+    id: `g-${type}`,
+    name: `Goal ${type}`,
+    type,
+    targetAmount: 1000 * (i + 1),
+    targetMonth: 12 * (i + 1),
+    color: '#4ade80',
+  }));
+  const result = roundTrip({ goals });
+  assert.deepStrictEqual(
+    result.goals.map(g => g.type), types,
+    `every GoalPanel goal type must survive the round-trip; survivors: [${result.goals.map(g => g.type).join(', ')}]`
+  );
+  assert.deepStrictEqual(result.goals, goals, 'all goal fields must round-trip unchanged');
+});
+
+test('debt_free goal survives round-trip with all fields intact', () => {
+  const goal = { id: 'df-1', name: 'Debt free by Y6', type: 'debt_free', targetAmount: 0, targetMonth: 72, color: '#f87171' };
+  const result = roundTrip({ goals: [goal] });
+  assert.deepStrictEqual(result.goals, [goal]);
+});
+
+test('unknown goal type is still dropped by the sanitizer', () => {
+  const result = roundTrip({ goals: [
+    { id: 'ok', name: 'Keep', type: 'debt_free', targetAmount: 0, targetMonth: 72, color: '#f87171' },
+    { id: 'bad', name: 'Drop', type: 'win_lottery', targetAmount: 1, targetMonth: 12, color: '#ffffff' },
+  ] });
+  assert.strictEqual(result.goals.length, 1, 'invalid goal type must be dropped');
+  assert.strictEqual(result.goals[0].id, 'ok');
 });
 
 test('Schema version is bumped to CURRENT after migration', () => {

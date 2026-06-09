@@ -144,7 +144,10 @@ const ENUMS = {
   postJobBenefit: ['ssRetirement', 'ssdi', 'none'],
 };
 
-const VALID_GOAL_TYPES = new Set(['savings_floor', 'income_target', 'savings_target', 'net_worth_target']);
+// Must cover every type GoalPanel.jsx offers (GOAL_TYPES) — a missing entry
+// here silently DELETES that goal on save/load. Parity is locked by
+// saveLoadRoundtrip.test.js ("a goal of EVERY type GoalPanel offers...").
+const VALID_GOAL_TYPES = new Set(['savings_floor', 'income_target', 'savings_target', 'net_worth_target', 'debt_free']);
 
 // --- Migrations ---
 
@@ -444,6 +447,29 @@ export function sanitizeCustomLevers(levers) {
       active: Boolean(l.active),
     };
   });
+}
+
+/**
+ * Sanitize a parsed checkInHistory array restored from storage (remediation 1.1).
+ *
+ * Check-ins are irreplaceable user work, so this is deliberately minimal:
+ * keep every entry that is a plain object with a finite numeric `month`
+ * (all fields preserved verbatim), drop anything structurally invalid, and
+ * sort by month to match the RECORD_CHECK_IN invariant.
+ *
+ * IMPORTANT: checkInHistory is NOT a MODEL_KEY, so it must NEVER be restored
+ * through RESTORE_STATE — validateAndSanitize would drop it AND reset every
+ * missing MODEL_KEY to defaults (the data-loss bug this replaced). Restore it
+ * via SET_FIELD with this sanitizer, mirroring the monthlyActuals pattern.
+ */
+export function sanitizeCheckInHistory(val) {
+  if (!Array.isArray(val)) return [];
+  return val
+    .filter(c =>
+      c && typeof c === 'object' && !Array.isArray(c) &&
+      typeof c.month === 'number' && Number.isFinite(c.month)
+    )
+    .sort((a, b) => a.month - b.month);
 }
 
 let _idCounter = 0;

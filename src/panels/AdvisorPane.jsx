@@ -62,6 +62,13 @@ export default function AdvisorPane({ state, gatherState, onApplyMove, scenarioN
   const abortRef = useRef(null);
   const streamBufferRef = useRef(''); // rAF-throttled accumulator
   const messagesEndRef = useRef(null);
+  // Hydration gate (remediation 1.3c): the debounced persist effect stays
+  // disarmed until loadAll() settles, so the initial empty conversation list
+  // can never overwrite stored history.
+  const loadedRef = useRef(false);
+  // Set by the delete / clear-all handlers so the next debounced save may
+  // legitimately shrink or empty the stored list (backup taken first).
+  const clearIntentRef = useRef(false);
 
   // ─── load conversations + key on mount ────────────────────────────────────
   useEffect(() => {
@@ -70,6 +77,7 @@ export default function AdvisorPane({ state, gatherState, onApplyMove, scenarioN
       const convs = await loadAll();
       if (cancelled) return;
       setConversations(convs);
+      loadedRef.current = true;
       if (convs.length > 0) {
         // Bind to the most-recently-updated conversation matching the current scenario,
         // or the most-recent overall.
@@ -94,7 +102,12 @@ export default function AdvisorPane({ state, gatherState, onApplyMove, scenarioN
   const saveTimerRef = useRef(null);
   useEffect(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { save(conversations).catch(() => {}); }, 500);
+    saveTimerRef.current = setTimeout(() => {
+      if (!loadedRef.current) return; // disarmed until loadAll() settles
+      const intentional = clearIntentRef.current;
+      clearIntentRef.current = false;
+      save(conversations, undefined, { intentionalClear: intentional }).catch(() => {});
+    }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [conversations]);
 
@@ -305,6 +318,7 @@ export default function AdvisorPane({ state, gatherState, onApplyMove, scenarioN
           activeId={activeId}
           onSelect={setActiveId}
           onDelete={(id) => {
+            clearIntentRef.current = true; // user-driven shrink/empty is legitimate
             setConversations((prev) => deleteConversation(prev, id));
             if (activeId === id) setActiveId(conversations.find((c) => c.id !== id)?.id || null);
           }}
@@ -341,7 +355,7 @@ export default function AdvisorPane({ state, gatherState, onApplyMove, scenarioN
           onClose={() => setShowSettings(false)}
           onKeySet={() => setKeyAvailable(true)}
           onKeyCleared={() => setKeyAvailable(false)}
-          onClearConversations={() => { setConversations([]); setActiveId(null); }}
+          onClearConversations={() => { clearIntentRef.current = true; setConversations([]); setActiveId(null); }}
         />
       )}
     </div>

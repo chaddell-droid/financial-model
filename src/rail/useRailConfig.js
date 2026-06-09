@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_RAIL_CONFIG } from './railDefaults.js';
-import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, saveSavedRailConfig } from './railConfigStorage.js';
+import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, saveSavedRailConfig, buildPersistedRailConfig } from './railConfigStorage.js';
 
 /**
  * Hook for managing per-tab rail chart configuration.
@@ -17,6 +17,15 @@ export function useRailConfig() {
   // Ref to always have latest config for persistence without stale closures
   const configRef = useRef(config);
   configRef.current = config;
+  // Latest railWidth for persistence (railWidth is separate state, NOT part
+  // of the config object — remediation 1.5: every save must merge it back in
+  // or chart add/remove/reorder erases the stored width).
+  const railWidthRef = useRef(railWidth);
+  railWidthRef.current = railWidth;
+  // Hydration gate (remediation 1.3c): saves stay disarmed until the
+  // restore promise settles, so an early mutation can't overwrite the
+  // stored config with DEFAULT_RAIL_CONFIG-shaped state.
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     Promise.all([loadRailConfig(), loadSavedRailConfig()]).then(([live, saved]) => {
@@ -36,6 +45,7 @@ export function useRailConfig() {
         setSavedConfig(merged);
       }
       setLoaded(true);
+      loadedRef.current = true;
     });
   }, []);
 
@@ -43,7 +53,11 @@ export function useRailConfig() {
   const updateConfig = useCallback((updater) => {
     setConfig(prev => {
       const next = updater(prev);
-      saveRailConfig({ ...next, railWidth: configRef.current.railWidth });
+      // Disarmed until restore settles; railWidth merged from its own state
+      // (configRef never contains railWidth — see remediation 1.5).
+      if (loadedRef.current) {
+        saveRailConfig(buildPersistedRailConfig(next, railWidthRef.current));
+      }
       return next;
     });
   }, []);
@@ -81,7 +95,7 @@ export function useRailConfig() {
 
   const saveLayout = useCallback(() => {
     setSavedConfig({ ...configRef.current });
-    saveSavedRailConfig(configRef.current);
+    if (loadedRef.current) saveSavedRailConfig(configRef.current);
   }, []);
 
   const resetTab = useCallback((tab) => {
@@ -93,7 +107,9 @@ export function useRailConfig() {
 
   const resetAll = useCallback(() => {
     setConfig({ ...savedConfig });
-    saveRailConfig(savedConfig);
+    if (loadedRef.current) {
+      saveRailConfig(buildPersistedRailConfig(savedConfig, railWidthRef.current));
+    }
   }, [savedConfig]);
 
   const isTabModified = useCallback((tab) => {
@@ -108,7 +124,9 @@ export function useRailConfig() {
 
   const commitRailWidth = useCallback((w) => {
     setRailWidthState(w);
-    saveRailConfig({ ...configRef.current, railWidth: w });
+    if (loadedRef.current) {
+      saveRailConfig(buildPersistedRailConfig(configRef.current, w));
+    }
   }, []);
 
   return {

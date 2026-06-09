@@ -29,6 +29,7 @@ import {
   ADVISOR_MAX_CONVERSATIONS,
 } from './config.js';
 import { MODEL_KEYS } from '../state/initialState.js';
+import { safeWrite } from '../state/safeStorage.js';
 
 const TRIM_MARKER = '<trimmed-for-storage>';
 const HEAVY_KEYS = new Set(['monthlyData', 'savingsData', 'data', 'bands', 'allBalances']);
@@ -125,11 +126,17 @@ export async function loadAll(storage) {
  * Persist conversations to storage. Trims tool-result snapshots in stored
  * messages and enforces the conversation cap (oldest pruned first).
  *
+ * Writes through the shared persistence guard (remediation 1.3): backup to
+ * '<key>.bak' before overwrite; refuses to overwrite stored history with an
+ * empty/dramatically smaller payload unless opts.intentionalClear is set
+ * (the delete-conversation / clear-all paths).
+ *
  * @param {Array} conversations
  * @param {object} [storage]
- * @returns {Promise<{ ok: boolean, pruned: number, bytes: number }>}
+ * @param {{ intentionalClear?: boolean }} [opts]
+ * @returns {Promise<{ ok: boolean, pruned: number, bytes: number, reason?: string|null }>}
  */
-export async function save(conversations, storage) {
+export async function save(conversations, storage, opts = {}) {
   const s = storage || (typeof window !== 'undefined' ? window.storage : null);
   if (!s || typeof s.set !== 'function') return { ok: false, pruned: 0, bytes: 0 };
   let trimmed = Array.isArray(conversations) ? [...conversations] : [];
@@ -156,8 +163,11 @@ export async function save(conversations, storage) {
     })),
   }));
   const json = JSON.stringify(forStorage);
-  const result = await s.set(ADVISOR_STORAGE_KEY_CONVERSATIONS, json);
-  return { ok: Boolean(result), pruned, bytes: json.length };
+  const result = await safeWrite(s, ADVISOR_STORAGE_KEY_CONVERSATIONS, json, {
+    intentionalClear: Boolean(opts.intentionalClear),
+    label: 'advisor-conversations',
+  });
+  return { ok: result.ok, pruned, bytes: json.length, reason: result.reason };
 }
 
 /**

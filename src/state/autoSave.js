@@ -6,7 +6,8 @@
  * (which handles migration + validation).
  */
 
-import { MODEL_KEYS } from './initialState.js';
+import { MODEL_KEYS, INITIAL_STATE } from './initialState.js';
+import { safeWrite } from './safeStorage.js';
 
 const STORAGE_KEY = 'fin-model-state';
 
@@ -23,15 +24,40 @@ export function extractModelState(state) {
   return model;
 }
 
+// Lazily computed JSON of the factory-default model payload. Because
+// extractModelState iterates MODEL_KEYS in a fixed order, an
+// INITIAL_STATE-equivalent save serializes to exactly this string.
+let defaultModelJson = null;
+
+/**
+ * True when a serialized model payload is byte-equivalent to
+ * INITIAL_STATE — used by the anti-clobber guard so a boot race or crash
+ * can never overwrite real saved data with factory defaults.
+ */
+export function isDefaultModelPayload(json) {
+  if (defaultModelJson === null) {
+    defaultModelJson = JSON.stringify(extractModelState(INITIAL_STATE));
+  }
+  return json === defaultModelJson;
+}
+
 /**
  * Save model state to storage. Returns true on success, false on failure.
+ *
+ * Writes through the shared persistence guard (remediation 1.3): backup to
+ * 'fin-model-state.bak' before overwrite; refuses to clobber a non-default
+ * stored payload with an INITIAL_STATE-equivalent/empty/dramatically smaller
+ * one unless opts.intentionalClear is set (the RESET_ALL path).
  */
-export async function saveModelState(storage, state) {
-  if (!storage || typeof storage.set !== 'function') return false;
+export async function saveModelState(storage, state, opts = {}) {
   try {
     const model = extractModelState(state);
-    await storage.set(STORAGE_KEY, JSON.stringify(model));
-    return true;
+    const result = await safeWrite(storage, STORAGE_KEY, JSON.stringify(model), {
+      intentionalClear: Boolean(opts.intentionalClear),
+      isDefaultPayload: isDefaultModelPayload,
+      label: 'model-state',
+    });
+    return result.ok;
   } catch (e) {
     return false;
   }

@@ -113,7 +113,7 @@ export default function SequenceOfReturnsChart({
         What if bad returns arrive before the plan reaches stability?
       </div>
       <div style={{ fontSize: 10, color: COLORS.borderLight, marginBottom: 10 }}>
-        Months 0-30 are the vulnerable window. This keeps the same average {years}-year return and changes only the order that returns arrive.
+        Months 0-30 are the vulnerable window. The bad-early and good-early paths share the same average {years}-year return — only the order differs; the dashed steady line is a no-volatility reference, so it compounds higher than both (no volatility drag).
       </div>
 
       <div data-testid="sequence-returns-summary" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 12 }}>

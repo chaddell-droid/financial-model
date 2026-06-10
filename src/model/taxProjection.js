@@ -26,6 +26,7 @@ function nextStockVestMonthAfter(month) {
 }
 import { BRACKETS_MFJ_2026, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
 import { calculateTax, computeAdditionalMedicare } from './taxEngine.js';
+import { getVestingGrossMonthly } from './vesting.js';
 
 /**
  * Inflate bracket thresholds by a compounding factor.
@@ -239,8 +240,15 @@ export function buildTaxSchedule(s) {
     let chadAnnualBonus = 0;
     let chadAnnualStock = 0;
     let chadAnnualSignOn = 0;
+    // A4 (remediation 2026-06-10): legacy MSFT vests (VEST_SHARES, through
+    // Aug 2028) are W-2 + FICA wages in the vest year REGARDLESS of
+    // employment — post-separation RSU vests still hit Box 1/3/5. Mirrors
+    // projection.js's getVestingMonthly cashflow (same growth/price inputs)
+    // but at GROSS (pre-withholding) dollars, which is what tax law sees.
+    let chadLegacyVestGross = 0;
 
     for (let m = startMonth; m <= endMonth; m++) {
+      chadLegacyVestGross += getVestingGrossMonthly(m, msftGrowthPct, s.msftPrice);
       if (m <= sarahRetirementMonth) {
         const rate = Math.min(
           s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12),
@@ -342,8 +350,11 @@ export function buildTaxSchedule(s) {
     // Sch C net after business expenses
     const schCNet = Math.round(annualSarahGross * (1 - expenseRatio));
 
-    // Chad's W-2 wages (salary + bonus + RSU vesting + sign-on, with compounded raises)
-    const chadW2Gross = chadJob ? Math.round(chadAnnualSalary + chadAnnualBonus + chadAnnualStock + chadAnnualSignOn) : 0;
+    // Chad's W-2 wages (salary + bonus + RSU vesting + sign-on, with compounded raises).
+    // A4: legacy MSFT vest gross stacks on top UNCONDITIONALLY (W-2 wages in the
+    // vest year even with no job) — into BOTH the Box 1 gross and the FICA base.
+    const chadJobCompGross = chadJob ? Math.round(chadAnnualSalary + chadAnnualBonus + chadAnnualStock + chadAnnualSignOn) : 0;
+    const chadW2Gross = chadJobCompGross + chadLegacyVestGross;
 
     // FIX #1: Pension contribution is pre-tax for both federal income tax AND FICA.
     // Reduce taxable W-2 wages by (annual salary × pension %). Pension is on salary
@@ -364,7 +375,8 @@ export function buildTaxSchedule(s) {
     // pre-tax 401(k). chadW2FicaBase is the FICA base (Box 3/5) — full gross. Pre-tax
     // pension and 401(k) deferral DO NOT reduce SS/Medicare wages.
     const chadW2 = Math.max(0, chadW2Gross - pensionDollar - chad401kDeferralDollar);
-    const chadW2FicaBase = chadJob ? chadW2Gross : 0;
+    // A4: FICA base (Box 3/5) = full gross including legacy vests, on every path.
+    const chadW2FicaBase = chadW2Gross;
 
     // Inflation-adjusted brackets and SALT cap
     const inflationFactor = s.taxInflationAdjust

@@ -39,6 +39,9 @@ function taxBase(overrides = {}) {
     chadJobRaisePct: 0, chadJobBonusPct: 0,
     chadJobNoFICA: false, chadJobPensionContrib: 0,
     chadWorkMonths: 60, sarahWorkMonths: 96,
+    // A4 (2026-06-10): legacy MSFT vests now flow into W-2/FICA; zero the
+    // MSFT price so these tests keep isolating the NEW-JOB comp ladder.
+    msftPrice: 0,
     ...overrides,
   });
 }

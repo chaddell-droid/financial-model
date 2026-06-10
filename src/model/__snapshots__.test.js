@@ -1470,25 +1470,31 @@ test('tax year 0 locks (income, deductions, components)', () => {
   // A2 (2026-06-10): year-0 SSDI months (7-11) now carry SS COLA, raising the
   // benefit estimate ~$502 -> +$111 of tax. Re-baselined from the pre-COLA locks
   // (sarahMonthlyTax 4171, totalTax 50050, ssTaxable 115756).
+  // A4 (2026-06-10): legacy MSFT vests are W-2 + FICA wages even with no job —
+  // year 0 carries $165,444 of vest gross (chadW2 0 -> 165444), moving
+  // totalTax 50161 -> 103903 (+$53.7k = vest income tax + W-2 FICA + CTC
+  // phase-out above $400K MAGI 4400 -> 3250 + marginal 22% -> 24%).
+  // seTax stays 21924: with A3 (per-individual SE coordination) Sarah's SE
+  // base is NOT eroded by the vest FICA wages. ssTaxableIncome unchanged.
   const y = taxSnapSchedule[0];
   eq(y.annualSarahGross, 206888, 'Sarah gross');
   eq(y.schCNet, 155166, 'Sch C net at 25% expense ratio');
-  eq(y.chadW2, 0, 'no W-2 in the default household');
-  eq(y.sarahMonthlyTax, 4180, 'Sarah monthly tax');
-  eq(y.chadMonthlyTax, 0);
-  eq(Math.round(y.annualTotalTax), 50161, 'household total tax');
-  eq(Math.round(y.annualSarahTax), 50161, 'all attributed to Sarah (no W-2)');
-  eq(y.annualChadTax, 0);
-  eq(Math.round(y.fullTax.totalIncome), 268424);
+  eq(y.chadW2, 165444, 'legacy MSFT vest gross (A4); no job W-2 in default household');
+  eq(y.sarahMonthlyTax, 4274, 'Sarah monthly tax');
+  eq(y.chadMonthlyTax, 4384, 'vest W-2 tax attributed to Chad (A4)');
+  eq(Math.round(y.annualTotalTax), 103903, 'household total tax');
+  eq(Math.round(y.annualSarahTax), 51290, 'Sarah marginal attribution');
+  eq(Math.round(y.annualChadTax), 52613, 'Chad vest-only counterfactual (A4)');
+  eq(Math.round(y.fullTax.totalIncome), 433868);
   eq(Math.round(y.fullTax.ssTaxableIncome), 116258, 'SSDI + back-pay year-0 taxable amount (with COLA)');
-  eq(Math.round(y.fullTax.agi), 257462);
-  eq(Math.round(y.fullTax.taxableIncome), 196421);
-  eq(Math.round(y.fullTax.fedTax), 32637);
-  eq(Math.round(y.fullTax.seTax), 21924);
+  eq(Math.round(y.fullTax.agi), 422906);
+  eq(Math.round(y.fullTax.taxableIncome), 361865);
+  eq(Math.round(y.fullTax.fedTax), 72044);
+  eq(Math.round(y.fullTax.seTax), 21924, 'unchanged — A3 keeps SE per-individual');
   eq(Math.round(y.fullTax.qbi), 28841);
-  eq(y.fullTax.totalCredits, 4400, 'CTC for 2 kids');
-  eq(y.marginalRate, 0.22);
-  near(y.effectiveTaxRate, 0.1948, 0.0005, 'effective rate on AGI');
+  eq(y.fullTax.totalCredits, 3250, 'CTC for 2 kids, phased out above $400K MAGI (A4)');
+  eq(y.marginalRate, 0.24);
+  near(y.effectiveTaxRate, 0.2457, 0.0005, 'effective rate on AGI');
 });
 
 test('CTC steps down when the twins age out (years 0-1 credit, year 2+ none)', () => {

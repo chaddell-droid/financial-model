@@ -119,6 +119,9 @@ test('TX1. NoFICA reduces total tax by ~6.2% × wage-base-capped salary ($100K)'
     sarahCurrentClients: 0, sarahMaxClients: 0,
     // No SS benefits / SSDI to isolate
     ssType: 'ss', ssStartMonth: 999,
+    // A4 (2026-06-10): legacy MSFT vests now flow into W-2/FICA; zero the
+    // MSFT price so this test keeps isolating the salary-only FICA delta.
+    msftPrice: 0,
   };
   const sNo = gatherStateWithOverrides({ ...baseOverrides, chadJobNoFICA: false });
   const sYes = gatherStateWithOverrides({ ...baseOverrides, chadJobNoFICA: true });
@@ -147,6 +150,9 @@ test('TX2. Pension 10% on $100K salary reduces taxable W-2 by ~$10K', () => {
     chadJobNoFICA: false,
     sarahCurrentClients: 0, sarahMaxClients: 0,
     ssType: 'ss', ssStartMonth: 999,
+    // A4 (2026-06-10): zero MSFT price so legacy vests don't stack on the
+    // salary-only W-2 this test isolates.
+    msftPrice: 0,
   };
   const sNo = gatherStateWithOverrides({ ...baseOverrides, chadJobPensionContrib: 0 });
   const sYes = gatherStateWithOverrides({ ...baseOverrides, chadJobPensionContrib: 10 });
@@ -242,6 +248,9 @@ test('TX5. CTC drops in the year containing TWINS_AGE_OUT_MONTH', () => {
     ssType: 'ss', ssStartMonth: 999,
     taxCtcChildren: 2,
     totalProjectionMonths: 72,
+    // A4 (2026-06-10): zero MSFT price — legacy vests differ between the two
+    // compared years and would swamp the ~$4,400 CTC delta this test isolates.
+    msftPrice: 0,
   };
   const s = gatherStateWithOverrides(overrides);
   const schedule = buildTaxSchedule(s);

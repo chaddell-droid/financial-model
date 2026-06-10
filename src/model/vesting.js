@@ -15,6 +15,20 @@ export function getVestingMonthly(monthOffset, msftGrowth, msftPrice) {
   return 0;
 }
 
+// A4 (remediation 2026-06-10): GROSS vest dollars per month — the pre-haircut
+// twin of getVestingMonthly (which nets the 20% withholding for cashflow).
+// The tax engine (buildTaxSchedule) needs the gross: RSU vests are W-2 Box 1
+// AND Box 3/5 (FICA) wages in the vest year regardless of employment.
+export function getVestingGrossMonthly(monthOffset, msftGrowth, msftPrice) {
+  for (const v of VEST_SHARES) {
+    if (monthOffset >= v.startMonth && monthOffset <= v.endMonth) {
+      const price = getMsftPrice(v.endMonth, msftGrowth, msftPrice);
+      return Math.round(v.shares * price / 3);
+    }
+  }
+  return 0;
+}
+
 export function getVestingLumpSum(monthOffset, msftGrowth, msftPrice) {
   for (const v of VEST_SHARES) {
     if (monthOffset === v.endMonth) {

@@ -643,10 +643,15 @@ test('C49: waterfall tax components sum to TOTAL TAX for every year', () => {
       const ft = schedule[y].fullTax;
       const sum = Math.max(0, ft.fedTax - ft.totalCredits) + ft.seTax + ft.addlMedicare + ft.w2FicaTax;
       near(sum, ft.totalTax, 0.01, `${label} year ${y} waterfall tax sum`);
-      // The default household has no W-2 wages, so the four rendered waterfall
-      // rows alone must reconcile to the TOTAL TAX row.
+      // A4 (remediation 2026-06-10): legacy MSFT vests are W-2 + FICA wages
+      // through month 29 (years 0-2) even on the default (no-job) path, so
+      // W-2 FICA is positive there and zero only after vesting ends.
       if (label === 'default') {
-        assert.strictEqual(ft.w2FicaTax, 0, `default year ${y} should have no W-2 FICA`);
+        if (y <= 2) {
+          assert.ok(ft.w2FicaTax > 0, `default year ${y} should carry W-2 FICA on legacy vests`);
+        } else {
+          assert.strictEqual(ft.w2FicaTax, 0, `default year ${y} should have no W-2 FICA`);
+        }
       }
     }
   }
@@ -681,10 +686,17 @@ test('C51: attribution chart contract — Sarah + Chad attribution reconciles to
         `${label} year ${y} attribution sum`);
     }
   }
-  // Default household: no W-2, so the whole burden is attributed to Sarah.
+  // A4 (remediation 2026-06-10): on the default (no-job) path, Chad's legacy
+  // MSFT vests are W-2 wages through year 2, so he carries attributed tax
+  // there; from year 3 on, no W-2 and no Chad tax.
   for (let y = 0; y < taxSchedule.length; y++) {
-    assert.strictEqual(taxSchedule[y].annualChadTax, 0, `default year ${y} Chad tax should be 0`);
-    assert.strictEqual(taxSchedule[y].chadW2, 0, `default year ${y} chadW2 should be 0`);
+    if (y <= 2) {
+      assert.ok(taxSchedule[y].chadW2 > 0, `default year ${y} chadW2 should carry legacy vests`);
+      assert.ok(taxSchedule[y].annualChadTax > 0, `default year ${y} Chad tax should be > 0 (vests)`);
+    } else {
+      assert.strictEqual(taxSchedule[y].annualChadTax, 0, `default year ${y} Chad tax should be 0`);
+      assert.strictEqual(taxSchedule[y].chadW2, 0, `default year ${y} chadW2 should be 0`);
+    }
   }
 });
 

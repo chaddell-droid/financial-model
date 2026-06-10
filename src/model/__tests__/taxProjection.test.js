@@ -13,6 +13,17 @@ import assert from 'node:assert';
 import { buildTaxSchedule, inflateBrackets, getTaxInputs } from '../taxProjection.js';
 import { BRACKETS_MFJ_2025, SS_WAGE_BASE } from '../taxConstants.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
+import { getVestingGrossMonthly, getVestingMonthly } from '../vesting.js';
+
+// A4 (remediation 2026-06-10): legacy MSFT vests are W-2 wages in the vest
+// year regardless of employment. Sum the per-month gross for projection year y.
+function yearLegacyVestGross(y, s = {}) {
+  let total = 0;
+  for (let m = y * 12; m <= y * 12 + 11; m++) {
+    total += getVestingGrossMonthly(m, s.msftGrowth || 0, s.msftPrice);
+  }
+  return total;
+}
 
 // ── Minimal vitest-compatible harness (plain node) ──────────────────────
 let passed = 0;
@@ -208,12 +219,18 @@ describe('buildTaxSchedule', () => {
     }
   });
 
-  it('Chad has zero tax when not employed', () => {
+  it('Chad unemployed: W-2 = legacy vests only; zero once vesting ends (A4)', () => {
+    // A4 (remediation 2026-06-10): post-separation MSFT RSU vests are W-2
+    // wages in the vest year even with no job — they MUST appear in chadW2.
     const s = makeState({ chadJob: false });
     const schedule = buildTaxSchedule(s);
-    expect(schedule[0].chadMonthlyTax).toBe(0);
-    expect(schedule[0].chadMonthlyNet).toBe(0);
-    expect(schedule[0].chadW2).toBe(0);
+    expect(schedule[0].chadW2).toBe(yearLegacyVestGross(0, s));
+    expect(schedule[0].chadW2).toBeGreaterThan(0);
+    expect(schedule[0].chadMonthlyTax).toBeGreaterThan(0);
+    // Legacy vesting ends month 29 (Aug '28) → years 3+ carry no W-2.
+    expect(schedule[3].chadW2).toBe(0);
+    expect(schedule[3].chadMonthlyTax).toBe(0);
+    expect(schedule[3].chadMonthlyNet).toBe(0);
   });
 
   it('Chad has non-zero tax when employed', () => {
@@ -221,15 +238,18 @@ describe('buildTaxSchedule', () => {
     const schedule = buildTaxSchedule(s);
     expect(schedule[0].chadMonthlyTax).toBeGreaterThan(0);
     expect(schedule[0].chadMonthlyNet).toBeGreaterThan(0);
-    expect(schedule[0].chadW2).toBe(80000);
+    // A4: salary plus this year's legacy MSFT vest gross.
+    expect(schedule[0].chadW2).toBe(80000 + yearLegacyVestGross(0, s));
   });
 
   it('Chad W-2 is pro-rated when starting mid-year', () => {
     // Starts month 6 → in year 0 (months 0-11), employed months 6-11 = 6 months
     const s = makeState({ chadJob: true, chadJobSalary: 120000, chadJobStartMonth: 6 });
     const schedule = buildTaxSchedule(s);
-    expect(schedule[0].chadW2).toBe(60000); // 120K * 6/12
-    expect(schedule[1].chadW2).toBe(120000); // Full year
+    // A4: legacy vests stack on top of the pro-rated salary (discrete events,
+    // never annualized).
+    expect(schedule[0].chadW2).toBe(60000 + yearLegacyVestGross(0, s)); // 120K * 6/12 + vests
+    expect(schedule[1].chadW2).toBe(120000 + yearLegacyVestGross(1, s)); // Full year + vests
   });
 
   it('marginal attribution: Sarah tax + Chad tax = total tax', () => {
@@ -254,8 +274,11 @@ describe('buildTaxSchedule', () => {
   it('tax increases with income growth over years', () => {
     const s = makeState();
     const schedule = buildTaxSchedule(s);
-    // Last full year should have higher tax than year 0 (income grows)
-    expect(schedule[5].annualSarahTax).toBeGreaterThan(schedule[0].annualSarahTax);
+    // Last full year should have higher tax than year 3 (income grows).
+    // A4: years 0-2 carry legacy MSFT vests, which inflate Sarah's MARGINAL
+    // attribution (her Sch C stacks on top of vest W-2 income), so year 0 is
+    // no longer a clean low-water mark — compare vest-free years instead.
+    expect(schedule[5].annualSarahTax).toBeGreaterThan(schedule[3].annualSarahTax);
   });
 
   it('inflation adjustment increases tax over years', () => {
@@ -325,6 +348,49 @@ describe('buildTaxSchedule', () => {
     approx(e.ficaAddlMedicare, Math.max(0, base - 250000) * 0.009, 1);// Addl Medicare over $250k
     approx(e.ficaTotal, e.ficaSS + e.ficaMedicare + e.ficaAddlMedicare, 1);
     expect(e.fedTax).toBeGreaterThanOrEqual(0);
+  });
+
+  // ── A4 REGRESSION (remediation 2026-06-10): legacy MSFT vests ($307.6k
+  // gross through Aug 2028) are W-2 + FICA wages in the vest year regardless
+  // of employment, and must flow into the tax engine.
+  it('A4: gross vest helper is the pre-haircut twin of getVestingMonthly', () => {
+    // getVestingMonthly nets 20% withholding; the gross helper must not.
+    for (const m of [0, 5, 12, 29]) {
+      const gross = getVestingGrossMonthly(m, 0, undefined);
+      const net = getVestingMonthly(m, 0, undefined);
+      expect(gross).toBeGreaterThan(0);
+      approx(net, gross * 0.8, 2);
+    }
+    expect(getVestingGrossMonthly(30, 0, undefined)).toBe(0); // window ends month 29
+  });
+
+  it('A4: legacy vests total ≈ $307.6k gross at 0% growth (audit figure)', () => {
+    let total = 0;
+    for (let m = 0; m <= 29; m++) total += getVestingGrossMonthly(m, 0, undefined);
+    approx(total, 307601, 60); // 749 shares × $410.68 ≈ $307.6k (rounding per month)
+  });
+
+  it('A4: SSDI-path (chadJob=false) chadW2Gross AND FICA base carry the vests', () => {
+    const s = makeState({ chadJob: false });
+    const schedule = buildTaxSchedule(s);
+    const vests0 = yearLegacyVestGross(0, s);
+    expect(schedule[0].chadW2Gross).toBe(vests0);
+    expect(schedule[0].chadW2OnlyTax.ficaBase).toBe(vests0); // Box 3/5 includes vests
+    expect(schedule[0].chadW2OnlyTax.ficaSS).toBeGreaterThan(0);
+  });
+
+  it('A4: 2026 displayed household tax jumps to the corrected ~$104k (defaults)', () => {
+    // Audit A4: default (SSDI-path) 2026 displayed tax was ~$50,050 with the
+    // vests missing; the audit estimated ~$85-90k corrected — but that figure
+    // was A4 in ISOLATION on the pre-A3 engine, where adding the vest FICA
+    // base would also have (wrongly) zeroed Sarah's ~$11.7k SE SS tax via the
+    // shared-wage-base bug. With A3 landed first (per-individual SE), the
+    // combined corrected figure is ~$104k: vest W-2 + FICA taxed, higher
+    // SS-benefit taxability via provisional income, AND Sarah's full SE tax.
+    const s = gatherStateWithOverrides({ taxMode: 'engine' });
+    const schedule = buildTaxSchedule(s);
+    expect(schedule[0].annualTotalTax).toBeGreaterThan(95000);
+    expect(schedule[0].annualTotalTax).toBeLessThan(112000);
   });
 
   it('chadW2OnlyTax suppresses the SS portion under a non-FICA employer', () => {

@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert';
 import { exportModelData } from '../exportData.js';
-import { gatherStateWithOverrides } from '../../state/gatherState.js';
+import { gatherStateWithOverrides, computeOneTimeTotal } from '../../state/gatherState.js';
 import { computeProjection } from '../projection.js';
 import { getVestEvents, getTotalRemainingVesting } from '../vesting.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
@@ -268,6 +268,99 @@ test('10. _meta.exportedAt is a valid ISO date string', () => {
   const parsed = new Date(result._meta.exportedAt);
   assert.ok(!isNaN(parsed.getTime()), '_meta.exportedAt should be a valid ISO date');
   assert.ok(result._meta.model.includes('Dellinger'), '_meta.model should mention Dellinger');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Capital items + custom levers export parity (remediation phase 5).
+// The export previously serialized only the legacy mold/roof/other scalars,
+// so array-based capital items and custom levers were invisible in the JSON
+// and oneTimeCosts.total could diverge from the app's advanceNeeded math.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== exportModelData — capital items / advanceNeeded parity ===');
+
+test('11. oneTimeCosts exports the effective capital items array', () => {
+  const capitalItems = [
+    { id: 'a', name: 'Mold remediation', description: 'basement', cost: 60000, include: true, likelihood: 100 },
+    { id: 'b', name: 'Solar', description: 'roof PV', cost: 30000, include: false, likelihood: 50 },
+  ];
+  const { s, projection, vestEvents, totalRemaining, extras } = buildDefaultInputs({ capitalItems });
+  const result = callExportAndCapture(s, projection, vestEvents, totalRemaining, extras);
+
+  assert.ok(Array.isArray(result.oneTimeCosts.items), 'oneTimeCosts.items must be an array');
+  assert.strictEqual(result.oneTimeCosts.items.length, 2);
+  assert.strictEqual(result.oneTimeCosts.items[0].name, 'Mold remediation');
+  assert.strictEqual(result.oneTimeCosts.items[0].cost, 60000);
+  assert.strictEqual(result.oneTimeCosts.items[0].included, true);
+  assert.strictEqual(result.oneTimeCosts.items[1].included, false);
+});
+
+test('12. oneTimeCosts.total equals the app advanceNeeded derivation (computeOneTimeTotal)', () => {
+  const capitalItems = [
+    { id: 'a', name: 'A', description: '', cost: 12000, include: true, likelihood: 100 },
+    { id: 'b', name: 'B', description: '', cost: 99999, include: false, likelihood: 100 },
+    { id: 'c', name: 'C', description: '', cost: -5, include: true, likelihood: 100 }, // negative → 0
+  ];
+  const { s, projection, vestEvents, totalRemaining, extras } = buildDefaultInputs({ capitalItems });
+  const result = callExportAndCapture(s, projection, vestEvents, totalRemaining, extras);
+
+  // FinancialModel: oneTimeTotal = effectiveCapitalItems Σ (include ? max(0, cost) : 0)
+  const expected = computeOneTimeTotal(s.capitalItems);
+  assert.strictEqual(expected, 12000, 'shared helper sanity check');
+  assert.strictEqual(result.oneTimeCosts.total, expected,
+    `oneTimeCosts.total (${result.oneTimeCosts.total}) must equal computeOneTimeTotal (${expected})`);
+});
+
+test('13. legacy scalar capital fields still flow through (gatherState seeding parity)', () => {
+  // No capitalItems array → gatherState seeds from legacy scalars; the export
+  // total must match the included legacy costs exactly (= app advanceNeeded).
+  const { s, projection, vestEvents, totalRemaining, extras } = buildDefaultInputs({
+    capitalItems: [],
+    moldCost: 60000, moldInclude: true,
+    roofCost: 40000, roofInclude: true,
+    otherProjects: 40000, otherInclude: false,
+  });
+  const result = callExportAndCapture(s, projection, vestEvents, totalRemaining, extras);
+
+  assert.strictEqual(result.oneTimeCosts.total, 100000,
+    `expected mold+roof = 100000, got ${result.oneTimeCosts.total}`);
+  assert.strictEqual(result.oneTimeCosts.total, computeOneTimeTotal(s.capitalItems));
+  assert.strictEqual(result.oneTimeCosts.items.length, 3, 'three legacy-derived items');
+});
+
+test('14. advanceAsk reconciles: oneTimeCosts.total + retired debt = advance ask', () => {
+  const capitalItems = [
+    { id: 'a', name: 'A', description: '', cost: 50000, include: true, likelihood: 100 },
+  ];
+  const { s, projection, vestEvents, totalRemaining, extras } = buildDefaultInputs({
+    capitalItems, retireDebt: true,
+  });
+  // Mirror FinancialModel's advanceNeeded exactly via the shared helper.
+  const debtTotal = s.debtCC + s.debtPersonal + s.debtIRS + s.debtFirstmark;
+  const advanceNeeded = (s.retireDebt ? debtTotal : 0) + computeOneTimeTotal(s.capitalItems);
+  const result = callExportAndCapture(s, projection, vestEvents, totalRemaining,
+    { ...extras, advanceNeeded });
+
+  assert.strictEqual(
+    result.keyMetrics.advanceAsk,
+    (s.retireDebt ? result.debt.totalRetired : 0) + result.oneTimeCosts.total,
+    'advanceAsk must equal retired debt + oneTimeCosts.total'
+  );
+});
+
+test('15. custom levers are exported with all fields', () => {
+  const customLevers = [
+    { id: 'lv-1', name: 'Consulting side gig', description: 'desc', maxImpact: 2000, currentValue: 1500, active: true },
+    { id: 'lv-2', name: 'Rental room', description: '', maxImpact: 1000, currentValue: 0, active: false },
+  ];
+  const { s, projection, vestEvents, totalRemaining, extras } = buildDefaultInputs({ customLevers });
+  const result = callExportAndCapture(s, projection, vestEvents, totalRemaining, extras);
+
+  assert.ok(Array.isArray(result.customLevers), 'customLevers must be exported');
+  assert.strictEqual(result.customLevers.length, 2);
+  assert.strictEqual(result.customLevers[0].name, 'Consulting side gig');
+  assert.strictEqual(result.customLevers[0].monthlyImpact, 1500);
+  assert.strictEqual(result.customLevers[0].active, true);
+  assert.strictEqual(result.customLevers[1].active, false);
 });
 
 // ════════════════════════════════════════════════════════════════════════

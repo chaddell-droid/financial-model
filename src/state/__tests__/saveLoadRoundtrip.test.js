@@ -180,6 +180,14 @@ const NON_DEFAULT_VALUES = {
   // Sequence of returns
   seqBadY1: -15,
   seqBadY2: -8,
+  // Monte Carlo settings (remediation phase 5 — now MODEL_KEYS so they persist)
+  mcNumSims: 1000,
+  mcInvestVol: 18,
+  mcBizGrowthVol: 8,
+  mcMsftVol: 20,
+  mcSsdiDelay: 9,
+  mcSsdiDenialPct: 10,
+  mcCutsDiscipline: 40,
   // Arrays — set values that differ from INITIAL_STATE
   capitalItems: [
     { id: 'test-1', name: 'Test capital item', description: 'audit', cost: 50000, include: true, likelihood: 80 },
@@ -464,6 +472,54 @@ test('unknown goal type is still dropped by the sanitizer', () => {
   ] });
   assert.strictEqual(result.goals.length, 1, 'invalid goal type must be dropped');
   assert.strictEqual(result.goals[0].id, 'ok');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Monte Carlo settings — MODEL_KEYS membership + persistence (remediation
+// phase 5). The seven mc* fields had RANGE constraints that never executed
+// because the fields were missing from MODEL_KEYS, so MC settings silently
+// reset to defaults on every save/load.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Monte Carlo settings — MODEL_KEYS + round-trip ===');
+
+const MC_FIELDS = ['mcNumSims', 'mcInvestVol', 'mcBizGrowthVol', 'mcMsftVol', 'mcSsdiDelay', 'mcSsdiDenialPct', 'mcCutsDiscipline'];
+
+test('all seven mc* fields are MODEL_KEYS', () => {
+  const missing = MC_FIELDS.filter(k => !MODEL_KEYS.includes(k));
+  assert.deepStrictEqual(missing, [], `mc* fields missing from MODEL_KEYS: ${missing.join(', ')}`);
+});
+
+test('mc* defaults survive round-trip (default behavior)', () => {
+  const result = roundTrip({});
+  for (const k of MC_FIELDS) {
+    assert.strictEqual(result[k], INITIAL_STATE[k], `${k} default mismatch`);
+  }
+});
+
+test('mc* overrides survive round-trip (override behavior)', () => {
+  const overrides = {
+    mcNumSims: 2000, mcInvestVol: 25, mcBizGrowthVol: 10,
+    mcMsftVol: 30, mcSsdiDelay: 12, mcSsdiDenialPct: 20, mcCutsDiscipline: 60,
+  };
+  const result = roundTrip(overrides);
+  for (const [k, v] of Object.entries(overrides)) {
+    assert.strictEqual(result[k], v, `${k} expected ${v}, got ${result[k]}`);
+  }
+});
+
+test('mc* RANGE constraints execute (edge clamping)', () => {
+  assert.strictEqual(roundTrip({ mcNumSims: 50000 }).mcNumSims, 10000, 'mcNumSims max');
+  assert.strictEqual(roundTrip({ mcNumSims: 1 }).mcNumSims, 10, 'mcNumSims min');
+  assert.strictEqual(roundTrip({ mcInvestVol: -5 }).mcInvestVol, 0, 'mcInvestVol min');
+  assert.strictEqual(roundTrip({ mcInvestVol: 250 }).mcInvestVol, 100, 'mcInvestVol max');
+  assert.strictEqual(roundTrip({ mcSsdiDelay: 999 }).mcSsdiDelay, 120, 'mcSsdiDelay max');
+  assert.strictEqual(roundTrip({ mcSsdiDenialPct: 150 }).mcSsdiDenialPct, 100, 'mcSsdiDenialPct max');
+  assert.strictEqual(roundTrip({ mcCutsDiscipline: -10 }).mcCutsDiscipline, 0, 'mcCutsDiscipline min');
+});
+
+test('mcResults and mcRunning stay OUT of MODEL_KEYS (UI-only, never persisted)', () => {
+  assert.ok(!MODEL_KEYS.includes('mcResults'));
+  assert.ok(!MODEL_KEYS.includes('mcRunning'));
 });
 
 test('Schema version is bumped to CURRENT after migration', () => {

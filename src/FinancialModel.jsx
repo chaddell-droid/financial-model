@@ -8,7 +8,7 @@ import { evaluateAllGoals } from './model/goalEvaluation.js';
 import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { withProvenanceAll, DEFAULT_PROVENANCE, buildRecommendationProvenance } from './state/scenarioProvenance.js';
 import { reducer } from './state/reducer.js';
-import { gatherState as _gatherState, deriveCapitalItemsFromLegacy } from './state/gatherState.js';
+import { gatherState as _gatherState, deriveCapitalItemsFromLegacy, prepareComparisonState, computeOneTimeTotal } from './state/gatherState.js';
 import { buildTaxSchedule } from './model/taxProjection.js';
 import { saveModelState, loadModelState } from './state/autoSave.js';
 import { safeWrite, createHydrationGate, mergeScenarioLists } from './state/safeStorage.js';
@@ -227,10 +227,8 @@ export default function FinancialModel() {
       : deriveCapitalItemsFromLegacy({ moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude })),
     [capitalItems, moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude]
   );
-  const oneTimeTotal = effectiveCapitalItems.reduce(
-    (sum, it) => sum + (it.include ? Math.max(0, Number(it.cost) || 0) : 0),
-    0
-  );
+  // Shared with the JSON export (remediation phase 5 — export parity).
+  const oneTimeTotal = computeOneTimeTotal(effectiveCapitalItems);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
 
   // Projected PERS pension at retirement — mirrors gatherState.chadJobPensionMonthly
@@ -288,12 +286,15 @@ export default function FinancialModel() {
     return buildReforecast(gatherState, latest);
   }, [checkInHistory, deferredState]);
 
-  // Multi-comparison: compute projections for up to 3 comparisons
+  // Multi-comparison: compute projections for up to 3 comparisons.
+  // Compared states are SAVED scenario payloads — route them through the same
+  // migrate + validateAndSanitize + gatherState pipeline as loading, so an
+  // old-schema scenario compares identically to loading it (remediation phase 5).
   const COMPARE_COLORS = ['#fbbf24', '#22d3ee', '#c084fc']; // yellow, cyan, purple
   const compareProjections = useMemo(() => {
     return (comparisons || []).map(c => ({
       name: c.name,
-      projection: computeProjection(c.state),
+      projection: computeProjection(prepareComparisonState(c.state)),
     }));
   }, [comparisons]);
 

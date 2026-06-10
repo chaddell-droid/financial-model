@@ -1,5 +1,6 @@
 // Home equity now tracked in main projection monthlyData
 import { INITIAL_STATE } from '../state/initialState.js';
+import { computeOneTimeTotal } from '../state/gatherState.js';
 import { findOperationalBreakevenIndex } from './projection.js';
 
 export function exportModelData(state, projection, vestEvents, totalRemainingVesting, extras) {
@@ -82,12 +83,27 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       totalRetired: s.debtCC + s.debtPersonal + s.debtIRS + s.debtFirstmark,
       monthlyServiceEliminated: s.debtService,
     },
+    // Effective capital items (gatherState seeds the array from the legacy
+    // mold/roof/other scalars when empty, so this covers both models).
+    // `total` uses the same shared helper as FinancialModel's advanceNeeded
+    // derivation — the two can never drift apart (remediation phase 5).
     oneTimeCosts: {
-      mold: { cost: s.moldCost, included: s.moldInclude },
-      roof: { cost: s.roofCost, included: s.roofInclude },
-      otherProjects: { cost: s.otherProjects, included: s.otherInclude },
-      total: (s.moldInclude ? s.moldCost : 0) + (s.roofInclude ? s.roofCost : 0) + (s.otherInclude ? s.otherProjects : 0),
+      items: (s.capitalItems || []).map(it => ({
+        name: it.name,
+        description: it.description,
+        cost: it.cost,
+        included: Boolean(it.include),
+        likelihood: it.likelihood,
+      })),
+      total: computeOneTimeTotal(s.capitalItems),
     },
+    customLevers: (s.customLevers || []).map(l => ({
+      name: l.name,
+      description: l.description,
+      maxImpact: l.maxImpact,
+      monthlyImpact: l.currentValue,
+      active: Boolean(l.active),
+    })),
     savings: {
       starting: s.startingSavings,
       investmentReturn: s.investmentReturn,

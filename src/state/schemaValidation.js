@@ -371,11 +371,21 @@ function sanitizeGoals(goals) {
     id: g.id,
     name: g.name,
     type: g.type,
-    targetAmount: typeof g.targetAmount === 'number' ? g.targetAmount : 0,
-    targetMonth: typeof g.targetMonth === 'number' ? g.targetMonth : 72,
+    // Finite checks (remediation phase 5): typeof NaN === 'number', so the
+    // old checks let NaN/Infinity through into goal evaluation.
+    targetAmount: typeof g.targetAmount === 'number' && Number.isFinite(g.targetAmount) ? g.targetAmount : 0,
+    targetMonth: typeof g.targetMonth === 'number' && Number.isFinite(g.targetMonth) ? g.targetMonth : 72,
     color: typeof g.color === 'string' ? g.color : '#4ade80',
   }));
 }
+
+// Milestone range bounds (remediation phase 5). The UI slider caps month at
+// totalProjectionMonths (≤204) and savings at $5,000/mo; the sanitizer is
+// deliberately more generous (corruption guard, not a UI mirror) so direct
+// JSON edits survive, but a corrupted payload (e.g. savings: 1e15) can no
+// longer flow into the projection's expense math.
+const MILESTONE_MONTH_MAX = 600;     // 50 years — far past any projection horizon
+const MILESTONE_SAVINGS_MAX = 50000; // 10× the UI slider ceiling
 
 function sanitizeMilestones(milestones, fallback) {
   if (!Array.isArray(milestones)) return fallback;
@@ -385,8 +395,8 @@ function sanitizeMilestones(milestones, fallback) {
     typeof m.savings === 'number' && Number.isFinite(m.savings)
   ).map(m => ({
     name: typeof m.name === 'string' ? m.name : '',
-    month: m.month,
-    savings: m.savings,
+    month: clampNum(m.month, 0, MILESTONE_MONTH_MAX, 0),
+    savings: clampNum(m.savings, 0, MILESTONE_SAVINGS_MAX, 0),
   }));
 }
 
@@ -410,11 +420,20 @@ export function sanitizeCapitalItems(items) {
   }));
 }
 
+// Lever bound ceiling (remediation phase 5). Every bounded-continuous lever
+// is non-negative; the largest workshop default is $400K (chadL65Salary), so
+// $5M is a generous corruption guard that still leaves room for overrides.
+const LEVER_BOUND_MAX = 5_000_000;
+
 /**
  * Sanitize the `leverConstraintsOverride` MODEL_KEY (Story 2.2).
  *
  * Accepts null, undefined, or an object mapping lever keys to { min?, max? }
  * objects. Malformed entries are stripped; non-object input returns null.
+ * Bounds are clamped to [0, LEVER_BOUND_MAX] and inverted windows
+ * (min > max) are REJECTED — the entry reverts to workshop defaults, since
+ * downstream consumers (Story 2.3 optimizer, Story 2.4 sliders) assume
+ * min <= max (remediation phase 5 hardening).
  * Returns null when the cleaned map is empty so save/load round-trips
  * cleanly — the gatherState derivation treats null as "use workshop defaults."
  */
@@ -426,9 +445,15 @@ export function sanitizeLeverConstraintsOverride(raw) {
     if (typeof leverKey !== 'string' || leverKey.length === 0) continue;
     if (!val || typeof val !== 'object') continue;
     const entry = {};
-    if (typeof val.min === 'number' && Number.isFinite(val.min)) entry.min = val.min;
-    if (typeof val.max === 'number' && Number.isFinite(val.max)) entry.max = val.max;
+    if (typeof val.min === 'number' && Number.isFinite(val.min)) {
+      entry.min = clampNum(val.min, 0, LEVER_BOUND_MAX, 0);
+    }
+    if (typeof val.max === 'number' && Number.isFinite(val.max)) {
+      entry.max = clampNum(val.max, 0, LEVER_BOUND_MAX, 0);
+    }
     if (Object.keys(entry).length === 0) continue;
+    // Inverted window — reject the whole entry (revert to workshop defaults).
+    if (entry.min !== undefined && entry.max !== undefined && entry.min > entry.max) continue;
     result[leverKey] = entry;
   }
   return Object.keys(result).length > 0 ? result : null;

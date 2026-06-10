@@ -117,7 +117,9 @@ export default function KeyMetrics({
               placeholder={String(Math.round(totalCurrentExpenses))}
               onChange={(e) => {
                 const v = e.target.value;
-                onFieldChange('totalMonthlySpend')(v === '' ? null : Math.round(Number(v)));
+                // Clamp to the field's RANGE ({ min: 0 } in schemaValidation),
+                // matching the One-Time Extras input below (remediation phase 5).
+                onFieldChange('totalMonthlySpend')(v === '' ? null : Math.max(0, Math.round(Number(v))));
               }}
               data-testid="key-metrics-total-spend"
               aria-label="Base monthly spend"

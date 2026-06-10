@@ -286,5 +286,8 @@ export const MODEL_KEYS = [
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation',
   'seqBadY1', 'seqBadY2',
+  // Monte Carlo settings (remediation phase 5). mcResults/mcRunning stay
+  // UI-only — only the user-tunable parameters persist.
+  'mcNumSims', 'mcInvestVol', 'mcBizGrowthVol', 'mcMsftVol', 'mcSsdiDelay', 'mcSsdiDenialPct', 'mcCutsDiscipline',
   'goals',
 ];

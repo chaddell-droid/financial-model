@@ -6,6 +6,7 @@
  * Run with: node src/model/__tests__/displayParity.test.js
  */
 import assert from 'node:assert';
+import fs from 'node:fs';
 import { runMonthlySimulation, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides, gatherState } from '../../state/gatherState.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
@@ -1337,6 +1338,23 @@ test('W2-FICA: adding the breakdown does NOT change net totals (engine parity pr
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
   // totalAvgYr is still ONLY the four steady-state net components — FICA is informational.
   near(d.totalAvgYr, d.annualSalaryNet + d.bonusNetYr + d.refreshNetYrSteady + d.hireNetAvgYr, 1e-6, 'totalAvgYr unchanged');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// KeyMetrics input clamping (remediation phase 5).
+// The Base Monthly Spend input wrote raw Number(v) into totalMonthlySpend —
+// a typo like "-50000" flowed into the projection until the next save/load
+// (schemaValidation RANGE is { min: 0 }). The input must clamp at 0 on
+// entry, matching the sibling oneTimeExtras/oneTimeMonths inputs.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== KeyMetrics — Base Monthly Spend input clamps to RANGE ===');
+
+test('KeyMetrics totalMonthlySpend onChange clamps to min 0 (matches RANGE + sibling inputs)', () => {
+  const source = fs.readFileSync(new URL('../../components/KeyMetrics.jsx', import.meta.url), 'utf8');
+  assert.ok(
+    source.includes("onFieldChange('totalMonthlySpend')(v === '' ? null : Math.max(0, Math.round(Number(v))))"),
+    'Base Monthly Spend input must clamp to Math.max(0, ...) like the One-Time Extras input'
+  );
 });
 
 // ════════════════════════════════════════════════════════════════════════

@@ -2,6 +2,7 @@ import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_START_OFFSET } from '../model/constants.js';
 import { composePreviewState } from './previewState.js';
 import { computeEffectiveLeverConstraints } from '../model/leverClassification.js';
+import { migrate, validateAndSanitize } from './schemaValidation.js';
 
 /**
  * Build the projection-ready state object from the full UI state.
@@ -163,6 +164,33 @@ export function gatherState(state) {
  */
 export function gatherStateWithOverrides(overrides = {}) {
   return gatherState({ ...INITIAL_STATE, ...overrides });
+}
+
+/**
+ * Build a projection-ready state from a SAVED scenario payload, mirroring the
+ * load path exactly (remediation phase 5 — comparison pipeline).
+ *
+ * Loading a scenario runs RESTORE_STATE (migrate + validateAndSanitize) and
+ * the projection memo then runs gatherState. Comparisons previously fed the
+ * RAW saved state straight into computeProjection — old-schema scenarios
+ * compared with different numbers than the same scenario produced on load.
+ * Every compared state must go through this function.
+ */
+export function prepareComparisonState(savedState) {
+  return gatherState(validateAndSanitize(migrate(savedState || {})));
+}
+
+/**
+ * Total one-time capital cost for the included items — the single source of
+ * truth shared by FinancialModel's advanceNeeded derivation and the JSON
+ * export (remediation phase 5 — export parity).
+ */
+export function computeOneTimeTotal(capitalItems) {
+  if (!Array.isArray(capitalItems)) return 0;
+  return capitalItems.reduce(
+    (sum, it) => sum + (it && it.include ? Math.max(0, Number(it.cost) || 0) : 0),
+    0
+  );
 }
 
 /**

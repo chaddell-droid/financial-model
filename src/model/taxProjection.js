@@ -11,7 +11,7 @@
  * into the simulation behind taxMode === 'engine'.
  */
 
-import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP, SS_START_OFFSET, ssAdjustmentFactor } from './constants.js';
+import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, SSDI_ATTORNEY_FEE_CAP, SS_START_OFFSET, ssAdjustmentFactor } from './constants.js';
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
 
 // Mirror the projection's quarterly stock-vest helpers (kept in sync).
@@ -110,7 +110,8 @@ export function estimateAnnualSSBenefits(s) {
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
       // Calendar-anchored kids age-out, matching projection.js FIX #8.
-      benefit = (m < TWINS_AGE_OUT_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+      // B4 (2026-06-10): student-rule end month, mirroring projection.js.
+      benefit = (m < SS_CHILD_BENEFIT_END_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
     }
     // Post-job benefit fallback — mirrors projection.js's postJobBenefit branch.
     if (benefit === 0 && chadJob && m > chadRetirementMonth) {
@@ -125,7 +126,8 @@ export function estimateAnnualSSBenefits(s) {
             : ssPersonal;
         }
       } else if (postJobMode === 'ssdi') {
-        benefit = (m < TWINS_AGE_OUT_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+        // B4 (2026-06-10): student-rule end month, mirroring projection.js.
+        benefit = (m < SS_CHILD_BENEFIT_END_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
       }
       // 'none' — benefit stays 0
     }

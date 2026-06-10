@@ -141,14 +141,14 @@ test('backPayActual', () => eq(backPayActual, 104578));
 test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -670677));
+test('month 72 balance', () => eq(monthlyData[72].balance, -657378)); // B4 (2026-06-10): student rule pays SSDI family rate m34-39 (+6 x $2,107) -> end balance improves ~$13.3k
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
-test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -32348));
+test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -30241)); // B4: m=36 now pays family 6321 (was personal 4214) -> +2,107/mo
 test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -33914));
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -670677); // re-baselined for the D7 401(k) deficit-draw gross-up
+  eq(minBal, -657378); // re-baselined for D7 gross-up, then B4 student rule (+$13.3k)
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -204,7 +204,7 @@ test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948)
 test('month 12 balance', () => eq(debtData[12].balance, 39648));
 // Re-baselined for D7 gross-up (was 0): the grossed-up draws now exhaust the
 // reserves before month 72 even with debt retired.
-test('month 72 balance', () => eq(debtData[72].balance, -125636));
+test('month 72 balance', () => eq(debtData[72].balance, -111567)); // B4 (2026-06-10): student rule pays SSDI family rate m34-39 (+6 x $2,107) -> end balance improves ~$13.3k
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
 });
@@ -217,7 +217,7 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
 // Re-baselined for D7 gross-up (was -487171, matching the default scenario).
-test('month 72 balance', () => eq(cutsData[72].balance, -670677));
+test('month 72 balance', () => eq(cutsData[72].balance, -657378)); // B4 (2026-06-10): student rule pays SSDI family rate m34-39 (+6 x $2,107) -> end balance improves ~$13.3k
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -252,9 +252,9 @@ const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDeb
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -670677));
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -657378)); // B4 student rule +$13.3k
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
-test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -32348));
+test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -30241)); // B4: family rate at m=36
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
 test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, 0));
 test('income target uses operational cash flow, not netMonthly', () => {
@@ -295,7 +295,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -670677));
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -657378)); // B4 student rule +$13.3k
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -2273,14 +2273,14 @@ test('R5: denied SSDI balance at month 71', () => {
 test('R6: van sold at month 6, balance at month 71', () => {
   const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -518665); // was -333183 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -505255); // was -518665 pre-B4 (student rule +$13.4k), -333183 pre-D7
 });
 
 // R7 — Lifestyle cuts active with override
 test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
   const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -222214); // was -19887 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -208383); // was -222214 pre-B4 (student rule +$13.8k), -19887 pre-D7
 });
 
 // R8 — Debt retired. Was 0 pre-D7 (reserves still covered the deficit); the
@@ -2288,7 +2288,7 @@ test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
 test('R8: debt retired, balance at month 71', () => {
   const s = gatherState({ retireDebt: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -98156);
+  assert.strictEqual(monthlyData[71].balance, -84087); // was -98156 pre-B4 (student rule +$14.1k)
 });
 
 // R9 — All toggles on: debt retired + van sold + cuts + job

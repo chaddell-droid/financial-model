@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SS_START_OFFSET, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, buildQuarterlySchedule, ssAdjustmentFactor } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SS_START_OFFSET, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, SS_CHILD_BENEFIT_END_MONTH, buildQuarterlySchedule, ssAdjustmentFactor } from './constants.js';
 
 /**
  * Helpers for lumpy stock-vest calendar math.
@@ -342,12 +342,13 @@ export function runMonthlySimulation(s) {
         ssBenefitPersonal = ssPersonal;
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
-      // FIX #8: Kids age-out is CALENDAR-ANCHORED (TWINS_AGE_OUT_MONTH), not relative
-      // to approval month. Previously used `effectiveSsdiApproval + s.kidsAgeOutMonths`,
-      // which let kids stay eligible past their actual 18th birthday if approval slipped.
+      // FIX #8: Kids age-out is CALENDAR-ANCHORED, not relative to approval month.
+      // B4 (remediation 2026-06-10): anchored to SS_CHILD_BENEFIT_END_MONTH (=40,
+      // student rule — benefits run through HS graduation June 2029), not the 18th
+      // birthday (TWINS_AGE_OUT_MONTH=34, kept for the CTC).
       // The legacy `kidsAgeOutMonths` state field (default 36) is preserved for back-compat
       // (still used to bound auxiliary back-pay months above), but ignored on this path.
-      ssBenefit = m < TWINS_AGE_OUT_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
+      ssBenefit = m < SS_CHILD_BENEFIT_END_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
       ssBenefitPersonal = s.ssdiPersonal || 0;
     }
     // Post-employment benefit: when Chad finishes his W-2 job and no SS income
@@ -386,8 +387,9 @@ export function runMonthlySimulation(s) {
         }
       } else if (postJobMode === 'ssdi') {
         // SSDI starts the month after retirement. Kids auxiliary uses the
-        // same TWINS_AGE_OUT_MONTH calendar anchor as the pre-job SSDI branch.
-        ssBenefit = m < TWINS_AGE_OUT_MONTH
+        // same SS_CHILD_BENEFIT_END_MONTH calendar anchor (B4, student rule)
+        // as the pre-job SSDI branch.
+        ssBenefit = m < SS_CHILD_BENEFIT_END_MONTH
           ? (s.ssdiFamilyTotal || 0)
           : (s.ssdiPersonal || 0);
         ssBenefitPersonal = s.ssdiPersonal || 0;

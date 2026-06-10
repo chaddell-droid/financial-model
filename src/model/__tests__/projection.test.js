@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -120,10 +120,12 @@ test('9. SSDI income: 0 before approval, ssdiFamilyTotal after', () => {
   assert.strictEqual(monthlyData[approvalMonth].ssBenefit, 6500, 'ssdiFamilyTotal at approval');
 });
 
-test('10. SSDI transitions to ssdiPersonal at TWINS_AGE_OUT_MONTH (calendar-anchored, not relative)', () => {
-  // FIX #8: The SSDI kids-age-out boundary is now calendar-anchored to TWINS_AGE_OUT_MONTH (=34),
-  // not approval-relative. Previous test locked in buggy `approvalMonth + kidsAgeOutMonths`
-  // behavior that let kids stay eligible past their actual 18th birthday.
+test('10. SSDI transitions to ssdiPersonal at SS_CHILD_BENEFIT_END_MONTH (student rule, calendar-anchored)', () => {
+  // B4 (remediation 2026-06-10): SSA's full-time-student rule (20 CFR 404.367)
+  // pays child benefits through HS graduation (June 2029, m=39), not the 18th
+  // birthday (m=34). SS_CHILD_BENEFIT_END_MONTH (=40) is the first ineligible
+  // month for SS/SSDI child benefits; TWINS_AGE_OUT_MONTH (=34) stays as the
+  // CTC anchor (age-17 timeline).
   const approvalMonth = 5;
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: false,
@@ -132,10 +134,10 @@ test('10. SSDI transitions to ssdiPersonal at TWINS_AGE_OUT_MONTH (calendar-anch
   const { monthlyData } = runMonthlySimulation(s);
   // Family total right at approval
   assert.strictEqual(monthlyData[approvalMonth].ssBenefit, 6500);
-  // Last family month is m=33 (TWINS_AGE_OUT_MONTH - 1)
-  assert.strictEqual(monthlyData[33].ssBenefit, 6500, 'still family total at last eligible month (m=33)');
-  // Personal starts at m=34 (TWINS_AGE_OUT_MONTH = first ineligible)
-  assert.strictEqual(monthlyData[34].ssBenefit, 4166, 'personal at first ineligible month (m=34)');
+  // Last family month is m=39 (SS_CHILD_BENEFIT_END_MONTH - 1, HS graduation month)
+  assert.strictEqual(monthlyData[39].ssBenefit, 6500, 'still family total at last eligible month (m=39)');
+  // Personal starts at m=40 (SS_CHILD_BENEFIT_END_MONTH = first ineligible)
+  assert.strictEqual(monthlyData[40].ssBenefit, 4166, 'personal at first ineligible month (m=40)');
 });
 
 test('11. SSDI denied: SSDI stays 0 forever', () => {
@@ -155,7 +157,8 @@ test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth
   });
   assert.strictEqual(s.ssStartMonth, 19, 'ssStartMonth = Oct 2027 (mid-month birthday +1)');
   assert.strictEqual(s.ssPersonal, 2950, 'ssPersonal = round(4214 * 0.70)');
-  assert.strictEqual(s.ssKidsAgeOutMonths, 15, 'kids eligible 15 months (month 19-33)');
+  // B4 (2026-06-10): student rule extends child benefits to m=39 → window = 40 − 19 = 21.
+  assert.strictEqual(s.ssKidsAgeOutMonths, 21, 'kids eligible 21 months (month 19-39, student rule)');
   // ssFamilyTotal is the lesser of (personal + 2 × child) and the SSA family-max cap (1.5 × PIA).
   // Uncapped: 2950 + 2 × round(4214 × 0.5) = 2950 + 4214 = 7164.
   // Cap: round(4214 × 1.5) = 6321 → cap binds, so ssFamilyTotal = 6321.
@@ -166,7 +169,9 @@ test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[18].ssBenefit, 0, 'no SS before start month');
   assert.strictEqual(monthlyData[19].ssBenefit, s.ssFamilyTotal, 'ssFamilyTotal at SS start month');
-  assert.strictEqual(monthlyData[34].ssBenefit, 2950, 'ssPersonal after kids age out');
+  // B4: family rate runs through m=39 (HS graduation); personal from m=40.
+  assert.strictEqual(monthlyData[39].ssBenefit, s.ssFamilyTotal, 'still family at m=39 (student rule)');
+  assert.strictEqual(monthlyData[40].ssBenefit, 2950, 'ssPersonal after kids age out (m=40)');
 });
 
 test('13. Trust income transitions at trustIncreaseMonth', () => {
@@ -1109,8 +1114,8 @@ test('48. bcsYearsLeft = 0 — no BCS expenses at any month', () => {
 });
 
 test('49. ssdiApprovalMonth = 0 — SSDI income amount matches ssdiFamilyTotal at month 0', () => {
-  // FIX #8: SSDI age-out is now calendar-anchored to TWINS_AGE_OUT_MONTH (=34),
-  // not relative to approval. Updated to assert on the correct calendar boundary.
+  // B4 (2026-06-10): SSDI child-benefit age-out is calendar-anchored to
+  // SS_CHILD_BENEFIT_END_MONTH (=40, student rule), not TWINS_AGE_OUT_MONTH (=34).
   const familyTotal = 6500;
   const personal = 4166;
   const s = gatherStateWithOverrides({
@@ -1123,12 +1128,12 @@ test('49. ssdiApprovalMonth = 0 — SSDI income amount matches ssdiFamilyTotal a
   // SSDI should be active from month 0 at the family rate
   assert.strictEqual(monthlyData[0].ssBenefit, familyTotal,
     `month 0 SSDI should be ${familyTotal}, got ${monthlyData[0].ssBenefit}`);
-  // Should transition to personal at TWINS_AGE_OUT_MONTH (=34)
-  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH].ssBenefit, personal,
-    `month ${TWINS_AGE_OUT_MONTH} SSDI should transition to personal ${personal}, got ${monthlyData[TWINS_AGE_OUT_MONTH].ssBenefit}`);
-  // Month before transition (m=33) should still be family
-  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH - 1].ssBenefit, familyTotal,
-    `month ${TWINS_AGE_OUT_MONTH - 1} SSDI should still be family ${familyTotal}`);
+  // Should transition to personal at SS_CHILD_BENEFIT_END_MONTH (=40)
+  assert.strictEqual(monthlyData[SS_CHILD_BENEFIT_END_MONTH].ssBenefit, personal,
+    `month ${SS_CHILD_BENEFIT_END_MONTH} SSDI should transition to personal ${personal}, got ${monthlyData[SS_CHILD_BENEFIT_END_MONTH].ssBenefit}`);
+  // Month before transition (m=39) should still be family
+  assert.strictEqual(monthlyData[SS_CHILD_BENEFIT_END_MONTH - 1].ssBenefit, familyTotal,
+    `month ${SS_CHILD_BENEFIT_END_MONTH - 1} SSDI should still be family ${familyTotal}`);
 });
 
 test('50. Multiple milestones at same month — both savings apply', () => {
@@ -1358,10 +1363,11 @@ test('gatherState: ssClaimAge 70 → ssStartMonth 115, ssPersonal = 124% PIA', (
   assert.strictEqual(s.ssKidsAgeOutMonths, 0, 'no family benefit');
 });
 
-test('gatherState: ssClaimAge 63 → 3 months of family benefits', () => {
+test('gatherState: ssClaimAge 63 → 9 months of family benefits', () => {
+  // B4 (2026-06-10): student rule — child benefits run to m=39 → 40 − 31 = 9 months.
   const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 63, ssPIA: 3822 });
   assert.strictEqual(s.ssStartMonth, 31, 'age 63 starts at month 31');
-  assert.strictEqual(s.ssKidsAgeOutMonths, 3, 'twins eligible 3 months (months 31-33)');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 9, 'twins eligible 9 months (months 31-39, student rule)');
   assert.strictEqual(s.ssPersonal, 2867, 'personal = round(3822 * 0.75)');
   assert.ok(s.ssFamilyTotal > s.ssPersonal, 'family total includes child benefits');
 });
@@ -1369,7 +1375,7 @@ test('gatherState: ssClaimAge 63 → 3 months of family benefits', () => {
 test('gatherState: ssClaimAge 64+ → zero family benefit months', () => {
   const s = gatherStateWithOverrides({ ssType: 'ss', ssClaimAge: 64, ssPIA: 3822 });
   assert.strictEqual(s.ssStartMonth, 43, 'age 64 starts at month 43');
-  assert.strictEqual(s.ssKidsAgeOutMonths, 0, 'twins already aged out at month 34');
+  assert.strictEqual(s.ssKidsAgeOutMonths, 0, 'twins already aged out at month 40 (B4 student rule)');
   assert.strictEqual(s.ssFamilyTotal, s.ssPersonal, 'no child benefits');
 });
 
@@ -2586,10 +2592,11 @@ test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actua
     `m=${m0}: estimate should match actual vests (${windowGross}) → benefit ${Math.max(0, s.ssPersonal - expectedReduction)}, got ${monthlyData[m0].ssBenefit}`);
 });
 
-// FIX #8: SSDI kids age-out is calendar-anchored (TWINS_AGE_OUT_MONTH), not relative.
-// With approval=20, kidsAgeOutMonths=36 (legacy), TWINS_AGE_OUT_MONTH=34: family
-// benefits END at m=34 (not m=56 as the old buggy `approval + kidsAgeOutMonths` logic).
-test('SSDI-AgeOut. SSDI family benefits end at TWINS_AGE_OUT_MONTH, not approval+kidsAgeOutMonths', () => {
+// B4 (2026-06-10): SSDI child benefits are calendar-anchored to the student-rule
+// end month (SS_CHILD_BENEFIT_END_MONTH=40, HS graduation June 2029), not relative.
+// With approval=20, kidsAgeOutMonths=36 (legacy): family benefits END at m=40
+// (not m=56 as the old buggy `approval + kidsAgeOutMonths` logic).
+test('SSDI-AgeOut. SSDI family benefits end at SS_CHILD_BENEFIT_END_MONTH, not approval+kidsAgeOutMonths', () => {
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: 20, ssdiDenied: false,
     ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 36, // legacy default
@@ -2599,20 +2606,21 @@ test('SSDI-AgeOut. SSDI family benefits end at TWINS_AGE_OUT_MONTH, not approval
   // m=20 (approval): family benefit kicks in.
   assert.strictEqual(monthlyData[20].ssBenefit, 6321,
     `m=20 (approval): expected family ${6321}, got ${monthlyData[20].ssBenefit}`);
-  // m=33 (TWINS_AGE_OUT_MONTH - 1 = 33): still family.
-  assert.strictEqual(monthlyData[33].ssBenefit, 6321,
-    `m=33: still family ${6321}, got ${monthlyData[33].ssBenefit}`);
-  // m=34 (TWINS_AGE_OUT_MONTH): personal — kids no longer eligible per calendar.
-  assert.strictEqual(monthlyData[34].ssBenefit, 4214,
-    `m=34 (kids age out): expected personal ${4214}, got ${monthlyData[34].ssBenefit}`);
+  // m=39 (SS_CHILD_BENEFIT_END_MONTH - 1): still family (student rule, B4).
+  assert.strictEqual(monthlyData[39].ssBenefit, 6321,
+    `m=39: still family ${6321}, got ${monthlyData[39].ssBenefit}`);
+  // m=40 (SS_CHILD_BENEFIT_END_MONTH): personal — kids no longer eligible per calendar.
+  assert.strictEqual(monthlyData[40].ssBenefit, 4214,
+    `m=40 (kids age out): expected personal ${4214}, got ${monthlyData[40].ssBenefit}`);
   // OLD buggy logic would have kept family at m=55 (approval=20 + kidsAgeOutMonths=36 - 1 = 55).
   assert.strictEqual(monthlyData[55].ssBenefit, 4214,
     `m=55: should be personal (NOT family as old buggy logic produced)`);
 });
 
-// FIX #9: TWINS_AGE_OUT_MONTH semantic — first INELIGIBLE month.
-// At m=33, family benefits still active. At m=34, only personal benefits.
-test('TWINS-AGE-Constant. TWINS_AGE_OUT_MONTH=34 means first ineligible month (m=33 family, m=34 personal)', () => {
+// B4 + FIX #9 semantics: SS_CHILD_BENEFIT_END_MONTH is the first INELIGIBLE month
+// for SS/SSDI child benefits (m=39 family, m=40 personal). TWINS_AGE_OUT_MONTH
+// stays at 34 — it anchors the CTC (age-17 timeline), NOT the benefit stream.
+test('CHILD-BENEFIT-Constant. SS_CHILD_BENEFIT_END_MONTH=40 first ineligible; TWINS_AGE_OUT_MONTH stays 34 for CTC', () => {
   // Use SSDI with early approval so the boundary is crossed mid-projection.
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
@@ -2620,11 +2628,12 @@ test('TWINS-AGE-Constant. TWINS_AGE_OUT_MONTH=34 means first ineligible month (m
     chadJob: false, chadConsulting: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(TWINS_AGE_OUT_MONTH, 34, 'TWINS_AGE_OUT_MONTH constant unchanged at 34');
-  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH - 1].ssBenefit, 6321,
-    `m=${TWINS_AGE_OUT_MONTH - 1}: family rate active`);
-  assert.strictEqual(monthlyData[TWINS_AGE_OUT_MONTH].ssBenefit, 4214,
-    `m=${TWINS_AGE_OUT_MONTH}: personal rate active`);
+  assert.strictEqual(TWINS_AGE_OUT_MONTH, 34, 'TWINS_AGE_OUT_MONTH constant unchanged at 34 (CTC anchor)');
+  assert.strictEqual(SS_CHILD_BENEFIT_END_MONTH, 40, 'SS_CHILD_BENEFIT_END_MONTH = 40 (July 2029, post-graduation)');
+  assert.strictEqual(monthlyData[SS_CHILD_BENEFIT_END_MONTH - 1].ssBenefit, 6321,
+    `m=${SS_CHILD_BENEFIT_END_MONTH - 1}: family rate active`);
+  assert.strictEqual(monthlyData[SS_CHILD_BENEFIT_END_MONTH].ssBenefit, 4214,
+    `m=${SS_CHILD_BENEFIT_END_MONTH}: personal rate active`);
 });
 
 // FIX #10: Van sale with positive equity — proceeds boost balance.

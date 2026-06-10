@@ -221,10 +221,10 @@ console.log('\n=== 4. SS/SSDI Start ===');
 console.log('\n=== 5. Kids Age Out ===');
 
 {
-  // FIX #8: SSDI path is now calendar-anchored to TWINS_AGE_OUT_MONTH (=34).
-  // Previously used `effectiveSsdiApproval + kidsAgeOutMonths`. With approval=10,
-  // kidsAgeOutMonths=20 (legacy), the OLD logic wrongly had last-family at m=29.
-  // NEW: last family month = m=33 (TWINS_AGE_OUT_MONTH - 1), first personal = m=34.
+  // B4 (2026-06-10): SSDI path is calendar-anchored to SS_CHILD_BENEFIT_END_MONTH
+  // (=40, SSA student rule — child benefits run through HS graduation June 2029).
+  // Previously TWINS_AGE_OUT_MONTH (=34, the 18th birthday) cut them 6 months early.
+  // NEW: last family month = m=39, first personal = m=40.
   const sA = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: 10, ssdiDenied: false,
     ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 20,
@@ -234,18 +234,18 @@ console.log('\n=== 5. Kids Age Out ===');
   });
   const simA = runMonthlySimulation(sA);
 
-  test('5.1 SSDI: last family month (m=33, TWINS_AGE_OUT_MONTH-1) gets ssdiFamilyTotal', () => {
-    assert.strictEqual(simA.monthlyData[33].ssBenefit, 6321,
-      `expected 6321 at month 33, got ${simA.monthlyData[33].ssBenefit}`);
+  test('5.1 SSDI: last family month (m=39, SS_CHILD_BENEFIT_END_MONTH-1) gets ssdiFamilyTotal', () => {
+    assert.strictEqual(simA.monthlyData[39].ssBenefit, 6321,
+      `expected 6321 at month 39, got ${simA.monthlyData[39].ssBenefit}`);
   });
 
-  test('5.2 SSDI: first personal month (m=34, TWINS_AGE_OUT_MONTH) gets ssdiPersonal', () => {
-    assert.strictEqual(simA.monthlyData[34].ssBenefit, 4214,
-      `expected 4214 at month 34, got ${simA.monthlyData[34].ssBenefit}`);
+  test('5.2 SSDI: first personal month (m=40, SS_CHILD_BENEFIT_END_MONTH) gets ssdiPersonal', () => {
+    assert.strictEqual(simA.monthlyData[40].ssBenefit, 4214,
+      `expected 4214 at month 40, got ${simA.monthlyData[40].ssBenefit}`);
   });
 
-  // SS path: ssClaimAge=62 => ssStartMonth=19, ssKidsAgeOutMonths=max(0,34-19)=15
-  // last family: 19+15-1=33 (m < 19+15=34), first personal: 34
+  // SS path (B4): ssClaimAge=62 => ssStartMonth=19, ssKidsAgeOutMonths=max(0,40-19)=21
+  // last family: 19+21-1=39 (m < 19+21=40), first personal: 40
   const sB = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: false, chadConsulting: 0, vanSold: false, retireDebt: true,
@@ -254,14 +254,14 @@ console.log('\n=== 5. Kids Age Out ===');
   });
   const simB = runMonthlySimulation(sB);
 
-  test('5.3 SS at 62: last family month (m=33) gets ssFamilyTotal', () => {
-    assert.strictEqual(simB.monthlyData[33].ssBenefit, sB.ssFamilyTotal,
-      `expected ${sB.ssFamilyTotal} at month 33, got ${simB.monthlyData[33].ssBenefit}`);
+  test('5.3 SS at 62: last family month (m=39) gets ssFamilyTotal', () => {
+    assert.strictEqual(simB.monthlyData[39].ssBenefit, sB.ssFamilyTotal,
+      `expected ${sB.ssFamilyTotal} at month 39, got ${simB.monthlyData[39].ssBenefit}`);
   });
 
-  test('5.4 SS at 62: first personal month (m=34) gets ssPersonal', () => {
-    assert.strictEqual(simB.monthlyData[34].ssBenefit, sB.ssPersonal,
-      `expected ${sB.ssPersonal} at month 34, got ${simB.monthlyData[34].ssBenefit}`);
+  test('5.4 SS at 62: first personal month (m=40) gets ssPersonal', () => {
+    assert.strictEqual(simB.monthlyData[40].ssBenefit, sB.ssPersonal,
+      `expected ${sB.ssPersonal} at month 40, got ${simB.monthlyData[40].ssBenefit}`);
   });
 }
 

@@ -1,5 +1,5 @@
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
-import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_START_OFFSET } from '../model/constants.js';
+import { ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_START_OFFSET } from '../model/constants.js';
 import { composePreviewState } from './previewState.js';
 import { computeEffectiveLeverConstraints } from '../model/leverClassification.js';
 import { computeChadPensionMonthly } from '../model/chadLevels.js';
@@ -97,7 +97,10 @@ export function gatherState(state) {
     const age = s.ssClaimAge || 67;
     s.ssPersonal = Math.round(pia * ssAdjustmentFactor(age));
     s.ssStartMonth = (age - 62) * 12 + SS_START_OFFSET;
-    s.ssKidsAgeOutMonths = Math.max(0, TWINS_AGE_OUT_MONTH - s.ssStartMonth);
+    // B4 (remediation 2026-06-10): child benefits run through HS graduation
+    // (student rule) — anchored to SS_CHILD_BENEFIT_END_MONTH (=40), not the
+    // 18th birthday (TWINS_AGE_OUT_MONTH=34, kept for the CTC).
+    s.ssKidsAgeOutMonths = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - s.ssStartMonth);
     s.ssFamilyTotal = s.ssKidsAgeOutMonths > 0
       ? s.ssPersonal + 2 * Math.round(pia * 0.5)
       : s.ssPersonal;

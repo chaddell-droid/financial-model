@@ -74,6 +74,13 @@ export const DAYS_PER_MONTH = 21.5;
 // m=33 (Dec 2028, last eligible) and m=34 (Jan 2029, first ineligible). Both SS and SSDI
 // kids-age-out paths resolve to this calendar moment.
 export const TWINS_AGE_OUT_MONTH = 34; // First month kids are NO LONGER eligible (Jan 2029)
+// B4 (remediation 2026-06-10): SSA's full-time-student rule (20 CFR 404.367(b)) pays
+// child benefits past the 18th birthday while the child is a full-time elementary/
+// secondary student — through the month of HS graduation. The twins graduate June 2029
+// (m=39), so m=40 (July 2029) is the first INELIGIBLE month for SS/SSDI child benefits.
+// TWINS_AGE_OUT_MONTH stays at 34: it also anchors the Child Tax Credit
+// (taxProjection.js), which correctly keys on the age-17 timeline, NOT the student rule.
+export const SS_CHILD_BENEFIT_END_MONTH = 40; // First month SS/SSDI child benefits stop (Jul 2029, student rule)
 export const SS_FRA = 67; // Full Retirement Age for 1960+ birth cohort
 export const SS_FRA_MONTH = 79; // Month when Chad reaches FRA (Oct 2032; born Sep 17, must be 67 full month)
 // SS start offset: +19 months from baseline for age 62 (Oct 2027, not Sep — mid-month birthday)

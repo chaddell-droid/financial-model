@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
-import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from '../model/constants.js';
+import { SGA_LIMIT, ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from '../model/constants.js';
 import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
@@ -172,7 +172,7 @@ const IncomeControls = ({
                           ? `Pays once Chad reaches age ${claimAge} (${gapYears.toFixed(1)} yr gap after job ends).`
                           : `Pays immediately on retirement (already past claim age ${claimAge}).`)
                       : effectivePostJobBenefit === 'ssdi'
-                        ? `SSDI personal/family pays the month after the job ends. Kids' auxiliary ages out ${getMonthLabel(TWINS_AGE_OUT_MONTH)} (m${TWINS_AGE_OUT_MONTH}).`
+                        ? `SSDI personal/family pays the month after the job ends. Kids' auxiliary ends ${getMonthLabel(SS_CHILD_BENEFIT_END_MONTH)} (m${SS_CHILD_BENEFIT_END_MONTH}, student rule).`
                         : `No income flows after the job ends — use this to model the gap explicitly.`;
                     const opt = (val, label) => ({ val, label, selected: effectivePostJobBenefit === val });
                     return (
@@ -413,11 +413,12 @@ const IncomeControls = ({
                     // before SS starts), and `|| 18` would falsely revert to 18 months.
                     // D6a (remediation 2026-06-09): the SSDI branch uses the SAME calendar
                     // derivation as the engine (FIX #8) — family rate flows from approval
-                    // until TWINS_AGE_OUT_MONTH — instead of the legacy kidsAgeOutMonths
-                    // field (which no longer affects the benefit path).
+                    // until SS_CHILD_BENEFIT_END_MONTH (B4 student rule, 2026-06-10) —
+                    // instead of the legacy kidsAgeOutMonths field (which no longer
+                    // affects the benefit path).
                     const familyMonths = isSSPath
                       ? (ssKidsAgeOutMonths ?? 18)
-                      : Math.max(0, TWINS_AGE_OUT_MONTH - (ssdiApprovalMonth ?? 7));
+                      : Math.max(0, SS_CHILD_BENEFIT_END_MONTH - (ssdiApprovalMonth ?? 7));
                     const lostBackPayMonthly = !isSSPath && !ssdiDenied ? Math.round((ssdiBackPayActual || 0) / 72) : 0;
                     // Net impact uses total W-2 monthly net (salary + bonus + RSU + hire stock,
                     // all averaged with MSFT growth applied) plus the MONTHLY health benefit.
@@ -521,20 +522,21 @@ const IncomeControls = ({
                 <div style={{ opacity: ssdiDenied ? 0.3 : 1, pointerEvents: ssdiDenied ? 'none' : 'auto' }}>
                   <Slider label="SSDI family total/mo" value={ssdiFamilyTotal} onChange={set('ssdiFamilyTotal')} commitStrategy={commitStrategy} min={4000} max={7000} step={100} />
                   <Slider label="SSDI personal (post kids)" value={ssdiPersonal} onChange={set('ssdiPersonal')} commitStrategy={commitStrategy} min={3000} max={4500} step={50} />
-                  {/* D6a (remediation 2026-06-09): kids age-out is CALENDAR-ANCHORED to the
-                      twins' 18th birthday (TWINS_AGE_OUT_MONTH) since FIX #8 — the old slider
-                      had zero engine effect across its whole range, so it's now a read-only
-                      derived display. (The legacy kidsAgeOutMonths field still bounds
-                      auxiliary back-pay months and is kept on state.) */}
+                  {/* D6a (remediation 2026-06-09): kids age-out is CALENDAR-ANCHORED — a
+                      read-only derived display (the old slider had zero engine effect).
+                      B4 (2026-06-10): anchored to SS_CHILD_BENEFIT_END_MONTH — SSA's
+                      full-time-student rule pays child benefits through HS graduation
+                      (June 2029), not just the 18th birthday. (The legacy kidsAgeOutMonths
+                      field still bounds auxiliary back-pay months and is kept on state.) */}
                   {(() => {
                     const approval = ssdiApprovalMonth ?? 7;
-                    const familyWindowMonths = Math.max(0, TWINS_AGE_OUT_MONTH - approval);
+                    const familyWindowMonths = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - approval);
                     return (
                       <div data-testid="income-kids-age-out-display" style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${COLORS.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                          <span style={{ color: COLORS.textDim }}>Kids age out (calendar):</span>
+                          <span style={{ color: COLORS.textDim }}>Kids' benefits end (calendar):</span>
                           <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {getMonthLabel(TWINS_AGE_OUT_MONTH)} (m{TWINS_AGE_OUT_MONTH})
+                            {getMonthLabel(SS_CHILD_BENEFIT_END_MONTH)} (m{SS_CHILD_BENEFIT_END_MONTH})
                           </span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
@@ -542,7 +544,7 @@ const IncomeControls = ({
                           <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{familyWindowMonths} mo</span>
                         </div>
                         <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 4, fontStyle: "italic" }}>
-                          Anchored to the twins' 18th birthday — not adjustable. SSDI pays the family total until then, the personal rate after.
+                          Anchored to HS graduation (SSA student rule) — not adjustable. SSDI pays the family total until then, the personal rate after.
                         </div>
                       </div>
                     );
@@ -582,7 +584,7 @@ const IncomeControls = ({
               const factor = ssAdjustmentFactor(age);
               const computedPersonal = Math.round(pia * factor);
               const computedStartMonth = (age - 62) * 12 + SS_START_OFFSET;
-              const computedKidsMonths = Math.max(0, TWINS_AGE_OUT_MONTH - computedStartMonth);
+              const computedKidsMonths = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - computedStartMonth); // B4 student rule
               const childBenefitEach = Math.round(pia * 0.5);
               const computedFamily = computedKidsMonths > 0 ? computedPersonal + 2 * childBenefitEach : computedPersonal;
               const projMonths = (chadWorkMonths || 72);

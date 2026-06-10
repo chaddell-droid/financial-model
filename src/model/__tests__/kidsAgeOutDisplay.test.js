@@ -18,7 +18,7 @@
 import assert from 'node:assert';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import { runMonthlySimulation } from '../projection.js';
-import { TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
+import { TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
 import { getMonthLabel } from '../checkIn.js';
 
 let passed = 0;
@@ -49,23 +49,28 @@ test('ssBenefit series is identical across the old slider range 24/36/48 (zero e
   assert.deepStrictEqual(series[1], series[2], '36 vs 48 must match');
 });
 
-test('family-rate window equals max(0, TWINS_AGE_OUT_MONTH − approvalMonth) — UI derivation parity', () => {
-  for (const approval of [0, 7, 20, 40]) {
+test('family-rate window equals max(0, SS_CHILD_BENEFIT_END_MONTH − approvalMonth) — UI derivation parity', () => {
+  // B4 (2026-06-10): the SS/SSDI child-benefit window is anchored to the
+  // student-rule end month (HS graduation), not the 18th birthday.
+  for (const approval of [0, 7, 20, 45]) {
     const s = gatherStateWithOverrides({ ssdiApprovalMonth: approval, ssdiBackPayMonths: 0 });
     const { monthlyData } = runMonthlySimulation(s);
     // Family rate (6321) is distinct from the personal rate (4214) in the
     // default state, so counting family-total months is unambiguous.
     assert.notStrictEqual(s.ssdiFamilyTotal, s.ssdiPersonal);
     const familyMonths = monthlyData.filter((d) => d.ssBenefit === s.ssdiFamilyTotal).length;
-    const expected = Math.max(0, TWINS_AGE_OUT_MONTH - approval);
+    const expected = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - approval);
     assert.strictEqual(familyMonths, expected,
       `approval ${approval}: family-rate months ${familyMonths} ≠ derived ${expected}`);
   }
 });
 
-test('TWINS_AGE_OUT_MONTH calendar label is January 2029 (read-only display copy)', () => {
+test('child-benefit end constants: student rule m=40 (July 2029); CTC anchor stays m=34 (January 2029)', () => {
   assert.strictEqual(TWINS_AGE_OUT_MONTH, 34);
   assert.strictEqual(getMonthLabel(TWINS_AGE_OUT_MONTH), 'January 2029');
+  // B4: SS/SSDI child benefits run through HS graduation (June 2029, m=39).
+  assert.strictEqual(SS_CHILD_BENEFIT_END_MONTH, 40);
+  assert.strictEqual(getMonthLabel(SS_CHILD_BENEFIT_END_MONTH), 'July 2029');
 });
 
 test('kidsAgeOutMonths still bounds auxiliary back-pay (field must be kept)', () => {

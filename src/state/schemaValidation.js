@@ -26,6 +26,10 @@ const RANGE = {
   sarahRateGrowth: { min: 0, max: 100 },
   sarahClientGrowth: { min: 0, max: 100 },
   investmentReturn: { min: -50, max: 100 },
+  // 6.5 (remediation 2026-06-10, improvement b-11): % of the taxable return
+  // lost to tax each month. 100 = fully taxed away (the engine clamps the
+  // multiplier at 0 — returns can never flip sign from drag alone).
+  taxableReturnDragPct: { min: 0, max: 100 },
   sarahTaxRate: { min: 0, max: 50 },
   chadJobTaxRate: { min: 0, max: 100 },
   return401k: { min: -50, max: 100 },

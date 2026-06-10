@@ -45,6 +45,7 @@ export function useChartPropBundles({
     milestones,
     retireDebt,
     startingSavings, investmentReturn,
+    taxableReturnDragPct, cashFloorAmount, cashYieldPct, // 6.5/6.6 (2026-06-10, b-11/b-15)
     ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
@@ -236,6 +237,7 @@ export function useChartPropBundles({
     savingsData, savingsZeroMonth, savingsZeroLabel,
     compareProjections, compareColors,
     data, startingSavings, investmentReturn,
+    taxableReturnDragPct, cashFloorAmount, cashYieldPct, // 6.5/6.6 (2026-06-10, b-11/b-15)
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode,
@@ -245,6 +247,7 @@ export function useChartPropBundles({
     savingsData, savingsZeroMonth, savingsZeroLabel,
     compareProjections,
     data, startingSavings, investmentReturn,
+    taxableReturnDragPct, cashFloorAmount, cashYieldPct, // 6.5/6.6 (2026-06-10, b-11/b-15)
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode, effectiveBaseExpenses, totalMonthlySpend,

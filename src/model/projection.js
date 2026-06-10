@@ -107,6 +107,12 @@ export function runMonthlySimulation(s) {
     ? s.customLevers.reduce((sum, lv) => sum + (lv && lv.active ? Math.max(0, Number(lv.currentValue) || 0) : 0), 0)
     : 0;
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
+  // 6.5 (remediation 2026-06-10, improvement b-11): tax drag on the TAXABLE
+  // savings return — after-tax = pre-tax × (1 − drag/100). Default 0 is a
+  // no-op (snapshot-preserving). Applies to the savings balance only; the
+  // 401(k) is tax-sheltered (its eventual tax lands via deficit401kTaxRate /
+  // retirement401kTaxRate at withdrawal). Clamped to [0, 1].
+  const taxableDragMult = 1 - Math.min(Math.max((s.taxableReturnDragPct ?? 0) / 100, 0), 1);
   // Optional per-month return paths (item 4.2, gate D7 — Monte Carlo block
   // bootstrap). When the MC engine runs in block-bootstrap mode it passes
   // monthly rate ARRAYS (decimal fractions, e.g. 0.01 = +1% that month) so a
@@ -757,7 +763,8 @@ export function runMonthlySimulation(s) {
     // Block-bootstrap mode (item 4.2): a per-month rate path overrides the
     // constant rate; months past the path's end fall back to the constant.
     const monthReturnRate = investReturnPath ? (investReturnPath[m] ?? monthlyReturnRate) : monthlyReturnRate;
-    const investReturn = balance > 0 ? Math.round(balance * monthReturnRate) : 0;
+    // 6.5 (b-11): the taxable balance earns the after-tax return.
+    const investReturn = balance > 0 ? Math.round(balance * monthReturnRate * taxableDragMult) : 0;
 
     // Base living expenses with optional inflation (debt/van/BCS are fixed contracts, not inflated)
     // b-12 (6.3): the fixed mortgage P&I is carved OUT of the inflating base

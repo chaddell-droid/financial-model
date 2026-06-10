@@ -76,6 +76,7 @@ function SavingsDrawdownChart({
   data,
   startingSavings,
   investmentReturn,
+  taxableReturnDragPct, // 6.5 (2026-06-10, b-11): tax drag on the taxable return
   debtService,
   ssdiApprovalMonth,
   ssdiBackPayActual,
@@ -432,6 +433,14 @@ function SavingsDrawdownChart({
           <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Slider label={totalMonthlySpend != null ? "Base living (set via total spend)" : "Base living expenses/mo"} value={baseExpenses} onChange={totalMonthlySpend != null ? () => {} : onFieldChange('baseExpenses')} commitStrategy='release' min={25000} max={55000} step={500} color={totalMonthlySpend != null ? COLORS.border : COLORS.red} />
             <Slider label="Debt service/mo (freed if retired)" value={debtService} onChange={onFieldChange('debtService')} commitStrategy='release' min={0} max={20000} step={100} color={retireDebt ? COLORS.border : COLORS.red} />
+          </div>
+          {/* 6.5 (2026-06-10, b-11): tax drag — after-tax return = return × (1 − drag). */}
+          <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Slider label="Tax drag on taxable return" value={taxableReturnDragPct || 0} onChange={onFieldChange('taxableReturnDragPct')} commitStrategy='release'
+              min={0} max={50} format={(v) => v + "% of return"} color={(taxableReturnDragPct || 0) > 0 ? COLORS.yellow : COLORS.border} />
+            <div style={{ fontSize: 10, color: COLORS.textDim, fontStyle: "italic", alignSelf: "center" }}>
+              Effective after-tax return: <span style={{ color: COLORS.cyan, fontFamily: "'JetBrains Mono', monospace" }}>{(investmentReturn * (1 - (taxableReturnDragPct || 0) / 100)).toFixed(1)}%</span> — taxable account only; the 401(k) is sheltered.
+            </div>
           </div>
           <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, padding: "0 2px" }}>
             <span style={{ color: COLORS.textDim }}>

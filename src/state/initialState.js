@@ -221,6 +221,12 @@ export const INITIAL_STATE = {
   // Savings & Investment
   startingSavings: 200000,
   investmentReturn: 15,
+  // Tax drag on the TAXABLE savings return (6.5 — remediation 2026-06-10,
+  // improvement b-11). After-tax return = pre-tax × (1 − drag/100). Default 0
+  // preserves every saved snapshot; the audit pegged an untaxed 15% taxable
+  // return as the model's most optimistic untracked assumption (~$15–30k over
+  // 6 years). The 401(k) is tax-sheltered and is never dragged.
+  taxableReturnDragPct: 0,
 
   // Capital Projects (legacy scalar fields — preserved for back-compat; migration seeds capitalItems from these)
   moldCost: 60000,
@@ -397,7 +403,7 @@ export const MODEL_KEYS = [
   'trustIncomeNow', 'trustIncomeFuture', 'trustIncreaseMonth',
   'vanSold', 'vanMonthlySavings', 'vanSalePrice', 'vanLoanBalance', 'vanSaleMonth',
   'retireDebt',
-  'startingSavings', 'investmentReturn', 'ssdiBackPayMonths',
+  'startingSavings', 'investmentReturn', 'taxableReturnDragPct', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'capitalItems', 'capitalFundingSource', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',

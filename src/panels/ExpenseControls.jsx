@@ -8,6 +8,7 @@ import { COLORS } from '../charts/chartUtils.js';
 
 const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
+  debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
   expenseInflation, expenseInflationRate, ssColaRate,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance,
@@ -99,6 +100,86 @@ const ExpenseControls = ({
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Debts (6.3 — remediation 2026-06-10, improvement a-5, gate D5).
+                List-editor follows the Expense Milestones pattern below. An
+                empty list keeps the flat debtService exactly; entries replace
+                it with real amortization (payments stop at payoff). */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }} data-testid="expense-debts">
+              <h4 style={{ fontSize: 11, color: COLORS.red, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Debts (amortized)</h4>
+              {(debts || []).length > 0 && (
+                <div style={{ display: "flex", gap: 6, fontSize: 9, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                  <span style={{ flex: 2 }}>Name</span>
+                  <span style={{ flex: 1.4, textAlign: "right" }}>Balance</span>
+                  <span style={{ flex: 0.9, textAlign: "right" }}>APR %</span>
+                  <span style={{ flex: 1.2, textAlign: "right" }}>Payment/mo</span>
+                  <span style={{ width: 24 }} />
+                </div>
+              )}
+              {(debts || []).map((d, i) => {
+                const upd = (patch) => { const u = [...debts]; u[i] = { ...u[i], ...patch }; set('debts')(u); };
+                const numInput = (field, value, testId, ariaLabel, flexVal) => (
+                  <input
+                    type="number" value={value ?? 0}
+                    data-testid={testId}
+                    aria-label={ariaLabel}
+                    onChange={(e) => upd({ [field]: e.target.value === '' ? 0 : Number(e.target.value) })}
+                    style={{ flex: flexVal, minWidth: 0, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.textSecondary, padding: "4px 6px", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", textAlign: "right", outline: "none" }}
+                  />
+                );
+                return (
+                  <div key={d.id || i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                    <input
+                      type="text" value={d.name}
+                      data-testid={`expense-debt-name-${i}`}
+                      aria-label={`Debt ${i + 1} name`}
+                      onChange={(e) => upd({ name: e.target.value })}
+                      style={{ flex: 2, minWidth: 0, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.textSecondary, padding: "4px 6px", fontSize: 11, fontFamily: "'Inter', sans-serif", outline: "none" }}
+                    />
+                    {numInput('balance', d.balance, `expense-debt-balance-${i}`, `Debt ${i + 1} balance`, 1.4)}
+                    {numInput('apr', d.apr, `expense-debt-apr-${i}`, `Debt ${i + 1} APR`, 0.9)}
+                    {numInput('payment', d.payment, `expense-debt-payment-${i}`, `Debt ${i + 1} monthly payment`, 1.2)}
+                    <button
+                      onClick={() => set('debts')(debts.filter((_, j) => j !== i))}
+                      data-testid={`expense-debt-delete-${i}`}
+                      aria-label={`Delete debt ${i + 1}`}
+                      style={{ background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
+                    >✕</button>
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => set('debts')([...(debts || []), { id: `debt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, name: "New debt", balance: 10000, apr: 10, payment: 500 }])}
+                data-testid="expense-add-debt"
+                aria-label="Add debt"
+                style={{ background: "transparent", border: `1px dashed ${COLORS.border}`, borderRadius: 4, color: COLORS.textDim, fontSize: 11, padding: "4px 10px", cursor: "pointer", width: "100%", marginTop: 4, fontFamily: "'Inter', sans-serif" }}
+              >+ Add debt</button>
+              <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 6, fontStyle: "italic" }}>
+                {(debts || []).some((d) => (d.balance || 0) > 0 && (d.payment || 0) > 0)
+                  ? "Per-debt amortization active — the flat debt-service amount is ignored. Each payment stops automatically at payoff."
+                  : <>Empty list = the flat {fmtFull(debtService)}/mo debt service runs for the <b>entire horizon</b> (phantom payments after real payoff). Add each real debt (balance, APR, payment) so payments stop at payoff. <b>Chad: enter the real numbers from the statements.</b></>}
+              </div>
+            </div>
+
+            {/* Mortgage P&I split (6.3 — improvement b-12, gate D5). Carved out
+                of the inflating base; principal credits home equity. */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }} data-testid="expense-mortgage">
+              <h4 style={{ fontSize: 11, color: COLORS.blue, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Mortgage P&amp;I Split</h4>
+              <Slider label="Monthly P&I (within base expenses)" value={mortgagePI} onChange={set('mortgagePI')} commitStrategy={commitStrategy} min={0} max={15000} step={50} color={mortgagePI > 0 ? COLORS.blue : COLORS.border} />
+              {mortgagePI > 0 && (
+                <>
+                  <Slider label="Mortgage balance" value={mortgageBalance} onChange={set('mortgageBalance')} commitStrategy={commitStrategy} min={0} max={2000000} step={10000} color={COLORS.blue} />
+                  <Slider label="Mortgage rate (APR)" value={mortgageRate} onChange={set('mortgageRate')} commitStrategy={commitStrategy} min={0} max={12} step={0.125} color={COLORS.blue} format={(v) => v + '%'} />
+                </>
+              )}
+              <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
+                {mortgagePI > 0
+                  ? (mortgageBalance > 0
+                    ? "P&I is excluded from expense inflation; the principal portion is credited to home equity each month and the payment stops at payoff."
+                    : "P&I is excluded from expense inflation. Add the balance + rate so principal credits home equity and the payment stops at payoff.")
+                  : <>At $0 the entire base inflates (pre-split behavior). Set your fixed P&amp;I so it stops inflating and principal counts as saving. <b>Chad: enter the real numbers later.</b></>}
+              </div>
             </div>
 
             {/* BCS Tuition */}

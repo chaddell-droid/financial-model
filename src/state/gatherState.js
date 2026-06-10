@@ -49,6 +49,9 @@ export function gatherState(state) {
     s.capitalItems = deriveCapitalItemsFromLegacy(s);
   }
   if (!Array.isArray(s.customLevers)) s.customLevers = [];
+  // 6.3 (remediation 2026-06-10, improvement a-5, gate D5): per-debt list.
+  // Empty list == the flat debtService continues exactly (snapshot-preserving).
+  if (!Array.isArray(s.debts)) s.debts = [];
 
   s.chadRetirementMonth = s.chadWorkMonths || 72;
   // Extend projection horizon to cover post-retirement RSU vests when the
@@ -77,7 +80,13 @@ export function gatherState(state) {
   // rather than being absorbed into baseExpenses (which would persist after BCS ends).
   if (s.totalMonthlySpend != null) {
     const statusQuoBcsMonthly = Math.round(Math.max(0, (s.bcsAnnualTotal || 0) - 25000) / 12);
-    s.baseExpenses = Math.max(0, s.totalMonthlySpend - (s.debtService || 0) - (s.vanMonthlySavings || 0) - statusQuoBcsMonthly);
+    // 6.3 (D5): an active per-debt list REPLACES the flat debtService, so the
+    // back-calc subtracts the list's month-0 payments instead.
+    const activeDebts = s.debts.filter(d => d && (d.balance || 0) > 0 && (d.payment || 0) > 0);
+    const debtMonthly = activeDebts.length > 0
+      ? Math.round(activeDebts.reduce((t, d) => t + d.payment, 0))
+      : (s.debtService || 0);
+    s.baseExpenses = Math.max(0, s.totalMonthlySpend - debtMonthly - (s.vanMonthlySavings || 0) - statusQuoBcsMonthly);
   }
   // If cutsOverride is set, use it as total cuts (split into lifestyleCuts, zero the rest)
   // Otherwise use the individual item sums

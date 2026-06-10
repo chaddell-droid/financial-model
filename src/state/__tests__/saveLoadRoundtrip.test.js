@@ -130,6 +130,11 @@ const NON_DEFAULT_VALUES = {
   oneTimeMonths: 12,
   baseExpenses: 50000,
   debtService: 7500,
+  // Per-debt amortization + mortgage P&I split (6.3 — remediation 2026-06-10, D5)
+  debts: [{ id: 'debt-rt', name: 'Round-trip CC', balance: 9000, apr: 22.9, payment: 450 }],
+  mortgagePI: 4800,
+  mortgageBalance: 520000,
+  mortgageRate: 5.75,
   expenseInflation: false,         // flipped
   expenseInflationRate: 4,
   // BCS tuition

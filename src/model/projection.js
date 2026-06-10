@@ -210,7 +210,30 @@ export function runMonthlySimulation(s) {
   // SSDI back pay, this one-time event re-fires when buildReforecast re-runs
   // the simulation from month 0 with an updated starting balance.
   const capitalFromSavings = s.capitalFundingSource === 'savings';
-  const debtPayoffTotal = (s.debtCC || 0) + (s.debtPersonal || 0) + (s.debtIRS || 0) + (s.debtFirstmark || 0);
+  // 6.3 (remediation 2026-06-10, improvement a-5, gate D5): per-debt
+  // amortization state. Active entries ({balance>0, payment>0}) REPLACE the
+  // flat debtService; an empty or inert list keeps the flat behavior exactly
+  // (snapshot-preserving default — D5: Chad to enter real numbers later).
+  // Balances are tracked as floats (interest accrues monthly at apr/12);
+  // each debt's payment drops to ZERO at payoff. retireDebt keeps its
+  // meaning: all listed debts are paid off at month 0 (no payments; the
+  // payoff total below switches to the LIST's balances).
+  const activeDebts = (Array.isArray(s.debts) ? s.debts : [])
+    .filter(d => d && (d.balance || 0) > 0 && (d.payment || 0) > 0);
+  const useDebtList = activeDebts.length > 0;
+  const debtBalances = activeDebts.map(d => (s.retireDebt ? 0 : d.balance));
+  const debtPayoffTotal = useDebtList
+    ? Math.round(activeDebts.reduce((t, d) => t + d.balance, 0))
+    : (s.debtCC || 0) + (s.debtPersonal || 0) + (s.debtIRS || 0) + (s.debtFirstmark || 0);
+  // 6.3 (improvement b-12): mortgage P&I split. mortgagePI is carved OUT of
+  // the inflating base (a fixed-rate payment does not inflate). With balance
+  // info the principal portion is credited to home equity each month and the
+  // payment stops at payoff; without it the payment is simply a fixed
+  // (non-inflating) expense forever. Defaults (all 0) are a no-op.
+  const mortgagePayment = Math.max(0, s.mortgagePI || 0);
+  let mortgageBalance = Math.max(0, s.mortgageBalance || 0);
+  const mortgageTracksBalance = mortgagePayment > 0 && mortgageBalance > 0;
+  const mortgageMonthlyRate = Math.max(0, s.mortgageRate || 0) / 100 / 12;
   const capitalOutlayAtStart = capitalFromSavings
     ? computeOneTimeTotal(s.capitalItems) + (s.retireDebt ? debtPayoffTotal : 0)
     : 0;
@@ -713,16 +736,63 @@ export function runMonthlySimulation(s) {
     const investReturn = balance > 0 ? Math.round(balance * monthReturnRate) : 0;
 
     // Base living expenses with optional inflation (debt/van/BCS are fixed contracts, not inflated)
-    let inflatedBase = s.baseExpenses;
+    // b-12 (6.3): the fixed mortgage P&I is carved OUT of the inflating base
+    // (clamped at baseExpenses) — only the non-mortgage remainder inflates.
+    const mortgageCarve = mortgagePayment > 0 ? Math.min(mortgagePayment, s.baseExpenses) : 0;
+    let inflatedBase = s.baseExpenses - mortgageCarve;
     if (s.expenseInflation) {
       inflatedBase = Math.round(inflatedBase * Math.pow(1 + (s.expenseInflationRate || 0) / 100, m / 12));
     }
     // Track expense breakdown so tooltips can show the math that rolls up to `expenses`.
     const expenseBreakdown = { baseLiving: inflatedBase };
     let expenses = inflatedBase;
+    // b-12 (6.3): mortgage P&I — amortizes when balance info is present (the
+    // payment drops to zero at payoff; the principal portion is credited to
+    // home equity after the growth step below). Without balance info the
+    // payment continues as a fixed non-inflating expense.
+    let mortgagePrincipal = 0;
+    if (mortgagePayment > 0) {
+      if (mortgageTracksBalance) {
+        if (mortgageBalance > 0) {
+          const mortgageInterest = mortgageBalance * mortgageMonthlyRate;
+          const mortgagePay = Math.min(mortgagePayment, mortgageBalance + mortgageInterest);
+          mortgagePrincipal = mortgagePay - mortgageInterest;
+          mortgageBalance = Math.max(0, mortgageBalance + mortgageInterest - mortgagePay);
+          const mortgagePayRounded = Math.round(mortgagePay);
+          expenses += mortgagePayRounded;
+          expenseBreakdown.mortgagePI = mortgagePayRounded;
+        }
+        // paid off → the P&I expense drops to zero (the carved base stays carved)
+      } else {
+        expenses += mortgagePayment;
+        expenseBreakdown.mortgagePI = mortgagePayment;
+      }
+    }
     if (!s.retireDebt) {
-      expenses += s.debtService;
-      expenseBreakdown.debtService = s.debtService;
+      if (useDebtList) {
+        // a-5 (6.3): per-debt amortization — interest accrues first, the
+        // final payment is capped at balance + interest, and each debt's
+        // payment drops to ZERO at payoff. A payment below the monthly
+        // interest amortizes negatively (the balance grows — no phantom
+        // payoff). Replaces the flat debtService while the list is active.
+        let debtPaymentThisMonth = 0;
+        for (let i = 0; i < activeDebts.length; i++) {
+          const bal = debtBalances[i];
+          if (bal <= 0) continue;
+          const debtInterest = bal * (Math.max(0, activeDebts[i].apr || 0) / 100 / 12);
+          const pay = Math.min(activeDebts[i].payment, bal + debtInterest);
+          debtBalances[i] = Math.max(0, bal + debtInterest - pay);
+          debtPaymentThisMonth += pay;
+        }
+        debtPaymentThisMonth = Math.round(debtPaymentThisMonth);
+        if (debtPaymentThisMonth > 0) {
+          expenses += debtPaymentThisMonth;
+          expenseBreakdown.debtService = debtPaymentThisMonth;
+        }
+      } else {
+        expenses += s.debtService;
+        expenseBreakdown.debtService = s.debtService;
+      }
     }
     // Van: if sold, monthly cost stops at sale month; if not sold, cost continues forever
     const vanSaleMonth = s.vanSaleMonth ?? 12;
@@ -829,6 +899,11 @@ export function runMonthlySimulation(s) {
     }
     bal401k = Math.round(bal401k);
     if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
+    // b-12 (6.3): mortgage principal paydown is forced saving — credit it to
+    // home equity AFTER growth (end-of-month payment semantics, mirroring the
+    // 401(k) contribution treatment above). Signed: a payment below interest
+    // (negative amortization) reduces equity.
+    if (mortgagePrincipal !== 0) homeEquity += Math.round(mortgagePrincipal);
 
     // Deficit transfer chain: savings → 401(k) → home equity.
     // D7 (remediation 2026-06-09): 401(k) dollars are PRE-TAX — covering $1 of
@@ -882,6 +957,11 @@ export function runMonthlySimulation(s) {
       // the balance remaining AFTER the draw (expenseBreakdown.college only
       // carries the out-of-pocket remainder, so Σ breakdown == expenses).
       college529Draw, college529Balance: college529,
+      // 6.3: per-debt + mortgage traceability — remaining balances AFTER this
+      // month's payments (0 when the flat debtService / no mortgage applies).
+      debtBalance: Math.round(debtBalances.reduce((t, b) => t + b, 0)),
+      mortgageBalance: Math.round(mortgageBalance),
+      mortgagePrincipal: Math.round(mortgagePrincipal),
       expensesClamped, // C12: true when the floor-at-zero clamp bound this month
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,

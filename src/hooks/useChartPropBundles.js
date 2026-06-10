@@ -35,6 +35,7 @@ export function useChartPropBundles({
     chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
     chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
     totalMonthlySpend, debtService, expenseInflation, expenseInflationRate, ssColaRate,
+    debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance, // 6.2 (2026-06-10)
     lifestyleCutsApplied, cutsOverride,
@@ -162,6 +163,7 @@ export function useChartPropBundles({
 
   const expenseControlsProps = useMemo(() => ({
     totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
+    debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
     expenseInflation, expenseInflationRate, ssColaRate, // A2 (2026-06-10)
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
@@ -178,6 +180,7 @@ export function useChartPropBundles({
     onFieldChange: set,
   }), [
     totalMonthlySpend, effectiveBaseExpenses, debtService,
+    debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
     expenseInflation, expenseInflationRate, ssColaRate, // A2 (2026-06-10)
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,

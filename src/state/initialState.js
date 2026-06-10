@@ -125,6 +125,26 @@ export const INITIAL_STATE = {
   oneTimeMonths: 0,          // How many months the extras last
   baseExpenses: 43818,
   debtService: 6434,
+  // Per-debt amortization (6.3 — remediation 2026-06-10, improvement a-5, gate D5).
+  // Shape: { id: string, name: string, balance: number, apr: number (% APR),
+  // payment: number ($/mo) }. Each debt amortizes monthly (interest first,
+  // final payment capped at balance + interest) and its payment drops to ZERO
+  // at payoff. DEFAULT IS FLAT-EQUIVALENT: with no entries the flat
+  // `debtService` above continues exactly as before (snapshot-preserving).
+  // When entries exist they REPLACE debtService in the expense loop, the
+  // totalMonthlySpend back-calc, and the retireDebt payoff total.
+  // D5: Chad to enter real balances/APRs/payments — see the Debts editor hint.
+  debts: [],
+  // Mortgage P&I split (6.3 — improvement b-12). mortgagePI is the fixed
+  // monthly principal+interest carved OUT of the inflating baseExpenses (a
+  // fixed-rate payment does not inflate). With mortgageBalance/mortgageRate
+  // set, the principal portion is credited to home equity each month and the
+  // payment drops to zero at payoff; with no balance info the payment simply
+  // continues as a fixed non-inflating expense. Defaults are a no-op (D5:
+  // Chad to fill in real numbers).
+  mortgagePI: 0,        // $/mo fixed P&I (0 = entire baseExpenses inflates, pre-6.3 behavior)
+  mortgageBalance: 0,   // current principal balance
+  mortgageRate: 0,      // mortgage APR %
   expenseInflation: true,        // Apply annual inflation to base living expenses
   expenseInflationRate: 3,       // 3% annual default (CPI approximation)
 
@@ -347,6 +367,8 @@ export const MODEL_KEYS = [
   'chadL65Enabled', 'chadL65Month', 'chadL65Salary', 'chadL65StockRefresh', 'chadL65BonusPct',
   'chadAge65VestOverride',
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
+  // Per-debt amortization + mortgage P&I split (6.3 — remediation 2026-06-10, D5)
+  'debts', 'mortgagePI', 'mortgageBalance', 'mortgageRate',
   'expenseInflation', 'expenseInflationRate',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   // Twins' college (6.2 — remediation 2026-06-10, D4)

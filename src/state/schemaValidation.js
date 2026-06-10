@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -101,6 +101,11 @@ const RANGE = {
   oneTimeMonths: { min: 0, max: 72 },
   baseExpenses: { min: 0 },
   debtService: { min: 0 },
+  // Mortgage P&I split (6.3 — remediation 2026-06-10, improvement b-12, D5).
+  // Per-debt bounds for the debts array live in sanitizeDebts (DEBT_* consts).
+  mortgagePI: { min: 0, max: 20000 },
+  mortgageBalance: { min: 0, max: 5_000_000 },
+  mortgageRate: { min: 0, max: 25 },
   expenseInflationRate: { min: 0, max: 15 },
   bcsAnnualTotal: { min: 0 },
   bcsParentsAnnual: { min: 0 },
@@ -284,6 +289,19 @@ const MIGRATIONS = [
       return result;
     },
   },
+  {
+    from: 7,
+    to: 8,
+    fn: (state) => {
+      const result = { ...state };
+      // 6.3 (remediation 2026-06-10, improvement a-5, gate D5): per-debt
+      // amortization list. Empty list == flat debtService (snapshot-preserving
+      // default). The mortgage scalar fields (mortgagePI/Balance/Rate) fall
+      // through validateAndSanitize defaults (0 = no-op).
+      if (!Array.isArray(result.debts)) result.debts = [];
+      return result;
+    },
+  },
 ];
 
 /**
@@ -335,6 +353,10 @@ export function validateAndSanitize(raw) {
     }
     if (key === 'capitalItems') {
       result[key] = sanitizeCapitalItems(rawVal);
+      continue;
+    }
+    if (key === 'debts') {
+      result[key] = sanitizeDebts(rawVal);
       continue;
     }
     if (key === 'customLevers') {
@@ -450,6 +472,25 @@ export function sanitizeCapitalItems(items) {
     cost: clampNum(it.cost, 0, 5_000_000, 0),
     include: Boolean(it.include),
     likelihood: clampNum(it.likelihood, 0, 100, 100),
+  }));
+}
+
+// Per-debt corruption guards (6.3 — remediation 2026-06-10, improvement a-5,
+// gate D5). Balance shares the capital-items $5M ceiling; APR is capped at
+// 50% (above any consumer rate); payment at $50k/mo (~8× the flat
+// debtService). Guards, not UI mirrors — direct JSON edits survive.
+const DEBT_BALANCE_MAX = 5_000_000;
+const DEBT_APR_MAX = 50;
+const DEBT_PAYMENT_MAX = 50_000;
+
+export function sanitizeDebts(debts) {
+  if (!Array.isArray(debts)) return [];
+  return debts.filter(d => d && typeof d === 'object').map(d => ({
+    id: typeof d.id === 'string' && d.id.length > 0 ? d.id : genId('debt'),
+    name: typeof d.name === 'string' ? d.name : 'Untitled debt',
+    balance: clampNum(d.balance, 0, DEBT_BALANCE_MAX, 0),
+    apr: clampNum(d.apr, 0, DEBT_APR_MAX, 0),
+    payment: clampNum(d.payment, 0, DEBT_PAYMENT_MAX, 0),
   }));
 }
 

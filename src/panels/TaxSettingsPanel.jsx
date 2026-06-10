@@ -119,7 +119,7 @@ export default function TaxSettingsPanel({
           <Section title="Inflation Adjustment" color={COLORS.cyan}>
             <Toggle
               label="Inflate tax parameters annually"
-              description="Bracket thresholds, SALT cap, and deduction amounts grow at the rate below."
+              description="Bracket thresholds, the standard deduction, LTCG breakpoints, and your entered deduction amounts grow at the rate below. The SALT cap follows its own statutory schedule."
               checked={taxInflationAdjust}
               onChange={set('taxInflationAdjust')}
               color={COLORS.cyan}

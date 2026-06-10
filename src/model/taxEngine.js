@@ -91,7 +91,10 @@ export function computeLtcgTax(ordinaryTaxable, ltGain, brackets = LTCG_BRACKETS
   return tax;
 }
 
-export function computeItemizedDeductions({ agi, propertyTax, salesTax, personalPropTax, mortgageInt, charitable, totalMedicalInput, saltCap = null, saltThreshold = null }) {
+// C5 (remediation 2026-06-10): `stdDeduction` lets callers pass an
+// inflation-indexed standard deduction (§63(c)(4) indexes it annually, so
+// taxInflationAdjust must move it together with the brackets).
+export function computeItemizedDeductions({ agi, propertyTax, salesTax, personalPropTax, mortgageInt, charitable, totalMedicalInput, saltCap = null, saltThreshold = null, stdDeduction = null }) {
   const saltTotal = propertyTax + salesTax + personalPropTax;
   const baseCap = saltCap ?? SALT_CAP;
   // C8 (remediation 2026-06-10): the phase-down MAGI threshold is year-scheduled
@@ -106,8 +109,9 @@ export function computeItemizedDeductions({ agi, propertyTax, salesTax, personal
   const medicalFloor = agi * MEDICAL_FLOOR;
   const medicalDeductible = Math.max(0, totalMedicalInput - medicalFloor);
   const itemized = saltDeductible + mortgageInt + charitable + medicalDeductible;
-  const deductionUsed = Math.max(itemized, STD_DED);
-  const usingItemized = itemized > STD_DED;
+  const effectiveStdDed = stdDeduction ?? STD_DED;
+  const deductionUsed = Math.max(itemized, effectiveStdDed);
+  const usingItemized = itemized > effectiveStdDed;
   return { saltTotal, saltDeductible, medicalFloor, medicalDeductible, itemized, deductionUsed, usingItemized };
 }
 
@@ -225,6 +229,7 @@ export function calculateTax(inputs) {
     preComputedItemized = null,
     saltCap = null,
     saltThreshold = null, // C8: year-scheduled SALT phase-down MAGI threshold
+    stdDeduction = null,  // C5: inflation-indexed standard deduction
     flatCredits = null,
     skipAdditionalMedicare = false,
     skipQbiPhaseOut = false,
@@ -325,6 +330,7 @@ export function calculateTax(inputs) {
     deductions = computeItemizedDeductions({
       agi, propertyTax, salesTax, personalPropTax,
       mortgageInt, charitable, totalMedicalInput, saltCap, saltThreshold,
+      stdDeduction, // C5
     });
   }
 

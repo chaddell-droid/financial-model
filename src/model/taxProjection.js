@@ -24,7 +24,7 @@ function nextStockVestMonthAfter(month) {
   }
   return month + 3;
 }
-import { BRACKETS_MFJ_2026, LTCG_BRACKETS_MFJ_2026, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
+import { BRACKETS_MFJ_2026, LTCG_BRACKETS_MFJ_2026, STD_DED, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
 import { calculateTax, computeAdditionalMedicare, computeSSTaxableAmount } from './taxEngine.js';
 import { getVestingGrossMonthly } from './vesting.js';
 
@@ -523,6 +523,13 @@ export function buildTaxSchedule(s) {
     const inflatedLtcgBrackets = inflationFactor > 1
       ? inflateBrackets(LTCG_BRACKETS_MFJ_2026, inflationFactor)
       : null;
+    // C5: §63(c)(4) indexes the standard deduction annually — move it with
+    // the brackets when taxInflationAdjust is on (previously only the
+    // brackets and user-entered deduction amounts grew, silently costing
+    // ~$715/yr of phantom tax by year 6).
+    const inflatedStdDeduction = inflationFactor > 1
+      ? Math.round(STD_DED * inflationFactor)
+      : null;
 
     const taxInputs = getTaxInputs(s, y);
 
@@ -556,6 +563,7 @@ export function buildTaxSchedule(s) {
       saltThreshold,
       brackets: inflatedBrackets,
       ltcgBrackets: inflatedLtcgBrackets, // C4
+      stdDeduction: inflatedStdDeduction, // C5
       noFICA: chadJobNoFICA, // FIX #1
     }, y, fullOtherAGIHistory);
     const fullTax = fullRun.result;
@@ -583,6 +591,7 @@ export function buildTaxSchedule(s) {
       saltThreshold,
       brackets: inflatedBrackets,
       ltcgBrackets: inflatedLtcgBrackets, // C4
+      stdDeduction: inflatedStdDeduction, // C5
       noFICA: chadJobNoFICA, // FIX #1
     }, y, w2OnlyOtherAGIHistory);
     const w2OnlyTax = w2Run.result;

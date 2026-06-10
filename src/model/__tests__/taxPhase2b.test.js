@@ -26,6 +26,7 @@ import {
   estimateAnnualTaxableSSBenefits,
 } from '../taxProjection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
+import { STD_DED } from '../taxConstants.js';
 
 let passed = 0;
 let failed = 0;
@@ -319,6 +320,42 @@ test('b10-4. non-receipt years expose no ssLumpSum', () => {
   for (let y = 1; y < sched.length; y++) {
     assert.strictEqual(sched[y].ssLumpSum, null, `year ${y} must not carry ssLumpSum`);
   }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// C5 — taxInflationAdjust must index the standard deduction (§63(c)(4)),
+//       not just the brackets
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== C5: standard deduction indexes with taxInflationAdjust ===');
+
+const C5_STATE = {
+  ssType: 'ss', ssStartMonth: 999, chadJob: false, // SS outside horizon
+  sarahRate: 200, sarahCurrentClients: 4,
+  // No itemizable amounts → the standard deduction is used every year.
+  taxPropertyTax: 0, taxSalesTax: 0, taxPersonalPropTax: 0,
+  taxMortgageInt: 0, taxCharitable: 0, taxMedical: 0,
+};
+
+test('C5-1. inflation ON: year-y deduction = STD_DED × (1+r)^y', () => {
+  const s = gatherStateWithOverrides({ ...C5_STATE, taxInflationAdjust: true, taxInflationRate: 10 });
+  const sched = buildTaxSchedule(s);
+  assert.strictEqual(sched[0].fullTax.deductionUsed, STD_DED, 'year 0 unchanged');
+  assert.strictEqual(sched[3].fullTax.deductionUsed, Math.round(STD_DED * Math.pow(1.1, 3)),
+    `year 3 standard deduction must inflate with the brackets, got ${sched[3].fullTax.deductionUsed}`);
+});
+
+test('C5-2. inflation OFF: deduction stays flat', () => {
+  const s = gatherStateWithOverrides({ ...C5_STATE, taxInflationAdjust: false });
+  const sched = buildTaxSchedule(s);
+  assert.strictEqual(sched[3].fullTax.deductionUsed, STD_DED);
+});
+
+test('C5-3. calculateTax accepts a stdDeduction override', () => {
+  const flat = calculateTax({ w2Wages: 200000 });
+  const indexed = calculateTax({ w2Wages: 200000, stdDeduction: 40000 });
+  assert.strictEqual(flat.deductionUsed, STD_DED);
+  assert.strictEqual(indexed.deductionUsed, 40000);
+  assert.ok(indexed.totalTax < flat.totalTax, 'a larger deduction must lower tax');
 });
 
 // ════════════════════════════════════════════════════════════════════════

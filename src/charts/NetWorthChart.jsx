@@ -10,6 +10,7 @@ import useContainerWidth from '../hooks/useContainerWidth.js';
 function NetWorthChart({
   savingsData, wealthData,
   starting401k, return401k, homeEquity, homeAppreciation,
+  deficit401kTaxRate,
   presentMode, onFieldChange,
   compareProjections, compareColors,
   instanceId = 'default',
@@ -245,9 +246,12 @@ function NetWorthChart({
                   fill={COLORS.red} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                   401k depleted
                 </text>
+                {/* D7 (remediation 2026-06-09): home-equity deficit draws are
+                    modeled as a SALE OF EQUITY — dollar-for-dollar, no loan,
+                    no interest, no tax. Previously mislabeled "HELOC". */}
                 <text x={xOf(m) + 4} y={padT + 46}
                   fill={COLORS.red} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
-                  → home equity (HELOC)
+                  → home equity sale
                 </text>
               </g>
             );
@@ -351,6 +355,10 @@ function NetWorthChart({
             min={0} max={1000000} step={10000} color={COLORS.blue} />
             <Slider label="Annual return" value={return401k} onChange={onFieldChange('return401k')} commitStrategy='release'
             min={0} max={40} format={(v) => v + '%'} color={COLORS.blue} />
+            {/* D7: 401(k) dollars are pre-tax — deficit draws are grossed up by
+                this effective rate (covering $1 net withdraws 1/(1-rate) gross). */}
+            <Slider label="Deficit draw tax rate" value={deficit401kTaxRate} onChange={onFieldChange('deficit401kTaxRate')} commitStrategy='release'
+            min={0} max={60} format={(v) => v + '%'} color={COLORS.blue} />
           </div>
           <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 6, marginTop: 8, fontWeight: 600 }}>Home Equity</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

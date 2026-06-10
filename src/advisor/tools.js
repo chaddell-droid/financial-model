@@ -426,7 +426,7 @@ export const TOOLS = Object.freeze([
   {
     name: 'monteCarloSummary',
     description:
-      'Run a Monte Carlo simulation over investment-return / business-growth / MSFT-growth / SSDI-delay variability. Returns BOTH solvency rates (savings-only solvency = "never had to dip into reserves" AND total solvency = "didn\'t go bankrupt because reserves bailed it out") plus percentile bands and final values for SAVINGS, 401(k), HOME EQUITY, and NET WORTH. Includes cumulative drawdown stats (median + p90 401k withdrawal, home HELOC). Use whenever the user asks about risk, downside, confidence bands, or whether the plan would have to tap reserves.',
+      'Run a Monte Carlo simulation over investment-return / business-growth / MSFT-growth / SSDI-delay variability. Returns BOTH solvency rates (savings-only solvency = "never had to dip into reserves" AND total solvency = "didn\'t go bankrupt because reserves bailed it out") plus percentile bands and final values for SAVINGS, 401(k), HOME EQUITY, and NET WORTH. Includes cumulative drawdown stats (median + p90 gross 401k withdrawal — grossed up for income tax — and home-equity sold). Use whenever the user asks about risk, downside, confidence bands, or whether the plan would have to tap reserves.',
     input_schema: MONTE_CARLO_SCHEMA,
     handler: (state, args = {}) => {
       const N = args.runs ?? 250;
@@ -471,7 +471,7 @@ export const TOOLS = Object.freeze([
           p90Final: r(mc.p90Final401k),
           bands: compactBands(mc.bands401k),
         },
-        // Home equity (post-HELOC if any drawdown fired)
+        // Home equity (post-equity-sale draws if any drawdown fired)
         homeEquity: {
           medianFinal: r(mc.medianFinalHomeEquity),
           p10Final: r(mc.p10FinalHomeEquity),

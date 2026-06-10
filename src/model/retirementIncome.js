@@ -34,6 +34,9 @@ function getRetirementMonthDetails(t, {
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    // Survivor claim age = Sarah's age when widowed (floored at 60 inside the
+    // helper) — locks the SSA reduction factor at claim time (D3).
+    survivorClaimAge: chadPassesAge - ageDiff,
   });
   const pension = getPensionAtMonth(t, pensionMonthly || 0, chadAlive);
   const guaranteedIncome = trustMonthly + ssInfo.amount + pension;
@@ -57,29 +60,71 @@ function getDecisionMonth(context, decisionMonth) {
   return Math.max(0, Math.min(context.horizonMonths, Math.floor(decisionMonth)));
 }
 
+// SSA survivor-benefit reduction (remediation 2026-06-09 D3): a widow(er)
+// claiming at 60 receives 71.5% of the deceased's benefit; the factor rises
+// linearly to 100% at the survivor's FRA (67). The reduction is locked at
+// CLAIM age and is permanent — it does not "heal" at FRA.
+const SURVIVOR_EARLIEST_AGE = 60;
+const SURVIVOR_FRA = 67;
+const SURVIVOR_MIN_FACTOR = 0.715;
+
+export function survivorReductionFactor(claimAge) {
+  const a = Math.min(
+    SURVIVOR_FRA,
+    Math.max(SURVIVOR_EARLIEST_AGE, Number.isFinite(claimAge) ? claimAge : SURVIVOR_FRA),
+  );
+  return SURVIVOR_MIN_FACTOR
+    + (a - SURVIVOR_EARLIEST_AGE) * ((1 - SURVIVOR_MIN_FACTOR) / (SURVIVOR_FRA - SURVIVOR_EARLIEST_AGE));
+}
+
 export function getRetirementSSInfo(chadAge, chadAlive, {
   ageDiff,
   chadSS,
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  survivorClaimAge,
 }) {
   const sarahAge = chadAge - ageDiff;
 
   if (chadAlive) {
-    const sarahSpousal = sarahAge >= 62 ? Math.min(Math.round(ssFRA * 0.5), sarahOwnSS) : 0;
+    // SSA spousal rule (remediation 2026-06-09 D3): once Sarah claims (age
+    // gate 62), the household receives Chad's benefit PLUS the LARGER of her
+    // own-record benefit or the spousal ceiling (50% of Chad's PIA) — her own
+    // benefit is topped up toward the spousal amount, never reduced to the
+    // smaller of the two. The previous rule paid min(half-PIA, own), a
+    // conservative floor that under-paid whenever the two differed.
+    const spousalCeiling = Math.round(ssFRA * 0.5);
+    const sarahBenefit = sarahAge >= 62 ? Math.max(spousalCeiling, sarahOwnSS) : 0;
     return {
-      amount: chadSS + sarahSpousal,
-      label: sarahSpousal > 0 ? 'Chad + Sarah spousal' : 'Chad only',
+      amount: chadSS + sarahBenefit,
+      label: sarahBenefit === 0 ? 'Chad only'
+        : spousalCeiling > sarahOwnSS ? 'Chad + Sarah spousal'
+        : 'Chad + Sarah own record',
       sarahAge,
     };
   }
 
+  // Survivor phase. Nothing is payable before 60. From 60, Sarah claims the
+  // survivor benefit with the SSA reduction factor locked at her CLAIM age
+  // (the age she was widowed, floored at 60; callers that know chadPassesAge
+  // pass it via survivorClaimAge — direct callers fall back to her current
+  // age). The factor interpolates 71.5% → 100% between 60 and FRA (67) and is
+  // permanent thereafter. The old rule paid a flat 71.5% for ALL ages 60–66
+  // and then jumped to 100% at 67 — SSA does neither. From 62 she can switch
+  // to her own record when it pays more.
+  if (sarahAge < SURVIVOR_EARLIEST_AGE) {
+    return { amount: 0, label: 'none', sarahAge };
+  }
+  const claimAge = Math.max(SURVIVOR_EARLIEST_AGE, survivorClaimAge ?? sarahAge);
+  const factor = survivorReductionFactor(claimAge);
+  const reducedSurvivor = Math.round(survivorSS * factor);
+  const usesOwnRecord = sarahAge >= 62 && sarahOwnSS > reducedSurvivor;
   return {
-    amount: sarahAge >= 67 ? Math.max(survivorSS, sarahOwnSS)
-      : sarahAge >= 60 ? Math.round(survivorSS * 0.715)
-      : 0,
-    label: sarahAge >= 67 ? 'Sarah survivor' : sarahAge >= 60 ? 'Sarah survivor (reduced)' : 'none',
+    amount: usesOwnRecord ? sarahOwnSS : reducedSurvivor,
+    label: usesOwnRecord ? 'Sarah own record'
+      : factor >= 1 ? 'Sarah survivor'
+      : 'Sarah survivor (reduced)',
     sarahAge,
   };
 }
@@ -262,6 +307,8 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    // Lock the SSA survivor reduction at the age Sarah is widowed (D3).
+    survivorClaimAge: chadPassesAge - ageDiff,
   });
   const yearsFromRetirement = Math.max(0, chadAge - 67);
   const pension = getPensionAtMonth(yearsFromRetirement * 12, pensionMonthly || 0, chadAlive);

@@ -79,7 +79,7 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
   // Per-sim tracked series (one entry per month per sim).
   const allBalances = [];      // savings (post-drawdown)
   const all401k = [];          // 401(k) (after MC growth, contributions, and drawdown reductions)
-  const allHomeEquity = [];    // home equity (after appreciation and HELOC reductions)
+  const allHomeEquity = [];    // home equity (after appreciation and equity-sale draw reductions)
   const allNetWorth = [];      // savings + 401(k) + home equity per month
 
   // Per-sim cumulative withdrawal totals (scalar per sim).
@@ -126,11 +126,11 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
     let sum401k = 0;
     for (const d of monthlyData) sum401k += (d.withdrawal401k || 0);
     totalWithdrawal401k.push(sum401k);
-    // Home equity drawdowns: derived from home-equity series differences when they
-    // exceed the appreciation step. The projection updates homeEquity in place
-    // (grow then HELOC-decrement), so we approximate the cumulative HELOC pull
-    // as max(0, expected-after-growth - actual). Cheap, monotone, sufficient for
-    // a percentile summary.
+    // Home equity drawdowns (equity-sale draws, D7): derived from home-equity
+    // series differences when they exceed the appreciation step. The projection
+    // updates homeEquity in place (grow then decrement by the draw), so we
+    // approximate the cumulative equity sold as max(0, expected-after-growth -
+    // actual). Cheap, monotone, sufficient for a percentile summary.
     const monthlyHomeRate = Math.pow(1 + (simParams.homeAppreciation ?? 4) / 100, 1 / 12) - 1;
     let sumHome = 0;
     let prevHome = simParams.homeEquity || 0;

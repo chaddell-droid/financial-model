@@ -177,6 +177,8 @@ const NON_DEFAULT_VALUES = {
   return401k: 12,
   homeEquity: 750000,
   homeAppreciation: 5,
+  deficit401kTaxRate: 30,          // remediation 2026-06-09 D7 — 401(k) deficit-draw gross-up
+
   // Sequence of returns
   seqBadY1: -15,
   seqBadY2: -8,
@@ -342,6 +344,17 @@ test('sarahOwnSS: default, override, and explicit-zero round-trip (finding 2026-
 test('Schema RANGE clamping: sarahOwnSS clamps to [0, 10000]', () => {
   assert.strictEqual(roundTrip({ sarahOwnSS: -50 }).sarahOwnSS, 0);
   assert.strictEqual(roundTrip({ sarahOwnSS: 25000 }).sarahOwnSS, 10000);
+});
+
+test('deficit401kTaxRate: default, override, and explicit-zero round-trip (remediation 2026-06-09 D7)', () => {
+  assert.strictEqual(roundTrip({}).deficit401kTaxRate, 25, 'default from INITIAL_STATE');
+  assert.strictEqual(roundTrip({ deficit401kTaxRate: 40 }).deficit401kTaxRate, 40, 'override survives');
+  assert.strictEqual(roundTrip({ deficit401kTaxRate: 0 }).deficit401kTaxRate, 0, 'explicit 0 (no gross-up) survives');
+});
+
+test('Schema RANGE clamping: deficit401kTaxRate clamps to [0, 60]', () => {
+  assert.strictEqual(roundTrip({ deficit401kTaxRate: -10 }).deficit401kTaxRate, 0);
+  assert.strictEqual(roundTrip({ deficit401kTaxRate: 95 }).deficit401kTaxRate, 60);
 });
 
 test('Schema RANGE clamping: chadL64Month=200 clamps to 120 (matches UI slider)', () => {

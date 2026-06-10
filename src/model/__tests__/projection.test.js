@@ -772,6 +772,107 @@ test('34. Home equity covers deficit when 401k exhausted', () => {
   assert.ok(lastMonth.homeEquity < 500000, 'home equity should be drawn down');
 });
 
+// ── D7 (remediation 2026-06-09): 401(k) deficit draws are PRE-TAX dollars —
+// covering $1 of net deficit requires withdrawing 1/(1-rate) gross.
+// withdrawal401k on the row is the GROSS amount leaving the account; only the
+// after-tax net lands in savings. Home-equity draws stay dollar-for-dollar
+// (modeled as a sale of equity — untaxed, no loan, no interest).
+
+// Shared deficit fixture: deterministic (all returns 0), big expenses, no
+// income noise from van sale / back-pay / job.
+const D7_BASE = {
+  startingSavings: 1000, investmentReturn: 0, return401k: 0, homeAppreciation: 0,
+  baseExpenses: 80000, retireDebt: false, debtService: 6434,
+  vanSold: false, lifestyleCutsApplied: false,
+  bcsYearsLeft: 0, milestones: [], chadJob: false,
+  ssdiDenied: true,
+};
+
+test('34b. D7: 401(k) deficit draw is grossed up by deficit401kTaxRate', () => {
+  const s = gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 1000000, homeEquity: 0, deficit401kTaxRate: 25,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const m0 = monthlyData[0];
+  // Pre-draw deficit at month 0 (every component is an integer)
+  const netNeeded = -(s.startingSavings + m0.investReturn + m0.cashIncome - m0.expenses);
+  assert.ok(netNeeded > 0, `fixture must be in deficit, got netNeeded=${netNeeded}`);
+  assert.strictEqual(m0.withdrawal401k, Math.ceil(netNeeded / (1 - 0.25)),
+    'gross draw = ceil(net / (1 - rate))');
+  assert.ok(m0.withdrawal401k > netNeeded, 'gross must exceed the net deficit');
+  assert.strictEqual(m0.balance, 0, 'after-tax net restores savings exactly to 0');
+  assert.strictEqual(m0.balance401k, 1000000 - m0.withdrawal401k,
+    'the full gross leaves the 401(k)');
+});
+
+test('34c. D7: deficit401kTaxRate=0 draws dollar-for-dollar (edge)', () => {
+  const s = gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 1000000, homeEquity: 0, deficit401kTaxRate: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const m0 = monthlyData[0];
+  const netNeeded = -(s.startingSavings + m0.investReturn + m0.cashIncome - m0.expenses);
+  assert.strictEqual(m0.withdrawal401k, netNeeded, 'rate 0 → gross equals net');
+  assert.strictEqual(m0.balance, 0);
+});
+
+test('34d. D7: default deficit401kTaxRate is 25% (omitted field behaves like explicit 25)', () => {
+  const sDefault = gatherStateWithOverrides({ ...D7_BASE, starting401k: 1000000, homeEquity: 0 });
+  const sExplicit = gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 1000000, homeEquity: 0, deficit401kTaxRate: 25,
+  });
+  const d = runMonthlySimulation(sDefault).monthlyData;
+  const e = runMonthlySimulation(sExplicit).monthlyData;
+  for (const m of [0, 6, 12]) {
+    assert.strictEqual(d[m].withdrawal401k, e[m].withdrawal401k, `month ${m} withdrawal parity`);
+    assert.strictEqual(d[m].balance401k, e[m].balance401k, `month ${m} balance401k parity`);
+  }
+});
+
+test('34e. D7: gross-up depletes the 401(k) faster than the net deficit alone', () => {
+  const mk = (rate) => gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 2000000, homeEquity: 0, deficit401kTaxRate: rate,
+  });
+  const net = runMonthlySimulation(mk(0)).monthlyData;
+  const grossed = runMonthlySimulation(mk(25)).monthlyData;
+  // While both accounts still hold money, the grossed-up path must have drawn
+  // more (gross > net) and therefore hold a smaller balance.
+  assert.ok(grossed[12].balance401k < net[12].balance401k,
+    `grossed-up balance401k at month 12 (${grossed[12].balance401k}) must trail net-only (${net[12].balance401k})`);
+  // And the account must hit zero strictly earlier.
+  const depletionMonth = (rows) => rows.findIndex(d => d.balance401k <= 0);
+  assert.ok(depletionMonth(grossed) !== -1, '401(k) must deplete in the grossed scenario');
+  assert.ok(depletionMonth(grossed) < depletionMonth(net),
+    `grossed-up 401(k) must deplete earlier (${depletionMonth(grossed)} vs ${depletionMonth(net)})`);
+});
+
+test('34f. D7: capped 401(k) draw nets (1-rate)×balance; remainder falls to home equity at face value', () => {
+  const s = gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 1000, homeEquity: 500000, deficit401kTaxRate: 25,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const m0 = monthlyData[0];
+  const netNeeded = -(s.startingSavings + m0.investReturn + m0.cashIncome - m0.expenses);
+  assert.strictEqual(m0.withdrawal401k, 1000, 'draw capped at the full 401(k) balance');
+  assert.strictEqual(m0.balance401k, 0, '401(k) exhausted');
+  const netFrom401k = Math.floor(1000 * (1 - 0.25));
+  // Home equity (sale of equity — untaxed) covers the rest dollar-for-dollar.
+  assert.strictEqual(m0.homeEquity, 500000 - (netNeeded - netFrom401k),
+    'home equity covers exactly the remaining net deficit');
+  assert.strictEqual(m0.balance, 0, 'savings restored to 0');
+});
+
+test('34g. D7: ending resources reflect the gross-up (higher rate → lower ending net worth)', () => {
+  const mk = (rate) => gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 2000000, homeEquity: 700000, deficit401kTaxRate: rate,
+  });
+  const low = runMonthlySimulation(mk(0)).monthlyData[72];
+  const high = runMonthlySimulation(mk(40)).monthlyData[72];
+  const resources = (d) => d.balance + d.balance401k + d.homeEquity;
+  assert.ok(resources(high) < resources(low),
+    `ending resources at 40% (${resources(high)}) must be below 0% (${resources(low)})`);
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // runMonthlySimulation — toggle combinations
 // ════════════════════════════════════════════════════════════════════════

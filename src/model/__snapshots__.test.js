@@ -126,18 +126,22 @@ console.log('\n=== Default Projection ===');
 const base = gatherState();
 const { monthlyData, backPayActual } = runMonthlySimulation(base);
 
+// Deficit-region balance locks re-baselined for remediation 2026-06-09 D7:
+// 401(k) deficit draws are now grossed up by deficit401kTaxRate (default 25%) —
+// covering $1 of net deficit withdraws $1/(1-rate) gross — so reserve-backed
+// scenarios deplete faster and end deeper. Old default lock was -487171.
 test('backPayActual', () => eq(backPayActual, 104578));
 test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -487171));
+test('month 72 balance', () => eq(monthlyData[72].balance, -670677));
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
 test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -32348));
 test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -33914));
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -487171);
+  eq(minBal, -670677); // re-baselined for the D7 401(k) deficit-draw gross-up
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -165,7 +169,8 @@ const { monthlyData: deniedData } = runMonthlySimulation(denied);
 
 test('month 12 balance', () => eq(deniedData[12].balance, 0));
 test('month 36 balance', () => eq(deniedData[36].balance, 0));
-test('month 72 balance', () => eq(deniedData[72].balance, -998480));
+// Re-baselined for D7 gross-up (was -998480).
+test('month 72 balance', () => eq(deniedData[72].balance, -1163553));
 test('ssdi is always 0', () => {
   assert.ok(deniedData.every(d => d.ssBenefit === 0), 'SSDI should be 0 for all months when denied');
 });
@@ -190,7 +195,9 @@ const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
 test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948));
 test('month 12 balance', () => eq(debtData[12].balance, 39648));
-test('month 72 balance', () => eq(debtData[72].balance, 0));
+// Re-baselined for D7 gross-up (was 0): the grossed-up draws now exhaust the
+// reserves before month 72 even with debt retired.
+test('month 72 balance', () => eq(debtData[72].balance, -125636));
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
 });
@@ -202,7 +209,8 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
-test('month 72 balance', () => eq(cutsData[72].balance, -487171));
+// Re-baselined for D7 gross-up (was -487171, matching the default scenario).
+test('month 72 balance', () => eq(cutsData[72].balance, -670677));
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -236,7 +244,8 @@ const goals = INITIAL_STATE.goals;
 const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDebt: false });
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -487171));
+// Re-baselined for D7 gross-up (was -487171).
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -670677));
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
 test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -32348));
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
@@ -278,7 +287,8 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -487171));
+// Re-baselined for D7 gross-up (was -487171).
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -670677));
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -475,6 +485,11 @@ test('reserve boundary treats touching the floor as depleted', () => {
   eq(touchSim.finalPool, 11999);
 });
 test('retirement SS helper adds Sarah spousal benefit at 62', () => {
+  // SSA spousal rule (remediation 2026-06-09 D3): the household receives the
+  // LARGER of Sarah's own benefit or the spousal ceiling (50% of Chad's PIA)
+  // — her own benefit topped up toward the spousal amount. The old lock
+  // (4833) encoded the conservative min(half-PIA, own) rule.
+  // 2933 + max(round(4213 × 0.5) = 2107, 1900) = 5040.
   const ssInfo = getRetirementSSInfo(76, true, {
     ageDiff: 14,
     chadSS: 2933,
@@ -482,7 +497,7 @@ test('retirement SS helper adds Sarah spousal benefit at 62', () => {
     sarahOwnSS: 1900,
     survivorSS: 4186,
   });
-  eq(ssInfo.amount, 4833);
+  eq(ssInfo.amount, 5040);
 });
 test('retirement income plan scales total survivor spending before pool draw', () => {
   const plan = getRetirementIncomePlan(82, true, {
@@ -2146,6 +2161,9 @@ test('TabBar includes Track and Actuals tabs', () => {
 });
 
 // === Integration Regression Snapshots ===
+// Deficit-region balances re-baselined for remediation 2026-06-09 D7: 401(k)
+// deficit draws are grossed up by deficit401kTaxRate (default 25%), so
+// reserve-backed scenarios deplete faster and end deeper than the old locks.
 
 console.log('\n=== Integration Regression Snapshots ===');
 
@@ -2153,7 +2171,7 @@ console.log('\n=== Integration Regression Snapshots ===');
 test('R1: job scenario balance at month 71', () => {
   const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -209379);
+  assert.strictEqual(monthlyData[71].balance, -398240); // was -209379 pre-D7
 });
 
 // R2 — Month-0 job income
@@ -2183,28 +2201,29 @@ test('R4: SS at FRA benefit at month 79', () => {
 test('R5: denied SSDI balance at month 71', () => {
   const s = gatherState({ ssdiDenied: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -960352);
+  assert.strictEqual(monthlyData[71].balance, -1125425); // was -960352 pre-D7
 });
 
 // R6 — Van sold at month 6
 test('R6: van sold at month 6, balance at month 71', () => {
   const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -333183);
+  assert.strictEqual(monthlyData[71].balance, -518665); // was -333183 pre-D7
 });
 
 // R7 — Lifestyle cuts active with override
 test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
   const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -19887);
+  assert.strictEqual(monthlyData[71].balance, -222214); // was -19887 pre-D7
 });
 
-// R8 — Debt retired
+// R8 — Debt retired. Was 0 pre-D7 (reserves still covered the deficit); the
+// grossed-up draws now exhaust the reserves before month 71.
 test('R8: debt retired, balance at month 71', () => {
   const s = gatherState({ retireDebt: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, 0);
+  assert.strictEqual(monthlyData[71].balance, -98156);
 });
 
 // R9 — All toggles on: debt retired + van sold + cuts + job

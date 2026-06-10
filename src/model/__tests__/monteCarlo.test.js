@@ -305,8 +305,10 @@ test('10. goalSuccessRates array matches goals length and has correct ids', () =
 
 test('11. Easy goal has higher success rate than hard goal', () => {
   const goals = [
-    // Easy: savings never below -999999 (trivially true)
-    { id: 'easy', name: 'Trivial floor', type: 'savings_floor', targetAmount: -999999, targetMonth: 72 },
+    // Easy: savings never below -$10M (trivially true). Was -999999, but the
+    // D7 gross-up of 401(k) deficit draws (remediation 2026-06-09) pushes the
+    // worst seeded sims below -$1M, so the old floor was no longer trivial.
+    { id: 'easy', name: 'Trivial floor', type: 'savings_floor', targetAmount: -9999999, targetMonth: 72 },
     // Hard: savings above $10M at month 72 (nearly impossible)
     { id: 'hard', name: 'Impossible target', type: 'savings_target', targetAmount: 10000000, targetMonth: 72 },
   ];

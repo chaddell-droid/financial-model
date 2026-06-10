@@ -133,6 +133,10 @@ export function runMonthlySimulation(s) {
   // 401k and home equity — tracked alongside savings for deficit drawdown
   const monthly401kRate = Math.pow(1 + (s.return401k ?? 8) / 100, 1/12) - 1;
   const monthlyHomeRate = Math.pow(1 + (s.homeAppreciation ?? 4) / 100, 1/12) - 1;
+  // D7 (remediation 2026-06-09): effective income-tax rate on 401(k) deficit
+  // withdrawals. Defensive clamp below 100% — the gross-up divides by (1-rate)
+  // (schema RANGE caps the field at 60, but raw callers may pass anything).
+  const deficit401kTaxRate = Math.min(Math.max((s.deficit401kTaxRate ?? 25) / 100, 0), 0.99);
 
   const monthlyData = [];
   let balance = s.startingSavings || 0;
@@ -555,15 +559,29 @@ export function runMonthlySimulation(s) {
     bal401k = Math.round(bal401k);
     if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
 
-    // Deficit transfer chain: savings → 401k → home equity (HELOC)
+    // Deficit transfer chain: savings → 401(k) → home equity.
+    // D7 (remediation 2026-06-09): 401(k) dollars are PRE-TAX — covering $1 of
+    // net deficit requires withdrawing 1/(1-rate) gross. withdrawal401k is the
+    // GROSS amount leaving the account; only the after-tax net lands in savings.
     let withdrawal401k = 0;
     let withdrawalHome = 0;
     if (balance < 0 && bal401k > 0) {
-      withdrawal401k = Math.min(Math.round(-balance), bal401k);
-      balance += withdrawal401k;
+      const netNeeded = Math.round(-balance);
+      const grossNeeded = Math.ceil(netNeeded / (1 - deficit401kTaxRate));
+      withdrawal401k = Math.min(grossNeeded, bal401k);
+      // When the account fully covers the gross, credit the exact net so the
+      // balance lands at 0 (avoids ±$1 rounding residue spilling into home equity).
+      const netReceived = withdrawal401k === grossNeeded
+        ? netNeeded
+        : Math.floor(withdrawal401k * (1 - deficit401kTaxRate));
+      balance += netReceived;
       bal401k -= withdrawal401k;
     }
-    // If still negative after 401k exhausted, draw from home equity
+    // If still negative after the 401(k) is exhausted, draw on home equity.
+    // This is a SALE OF EQUITY, not a HELOC: equity converts to cash
+    // dollar-for-dollar with no loan, no interest, and no tax (primary-
+    // residence exclusion). Previously labeled "HELOC" while carrying no
+    // interest — renamed for honesty (D7).
     if (balance < 0 && homeEquity > 0) {
       withdrawalHome = Math.min(Math.round(-balance), homeEquity);
       balance += withdrawalHome;

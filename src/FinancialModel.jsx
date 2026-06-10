@@ -192,7 +192,7 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     comparisons,
-    starting401k, return401k, homeEquity, homeAppreciation,
+    starting401k, return401k, homeEquity, homeAppreciation, deficit401kTaxRate,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     seqBadY1, seqBadY2,
     taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
@@ -927,12 +927,14 @@ export default function FinancialModel() {
     savingsData, wealthData,
     starting401k, return401k,
     homeEquity, homeAppreciation,
+    deficit401kTaxRate,
     presentMode, onFieldChange: set,
     compareProjections, compareColors: COMPARE_COLORS,
   }), [
     savingsData, wealthData,
     starting401k, return401k,
     homeEquity, homeAppreciation,
+    deficit401kTaxRate,
     presentMode,
     compareProjections,
   ]);

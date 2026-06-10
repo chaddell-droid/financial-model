@@ -245,9 +245,9 @@ export default function MonteCarloPanel({
                     {' '}
                     Median 401(k) drawn: <span style={{ color: COLORS.amber }}>{fmtFull(mcResults.medianWithdrawal401k || 0)}</span>;
                     {' '}P90: <span style={{ color: COLORS.red }}>{fmtFull(mcResults.p90Withdrawal401k || 0)}</span>.
-                    {' '}Median home HELOC: <span style={{ color: COLORS.amber }}>{fmtFull(mcResults.medianWithdrawalHome || 0)}</span>;
+                    {' '}Median home equity sold: <span style={{ color: COLORS.amber }}>{fmtFull(mcResults.medianWithdrawalHome || 0)}</span>;
                     {' '}P90: <span style={{ color: COLORS.red }}>{fmtFull(mcResults.p90WithdrawalHome || 0)}</span>.
-                    {' '}<span style={{ fontStyle: 'italic', color: COLORS.borderLight }}>Note: 401(k) draws don't model income tax or early-withdrawal penalty.</span>
+                    {' '}<span style={{ fontStyle: 'italic', color: COLORS.borderLight }}>Note: 401(k) figures are gross — draws are grossed up for income tax (Net Worth chart's "Deficit draw tax rate"). Home-equity draws model selling equity: dollar-for-dollar, no loan interest, untaxed.</span>
                   </div>
                 )}
 

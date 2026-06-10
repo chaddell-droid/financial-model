@@ -225,6 +225,13 @@ export const INITIAL_STATE = {
   return401k: 15,
   homeEquity: 700000,
   homeAppreciation: 4,
+  // Effective income-tax rate (%) on 401(k) DEFICIT withdrawals (remediation
+  // 2026-06-09 D7). 401(k) dollars are pre-tax: covering $1 of net deficit
+  // requires withdrawing 1/(1-rate) gross, so deficit draws deplete the
+  // account faster than the net shortfall. 25 matches the model's other
+  // effective-rate defaults (sarahTaxRate, chadJobTaxRate). Home-equity draws
+  // are NOT taxed — they model a sale of equity (primary-residence exclusion).
+  deficit401kTaxRate: 25,
 
   // Sequence of Returns
   seqBadY1: -10,
@@ -305,7 +312,7 @@ export const MODEL_KEYS = [
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'capitalItems', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
-  'starting401k', 'return401k', 'homeEquity', 'homeAppreciation',
+  'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate',
   'seqBadY1', 'seqBadY2',
   // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
   'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',

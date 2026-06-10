@@ -117,6 +117,9 @@ const RANGE = {
   debtFirstmark: { min: 0 },
   starting401k: { min: 0 },
   homeEquity: { min: 0 },
+  // Effective tax rate on 401(k) deficit withdrawals (remediation 2026-06-09 D7).
+  // Capped well below 100% — the gross-up divides by (1 - rate).
+  deficit401kTaxRate: { min: 0, max: 60 },
   // Cut items can be zero but not negative
   cutOliver: { min: 0 },
   cutVacation: { min: 0 },

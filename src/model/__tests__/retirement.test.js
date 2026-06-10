@@ -491,17 +491,22 @@ const ssConfig = {
 };
 
 test('survivor, Sarah >= 67: full survivor benefit', () => {
-  // chadAge=82 → sarahAge=68
+  // chadAge=82 → sarahAge=68; no survivorClaimAge supplied → claim age falls
+  // back to her current age (68 ≥ FRA 67 → reduction factor 1.0).
   const info = getRetirementSSInfo(82, false, ssConfig);
   eq(info.amount, 4186, 'max(survivorSS, sarahOwnSS)');
   eq(info.label, 'Sarah survivor');
   eq(info.sarahAge, 68);
 });
 
-test('survivor, Sarah 60-66: reduced survivor (71.5%)', () => {
-  // chadAge=75 → sarahAge=61
+test('survivor, Sarah 60-66: reduction interpolated by claim age (SSA rule, D3)', () => {
+  // chadAge=75 → sarahAge=61. SSA reduces survivor benefits from 71.5% at 60
+  // linearly to 100% at the survivor's FRA (67) — NOT a flat 71.5% for every
+  // claim age 60-66 (the old conservative rule this test used to lock).
+  // factor(61) = 0.715 + 1 × (0.285/7).
   const info = getRetirementSSInfo(75, false, ssConfig);
-  eq(info.amount, Math.round(4186 * 0.715), 'survivorSS * 0.715 rounded');
+  const factor = 0.715 + (61 - 60) * (0.285 / 7);
+  eq(info.amount, Math.round(4186 * factor), 'survivorSS × interpolated factor');
   eq(info.label, 'Sarah survivor (reduced)');
 });
 
@@ -519,11 +524,23 @@ test('couple, Sarah < 62: no spousal', () => {
   eq(info.label, 'Chad only');
 });
 
-test('couple, spousal capped at sarahOwnSS', () => {
-  // chadAge=76 → sarahAge=62
+test('couple, own < spousal ceiling: own topped up to spousal (SSA rule, D3)', () => {
+  // chadAge=76 → sarahAge=62. SSA pays the household roughly the LARGER of
+  // Sarah's own benefit or the spousal amount (her own benefit is topped up
+  // toward 50% of Chad's PIA). The old rule paid min(half-PIA, own), a
+  // conservative floor that under-paid whenever the two differed.
   const info = getRetirementSSInfo(76, true, ssConfig);
-  const spousal = Math.min(Math.round(4213 * 0.5), 1900);
-  eq(info.amount, 2933 + spousal, 'chadSS + min(ssFRA*0.5, sarahOwnSS)');
+  const spousal = Math.max(Math.round(4213 * 0.5), 1900);
+  eq(info.amount, 2933 + spousal, 'chadSS + max(ssFRA*0.5, sarahOwnSS)');
+  eq(info.label, 'Chad + Sarah spousal', 'top-up in effect → spousal label');
+});
+
+test('couple, own > spousal ceiling: own record wins (SSA rule, D3)', () => {
+  // Own benefit 3000 exceeds the spousal ceiling round(4213×0.5)=2107 — the
+  // household keeps her larger own-record benefit; spousal adds nothing.
+  const info = getRetirementSSInfo(76, true, { ...ssConfig, sarahOwnSS: 3000 });
+  eq(info.amount, 2933 + 3000, 'chadSS + sarahOwnSS when own exceeds spousal ceiling');
+  eq(info.label, 'Chad + Sarah own record');
 });
 
 test('survivor, sarahOwnSS exceeds survivorSS', () => {
@@ -532,6 +549,65 @@ test('survivor, sarahOwnSS exceeds survivorSS', () => {
     sarahOwnSS: 5000,
   });
   eq(info.amount, 5000, 'max(survivorSS, sarahOwnSS) picks sarahOwnSS');
+  eq(info.label, 'Sarah own record');
+});
+
+// — D3 boundary tests: survivor reduction factor locked at CLAIM age —
+// SSA: the reduction is set when the survivor benefit starts (widowed age,
+// floored at 60) and is PERMANENT — it neither stays pinned at 71.5% through
+// 66 nor "heals" to 100% at 67 (the old rule did both).
+
+test('survivor claim at 60: 71.5% floor, permanent (D3 boundary)', () => {
+  const info = getRetirementSSInfo(75, false, { ...ssConfig, survivorClaimAge: 60 });
+  eq(info.amount, Math.round(4186 * 0.715), 'factor locked at claim-age-60 floor');
+  eq(info.label, 'Sarah survivor (reduced)');
+  // Same claim age evaluated when she is 70 (chadAge=84): still reduced.
+  const later = getRetirementSSInfo(84, false, { ...ssConfig, survivorClaimAge: 60 });
+  eq(later.amount, Math.round(4186 * 0.715), 'no jump to 100% at FRA — reduction is permanent');
+});
+
+test('survivor claim at 63: interpolated factor (D3 boundary)', () => {
+  const info = getRetirementSSInfo(78, false, { ...ssConfig, survivorClaimAge: 63 });
+  const factor = 0.715 + (63 - 60) * (0.285 / 7);
+  eq(info.amount, Math.round(4186 * factor), 'factor(63) = 0.715 + 3×(0.285/7)');
+  eq(info.label, 'Sarah survivor (reduced)');
+});
+
+test('survivor claim at FRA (67): full benefit, own-record floor (D3 boundary)', () => {
+  const info = getRetirementSSInfo(82, false, { ...ssConfig, survivorClaimAge: 67 });
+  eq(info.amount, 4186, 'factor(67) = 1.0 → max(survivorSS, sarahOwnSS)');
+  eq(info.label, 'Sarah survivor');
+});
+
+test('survivor: own record floor applies from 62 even when reduced survivor is smaller (D3)', () => {
+  // Widowed at 60 with a large own benefit: reduced survivor = round(4186×0.715)=2993,
+  // own = 3500. From 62 she switches to her own record (SSA allows the swap).
+  const at61 = getRetirementSSInfo(75, false, { ...ssConfig, sarahOwnSS: 3500, survivorClaimAge: 60 });
+  eq(at61.amount, Math.round(4186 * 0.715), 'before 62 only the reduced survivor is payable');
+  const at63 = getRetirementSSInfo(77, false, { ...ssConfig, sarahOwnSS: 3500, survivorClaimAge: 60 });
+  eq(at63.amount, 3500, 'from 62 the larger own-record benefit wins');
+});
+
+test('buildRetirementContext locks the survivor factor at the widowed age (D3)', () => {
+  // chadPassesAge=74, ageDiff=14 → Sarah widowed at 60 → claims at 60 →
+  // factor 0.715 forever. Old rule jumped to max(survivorSS, own) once she
+  // turned 67 (month (67+14-67)×12 = 168).
+  const ctx = buildRetirementContext({
+    horizonMonths: 240,
+    chadPassesAge: 74,
+    ageDiff: 14,
+    survivorSpendRatio: 0.6,
+    chadSS: 2933,
+    ssFRA: 4213,
+    sarahOwnSS: 1900,
+    survivorSS: 4186,
+    trustMonthly: 2000,
+  });
+  const reduced = Math.round(4186 * 0.715);
+  // Month 96: chadAge 75 → sarahAge 61 (survivor, pre-62).
+  eq(ctx.ssIncome[96], reduced, 'reduced survivor at 61');
+  // Month 180: chadAge 82 → sarahAge 68 (past her FRA) — STILL the locked factor.
+  eq(ctx.ssIncome[180], reduced, 'claim-age-60 reduction is permanent past FRA');
 });
 
 // ════════════════════════════════════════════════════════════════════════

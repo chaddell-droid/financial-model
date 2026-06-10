@@ -323,11 +323,14 @@ describe("calculateTax — full mode (Dellinger defaults)", () => {
     expect(r.agi).toBeLessThan(r.totalIncome);
   });
 
-  it("SE SS tax is zero because W-2 exceeds wage base", () => {
+  it("SE SS tax is NOT reduced by the spouse's W-2 wages (A3, IRC §1402(b))", () => {
+    // A3 (remediation 2026-06-10): Schedule SE coordination is per-individual.
+    // Chad's $276,679 W-2 does NOT consume Sarah's SS wage base — her full
+    // SE base (101816 × 0.9235 = 94,027, under the $184,500 cap) is SS-taxed.
     const r = calculateTax(defaultInputs);
-    expect(r.ssTax).toBe(0); // W-2 276679 > SS_WAGE_BASE 176100
+    approx(r.ssTax, 101816 * 0.9235 * 0.124); // ≈ $11,659 (was wrongly 0)
     expect(r.medTax).toBeGreaterThan(0); // Medicare still applies
-    approx(r.seTax, r.medTax); // SE tax = Medicare only
+    approx(r.seTax, r.ssTax + r.medTax);
   });
 
   it("SALT is fully deductible (under $40K, AGI under $500K)", () => {
@@ -376,7 +379,9 @@ describe("calculateTax — simplified mode (TaxBurdenShift)", () => {
     // Phase 4 (2026-06-09): QBI base nets out the deductible half of SE tax
     // (IRC §199A(c)(4)) — previously locked the raw schCNet × 20% value.
     expect(r.qbi).toBeCloseTo((102000 - r.halfSeTax) * 0.20, 6);
-    expect(r.ssTax).toBe(0); // W-2 exceeds wage base
+    // A3 (remediation 2026-06-10): per-individual SE coordination — Chad's W-2
+    // no longer zeroes Sarah's SE SS tax (was wrongly locked to 0).
+    approx(r.ssTax, 102000 * 0.9235 * 0.124);
   });
 });
 
@@ -652,9 +657,13 @@ describe("YEAR VERIFICATION: TaxBurdenShift default years (2024-2028)", () => {
     mortgageInt: 38000, charitable: 20000,
   };
 
+  // A3 (remediation 2026-06-10): SE tax is per-individual (IRC §1402(b)) —
+  // Chad's W-2 never consumes Sarah's SS wage base, so her SE SS tax is
+  // positive in EVERY year (her Sch C net is always under the wage base).
+  // 2024/2025 previously (wrongly) expected 0.
   const yearCases = [
-    { year: 2024, w2Wages: 490462, w2Withholding: 93881, schCNet: 85000, credits: 4000, medical: 79801, saltCap: 10000, expectSsTax: 0 },
-    { year: 2025, w2Wages: 276679, w2Withholding: 60872, schCNet: 101816, credits: 4000, medical: 79801, saltCap: 40000, expectSsTax: 0 },
+    { year: 2024, w2Wages: 490462, w2Withholding: 93881, schCNet: 85000, credits: 4000, medical: 79801, saltCap: 10000, expectSsTax: "positive" },
+    { year: 2025, w2Wages: 276679, w2Withholding: 60872, schCNet: 101816, credits: 4000, medical: 79801, saltCap: 40000, expectSsTax: "positive" },
     { year: 2026, w2Wages: 132355, w2Withholding: 29118, schCNet: 123000, credits: 4000, medical: 20000, saltCap: 40400, expectSsTax: "positive" },
     { year: 2027, w2Wages: 72004, w2Withholding: 15841, schCNet: 143000, credits: 1000, medical: 20000, saltCap: 40804, expectSsTax: "positive" },
     { year: 2028, w2Wages: 19420, w2Withholding: 4272, schCNet: 158000, credits: 1000, medical: 20000, saltCap: 41212, expectSsTax: "positive" },
@@ -698,6 +707,46 @@ describe("YEAR VERIFICATION: TaxBurdenShift default years (2024-2028)", () => {
         expect(r.totalTax).toBeCloseTo(expected, 10);
       });
     });
+  });
+});
+
+// ============================================================
+// A3 REGRESSION (remediation 2026-06-10): Schedule SE wage-base
+// coordination is PER-INDIVIDUAL (IRC §1402(b)(1) / Sch SE line 8a).
+// Chad's W-2 wages must NOT reduce Sarah's SE SS base; only HER OWN
+// W-2 wages (sarahW2Wages, default 0) coordinate. Additional Medicare
+// stays household-combined (0.9% over $250K MFJ) — correct as-is.
+// ============================================================
+
+describe("A3 REGRESSION: SE tax per-individual (IRC §1402(b))", () => {
+  it("$200K W-2 + $150K Sch C → SE SS tax ≈ $17,177 (not $0)", () => {
+    const r = calculateTax({ w2Wages: 200000, schCNet: 150000 });
+    // seBase = 150000 × 0.9235 = 138,525 < 184,500 wage base → full 12.4%
+    approx(r.ssTax, 138525 * 0.124); // ≈ 17,177
+    approx(r.seBase, 138525);
+  });
+
+  it("sarahW2Wages (her OWN wages) still coordinates her SE base", () => {
+    const r = calculateTax({ w2Wages: 200000, schCNet: 150000, sarahW2Wages: 100000 });
+    // Her own $100K W-2 consumes wage base: remaining 184,500 − 100,000 = 84,500
+    approx(r.ssTax, 84500 * 0.124);
+  });
+
+  it("sarahW2Wages defaults to 0 (Sarah has no W-2 in this household)", () => {
+    const withDefault = calculateTax({ w2Wages: 200000, schCNet: 150000 });
+    const withExplicitZero = calculateTax({ w2Wages: 200000, schCNet: 150000, sarahW2Wages: 0 });
+    expect(withDefault.ssTax).toBe(withExplicitZero.ssTax);
+  });
+
+  it("Additional Medicare remains household-combined (unchanged by A3)", () => {
+    const r = calculateTax({ w2Wages: 200000, schCNet: 150000 });
+    // Medicare wages = 200,000 + 138,525 = 338,525 → (338,525 − 250,000) × 0.9%
+    approx(r.addlMedicare, (200000 + 138525 - 250000) * 0.009);
+  });
+
+  it("Chad's W-2 above the wage base STILL leaves Sarah's SE SS tax intact", () => {
+    const r = calculateTax({ w2Wages: 300000, schCNet: 150000 });
+    approx(r.ssTax, 138525 * 0.124); // unaffected by his wages
   });
 });
 

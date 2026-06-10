@@ -188,15 +188,25 @@ export function calculateTax(inputs) {
     // on a separate, larger base. Defaults to w2Wages for back-compat with callers
     // that haven't been updated.
     w2FicaBase = null,
+
+    // A3 (remediation 2026-06-10): Schedule SE wage-base coordination is
+    // PER-INDIVIDUAL (IRC §1402(b)(1) / Sch SE line 8a). The Sch C filer's
+    // SS SE base is reduced only by HER OWN W-2 wages — never by the
+    // spouse's. Sarah has no W-2 in this household, so this defaults to 0.
+    sarahW2Wages = 0,
   } = inputs;
   // If w2FicaBase wasn't passed, fall back to w2Wages (pre-bug behavior).
   const effectiveW2FicaBase = w2FicaBase !== null ? w2FicaBase : w2Wages;
 
-  // SE tax — shared by all modes
-  // Pass noFICA so SE-side SS cap interaction with W-2 wages is correct.
-  // BUG #2: SE tax uses the FICA base for the SS-cap interaction (that's what was
-  // actually paid SS tax on), not the income-tax-reduced w2Wages.
-  const se = computeSelfEmploymentTax(schCNet, effectiveW2FicaBase, noFICA);
+  // SE tax — shared by all modes.
+  // A3 (remediation 2026-06-10): previously this passed Chad's W-2 FICA base,
+  // zeroing Sarah's SE SS tax whenever his wages exceeded the wage base —
+  // wrong under IRC §1402(b), which coordinates per individual. Only the
+  // Sch C filer's own wages (sarahW2Wages) coordinate. noFICA (Chad's
+  // employer attribute) is therefore irrelevant to the SE computation.
+  // computeAdditionalMedicare below stays household-combined (correct:
+  // the 0.9% $250K MFJ threshold applies to joint Medicare wages).
+  const se = computeSelfEmploymentTax(schCNet, sarahW2Wages);
 
   // --- Projection mode: simplified marginal rate calculation ---
   if (marginalRateOverride !== null) {

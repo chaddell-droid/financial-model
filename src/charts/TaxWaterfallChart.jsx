@@ -44,6 +44,9 @@ function buildSteps(yr) {
   // (withheld 0.9% is a prepayment, not a reduction of liability).
   const addlMedLiability = ft.addlMedicare ?? ft.addlMedicareOwed;
   if (addlMedLiability > 0) steps.push({ label: 'Additional Medicare', value: addlMedLiability, type: 'tax', section: 'tax' });
+  // C4 (remediation 2026-06-10): NIIT 3.8% on net investment income when the
+  // capital-gains slider is positive and MAGI exceeds $250k MFJ.
+  if ((ft.niit ?? 0) > 0) steps.push({ label: 'Net Investment Income Tax', value: ft.niit, type: 'tax', section: 'tax' });
   steps.push({ label: 'TOTAL TAX', value: ft.totalTax, type: 'result', section: 'tax' });
 
   return steps;

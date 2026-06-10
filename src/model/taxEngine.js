@@ -7,6 +7,7 @@ import {
   ADDL_MEDICARE_THRESHOLD, ADDL_MEDICARE_W2_THRESHOLD,
   CTC_AMOUNT, ODC_AMOUNT, CTC_PHASEOUT_THRESHOLD_MFJ, CTC_PHASEOUT_RATE,
   SS_PROVISIONAL_THRESHOLD_1, SS_PROVISIONAL_THRESHOLD_2, SS_TAXABLE_TIER_1, SS_TAXABLE_TIER_2,
+  LTCG_BRACKETS_MFJ_2026, NIIT_RATE, NIIT_THRESHOLD_MFJ,
 } from './taxConstants.js';
 
 /**
@@ -67,6 +68,27 @@ export function computeFederalTax(taxableIncome, brackets = BRACKETS_MFJ_2026) {
   }
 
   return { fedTax, marginalRate };
+}
+
+/**
+ * C4 (remediation 2026-06-10): long-term capital gain tax via the 0/15/20
+ * stack. The LT gain is STACKED ON TOP of ordinary taxable income — each
+ * slice of the gain pays the rate of the LTCG bracket it lands in by total
+ * taxable income (§1(h), breakpoints per Rev. Proc. 2025-32 MFJ).
+ */
+export function computeLtcgTax(ordinaryTaxable, ltGain, brackets = LTCG_BRACKETS_MFJ_2026) {
+  if (!(ltGain > 0)) return 0;
+  let tax = 0;
+  let prev = ordinaryTaxable;
+  const top = ordinaryTaxable + ltGain;
+  for (const [cap, rate] of brackets) {
+    if (cap <= prev) continue;
+    const sliceTop = Math.min(cap, top);
+    tax += (sliceTop - prev) * rate;
+    prev = sliceTop;
+    if (prev >= top) break;
+  }
+  return tax;
 }
 
 export function computeItemizedDeductions({ agi, propertyTax, salesTax, personalPropTax, mortgageInt, charitable, totalMedicalInput, saltCap = null, saltThreshold = null }) {
@@ -152,6 +174,13 @@ export function calculateTax(inputs) {
     w2Withholding = 0,
     schCNet = 0,
     capGainLoss = 0,
+    // C4 (remediation 2026-06-10): share of a POSITIVE net capital gain that
+    // is long-term (taxed via the 0/15/20 stack). The household's realistic
+    // gains are MSFT shares held >1 year, so the default is 1.0 (all LT);
+    // set lower to model short-term gains taxed at ordinary rates. Losses
+    // are unaffected (the $3,000 ordinary-income offset has no ST/LT seam
+    // at this level of modeling).
+    capGainLtShare = 1,
 
     // Itemized deduction components (full mode)
     propertyTax = 0,
@@ -181,6 +210,8 @@ export function calculateTax(inputs) {
     marginalRateOverride = null,
     // Optional bracket override for inflation adjustment
     brackets = null,
+    // C4: optional LTCG-breakpoint override for inflation adjustment.
+    ltcgBrackets = null,
 
     // FIX #1: Non-FICA-covered W-2 employer (no SS withholding on Chad's W-2 wages).
     // When true, the employee SS portion (6.2% × min(wages, SS_WAGE_BASE)) is zero,
@@ -237,6 +268,9 @@ export function calculateTax(inputs) {
 
   // --- Standard mode: full or simplified ---
   const capAdj = Math.max(capGainLoss, CAP_LOSS_LIMIT);
+  // C4: split a positive net gain into LT (0/15/20 stack) and ST (ordinary).
+  const ltShare = Math.min(1, Math.max(0, capGainLtShare));
+  const ltGain = capAdj > 0 ? Math.round(capAdj * ltShare) : 0;
   const max401k = computeMax401k(schCNet, se.halfSeTax);
   const effective401k = Math.min(solo401kContribution, max401k.totalMax);
   // Provisional income (IRS Pub 915) uses "other AGI" — AGI excluding SS —
@@ -274,10 +308,19 @@ export function calculateTax(inputs) {
   const qbi = computeQBI({ schCNet: qbiBase, taxableBeforeQbi, skipPhaseOut: skipQbiPhaseOut });
   const taxableIncome = Math.max(0, taxableBeforeQbi - qbi);
 
-  // Federal income tax (use inflated brackets if provided)
-  const { fedTax, marginalRate } = brackets
-    ? computeFederalTax(taxableIncome, brackets)
-    : computeFederalTax(taxableIncome);
+  // Federal income tax (use inflated brackets if provided).
+  // C4: the LT portion of taxable income comes OUT of the ordinary bracket
+  // run and is taxed via the 0/15/20 stack on top of ordinary taxable income
+  // (§1(h)). Deductions absorb ordinary income first, so the LT slice inside
+  // taxable income is min(ltGain, taxableIncome). marginalRate stays the
+  // ordinary-income marginal (what another $1 of wages/Sch C would pay).
+  const ltTaxablePortion = Math.min(ltGain, taxableIncome);
+  const ordinaryTaxable = taxableIncome - ltTaxablePortion;
+  const { fedTax: ordinaryFedTax, marginalRate } = brackets
+    ? computeFederalTax(ordinaryTaxable, brackets)
+    : computeFederalTax(ordinaryTaxable);
+  const ltcgTax = computeLtcgTax(ordinaryTaxable, ltTaxablePortion, ltcgBrackets ?? LTCG_BRACKETS_MFJ_2026);
+  const fedTax = ordinaryFedTax + ltcgTax;
 
   // Credits — CTC $2,200/child + $500/ODC dependent, phased out $50 per
   // $1,000 (or fraction) of MAGI over $400K MFJ (5%). MAGI ≈ AGI here (no
@@ -315,9 +358,15 @@ export function calculateTax(inputs) {
   // rather than the post-deduction w2Wages used for income tax.
   const w2Fica = computeW2EmployeeFica(effectiveW2FicaBase, noFICA);
 
+  // C4: NIIT (§1411) — 3.8% × min(net investment income, MAGI − $250k MFJ).
+  // Net investment income here is the positive net capital gain (ST and LT
+  // both count); MAGI ≈ AGI (no foreign-income add-backs modeled).
+  const netInvestmentIncome = Math.max(0, capAdj);
+  const niit = NIIT_RATE * Math.max(0, Math.min(netInvestmentIncome, agi - NIIT_THRESHOLD_MFJ));
+
   // Total tax — includes the FULL additional-Medicare liability. The withheld
   // 0.9% is credited as a prepayment alongside w2Withholding in `balance`.
-  const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicare + w2Fica.ficaTax;
+  const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicare + niit + w2Fica.ficaTax;
   const balance = w2Withholding + addlMedicareWithheld - totalTax;
   const effectiveRate = agi > 0 ? totalTax / agi : 0;
 
@@ -337,8 +386,13 @@ export function calculateTax(inputs) {
     qbi,
     taxableBeforeQbi,
     taxableIncome,
-    // Federal tax
+    // Federal tax. C4: fedTax = ordinary brackets on (taxable − LT slice)
+    // + the 0/15/20 stack on the LT slice; the components are exposed too.
     fedTax,
+    ordinaryFedTax,
+    ltcgTax,
+    ltGain,
+    niit,
     marginalRate,
     // Credits
     totalCredits,

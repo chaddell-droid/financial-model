@@ -24,6 +24,8 @@ const FROZEN_PARAM_KEYS = [
   'ctcPhaseoutThresholdMfj',
   // qbiPhaseOutRange is a statutory width ($150k MFJ under OBBBA), not an indexed amount.
   'qbiPhaseOutRange',
+  // C4: the §1411 NIIT threshold ($250k MFJ) has been frozen since 2013.
+  'niitThresholdMfj',
 ];
 
 export const TAX_PARAMS = {
@@ -39,6 +41,13 @@ export const TAX_PARAMS = {
       [Infinity, 0.37],
     ],
     stdDeductionMfj: 32200,       // post-OBBBA, Rev. Proc. 2025-32
+    // C4 (remediation 2026-06-10): LTCG 0/15/20 breakpoints MFJ per
+    // Rev. Proc. 2025-32 — 0% up to $98,900, 15% up to $613,700, 20% above.
+    ltcgBracketsMfj: [
+      [98900, 0],
+      [613700, 0.15],
+      [Infinity, 0.20],
+    ],
     ssWageBase: 184500,           // SSA 2026 (2025: $176,100)
     qbiPhaseOutStart: 403500,     // MFJ phase-in threshold, Rev. Proc. 2025-32
     qbiPhaseOutRange: 150000,     // OBBBA widened to $150K MFJ (was $100K) — statutory width
@@ -53,6 +62,7 @@ export const TAX_PARAMS = {
     ssProvisionalThreshold1: 32000,
     ssProvisionalThreshold2: 44000,
     ctcPhaseoutThresholdMfj: 400000,
+    niitThresholdMfj: 250000,     // C4: §1411, legally frozen since 2013
   },
 };
 
@@ -77,6 +87,9 @@ export function getTaxParamsForYear(year) {
 
   const projected = {
     bracketsMfj: base.bracketsMfj.map(([cap, rate]) =>
+      [cap === Infinity ? Infinity : roundTo(cap * factor, 50), rate]),
+    // C4: LTCG breakpoints index like the ordinary brackets ($50 rounding).
+    ltcgBracketsMfj: base.ltcgBracketsMfj.map(([cap, rate]) =>
       [cap === Infinity ? Infinity : roundTo(cap * factor, 50), rate]),
     stdDeductionMfj: roundTo(base.stdDeductionMfj * factor, 100),
     ssWageBase: roundTo(base.ssWageBase * factor, 300),
@@ -157,6 +170,13 @@ export function getSaltThresholdForYear(year) {
 // Defaults used when callers don't pass a year-specific value (base year 2026).
 export const SALT_CAP = getSaltCapForYear(TAX_PARAMS_BASE_YEAR);
 export const SALT_MAGI_THRESHOLD = getSaltThresholdForYear(TAX_PARAMS_BASE_YEAR);
+
+// ── Capital gains (C4, remediation 2026-06-10) ─────────────────────────────
+// LTCG 0/15/20 stack breakpoints (MFJ, Rev. Proc. 2025-32) and the §1411 net
+// investment income tax. The NIIT threshold is legally frozen (never indexed).
+export const LTCG_BRACKETS_MFJ_2026 = BASE.ltcgBracketsMfj;
+export const NIIT_RATE = 0.038;
+export const NIIT_THRESHOLD_MFJ = BASE.niitThresholdMfj;
 
 // Qualified Business Income
 export const QBI_RATE = 0.20;

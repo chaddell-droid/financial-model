@@ -355,7 +355,8 @@ describe("calculateTax — full mode (Dellinger defaults)", () => {
     // Phase 4 (2026-06-09): totalTax carries the FULL additional-Medicare
     // liability (addlMedicare), not the net-of-withholding addlMedicareOwed.
     const r = calculateTax(defaultInputs);
-    const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
+    // C4 (2026-06-10): + NIIT (0 here — default capGainLoss is a loss).
+    const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.niit + r.w2FicaTax;
     approx(r.totalTax, expected);
   });
 
@@ -427,8 +428,8 @@ describe("calculateTax — integration: forensic audit cases", () => {
     // Combined Medicare wages = 276679 + (101816 * 0.9235) ≈ 370,706 > $250K threshold
     expect(r.addlMedicareOwed).toBeGreaterThan(0);
     // FIX #1: totalTax now includes w2FicaTax. Phase 4: full addl-Medicare
-    // liability in totalTax. Verify the full sum.
-    const expectedTotal = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
+    // liability in totalTax. C4: + NIIT. Verify the full sum.
+    const expectedTotal = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.niit + r.w2FicaTax;
     expect(Math.abs(r.totalTax - expectedTotal)).toBeLessThanOrEqual(1);
   });
 
@@ -630,10 +631,11 @@ describe("INVARIANTS: mathematical properties across input ranges", () => {
         expect(r.addlMedicareOwed).toBeGreaterThanOrEqual(0);
       });
 
-      it("totalTax = max(0, fedTax - credits) + seTax + addlMedicare + w2Fica (exact)", () => {
+      it("totalTax = max(0, fedTax - credits) + seTax + addlMedicare + niit + w2Fica (exact)", () => {
         // FIX #1: totalTax now includes employee W-2 FICA.
         // Phase 4: full addl-Medicare LIABILITY (r.addlMedicare) in totalTax.
-        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
+        // C4 (2026-06-10): NIIT 3.8% joins the stack (0 in these loss/no-gain scenarios).
+        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.niit + r.w2FicaTax;
         expect(r.totalTax).toBeCloseTo(expected, 10);
       });
 
@@ -703,7 +705,8 @@ describe("YEAR VERIFICATION: TaxBurdenShift default years (2024-2028)", () => {
 
       it("totalTax formula holds exactly", () => {
         // FIX #1: includes w2FicaTax. Phase 4: full addl-Medicare liability.
-        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
+        // C4 (2026-06-10): + NIIT (0 in these no-gain years).
+        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.niit + r.w2FicaTax;
         expect(r.totalTax).toBeCloseTo(expected, 10);
       });
     });

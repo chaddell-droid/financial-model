@@ -24,7 +24,7 @@ function nextStockVestMonthAfter(month) {
   }
   return month + 3;
 }
-import { BRACKETS_MFJ_2026, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
+import { BRACKETS_MFJ_2026, LTCG_BRACKETS_MFJ_2026, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
 import { calculateTax, computeAdditionalMedicare } from './taxEngine.js';
 import { getVestingGrossMonthly } from './vesting.js';
 
@@ -396,6 +396,10 @@ export function buildTaxSchedule(s) {
     const inflatedBrackets = inflationFactor > 1
       ? inflateBrackets(BRACKETS_MFJ_2026, inflationFactor)
       : null;
+    // C4: LTCG breakpoints index the same way as the ordinary brackets.
+    const inflatedLtcgBrackets = inflationFactor > 1
+      ? inflateBrackets(LTCG_BRACKETS_MFJ_2026, inflationFactor)
+      : null;
 
     const taxInputs = getTaxInputs(s, y);
 
@@ -427,6 +431,7 @@ export function buildTaxSchedule(s) {
       saltCap,
       saltThreshold,
       brackets: inflatedBrackets,
+      ltcgBrackets: inflatedLtcgBrackets, // C4
       noFICA: chadJobNoFICA, // FIX #1
     });
 
@@ -450,6 +455,7 @@ export function buildTaxSchedule(s) {
       saltCap,
       saltThreshold,
       brackets: inflatedBrackets,
+      ltcgBrackets: inflatedLtcgBrackets, // C4
       noFICA: chadJobNoFICA, // FIX #1
     });
 

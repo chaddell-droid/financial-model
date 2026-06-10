@@ -588,7 +588,7 @@ test('C47: every row exposes the fields the tax charts read, all finite', () => 
   const fullTaxFields = [
     'totalIncome', 'ssTaxableIncome', 'agi', 'deductionUsed', 'itemized',
     'qbi', 'taxableBeforeQbi', 'taxableIncome', 'fedTax', 'totalCredits',
-    'seTax', 'halfSeTax', 'addlMedicare', 'w2FicaTax', 'totalTax',
+    'seTax', 'halfSeTax', 'addlMedicare', 'niit', 'w2FicaTax', 'totalTax',
     'effectiveRate', 'marginalRate', 'solo401kContribution',
     'saltDeductible', 'medicalDeductible',
   ];
@@ -636,12 +636,13 @@ test('C48: tax components and rates are non-negative (rates bounded below 100%)'
 });
 
 test('C49: waterfall tax components sum to TOTAL TAX for every year', () => {
-  // TaxWaterfallChart renders fedTax, -credits, seTax, addlMedicare and the
-  // engine adds W-2 employee FICA: totalTax = max(0, fed - credits) + se + addlMed + w2Fica.
+  // TaxWaterfallChart renders fedTax, -credits, seTax, addlMedicare, NIIT and
+  // the engine adds W-2 employee FICA:
+  // totalTax = max(0, fed - credits) + se + addlMed + niit + w2Fica (C4).
   for (const [label, schedule] of [['default', taxSchedule], ['w2', taxJobSchedule]]) {
     for (let y = 0; y < schedule.length; y++) {
       const ft = schedule[y].fullTax;
-      const sum = Math.max(0, ft.fedTax - ft.totalCredits) + ft.seTax + ft.addlMedicare + ft.w2FicaTax;
+      const sum = Math.max(0, ft.fedTax - ft.totalCredits) + ft.seTax + ft.addlMedicare + ft.niit + ft.w2FicaTax;
       near(sum, ft.totalTax, 0.01, `${label} year ${y} waterfall tax sum`);
       // A4 (remediation 2026-06-10): legacy MSFT vests are W-2 + FICA wages
       // through month 29 (years 0-2) even on the default (no-job) path, so

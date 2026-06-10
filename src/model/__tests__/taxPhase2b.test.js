@@ -62,6 +62,64 @@ test('C2-2. employer max = round((schCNet − halfSE) × 0.20) exactly', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// C4 — LTCG 0/15/20 stack + NIIT 3.8% on positive capital gains
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== C4: LTCG stack + NIIT ===');
+
+test('C4-1. audit regression: +$50k LTCG at ~$250k taxable → +$9,400 (15% + NIIT), not $12,000', () => {
+  const r0 = calculateTax({ w2Wages: 300000 });
+  const r1 = calculateTax({ w2Wages: 300000, capGainLoss: 50000 });
+  // Ordinary taxable ≈ $267,800 — the whole LT gain sits in the 15% band
+  // (0% band tops at $98,900, 15% band at $613,700 MFJ, Rev. Proc. 2025-32).
+  // NIIT: MAGI = $350k → 3.8% × min($50k, $100k) = $1,900.
+  near(r1.totalTax - r0.totalTax, 50000 * 0.15 + 50000 * 0.038, 2,
+    'LT gain taxed at 15% + 3.8% NIIT, not the 24% ordinary rate');
+  near(r1.niit, 1900, 1, 'NIIT exposed on the result');
+  near(r1.ltcgTax, 7500, 1, 'LTCG stack tax exposed on the result');
+});
+
+test('C4-2. 0% LTCG bracket: low ordinary income shelters the gain from rate but not provisional stacking', () => {
+  // Ordinary taxable 0 (no other income), $40k LT gain: taxable income = $40k
+  // − $32,200 std ded = $7,800, entirely inside the 0% band → $0 fed tax.
+  const r = calculateTax({ capGainLoss: 40000 });
+  assert.strictEqual(r.fedTax, 0, `0% band gain should owe no federal tax, got ${r.fedTax}`);
+  assert.strictEqual(r.niit, 0, 'MAGI $40k under $250k → no NIIT');
+});
+
+test('C4-3. 20% bracket: gain stacked above $613,700 taxable pays 20%', () => {
+  const r0 = calculateTax({ w2Wages: 700000 });
+  const r1 = calculateTax({ w2Wages: 700000, capGainLoss: 100000 });
+  // Ordinary taxable ≈ $667,800 > $613,700 → entire gain in the 20% band.
+  near(r1.totalTax - r0.totalTax, 100000 * 0.20 + 100000 * 0.038, 2,
+    '20% LTCG + NIIT above the top breakpoint');
+});
+
+test('C4-4. capGainLtShare splits ST (ordinary) from LT (stack)', () => {
+  const all = calculateTax({ w2Wages: 300000, capGainLoss: 50000 });
+  const half = calculateTax({ w2Wages: 300000, capGainLoss: 50000, capGainLtShare: 0.5 });
+  const none = calculateTax({ w2Wages: 300000, capGainLoss: 50000, capGainLtShare: 0 });
+  // ST portion is taxed at the 24% ordinary rate; LT at 15%.
+  assert.ok(none.totalTax > half.totalTax, 'all-ST must out-tax half-LT');
+  assert.ok(half.totalTax > all.totalTax, 'half-LT must out-tax all-LT');
+  near(none.totalTax - all.totalTax, 50000 * (0.24 - 0.15), 5,
+    'ST-vs-LT delta = (24% − 15%) × gain');
+  // NIIT hits the whole net gain regardless of holding period.
+  near(none.niit, all.niit, 0.01, 'NIIT identical for ST and LT');
+});
+
+test('C4-5. losses unchanged: -$3,000 cap loss still reduces ordinary income, no NIIT', () => {
+  const r = calculateTax({ w2Wages: 200000, capGainLoss: -50000 });
+  assert.strictEqual(r.niit, 0);
+  assert.strictEqual(r.ltcgTax, 0);
+  near(r.totalIncome, 200000 - 3000, 0.01, 'cap-loss limit still applies');
+});
+
+test('C4-6. NIIT threshold: MAGI below $250k → zero NIIT even with gains', () => {
+  const r = calculateTax({ w2Wages: 100000, capGainLoss: 30000 });
+  assert.strictEqual(r.niit, 0, `AGI $130k < $250k must owe no NIIT, got ${r.niit}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

@@ -28,6 +28,7 @@ function RetirementIncomeChart({
   chadJobPensionMonthly,
   chadCurrentAge,
   sarahCurrentAge,
+  sarahSpousalClaimAge,
   sarahOwnSS,
   onSpendingTargets,
 }) {
@@ -58,7 +59,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahOwnSS });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS });
 
   // Report spending targets to parent
   useEffect(() => {

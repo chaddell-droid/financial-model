@@ -124,6 +124,25 @@ test('B3: edge — explicit 0 (no own benefit) is respected, only null/undefined
   eq(deriveRetirementParams({}).sarahOwnSS, 1900, 'missing falls back');
 });
 
+// A7 (remediation 2026-06-10, item 1.5): sarahSpousalClaimAge wired through
+// deriveRetirementParams into the retirement sim's spousal gate/reduction.
+test('B4: default — sarahSpousalClaimAge falls back to 67 (D9)', () => {
+  eq(deriveRetirementParams({}).sarahSpousalClaimAge, 67, 'missing falls back to FRA');
+  eq(deriveRetirementParams({ sarahSpousalClaimAge: null }).sarahSpousalClaimAge, 67, 'null falls back');
+});
+
+test('B5: override — state value flows through (and gatherState passes it)', () => {
+  eq(deriveRetirementParams({ sarahSpousalClaimAge: 63 }).sarahSpousalClaimAge, 63);
+  const s = gatherStateWithOverrides({ sarahSpousalClaimAge: 64 });
+  eq(s.sarahSpousalClaimAge, 64);
+  eq(deriveRetirementParams({ sarahSpousalClaimAge: s.sarahSpousalClaimAge }).sarahSpousalClaimAge, 64);
+});
+
+test('B6: edge — clamped to the SSA-valid 62–70 window', () => {
+  eq(deriveRetirementParams({ sarahSpousalClaimAge: 50 }).sarahSpousalClaimAge, 62, 'below 62 clamps up');
+  eq(deriveRetirementParams({ sarahSpousalClaimAge: 80 }).sarahSpousalClaimAge, 70, 'above 70 clamps down');
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // Section 3: SS / income derivations match the hook's documented formulas
 // ════════════════════════════════════════════════════════════════════════

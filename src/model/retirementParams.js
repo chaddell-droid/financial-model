@@ -25,6 +25,7 @@ export function deriveRetirementParams({
   chadCurrentAge, sarahCurrentAge, sarahOwnSS,
   ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
   trustIncomeFuture, chadJobPensionMonthly,
+  sarahSpousalClaimAge,
 } = {}) {
   // Age gap from state — the sim indexes time by Chad's age (retires at 67),
   // so Sarah's age at month t is chadAge - ageDiff.
@@ -55,10 +56,16 @@ export function deriveRetirementParams({
   const trustMonthly = trustIncomeFuture || 0;
   const pensionMonthly = chadJobPensionMonthly || 0;
   const startingCoupleIncome = chadSS + trustMonthly + pensionMonthly;
+  // A7 (remediation 2026-06-10, item 1.5): Sarah's spousal claim age flows
+  // from state (D9 default 67, slider 62–70) into the retirement sim, which
+  // gates her benefit at this age and applies the SPOUSAL reduction factor
+  // to the 50%-of-PIA ceiling (see getRetirementSSInfo).
+  const spousalClaimAge = Math.min(70, Math.max(62, sarahSpousalClaimAge ?? 67));
 
   return {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
     ssFRA, chadSS, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS,
+    sarahSpousalClaimAge: spousalClaimAge,
     trustMonthly, pensionMonthly, startingCoupleIncome,
   };
 }

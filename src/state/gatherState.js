@@ -1,5 +1,5 @@
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
-import { ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_START_OFFSET, familyMaxForPIA } from '../model/constants.js';
+import { ssAdjustmentFactor, ssSpousalAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_START_OFFSET, familyMaxForPIA } from '../model/constants.js';
 import { composePreviewState } from './previewState.js';
 import { computeEffectiveLeverConstraints } from '../model/leverClassification.js';
 import { computeChadPensionMonthly } from '../model/chadLevels.js';
@@ -126,7 +126,11 @@ export function gatherState(state) {
     const piaForSpousal = s.ssPIA || 0;
     const sarahPIA50 = Math.round(piaForSpousal * 0.5);
     const sarahClaimAge = s.sarahSpousalClaimAge || 67;
-    s.sarahSpousalAmount = Math.round(sarahPIA50 * ssAdjustmentFactor(sarahClaimAge));
+    // A7 (remediation 2026-06-10): SPOUSAL reduction schedule (25/36%/mo first
+    // 36 months, 5/12%/mo beyond; clamp 1.0 at FRA — no delayed credits). The
+    // old worker-factor reuse paid 70% at 62 (correct 65%) and 124% at 70
+    // (correct 100%).
+    s.sarahSpousalAmount = Math.round(sarahPIA50 * ssSpousalAdjustmentFactor(sarahClaimAge));
     const sarahCurAge = s.sarahCurrentAge ?? 59;
     s.sarahSpousalStartMonth = Math.max(0, (sarahClaimAge - sarahCurAge) * 12);
   } else {

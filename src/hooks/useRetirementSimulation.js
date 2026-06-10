@@ -28,6 +28,7 @@ import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from '../model/pwaSt
 export function useRetirementSimulation({
   savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly,
   chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
+  sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
 }) {
   // ── State ────────────────────────────────────────────────────────────
   const [retirementMode, setRetirementMode] = useState('historical_safe');
@@ -70,11 +71,12 @@ export function useRetirementSimulation({
   // via a pure function so node tests can verify parity with gatherState.
   const {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
-    ssFRA, chadSS, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, startingCoupleIncome,
+    ssFRA, chadSS, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly, startingCoupleIncome,
   } = deriveRetirementParams({
     chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
     ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
     trustIncomeFuture, chadJobPensionMonthly,
+    sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
   });
 
   // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths)
@@ -120,10 +122,11 @@ export function useRetirementSimulation({
       ssFRA,
       sarahOwnSS,
       survivorSS,
+      sarahSpousalClaimAge,
       trustMonthly,
       pensionMonthly,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly]);
 
   const { rescueFlows, scaling } = useMemo(() => {
     return buildScalingAndRescueFlows({
@@ -145,13 +148,14 @@ export function useRetirementSimulation({
       ssFRA,
       sarahOwnSS,
       survivorSS,
+      sarahSpousalClaimAge,
       trustMonthly,
       pensionMonthly,
       hasInheritance,
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Closed-form cohort math includes inheritance as a future cash event (like
   // SS/trust). Since the inheritance double-count fix (finding 2026-06-09 2.1)
@@ -370,6 +374,7 @@ export function useRetirementSimulation({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    sarahSpousalClaimAge,
     pensionMonthly,
   };
 

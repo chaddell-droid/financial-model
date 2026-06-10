@@ -443,6 +443,15 @@ export function runMonthlySimulation(s) {
       sarahSpousalEnabled
       && m >= (s.sarahSpousalStartMonth ?? 999)
       && ssBenefit > 0
+      // A7 (remediation 2026-06-10, item 1.5): suppress spousal inside the
+      // family-maximum window. While the kids' auxiliary share is flowing
+      // (ssBenefit > ssBenefitPersonal), the aux pool (FMAX − PIA) is already
+      // fully consumed by the two children — Sarah's spousal would have to
+      // come out of the same capped pool, so SSA pays her $0 until a child
+      // ages out and frees pool room. Modeled as full suppression while any
+      // kids' share is being paid (two kids at 50% each exhaust the pool at
+      // this household's PIA).
+      && ssBenefit <= ssBenefitPersonal
     ) {
       sarahSpousal = s.sarahSpousalAmount || 0;
     }

@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection, SS_INTERIM_TAX_HAIRCUT } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, familyMaxForPIA } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssSpousalAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, familyMaxForPIA } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -1357,6 +1357,48 @@ test('SS adjustment factor: age 67 (FRA) = 100% of PIA', () => {
 
 test('SS adjustment factor: age 70 = 124% of PIA', () => {
   assert.strictEqual(Math.round(ssAdjustmentFactor(70) * 1000), 1240);
+});
+
+// A7 (remediation 2026-06-10, item 1.5): SPOUSAL reduction schedule —
+// 25/36% per month for the first 36 months early, 5/12% beyond, clamped at
+// 1.0 from FRA (NO delayed retirement credits on spousal benefits).
+test('A7. spousal adjustment factor: 62 = 65%, 64 = 75%, 65 = 83.33%, 67 = 100%, 70 = 100%', () => {
+  assert.ok(Math.abs(ssSpousalAdjustmentFactor(62) - 0.65) < 1e-9, '60 months early → 65%');
+  assert.ok(Math.abs(ssSpousalAdjustmentFactor(64) - 0.75) < 1e-9, '36 months early → 75%');
+  assert.ok(Math.abs(ssSpousalAdjustmentFactor(65) - (1 - 24 * (25 / 36) / 100)) < 1e-9, '24 months early');
+  assert.strictEqual(ssSpousalAdjustmentFactor(67), 1, 'FRA → 100%');
+  assert.strictEqual(ssSpousalAdjustmentFactor(70), 1, 'NO delayed credits — clamps at 100%');
+});
+
+test('A7. gatherState applies the SPOUSAL factor to sarahSpousalAmount', () => {
+  // Default claim 67 → unchanged 2107.
+  const sDefault = gatherStateWithOverrides({ ssPIA: 4214 });
+  assert.strictEqual(sDefault.sarahSpousalAmount, 2107, 'claim 67 → full 50% ceiling');
+  // Claim 62 → round(2107 × 0.65) = 1370 (old worker-factor bug paid 1475).
+  const s62 = gatherStateWithOverrides({ ssPIA: 4214, sarahSpousalClaimAge: 62 });
+  assert.strictEqual(s62.sarahSpousalAmount, 1370, 'claim 62 → 65% of the ceiling');
+  // Claim 70 → still 2107: spousal earns NO delayed credits (old bug paid 2613).
+  const s70 = gatherStateWithOverrides({ ssPIA: 4214, sarahSpousalClaimAge: 70 });
+  assert.strictEqual(s70.sarahSpousalAmount, 2107, 'claim 70 → clamped at the FRA ceiling');
+});
+
+test('A7. spousal suppressed inside the family-max window (kids aux flowing)', () => {
+  // Chad claims SS at 62 (start m=19, kids' aux window m=19..39); Sarah is 62
+  // now with claim age 62 → eligible from m=0, gated on Chad claiming (m=19).
+  // While the kids' auxiliary share is flowing the family maximum is exhausted
+  // — spousal must be $0. First payable month is m=40 (kids age out).
+  // clients=0: no SE earnings, so her earnings test (A8) never withholds.
+  const s = gatherStateWithOverrides({
+    expenseInflation: false,
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214, chadConsulting: 0,
+    sarahSpousalEnabled: true, sarahSpousalClaimAge: 62, sarahCurrentAge: 62,
+    sarahCurrentClients: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  assert.strictEqual(monthlyData[19].sarahSpousal, 0, 'm=19: family max window → spousal suppressed');
+  assert.strictEqual(monthlyData[39].sarahSpousal, 0, 'm=39: last kids month → still suppressed');
+  assert.strictEqual(monthlyData[40].sarahSpousalGross, s.sarahSpousalAmount,
+    'm=40: kids aged out → spousal flows at the reduced amount');
 });
 
 test('gatherState: ssClaimAge 67 → ssStartMonth 79, ssPersonal = PIA', () => {

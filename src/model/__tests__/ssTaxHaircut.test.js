@@ -83,16 +83,21 @@ test('back pay: adult share haircut by 18.7%, kids aux untaxed, fee unchanged', 
 });
 
 test('Sarah spousal benefit is haircut as adult income', () => {
+  // A7 (2026-06-10): spousal base = round(2107 × 0.65) = 1370 (SPOUSAL
+  // reduction factor at 62 — the old worker-factor lock asserted 1475).
+  // Probe m=48: m=36..39 is inside the family-max window (spousal suppressed)
+  // and clients=0 keeps her own earnings test (A8) from withholding the check.
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214, chadConsulting: 0,
     sarahSpousalEnabled: true, sarahSpousalClaimAge: 62, sarahCurrentAge: 59,
+    sarahCurrentClients: 0,
     expenseInflation: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // Spousal gross = round(2107 × 0.70) = 1475 → net = round(1475 × 0.813) = 1199.
-  assert.strictEqual(s.sarahSpousalAmount, 1475);
-  assert.strictEqual(monthlyData[36].sarahSpousal, netAdult(1475));
-  assert.strictEqual(monthlyData[36].sarahSpousalGross, 1475);
+  // Spousal gross = round(2107 × 0.65) = 1370 → net = round(1370 × 0.813) = 1114.
+  assert.strictEqual(s.sarahSpousalAmount, 1370);
+  assert.strictEqual(monthlyData[48].sarahSpousal, netAdult(1370));
+  assert.strictEqual(monthlyData[48].sarahSpousalGross, 1370);
 });
 
 test('haircut composes with A2 COLA (COLA first, then tax)', () => {

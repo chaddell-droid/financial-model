@@ -146,7 +146,7 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     postJobBenefit,
-    sarahCurrentAge, sarahOwnSS,
+    sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     chadCurrentAge, chadAge65VestOverride,
     chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
@@ -665,9 +665,10 @@ export default function FinancialModel() {
     chadJobPensionMonthly,
     chadCurrentAge,
     sarahCurrentAge,
+    sarahSpousalClaimAge, // A7 (2026-06-10): retirement sim gates + reduces her spousal by claim age
     sarahOwnSS,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahOwnSS]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

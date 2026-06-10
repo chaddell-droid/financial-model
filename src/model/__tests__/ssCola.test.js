@@ -104,15 +104,22 @@ test('SS retirement stream is COLA\'d too', () => {
 
 test('Sarah\'s spousal benefit is COLA\'d by the same factor', () => {
   // Chad takes SS at 62 (claims at m=19); Sarah (59) claims spousal at 62 →
-  // start m=(62−59)×12=36. Spousal = round(2107 × factor(62)) = round(2107 × 0.70) = 1475.
+  // start m=(62−59)×12=36.
+  // A7 (2026-06-10): the SPOUSAL reduction factor is 0.65 at 62 → base
+  // round(2107 × 0.65) = 1370 (the old worker-factor lock asserted 1475).
+  // Probe m=48: m=36..39 sits inside the family-max window (kids' aux share
+  // flowing) where spousal is suppressed, and Sarah has no SE earnings here
+  // (clients=0) so her own earnings test (A8) does not withhold the check.
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214, chadConsulting: 0,
     sarahSpousalEnabled: true, sarahSpousalClaimAge: 62, sarahCurrentAge: 59,
+    sarahCurrentClients: 0,
   });
+  assert.strictEqual(s.sarahSpousalAmount, 1370, 'spousal base = round(2107 × 0.65) (A7)');
   const { monthlyData } = runMonthlySimulation(s);
-  const expected = Math.round(s.sarahSpousalAmount * colaFactor(2.5, 36));
-  assert.strictEqual(monthlyData[36].sarahSpousalGross, expected,
-    `spousal at m=36 should be COLA'd to ${expected} (gross ${s.sarahSpousalAmount})`);
+  const expected = Math.round(s.sarahSpousalAmount * colaFactor(2.5, 48));
+  assert.strictEqual(monthlyData[48].sarahSpousalGross, expected,
+    `spousal at m=48 should be COLA'd to ${expected} (gross ${s.sarahSpousalAmount})`);
 });
 
 test('m=0 carries no COLA (factor 1) on any path', () => {

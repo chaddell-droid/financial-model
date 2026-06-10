@@ -491,20 +491,23 @@ test('reserve boundary treats touching the floor as depleted', () => {
   eq(touchSim.everDepleted, true);
   eq(touchSim.finalPool, 11999);
 });
-test('retirement SS helper adds Sarah spousal benefit at 62', () => {
+test('retirement SS helper adds Sarah spousal benefit at her claim age (A7)', () => {
   // SSA spousal rule (remediation 2026-06-09 D3): the household receives the
-  // LARGER of Sarah's own benefit or the spousal ceiling (50% of Chad's PIA)
-  // — her own benefit topped up toward the spousal amount. The old lock
-  // (4833) encoded the conservative min(half-PIA, own) rule.
-  // 2933 + max(round(4213 × 0.5) = 2107, 1900) = 5040.
+  // LARGER of Sarah's own benefit or the spousal ceiling (50% of Chad's PIA).
+  // A7 (remediation 2026-06-10, item 1.5) moved this lock DOWN 5040 → 4833:
+  // claiming at 62 applies the SPOUSAL reduction factor (0.65) to the ceiling
+  // — round(2106.5 × 0.65) = 1369 < her own 1900, so her own record wins:
+  // 2933 + max(1369, 1900) = 4833. (Without an explicit claim age the default
+  // is 67 and nothing is payable at sarahAge 62 at all.)
   const ssInfo = getRetirementSSInfo(76, true, {
     ageDiff: 14,
     chadSS: 2933,
     ssFRA: 4213,
     sarahOwnSS: 1900,
     survivorSS: 4186,
+    sarahSpousalClaimAge: 62,
   });
-  eq(ssInfo.amount, 5040);
+  eq(ssInfo.amount, 4833);
 });
 test('retirement income plan scales total survivor spending before pool draw', () => {
   const plan = getRetirementIncomePlan(82, true, {

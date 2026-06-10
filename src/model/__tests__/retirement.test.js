@@ -320,10 +320,12 @@ test('couple phase includes trust + chadSS', () => {
   eq(flows[0], 2000 + 2933, 'month 0: trust + chadSS only');
 });
 
-test('Sarah spousal benefit kicks in after age 62', () => {
-  // At chadAge=76, sarahAge=62 → spousal kicks in
-  // Need horizonMonths that spans chadAge from 67 to 76+ → 108+ months
-  const flows = buildSupplementalFlows({
+test('Sarah spousal benefit kicks in at her CLAIM age, not a hardcoded 62 (A7)', () => {
+  // A7 (2026-06-10): the old rule paid the unreduced 50% ceiling from
+  // sarahAge 62 regardless of claim age. Now nothing is payable before
+  // sarahSpousalClaimAge, and an early claim carries the SPOUSAL reduction
+  // factor (0.65 at 62 — steeper than the worker's 0.70).
+  const base = {
     horizonMonths: 120,
     chadPassesAge: 90,
     ageDiff: 14,
@@ -335,13 +337,17 @@ test('Sarah spousal benefit kicks in after age 62', () => {
     hasInheritance: false,
     inheritanceMonth: 0,
     inheritanceAmount: 0,
-  });
-
-  // Month 0: chadAge=67, sarahAge=53 → no spousal
-  const earlyFlow = flows[0];
-  // Month 108: chadAge=76, sarahAge=62 → spousal starts
-  const lateFlow = flows[108];
-  assert.ok(lateFlow > earlyFlow, 'flows should increase when Sarah spousal kicks in at 62');
+  };
+  // Claim 62: benefit starts at month 108 (chadAge=76, sarahAge=62). Reduced
+  // ceiling round(2106.5 × 0.65) = 1369 < own 1900 → own record wins (deemed
+  // filing pays max of the two).
+  const flowsClaim62 = buildSupplementalFlows({ ...base, sarahSpousalClaimAge: 62 });
+  assert.ok(flowsClaim62[108] > flowsClaim62[0], 'claim 62 → benefit starts at sarahAge 62');
+  eq(flowsClaim62[108] - flowsClaim62[0], Math.max(Math.round(4213 * 0.5 * 0.65), 1900),
+    'claim-62 benefit = max(reduced ceiling, own record)');
+  // Default claim age (67): NOTHING payable at sarahAge 62 — she has not claimed.
+  const flowsDefault = buildSupplementalFlows(base);
+  eq(flowsDefault[108], flowsDefault[0], 'default claim 67 → no spousal at sarahAge 62');
 });
 
 test('inheritance lump sum at correct month', () => {
@@ -525,11 +531,13 @@ test('couple, Sarah < 62: no spousal', () => {
 });
 
 test('couple, own < spousal ceiling: own topped up to spousal (SSA rule, D3)', () => {
-  // chadAge=76 → sarahAge=62. SSA pays the household roughly the LARGER of
-  // Sarah's own benefit or the spousal amount (her own benefit is topped up
-  // toward 50% of Chad's PIA). The old rule paid min(half-PIA, own), a
-  // conservative floor that under-paid whenever the two differed.
-  const info = getRetirementSSInfo(76, true, ssConfig);
+  // A7 (2026-06-10): probe moved from chadAge 76 (sarahAge 62) to chadAge 81
+  // (sarahAge 67 = the default spousal claim age) — nothing is payable before
+  // her claim age now. At FRA the factor is 1.0, so the unreduced ceiling
+  // still applies: SSA pays the household the LARGER of Sarah's own benefit
+  // or the spousal ceiling (her own benefit topped up toward 50% of Chad's
+  // PIA).
+  const info = getRetirementSSInfo(81, true, ssConfig);
   const spousal = Math.max(Math.round(4213 * 0.5), 1900);
   eq(info.amount, 2933 + spousal, 'chadSS + max(ssFRA*0.5, sarahOwnSS)');
   eq(info.label, 'Chad + Sarah spousal', 'top-up in effect → spousal label');
@@ -538,9 +546,32 @@ test('couple, own < spousal ceiling: own topped up to spousal (SSA rule, D3)', (
 test('couple, own > spousal ceiling: own record wins (SSA rule, D3)', () => {
   // Own benefit 3000 exceeds the spousal ceiling round(4213×0.5)=2107 — the
   // household keeps her larger own-record benefit; spousal adds nothing.
-  const info = getRetirementSSInfo(76, true, { ...ssConfig, sarahOwnSS: 3000 });
+  // (A7: probe at sarahAge 67 — at/after her default claim age.)
+  const info = getRetirementSSInfo(81, true, { ...ssConfig, sarahOwnSS: 3000 });
   eq(info.amount, 2933 + 3000, 'chadSS + sarahOwnSS when own exceeds spousal ceiling');
   eq(info.label, 'Chad + Sarah own record');
+});
+
+test('couple, sarahAge 62-66 under default claim age 67: no benefit yet (A7)', () => {
+  // chadAge=76 → sarahAge=62; default sarahSpousalClaimAge=67 — the old rule
+  // filled ages 62–67 with the unreduced ceiling SSA would never pay.
+  const info = getRetirementSSInfo(76, true, ssConfig);
+  eq(info.amount, 2933, 'chad SS only before her claim age');
+  eq(info.label, 'Chad only');
+});
+
+test('couple, early claim 62: ceiling reduced by the SPOUSAL factor 0.65 (A7)', () => {
+  // sarahOwnSS=0 isolates the ceiling: round(4213 × 0.5 × 0.65) = 1369.
+  const info = getRetirementSSInfo(76, true, { ...ssConfig, sarahOwnSS: 0, sarahSpousalClaimAge: 62 });
+  eq(info.amount, 2933 + Math.round(4213 * 0.5 * 0.65), 'reduced spousal ceiling at claim 62');
+  eq(info.label, 'Chad + Sarah spousal');
+});
+
+test('couple, claim 70: NO delayed credits on spousal — same ceiling as FRA (A7)', () => {
+  // sarahAge=70 (chadAge 84). Spousal earns no DRCs: factor clamps at 1.0,
+  // ceiling stays round(4213 × 0.5) = 2107 (the old worker-factor reuse paid 124%).
+  const info = getRetirementSSInfo(84, true, { ...ssConfig, sarahOwnSS: 0, sarahSpousalClaimAge: 70 });
+  eq(info.amount, 2933 + Math.round(4213 * 0.5), 'no DRC: FRA ceiling at claim 70');
 });
 
 test('survivor, sarahOwnSS exceeds survivorSS', () => {

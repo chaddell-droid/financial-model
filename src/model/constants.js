@@ -103,6 +103,25 @@ export function ssAdjustmentFactor(claimAge) {
   return 1 - 36 * 5 / 9 / 100 - (monthsEarly - 36) * 5 / 12 / 100;
 }
 
+// ── Spousal-benefit reduction (remediation 2026-06-10 Phase 1, item 1.5; fixes A7) ──
+// SSA reduces a SPOUSAL benefit for early claiming at 25/36 of 1% per month for
+// the first 36 months before FRA and 5/12 of 1% per month beyond (42 U.S.C.
+// §402(q)(1)) — STEEPER than the worker's own 5/9%/mo schedule. And spousal
+// benefits earn NO delayed retirement credits: the factor clamps at 1.0 from
+// FRA onward (claiming at 70 pays the same 50% ceiling as claiming at 67).
+// The old code reused the worker's ssAdjustmentFactor: 62 → 70% (correct 65%)
+// and 70 → 124% (correct 100%, a +$506/mo phantom at the default PIA).
+export function ssSpousalFactorFromMonthsEarly(monthsEarly) {
+  const me = Math.max(0, Math.round(monthsEarly));
+  if (me <= 0) return 1; // at/after FRA: full spousal — NO delayed credits
+  if (me <= 36) return 1 - me * (25 / 36) / 100;
+  return 1 - 36 * (25 / 36) / 100 - (me - 36) * (5 / 12) / 100;
+}
+
+export function ssSpousalAdjustmentFactor(claimAge) {
+  return ssSpousalFactorFromMonthsEarly((SS_FRA - claimAge) * 12);
+}
+
 // ── Retirement/survivor family maximum (remediation 2026-06-10 Phase 0, item 0.3; improvement b-13) ──
 // 2026 family-maximum bend points (workers who turn 62 or die in 2026), verified
 // against ssa.gov/oact/cola/familymax.html. Statutory percentages are fixed

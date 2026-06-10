@@ -1,3 +1,5 @@
+import { ssSpousalAdjustmentFactor } from './constants.js';
+
 function getSurvivorStartMonth(chadPassesAge) {
   return (chadPassesAge - 67) * 12;
 }
@@ -23,6 +25,7 @@ function getRetirementMonthDetails(t, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  sarahSpousalClaimAge,
   pensionMonthly,
 }) {
   const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
@@ -34,6 +37,7 @@ function getRetirementMonthDetails(t, {
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    sarahSpousalClaimAge,
     // Survivor claim age = Sarah's age when widowed (floored at 60 inside the
     // helper) — locks the SSA reduction factor at claim time (D3).
     survivorClaimAge: chadPassesAge - ageDiff,
@@ -84,18 +88,27 @@ export function getRetirementSSInfo(chadAge, chadAlive, {
   sarahOwnSS,
   survivorSS,
   survivorClaimAge,
+  sarahSpousalClaimAge,
 }) {
   const sarahAge = chadAge - ageDiff;
 
   if (chadAlive) {
-    // SSA spousal rule (remediation 2026-06-09 D3): once Sarah claims (age
-    // gate 62), the household receives Chad's benefit PLUS the LARGER of her
-    // own-record benefit or the spousal ceiling (50% of Chad's PIA) — her own
-    // benefit is topped up toward the spousal amount, never reduced to the
-    // smaller of the two. The previous rule paid min(half-PIA, own), a
-    // conservative floor that under-paid whenever the two differed.
-    const spousalCeiling = Math.round(ssFRA * 0.5);
-    const sarahBenefit = sarahAge >= 62 ? Math.max(spousalCeiling, sarahOwnSS) : 0;
+    // SSA spousal rule (remediation 2026-06-09 D3): once Sarah claims, the
+    // household receives Chad's benefit PLUS the LARGER of her own-record
+    // benefit or the spousal ceiling (50% of Chad's PIA) — her own benefit is
+    // topped up toward the spousal amount, never reduced to the smaller of
+    // the two (dual entitlement: own + spousal excess = max of the two).
+    //
+    // A7 (remediation 2026-06-10, item 1.5): the ceiling is REDUCED by the
+    // spousal early-claim factor (25/36%/mo first 36, 5/12%/mo beyond; clamp
+    // 1.0 at FRA — no delayed credits), keyed on sarahSpousalClaimAge from
+    // state (D9 default 67). Nothing is payable before her claim age (deemed
+    // filing claims own + spousal together) — the old rule paid the UNREDUCED
+    // 50% ceiling from age 62 regardless of claim age, filling ages 62–67
+    // with money SSA would never pay.
+    const spousalClaimAge = Math.min(70, Math.max(62, sarahSpousalClaimAge ?? 67));
+    const spousalCeiling = Math.round(ssFRA * 0.5 * ssSpousalAdjustmentFactor(spousalClaimAge));
+    const sarahBenefit = sarahAge >= spousalClaimAge ? Math.max(spousalCeiling, sarahOwnSS) : 0;
     return {
       amount: chadSS + sarahBenefit,
       label: sarahBenefit === 0 ? 'Chad only'
@@ -138,6 +151,7 @@ export function buildRetirementContext({
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  sarahSpousalClaimAge,
   trustMonthly,
   pensionMonthly,
 }) {
@@ -160,6 +174,7 @@ export function buildRetirementContext({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    sarahSpousalClaimAge,
     pensionMonthly: pensionMonthly || 0,
   };
 
@@ -224,6 +239,7 @@ export function buildSupplementalFlows({
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  sarahSpousalClaimAge,
   trustMonthly,
   pensionMonthly,
   hasInheritance,
@@ -239,6 +255,7 @@ export function buildSupplementalFlows({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    sarahSpousalClaimAge,
     trustMonthly,
     pensionMonthly,
   });
@@ -298,6 +315,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  sarahSpousalClaimAge,
   pensionMonthly,
 }) {
   const chadAlive = chadAge < chadPassesAge;
@@ -307,6 +325,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    sarahSpousalClaimAge,
     // Lock the SSA survivor reduction at the age Sarah is widowed (D3).
     survivorClaimAge: chadPassesAge - ageDiff,
   });

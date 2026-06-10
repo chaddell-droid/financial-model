@@ -243,20 +243,12 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
     let sum401k = 0;
     for (const d of monthlyData) sum401k += (d.withdrawal401k || 0);
     totalWithdrawal401k.push(sum401k);
-    // Home equity drawdowns (equity-sale draws, D7): derived from home-equity
-    // series differences when they exceed the appreciation step. The projection
-    // updates homeEquity in place (grow then decrement by the draw), so we
-    // approximate the cumulative equity sold as max(0, expected-after-growth -
-    // actual). Cheap, monotone, sufficient for a percentile summary.
-    const monthlyHomeRate = Math.pow(1 + (simParams.homeAppreciation ?? 4) / 100, 1 / 12) - 1;
+    // Home equity drawdowns (equity-sale draws, D7). C11 (remediation
+    // 2026-06-10, item 5.2): the projection now exposes withdrawalHome on
+    // every row — sum the exact field instead of reconstructing the draws
+    // from home-equity series differences.
     let sumHome = 0;
-    let prevHome = simParams.homeEquity || 0;
-    for (let i = 0; i < homeSeries.length; i++) {
-      const expectedAfterGrowth = i === 0 ? prevHome : Math.round(prevHome * (1 + monthlyHomeRate));
-      const drop = Math.max(0, expectedAfterGrowth - homeSeries[i]);
-      sumHome += drop;
-      prevHome = homeSeries[i];
-    }
+    for (const d of monthlyData) sumHome += (d.withdrawalHome || 0);
     totalWithdrawalHome.push(sumHome);
     drawdownFired.push(sum401k > 0 || sumHome > 0);
 

@@ -31,6 +31,8 @@ const MONTHLY_FIELDS = [
   'cashIncome', 'cashIncomeSmoothed', 'expenses',
   'netCashFlow', 'netCashFlowSmoothed', 'netMonthly', 'netMonthlySmoothed',
   'balance', 'balance401k', 'withdrawal401k',
+  // C11 (remediation 2026-06-10, item 5.2): home-equity deficit draws exposed per row.
+  'withdrawalHome',
 ];
 
 // Helper: run full pipeline for a set of overrides

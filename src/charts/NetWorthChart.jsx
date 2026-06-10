@@ -71,6 +71,8 @@ function NetWorthChart({
         savings: sav,
         bal401k: w.balance401k,
         home: w.homeEquity,
+        // C11 (item 5.2): per-month home-equity deficit draw (equity sale).
+        homeDraw: w.withdrawalHome || 0,
         total: sav + w.balance401k + w.homeEquity,
       };
     }),
@@ -326,6 +328,11 @@ function NetWorthChart({
               { label: 'Savings', value: tooltip.dataPoint.savings, color: COLORS.green },
               { label: '401k', value: tooltip.dataPoint.bal401k, color: COLORS.blue },
               { label: 'Home', value: tooltip.dataPoint.home, color: COLORS.amber },
+              // C11 (item 5.2): surface the equity-sale draw covering this
+              // month's deficit — previously invisible in every tooltip.
+              ...(tooltip.dataPoint.homeDraw > 0
+                ? [{ label: 'Home equity draw', value: -tooltip.dataPoint.homeDraw, color: COLORS.red }]
+                : []),
               { label: 'Total', value: tooltip.dataPoint.total, color: COLORS.textSecondary },
             ].map((row, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 12 }}>

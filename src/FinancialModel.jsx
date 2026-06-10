@@ -303,6 +303,9 @@ export default function FinancialModel() {
       month: d.month,
       balance401k: d.balance401k,
       homeEquity: d.homeEquity,
+      // C11 (item 5.2): per-month home-equity deficit draw — NetWorthChart
+      // tooltip attributes equity-sale draws instead of hiding them.
+      withdrawalHome: d.withdrawalHome || 0,
     })),
     [monthlyDetail]
   );

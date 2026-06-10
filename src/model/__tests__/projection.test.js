@@ -884,6 +884,60 @@ test('34g. D7: ending resources reflect the gross-up (higher rate → lower endi
     `ending resources at 40% (${resources(high)}) must be below 0% (${resources(low)})`);
 });
 
+// ── C11 (remediation 2026-06-10, item 5.2): withdrawalHome must be exposed
+// on monthlyData rows — home-equity draws were silently covering deficits
+// with no per-row trace (monteCarlo had to diff the homeEquity series to
+// reconstruct them).
+
+test('34h. C11: withdrawalHome exposed on rows; homeEquity identity holds each month', () => {
+  const s = gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 0, homeEquity: 500000, homeAppreciation: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const m0 = monthlyData[0];
+  assert.ok(typeof m0.withdrawalHome === 'number', 'withdrawalHome must be a number on the row');
+  assert.ok(m0.withdrawalHome > 0, `month-0 deficit must draw home equity, got ${m0.withdrawalHome}`);
+  // With appreciation = 0 the row identity is exact:
+  // homeEquity[m] = homeEquity[m-1] − withdrawalHome[m]
+  let prev = 500000;
+  for (const d of monthlyData) {
+    assert.strictEqual(d.homeEquity, prev - d.withdrawalHome,
+      `month ${d.month}: homeEquity (${d.homeEquity}) must equal prev (${prev}) − draw (${d.withdrawalHome})`);
+    prev = d.homeEquity;
+  }
+});
+
+test('34i. C11: withdrawalHome identity holds WITH appreciation (grow-then-draw order)', () => {
+  const s = gatherStateWithOverrides({
+    ...D7_BASE, starting401k: 0, homeEquity: 500000, homeAppreciation: 4,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  const monthlyHomeRate = Math.pow(1 + 4 / 100, 1 / 12) - 1;
+  let prev = 500000;
+  for (const d of monthlyData) {
+    // Engine order (projection.js): m>0 grows (rounded), THEN the draw decrements.
+    const afterGrowth = d.month === 0 ? prev : Math.round(prev * (1 + monthlyHomeRate));
+    assert.strictEqual(d.homeEquity, afterGrowth - d.withdrawalHome,
+      `month ${d.month}: homeEquity (${d.homeEquity}) must equal grown (${afterGrowth}) − draw (${d.withdrawalHome})`);
+    prev = d.homeEquity;
+  }
+  const total = monthlyData.reduce((acc, d) => acc + d.withdrawalHome, 0);
+  assert.ok(total > 0, 'cumulative home draws must be positive in the deficit fixture');
+});
+
+test('34j. C11: withdrawalHome is 0 in surplus months (no phantom draws)', () => {
+  const s = gatherStateWithOverrides({
+    startingSavings: 500000, starting401k: 100000, homeEquity: 500000,
+    investmentReturn: 0, return401k: 0, homeAppreciation: 0,
+    baseExpenses: 1000, retireDebt: true, vanSold: false, lifestyleCutsApplied: false,
+    bcsYearsLeft: 0, milestones: [], chadJob: false, ssdiDenied: true,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const d of monthlyData) {
+    assert.strictEqual(d.withdrawalHome, 0, `month ${d.month}: surplus scenario must never draw home equity`);
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // runMonthlySimulation — toggle combinations
 // ════════════════════════════════════════════════════════════════════════

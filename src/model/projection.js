@@ -852,6 +852,10 @@ export function runMonthlySimulation(s) {
       balance: Math.round(balance),
       balance401k: bal401k,
       withdrawal401k,
+      // C11 (remediation 2026-06-10, item 5.2): home-equity deficit draws were
+      // computed but never exposed — charts/MC had to diff the homeEquity
+      // series to reconstruct them. Dollar-for-dollar equity sale (untaxed).
+      withdrawalHome,
     });
   }
 

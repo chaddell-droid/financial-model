@@ -17,6 +17,11 @@ function nextStockVestMonthAfter(month) {
 // firstAugustAtOrAfter returns the smallest m ≥ minMonth where the calendar
 // month is August. Used to align refresh issuance to MSFT's annual review cycle.
 const AUG_MOD = ((7 - PROJECTION_START_MONTH) % 12 + 12) % 12;
+
+// C13 (remediation 2026-06-10, item 3.7): WA PERS Plan 2 vesting — a lifetime
+// pension requires 5 years (60 months) of service credit. Below that, the
+// member receives only a refund of their own contributions at separation.
+export const PERS_VESTING_MONTHS = 60;
 export function firstAugustAtOrAfter(minMonth) {
   const m = Math.max(0, Math.ceil(minMonth));
   const offset = ((AUG_MOD - (m % 12)) + 12) % 12;
@@ -104,6 +109,11 @@ export function computeChadPensionMonthly(s) {
   if (retirementMonth < startMonth) return 0; // never worked a month
   const monthsWorkedFinal = retirementMonth - startMonth;
   const paidMonths = monthsWorkedFinal + 1; // inclusive window, matches projection.js inWorkWindow
+  // C13 (remediation 2026-06-10, item 3.7): PERS Plan 2 vests at 5 YEARS of
+  // service. Below 60 paid months the lifetime pension is $0 — separation
+  // only refunds the employee's own contributions (plus interest), a one-time
+  // event this model does not credit (surfaced as UI copy in IncomeControls).
+  if (paidMonths < PERS_VESTING_MONTHS) return 0;
   // Final salary = level salary at the last worked month, compounded by the
   // annual raise for each completed year at that level (same math as projection.js).
   const lvl = levelAtMonthsWorked(monthsWorkedFinal, s);

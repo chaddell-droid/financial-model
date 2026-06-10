@@ -22,7 +22,9 @@ import {
   geometricMeanMonthly,
   SARAH_TARGET_AGE,
   SURVIVOR_SPEND_RATIO,
+  PERS_JS50_FACTOR,
 } from '../retirementParams.js';
+import { getPensionAtMonth } from '../retirementIncome.js';
 import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
 import { simulatePath } from '../ernWithdrawal.js';
 import { ssRecalculatedBenefit } from '../constants.js';
@@ -171,13 +173,35 @@ test('C3: early SS claim — survivor benefit floors at 82.5% of PIA', () => {
   eq(p.survivorSS, Math.max(p.chadSS, Math.round(4214 * 0.825)));
 });
 
-test('C4: startingCoupleIncome = chadSS + trust + pension; survivor ratio constant exported', () => {
+test('C4: startingCoupleIncome = chadSS + trust + J&S-reduced pension; survivor ratio constant exported', () => {
+  // C14 (remediation 2026-06-10, item 3.7): the retirement engine models a
+  // 50% survivor continuance, so the member benefit carries the PERS joint-
+  // and-survivor option factor (~0.95): 800 × 0.95 = 760 (was 800 when the
+  // model paid 100% alive AND a free 50% survivor benefit).
   const p = deriveRetirementParams({
     ssType: 'ssdi', ssPIA: 4214, trustIncomeFuture: 2083, chadJobPensionMonthly: 800,
   });
-  eq(p.startingCoupleIncome, 4214 + 2083 + 800);
+  eq(p.pensionMonthly, 760, 'J&S 50% option factor applied to the single-life accrual');
+  eq(p.startingCoupleIncome, 4214 + 2083 + 760);
   eq(p.survivorSpendRatio, SURVIVOR_SPEND_RATIO);
   eq(SURVIVOR_SPEND_RATIO, 0.6);
+});
+
+test('C4b: C14 — J&S factor edge cases (zero pension stays zero; factor exported)', () => {
+  eq(PERS_JS50_FACTOR, 0.95, 'documented ~0.95 J&S 50% option factor');
+  const none = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214, chadJobPensionMonthly: 0 });
+  eq(none.pensionMonthly, 0, 'no pension → no reduction artifacts');
+  const p = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214, chadJobPensionMonthly: 1000 });
+  eq(p.pensionMonthly, 950, '1000 × 0.95 = 950');
+});
+
+test('C4c: C14 — survivor receives 50% of the J&S-REDUCED benefit via getPensionAtMonth', () => {
+  // The engine passes the reduced pensionMonthly into the retirement context;
+  // getPensionAtMonth pays it in full while Chad is alive and 50% to the
+  // survivor — i.e. survivor = 0.5 × 0.95 × single-life, per PERS Option 3.
+  const p = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214, chadJobPensionMonthly: 800 });
+  eq(getPensionAtMonth(0, p.pensionMonthly, true), 760, 'member: 0.95 × 800');
+  eq(getPensionAtMonth(0, p.pensionMonthly, false), 380, 'survivor: 0.5 × 0.95 × 800');
 });
 
 // ════════════════════════════════════════════════════════════════════════

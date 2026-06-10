@@ -15,6 +15,13 @@ import { getNumCohorts, getCohortLabel } from './historicalReturns.js';
 export const SARAH_TARGET_AGE = 90;
 // Survivor spending ratio after Chad passes (60% of couple spending).
 export const SURVIVOR_SPEND_RATIO = 0.6;
+// C14 (remediation 2026-06-10, item 3.7): the retirement engine models a 50%
+// survivor continuance on the pension (getPensionAtMonth pays 50% after Chad
+// passes). PERS does NOT pay 100% alive + 50% survivor for free — electing
+// the joint-and-50%-survivor option reduces the member benefit by an
+// actuarial factor (~0.95 for typical age spreads). Applied once, here, so
+// every consumer (context, charts, startingCoupleIncome) agrees.
+export const PERS_JS50_FACTOR = 0.95;
 
 /**
  * Derive the retirement-simulation parameters from state-backed inputs.
@@ -54,7 +61,9 @@ export function deriveRetirementParams({
     ? Math.max(chadSS, Math.round(ssFRA * 0.825))
     : chadSS;
   const trustMonthly = trustIncomeFuture || 0;
-  const pensionMonthly = chadJobPensionMonthly || 0;
+  // C14: single-life accrual × J&S 50% option factor (survivor coverage is
+  // always modeled — getPensionAtMonth pays the 50% continuance).
+  const pensionMonthly = Math.round((chadJobPensionMonthly || 0) * PERS_JS50_FACTOR);
   const startingCoupleIncome = chadSS + trustMonthly + pensionMonthly;
   // A7 (remediation 2026-06-10, item 1.5): Sarah's spousal claim age flows
   // from state (D9 default 67, slider 62–70) into the retirement sim, which

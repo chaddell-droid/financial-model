@@ -334,6 +334,38 @@ test('D-P3: Pension accrual basis includes promotions (L64 salary at retirement)
     `pension (${s.chadJobPensionMonthly}) should accrue on the L64 salary (${expected}), not the L63 base`);
 });
 
+// C13 (remediation 2026-06-10, item 3.7): PERS Plan 2 vests at 5 years (60
+// paid months). Below that the pension pays $0 for life — the member only
+// gets a refund of employee contributions (a one-time event the model does
+// not credit; surfaced as UI copy).
+
+test('D-P4: C13 — pension is $0 below 60 paid months (PERS 5-yr vesting)', () => {
+  // 36-month stint (m=0..35 inclusive = 36 paid months): the audit example
+  // paid $400/mo for life; PERS pays $0.
+  const overrides = {
+    chadJob: true, chadJobSalary: 80000, chadJobPensionRate: 2,
+    chadWorkMonths: 35, chadJobStartMonth: 0, chadJobRaisePct: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  assert.strictEqual(s.chadJobPensionMonthly, 0,
+    `36 paid months is below the 60-month PERS vesting floor — pension must be 0, got ${s.chadJobPensionMonthly}`);
+});
+
+test('D-P5: C13 — vesting boundary: 59 paid months pays $0, 60 paid months vests', () => {
+  const base = {
+    chadJob: true, chadJobSalary: 80000, chadJobPensionRate: 2,
+    chadJobStartMonth: 0, chadJobRaisePct: 0,
+  };
+  // chadWorkMonths=58 → paid m=0..58 = 59 months → NOT vested.
+  const s59 = gatherStateWithOverrides({ ...base, chadWorkMonths: 58 });
+  assert.strictEqual(s59.chadJobPensionMonthly, 0, `59 paid months must pay 0, got ${s59.chadJobPensionMonthly}`);
+  // chadWorkMonths=59 → paid m=0..59 = 60 months → vested.
+  const s60 = gatherStateWithOverrides({ ...base, chadWorkMonths: 59 });
+  const expected = Math.round((80000 / 12) * 0.02 * (60 / 12));
+  assert.strictEqual(s60.chadJobPensionMonthly, expected,
+    `60 paid months vests: expected ${expected}, got ${s60.chadJobPensionMonthly}`);
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // Section 4: Sarah Income Display (D17-D20)
 // ════════════════════════════════════════════════════════════════════════

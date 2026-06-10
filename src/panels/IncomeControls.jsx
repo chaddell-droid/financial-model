@@ -244,9 +244,16 @@ const IncomeControls = ({
                             </div>
                           );
                         })()}
-                        <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
-                          {chadJobPensionRate}% × {((Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) + 1) / 12).toFixed(1)} yrs paid × final salary (incl. promotions/raises), flat in today's $ (COLA ≈ inflation)
-                        </div>
+                        {/* C13/C14 (remediation 2026-06-10, item 3.7): vesting + J&S notes. */}
+                        {(Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) + 1) < 60 ? (
+                          <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
+                            Below PERS 5-yr vesting ({Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) + 1} of 60 paid months) — no lifetime pension; employee contributions are refunded (with interest) at separation instead.
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
+                            {chadJobPensionRate}% × {((Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) + 1) / 12).toFixed(1)} yrs paid × final salary (incl. promotions/raises), flat in today's $ (COLA ≈ inflation). Retirement sim applies the ~0.95 joint-&-50%-survivor option factor.
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

@@ -192,9 +192,11 @@ describe("computeItemizedDeductions", () => {
     expect(r.saltDeductible).toBe(40400); // capped at 2026 cap
   });
 
-  it("phases down SALT cap when AGI exceeds $500K", () => {
-    // AGI $600K → $100K over threshold → cap reduced by $100K * 0.30 = $30K
-    // → effective cap = 40400 − 30000 = 10400 (2026 base cap, Phase 4).
+  it("phases down SALT cap when AGI exceeds the 2026 threshold ($505K)", () => {
+    // C8 (remediation 2026-06-10): the default threshold is the OBBBA-scheduled
+    // 2026 value $505,000 (was frozen at the 2025 $500,000).
+    // AGI $600K → $95K over threshold → cap reduced by $95K * 0.30 = $28.5K
+    // → effective cap = 40400 − 28500 = 11900 (2026 base cap).
     const r = computeItemizedDeductions({
       agi: 600000,
       propertyTax: 20000,
@@ -204,7 +206,7 @@ describe("computeItemizedDeductions", () => {
       charitable: 0,
       totalMedicalInput: 0,
     });
-    expect(r.saltDeductible).toBe(10400); // phased down toward floor
+    expect(r.saltDeductible).toBe(11900); // phased down toward floor
   });
 
   it("SALT cap floors at $10K for very high income", () => {

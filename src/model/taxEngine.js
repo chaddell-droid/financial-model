@@ -69,12 +69,16 @@ export function computeFederalTax(taxableIncome, brackets = BRACKETS_MFJ_2026) {
   return { fedTax, marginalRate };
 }
 
-export function computeItemizedDeductions({ agi, propertyTax, salesTax, personalPropTax, mortgageInt, charitable, totalMedicalInput, saltCap = null }) {
+export function computeItemizedDeductions({ agi, propertyTax, salesTax, personalPropTax, mortgageInt, charitable, totalMedicalInput, saltCap = null, saltThreshold = null }) {
   const saltTotal = propertyTax + salesTax + personalPropTax;
   const baseCap = saltCap ?? SALT_CAP;
+  // C8 (remediation 2026-06-10): the phase-down MAGI threshold is year-scheduled
+  // (OBBBA +1%/yr) — callers pass getSaltThresholdForYear(year); default is the
+  // base-year (2026) value.
+  const baseThreshold = saltThreshold ?? SALT_MAGI_THRESHOLD;
   const saltCapEffective = Math.max(
     SALT_CAP_FLOOR,
-    baseCap - Math.max(0, agi - SALT_MAGI_THRESHOLD) * SALT_PHASEOUT_RATE
+    baseCap - Math.max(0, agi - baseThreshold) * SALT_PHASEOUT_RATE
   );
   const saltDeductible = Math.min(saltTotal, saltCapEffective);
   const medicalFloor = agi * MEDICAL_FLOOR;
@@ -165,6 +169,7 @@ export function calculateTax(inputs) {
     // Overrides for simplified/projection modes
     preComputedItemized = null,
     saltCap = null,
+    saltThreshold = null, // C8: year-scheduled SALT phase-down MAGI threshold
     flatCredits = null,
     skipAdditionalMedicare = false,
     skipQbiPhaseOut = false,
@@ -242,7 +247,7 @@ export function calculateTax(inputs) {
   } else {
     deductions = computeItemizedDeductions({
       agi, propertyTax, salesTax, personalPropTax,
-      mortgageInt, charitable, totalMedicalInput, saltCap,
+      mortgageInt, charitable, totalMedicalInput, saltCap, saltThreshold,
     });
   }
 

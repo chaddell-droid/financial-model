@@ -24,7 +24,7 @@ function nextStockVestMonthAfter(month) {
   }
   return month + 3;
 }
-import { BRACKETS_MFJ_2026, getSaltCapForYear } from './taxConstants.js';
+import { BRACKETS_MFJ_2026, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
 import { calculateTax, computeAdditionalMedicare } from './taxEngine.js';
 
 /**
@@ -370,6 +370,9 @@ export function buildTaxSchedule(s) {
     // user's inflation factor — that double-counted inflation when
     // taxInflationAdjust was on (remediation 2026-06-09 Phase 4).
     const saltCap = getSaltCapForYear(calendarYear);
+    // C8 (remediation 2026-06-10 Phase 0): the phase-down MAGI threshold is ALSO
+    // OBBBA-scheduled (+1%/yr; $505,000 for 2026) — same no-double-inflation rule.
+    const saltThreshold = getSaltThresholdForYear(calendarYear);
     // Inflate bracket thresholds so income doesn't creep into higher brackets
     const inflatedBrackets = inflationFactor > 1
       ? inflateBrackets(BRACKETS_MFJ_2026, inflationFactor)
@@ -403,6 +406,7 @@ export function buildTaxSchedule(s) {
       solo401kContribution: taxInputs.solo401kContribution,
       ssBenefitAnnual: ssAnnualBenefits[y] || 0,
       saltCap,
+      saltThreshold,
       brackets: inflatedBrackets,
       noFICA: chadJobNoFICA, // FIX #1
     });
@@ -425,6 +429,7 @@ export function buildTaxSchedule(s) {
       solo401kContribution: 0, // No Solo 401(k) without self-employment
       ssBenefitAnnual: ssAnnualBenefits[y] || 0, // FIX RA-1: include SS in counterfactual to avoid attribution drift
       saltCap,
+      saltThreshold,
       brackets: inflatedBrackets,
       noFICA: chadJobNoFICA, // FIX #1
     });

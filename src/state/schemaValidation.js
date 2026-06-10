@@ -122,6 +122,9 @@ const RANGE = {
   // Effective tax rate on 401(k) deficit withdrawals (remediation 2026-06-09 D7).
   // Capped well below 100% — the gross-up divides by (1 - rate).
   deficit401kTaxRate: { min: 0, max: 60 },
+  // Effective tax rate on RETIREMENT 401(k) withdrawals (A5 — remediation
+  // 2026-06-10 item 3.1, D3 default 13). Same cap as the deficit-draw rate.
+  retirement401kTaxRate: { min: 0, max: 60 },
   // Cut items can be zero but not negative
   cutOliver: { min: 0 },
   cutVacation: { min: 0 },

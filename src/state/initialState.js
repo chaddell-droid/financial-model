@@ -251,6 +251,13 @@ export const INITIAL_STATE = {
   // effective-rate defaults (sarahTaxRate, chadJobTaxRate). Home-equity draws
   // are NOT taxed — they model a sale of equity (primary-residence exclusion).
   deficit401kTaxRate: 25,
+  // Effective income-tax rate (%) on RETIREMENT 401(k) withdrawals (A5 —
+  // remediation 2026-06-10 item 3.1, decision D3). The retirement pool used
+  // to spend the pre-tax 401(k) at face value; computeRetirementPool now
+  // haircuts that leg by this rate before pooling. 13 = mid of the audit's
+  // realistic 10–15% effective MFJ band at retirement income levels (lower
+  // than deficit401kTaxRate because retirement income is lower).
+  retirement401kTaxRate: 13,
 
   // Sequence of Returns
   seqBadY1: -10,
@@ -331,7 +338,7 @@ export const MODEL_KEYS = [
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'capitalItems', 'capitalFundingSource', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
-  'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate',
+  'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate', 'retirement401kTaxRate',
   'seqBadY1', 'seqBadY2',
   // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
   'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',

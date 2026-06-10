@@ -8,6 +8,7 @@ import { getBlendedReturns, getNumCohorts } from '../model/historicalReturns.js'
 import { simulatePath, computeSWR, computePreInhSWR } from '../model/ernWithdrawal.js';
 import {
   deriveRetirementParams,
+  computeRetirementPool,
   computeOptimalRates,
   withdrawalScaleFactor,
   buildTwoPhaseSchedule,
@@ -29,6 +30,7 @@ export function useRetirementSimulation({
   savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly,
   chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
   sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
+  retirement401kTaxRate,
 }) {
   // ── State ────────────────────────────────────────────────────────────
   const [retirementMode, setRetirementMode] = useState('historical_safe');
@@ -79,13 +81,16 @@ export function useRetirementSimulation({
     sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
   });
 
-  // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths)
+  // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths).
+  // The 401(k) leg is pre-tax — computeRetirementPool haircuts it by
+  // retirement401kTaxRate before pooling (A5 — remediation 2026-06-10 item 3.1).
   const endIdx = savingsData.length - 1;
-  const endSavings = savingsData[endIdx]?.balance || 0;
-  const end401k = wealthData[endIdx]?.balance401k || 0;
-  const endHome = wealthData[endIdx]?.homeEquity || 0;
-  const homeSaleNet = Math.round(endHome * 0.94);
-  const totalPool = Math.max(0, endSavings + end401k + homeSaleNet);
+  const { endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool } = computeRetirementPool({
+    endSavings: savingsData[endIdx]?.balance || 0,
+    end401k: wealthData[endIdx]?.balance401k || 0,
+    homeEquity: wealthData[endIdx]?.homeEquity || 0,
+    retirement401kTaxRate,
+  });
 
   const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
   const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
@@ -456,7 +461,7 @@ export function useRetirementSimulation({
 
     // Constants
     ageDiff, sarahTargetAge, years, survivorSpendRatio,
-    endSavings, end401k, homeSaleNet, totalPool,
+    endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
     trustMonthly, pensionMonthly, startingCoupleIncome,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,

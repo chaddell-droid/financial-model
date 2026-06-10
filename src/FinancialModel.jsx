@@ -167,7 +167,7 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     comparisons,
-    starting401k, return401k, homeEquity, homeAppreciation, deficit401kTaxRate,
+    starting401k, return401k, homeEquity, homeAppreciation, deficit401kTaxRate, retirement401kTaxRate,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     seqBadY1, seqBadY2,
     taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
@@ -667,8 +667,9 @@ export default function FinancialModel() {
     sarahCurrentAge,
     sarahSpousalClaimAge, // A7 (2026-06-10): retirement sim gates + reduces her spousal by claim age
     sarahOwnSS,
+    retirement401kTaxRate, // A5 (2026-06-10): pool haircuts the pre-tax 401(k) leg by this rate
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS, retirement401kTaxRate]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

@@ -180,6 +180,7 @@ const NON_DEFAULT_VALUES = {
   homeEquity: 750000,
   homeAppreciation: 5,
   deficit401kTaxRate: 30,          // remediation 2026-06-09 D7 — 401(k) deficit-draw gross-up
+  retirement401kTaxRate: 18,       // A5 — remediation 2026-06-10 item 3.1 (D3) — retirement 401(k) haircut
 
   // Sequence of returns
   seqBadY1: -15,
@@ -359,6 +360,17 @@ test('deficit401kTaxRate: default, override, and explicit-zero round-trip (remed
 test('Schema RANGE clamping: deficit401kTaxRate clamps to [0, 60]', () => {
   assert.strictEqual(roundTrip({ deficit401kTaxRate: -10 }).deficit401kTaxRate, 0);
   assert.strictEqual(roundTrip({ deficit401kTaxRate: 95 }).deficit401kTaxRate, 60);
+});
+
+test('retirement401kTaxRate: default, override, and explicit-zero round-trip (A5 — remediation 2026-06-10 item 3.1, D3)', () => {
+  assert.strictEqual(roundTrip({}).retirement401kTaxRate, 13, 'default from INITIAL_STATE (D3: 13% effective MFJ)');
+  assert.strictEqual(roundTrip({ retirement401kTaxRate: 22 }).retirement401kTaxRate, 22, 'override survives');
+  assert.strictEqual(roundTrip({ retirement401kTaxRate: 0 }).retirement401kTaxRate, 0, 'explicit 0 (no haircut) survives');
+});
+
+test('Schema RANGE clamping: retirement401kTaxRate clamps to [0, 60]', () => {
+  assert.strictEqual(roundTrip({ retirement401kTaxRate: -10 }).retirement401kTaxRate, 0);
+  assert.strictEqual(roundTrip({ retirement401kTaxRate: 95 }).retirement401kTaxRate, 60);
 });
 
 test('Schema RANGE clamping: chadL64Month=200 clamps to 120 (matches UI slider)', () => {

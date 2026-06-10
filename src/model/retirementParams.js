@@ -71,6 +71,36 @@ export function deriveRetirementParams({
 }
 
 /**
+ * Build the spendable retirement pool from the end-of-accumulation balances
+ * (A5 — remediation 2026-06-10 item 3.1, decision D3).
+ *
+ * The 401(k) is PRE-TAX: every dollar withdrawn in retirement is ordinary
+ * income (RMDs at 73+ make the tax unavoidable), so its face value is
+ * haircut by `retirement401kTaxRate` (default 13% effective MFJ) before it
+ * joins the pool. Savings are post-tax; home proceeds model a §121-excluded
+ * sale net of a 6% cost factor — neither is taxed here. Previously the pool
+ * spent the ~$1.1M pre-tax 401(k) 1:1 ($110–170k of phantom spendable money,
+ * ~$460–690/mo of phantom SWR spending) while projection.js:585+ correctly
+ * grossed up pre-retirement deficit draws.
+ *
+ * Note: distinct from `deficit401kTaxRate` (25%), which governs PRE-retirement
+ * deficit withdrawals while household income is higher.
+ */
+export function computeRetirementPool({
+  endSavings = 0, end401k = 0, homeEquity = 0, retirement401kTaxRate,
+} = {}) {
+  const taxRate = Math.min(Math.max((retirement401kTaxRate ?? 13) / 100, 0), 1);
+  const savings = Math.round(endSavings);
+  const gross401k = Math.round(end401k);
+  // floor (not round): any positive pre-tax balance with a positive rate loses
+  // at least the tax dollar — never rounds the haircut away (A5 regression).
+  const end401kAfterTax = Math.floor(gross401k * (1 - taxRate));
+  const homeSaleNet = Math.round(homeEquity * 0.94);
+  const totalPool = Math.max(0, savings + end401kAfterTax + homeSaleNet);
+  return { endSavings: savings, end401k: gross401k, end401kAfterTax, homeSaleNet, totalPool };
+}
+
+/**
  * Scale factor mapping the user's pool-draw slider onto the per-cohort
  * closed-form consumption schedules (finding 2026-06-09 2.5a). The two-phase
  * band path claimed to scale "to user's slider" but ran every cohort at its

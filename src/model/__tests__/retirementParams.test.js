@@ -17,6 +17,7 @@ import {
   withdrawalScaleFactor,
   buildTwoPhaseSchedule,
   shouldAutoSyncWithdrawalRate,
+  computeRetirementPool,
   SARAH_TARGET_AGE,
   SURVIVOR_SPEND_RATIO,
 } from '../retirementParams.js';
@@ -380,6 +381,62 @@ test('W5: RetirementIncomeChart forwards the state fields into useRetirementSimu
   for (const field of ['chadCurrentAge', 'sarahCurrentAge', 'sarahOwnSS']) {
     assert.ok(callMatch[0].includes(field), `hook call should pass ${field}`);
   }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section 8: tax-aware retirement pool (A5 — remediation 2026-06-10 item 3.1)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== computeRetirementPool — 401(k) tax haircut (A5) ===');
+
+test('P1: default retirement401kTaxRate=13 haircuts the 401(k) leg before pooling', () => {
+  const r = computeRetirementPool({ endSavings: 500_000, end401k: 1_000_000, homeEquity: 700_000 });
+  eq(r.end401k, 1_000_000, 'gross 401k preserved for display');
+  eq(r.end401kAfterTax, 870_000, '13% effective haircut (D3 default)');
+  eq(r.homeSaleNet, 658_000, 'home: 6% cost factor, untaxed (§121)');
+  eq(r.totalPool, 500_000 + 870_000 + 658_000, 'pool sums the AFTER-TAX 401k leg');
+});
+
+test('P2: REGRESSION — totalPool < endSavings + end401k + homeSaleNet whenever end401k > 0', () => {
+  for (const rate of [undefined, 5, 13, 25, 40]) {
+    for (const end401k of [1, 50_000, 478_000, 1_100_000]) {
+      const r = computeRetirementPool({
+        endSavings: 200_000, end401k, homeEquity: 700_000, retirement401kTaxRate: rate,
+      });
+      assert.ok(
+        r.totalPool < r.endSavings + r.end401k + r.homeSaleNet,
+        `rate=${rate} end401k=${end401k}: pool ${r.totalPool} must be < gross sum ${r.endSavings + r.end401k + r.homeSaleNet}`
+      );
+    }
+  }
+});
+
+test('P3: override rate=0 spends the 401(k) at face value (edge)', () => {
+  const r = computeRetirementPool({ endSavings: 100_000, end401k: 400_000, homeEquity: 0, retirement401kTaxRate: 0 });
+  eq(r.end401kAfterTax, 400_000, 'no haircut at 0%');
+  eq(r.totalPool, 500_000);
+});
+
+test('P4: rate is clamped to [0, 100] and the pool never goes negative', () => {
+  const neg = computeRetirementPool({ endSavings: 0, end401k: 100_000, homeEquity: 0, retirement401kTaxRate: -20 });
+  eq(neg.end401kAfterTax, 100_000, 'negative rate clamps to 0%');
+  const over = computeRetirementPool({ endSavings: 0, end401k: 100_000, homeEquity: 0, retirement401kTaxRate: 250 });
+  eq(over.end401kAfterTax, 0, 'rate above 100 clamps to 100%');
+  const deficit = computeRetirementPool({ endSavings: -2_000_000, end401k: 100_000, homeEquity: 0 });
+  eq(deficit.totalPool, 0, 'pool floors at 0');
+});
+
+test('P5: wiring — hook pools via computeRetirementPool with retirement401kTaxRate from props', () => {
+  assert.ok(hookSource.includes('computeRetirementPool'), 'hook should call computeRetirementPool');
+  assert.ok(hookSource.includes('retirement401kTaxRate'), 'hook should receive retirement401kTaxRate');
+  assert.ok(!/totalPool = Math\.max\(0, endSavings \+ end401k \+ homeSaleNet\)/.test(hookSource),
+    'the untaxed inline pool sum must be gone');
+});
+
+test('P6: wiring — FinancialModel and the chart forward retirement401kTaxRate', () => {
+  assert.ok(new RegExp('retirementRailProps[\\s\\S]{0,900}retirement401kTaxRate').test(appSource),
+    'retirementRailProps should include retirement401kTaxRate');
+  const callMatch = chartSource.match(/useRetirementSimulation\(\{[\s\S]*?\}\)/);
+  assert.ok(callMatch && callMatch[0].includes('retirement401kTaxRate'), 'hook call should pass retirement401kTaxRate');
 });
 
 // ════════════════════════════════════════════════════════════════════════

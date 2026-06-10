@@ -13,7 +13,7 @@ const retirementTextBody = COLORS.textSoft;
 
 function RetirementSummaryCards({
   isPwaMode,
-  totalPool, endSavings, end401k, homeSaleNet,
+  totalPool, endSavings, end401kAfterTax, homeSaleNet,
   pwaReferenceSimulation, pwaCurrentView, pwaStartContext, pwaCurrentSelection,
   pwaConfidencePct, bequestTarget,
   trustMonthly, pensionMonthly,
@@ -29,7 +29,7 @@ function RetirementSummaryCards({
           {fmtFull(totalPool)}
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
+          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + Home {fmtFull(homeSaleNet)}
         </div>
         {pwaReferenceSimulation && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -79,7 +79,7 @@ function RetirementSummaryCards({
           {fmtFull(totalPool)}
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
+          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + Home {fmtFull(homeSaleNet)}
         </div>
         {chadPassesAge > 70 && bandResult.bands[0].series.length > (chadPassesAge - 67) && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>

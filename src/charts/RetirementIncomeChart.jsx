@@ -30,6 +30,7 @@ function RetirementIncomeChart({
   sarahCurrentAge,
   sarahSpousalClaimAge,
   sarahOwnSS,
+  retirement401kTaxRate,
   onSpendingTargets,
 }) {
   useRenderMetric('RetirementIncomeChart');
@@ -49,7 +50,7 @@ function RetirementIncomeChart({
     inheritanceSarahAge, setInheritanceSarahAge,
     showPwaIntro, pwaIntroReady, dismissPwaIntro,
     ageDiff, sarahTargetAge, years,
-    endSavings, end401k, homeSaleNet, totalPool,
+    endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
     trustMonthly, pensionMonthly, startingCoupleIncome,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
@@ -59,7 +60,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS, retirement401kTaxRate });
 
   // Report spending targets to parent
   useEffect(() => {
@@ -309,7 +310,7 @@ function RetirementIncomeChart({
       {/* Income phase summary (extracted to RetirementSummaryCards.jsx) */}
       <RetirementSummaryCards
         isPwaMode={isPwaMode}
-        totalPool={totalPool} endSavings={endSavings} end401k={end401k} homeSaleNet={homeSaleNet}
+        totalPool={totalPool} endSavings={endSavings} end401kAfterTax={end401kAfterTax} homeSaleNet={homeSaleNet}
         pwaReferenceSimulation={pwaReferenceSimulation}
         pwaCurrentView={pwaCurrentView} pwaStartContext={pwaStartContext} pwaCurrentSelection={pwaCurrentSelection}
         pwaConfidencePct={pwaConfidencePct}

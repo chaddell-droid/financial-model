@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SS_START_OFFSET, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, SS_CHILD_BENEFIT_END_MONTH, buildQuarterlySchedule, ssAdjustmentFactor } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA, SS_FRA_MONTH, SS_START_OFFSET, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, SS_CHILD_BENEFIT_END_MONTH, buildQuarterlySchedule, ssAdjustmentFactor, ssRecalculatedBenefit, ssSpousalFactorFromMonthsEarly } from './constants.js';
 
 /**
  * Helpers for lumpy stock-vest calendar math.
@@ -193,8 +193,24 @@ export function runMonthlySimulation(s) {
   let balance = s.startingSavings || 0;
   let bal401k = s.starting401k || 0;
   let homeEquity = s.homeEquity || 0;
+  // B1/B2 (remediation 2026-06-10, item 1.7 via improvement b-3): whole-check
+  // earnings-test withholding state. SSA withholds WHOLE monthly checks from
+  // the start of each calendar year until the year's required withholding is
+  // recovered (the boundary month pays the remainder — net of SSA's
+  // reconciliation repayment). ssMonthsWithheld counts ONLY months with NO
+  // benefit payable (20 CFR 404.412) — partial-boundary months do NOT count
+  // toward the ARF recredit.
   let ssMonthsWithheld = 0;
   let ssTotalAmountWithheld = 0;
+  let ssEtYear = -1;              // calendar-year index of the current withholding cycle
+  let ssEtWithheldThisYear = 0;   // cumulative withheld in the current calendar year
+  let ssPersonalAtFra = null;     // B2: ARF-recredited personal benefit, fixed at FRA
+  // B7 (item 1.8): the $1-per-$3 FRA-year tier is CALENDAR-YEAR anchored.
+  // The attainment month (SS_FRA_MONTH − 1 = m=78, Sep 2032) and later are
+  // fully exempt; the FRA-year tier applies only to earlier months of the
+  // FRA calendar year (m=70..77 for this household).
+  const ssFraAttainMonth = SS_FRA_MONTH - 1;
+  const ssFraCalYear = Math.floor((ssFraAttainMonth + PROJECTION_START_MONTH) / 12);
 
   // Sarah's practice stops at her work duration
   const sarahRetirementMonth = s.sarahWorkMonths || 72;
@@ -371,8 +387,22 @@ export function runMonthlySimulation(s) {
     let ssBenefitPersonal = 0;
     if (useSS) {
       if (m >= ssStartMonth) {
-        ssBenefit = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : ssPersonal;
-        ssBenefitPersonal = ssPersonal;
+        // B2 (remediation 2026-06-10, item 1.7): apply the SSA recredit (ARF)
+        // at FRA in the MAIN projection. The benefit is recomputed once with
+        // the fully-withheld months removed from the early-claim reduction —
+        // the same ssRecalculatedBenefit the RetirementIncomeChart already
+        // uses, so monthlyData and the retirement sim finally agree.
+        let personalNow = ssPersonal;
+        if (m >= SS_FRA_MONTH) {
+          if (ssPersonalAtFra === null) {
+            ssPersonalAtFra = (s.ssPIA || 0) > 0
+              ? ssRecalculatedBenefit(s.ssPIA, s.ssClaimAge || 67, ssMonthsWithheld)
+              : ssPersonal;
+          }
+          personalNow = ssPersonalAtFra;
+        }
+        ssBenefit = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : personalNow;
+        ssBenefitPersonal = personalNow;
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
       // FIX #8: Kids age-out is CALENDAR-ANCHORED, not relative to approval month.
@@ -480,9 +510,12 @@ export function runMonthlySimulation(s) {
       : useSS
         ? (m >= ssStartMonth ? (s.chadConsulting || 0) : 0)
         : (m >= effectiveSsdiApproval ? Math.min(s.chadConsulting || 0, SGA_LIMIT) : 0);
-    // SS earnings test: applies to total earned income (salary if employed, consulting if not)
+    // SS earnings test: applies to total earned income (salary if employed, consulting if not).
+    // B7 (2026-06-10): calendar-year anchored — exempt from the FRA-attainment
+    // month (m=78) onward; the $1/$3 FRA-year tier applies only inside the FRA
+    // calendar year (m=70..77).
     const ssPreTestBenefit = ssBenefit;
-    if (useSS && ssBenefit > 0) {
+    if (useSS && ssBenefit > 0 && m < ssFraAttainMonth) {
       const isEmployed = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
       // FIX #7: Annualized stock comp for SS earnings test — chadJobStockGross is
       // lumpy (only nonzero on quarterly vest / anniversary months), so project
@@ -505,6 +538,10 @@ export function runMonthlySimulation(s) {
       // alignment as the actual vest engine above (firstAugustAtOrAfter + 12·g),
       // so the earnings-test estimate matches what actually vests instead of
       // assuming grants issue at start + refreshStart + 12·g.
+      // C18 (2026-06-10): include the msftGrowth appreciation factor in the
+      // wage estimate — each grant's expected annual vests scale from
+      // issuance to the test month, matching the actual vest engine's
+      // issue→vest scaling. Zero-impact at the default msftGrowth=0.
       let annualStockFromRefresh = 0;
       const firstRefreshIssueForSS = firstAugustAtOrAfter(chadJobStartMonth + chadJobRefreshStartMonth);
       for (let g = 0; ; g++) {
@@ -512,9 +549,10 @@ export function runMonthlySimulation(s) {
         if (issueMonth >= m) break;        // not yet issued (no instant vest on grant date)
         if (m - issueMonth >= 60) continue; // grant fully vested
         const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
-        annualStockFromRefresh += grantSize * 0.20; // 20% per year while vesting
+        annualStockFromRefresh += grantSize * 0.20 * msftMultIssueToVest(issueMonth, m); // 20% per year while vesting
       }
-      const annualStockProjected = annualStockFromRefresh + hireStockForSS;
+      const annualStockProjected = annualStockFromRefresh
+        + hireStockForSS * msftMultIssueToVest(chadJobStartMonth, m); // C18: hire vests appreciate from hire month
       // Sign-on cash: 50% in employment year 0, 50% in year 1.
       const signOnYear = yearsWorkedForSS === 0 || yearsWorkedForSS === 1 ? chadJobSignOnCash * 0.5 : 0;
       // Bonus pct comes from current level (month m) — bonus due this year reflects
@@ -523,23 +561,35 @@ export function runMonthlySimulation(s) {
       const annualEarned = isEmployed
         ? chadCurrentAnnualSalary * (1 + currentBonusPct) + annualStockProjected + signOnYear  // salary + bonus + RSU + sign-on
         : consulting * 12;                                                                       // annualized consulting
+      // B7: derive the calendar year from the projection month. The FRA-year
+      // ($1/$3, higher limit) tier applies only inside the FRA calendar year;
+      // earlier years use the standard ($1/$2) tier. (m >= attainment month
+      // was excluded above.)
+      const calYear = Math.floor((m + PROJECTION_START_MONTH) / 12);
+      if (calYear !== ssEtYear) { ssEtYear = calYear; ssEtWithheldThisYear = 0; }
       if (annualEarned > 0) {
-        if (m >= SS_FRA_MONTH) {
-          // At/after FRA: no earnings test
-        } else if (m >= SS_FRA_MONTH - 12) {
-          // In FRA year: higher limit, $1 per $3 over
-          const annualExcess = Math.max(0, annualEarned - SS_EARNINGS_LIMIT_FRA_YEAR);
-          ssBenefit = Math.max(0, ssBenefit - Math.round(annualExcess / 3 / 12));
-        } else {
-          // Before FRA year: standard limit, $1 per $2 over
-          const annualExcess = Math.max(0, annualEarned - SS_EARNINGS_LIMIT_ANNUAL);
-          ssBenefit = Math.max(0, ssBenefit - Math.round(annualExcess / 2 / 12));
-        }
+        const inFraCalYear = calYear === ssFraCalYear;
+        const exemptAmount = inFraCalYear ? SS_EARNINGS_LIMIT_FRA_YEAR : SS_EARNINGS_LIMIT_ANNUAL;
+        const divisor = inFraCalYear ? 3 : 2;
+        const requiredWithholding = Math.round(Math.max(0, annualEarned - exemptAmount) / divisor);
+        // B1 (improvement b-3): whole-check withholding — SSA withholds FULL
+        // monthly checks from the start of the year until the required annual
+        // amount is recovered; the boundary month pays the remainder (the
+        // partial SSA repays at reconciliation), then full checks resume.
+        const remaining = Math.max(0, requiredWithholding - ssEtWithheldThisYear);
+        const withheldThisMonth = Math.min(ssBenefit, remaining);
+        ssBenefit -= withheldThisMonth;
+        ssEtWithheldThisYear += withheldThisMonth;
       }
     }
     if (useSS && ssPreTestBenefit > 0) {
       const ssWithheldThisMonth = ssPreTestBenefit - ssBenefit;
-      if (ssWithheldThisMonth > 0) { ssMonthsWithheld++; ssTotalAmountWithheld += ssWithheldThisMonth; }
+      if (ssWithheldThisMonth > 0) {
+        ssTotalAmountWithheld += ssWithheldThisMonth;
+        // B1: ARF counts only months with NO benefit payable (20 CFR 404.412)
+        // — a partially-paid boundary month does not earn a recredit month.
+        if (ssBenefit === 0) ssMonthsWithheld++;
+      }
     }
 
     // A1 INTERIM (2026-06-10, until P7 engine wiring — see module constants):

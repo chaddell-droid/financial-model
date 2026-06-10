@@ -223,11 +223,18 @@ test('chad-job-ss62 has SS starting with earnings test reduction', () => {
   const ssStart = s.ssStartMonth;
   assert.strictEqual(sim.monthlyData[ssStart - 1].ssBenefit, 0,
     `month ${ssStart - 1}: no SS before start`);
-  assert.ok(sim.monthlyData[ssStart].ssBenefit > 0,
-    `month ${ssStart}: SS should flow`);
-  // With $120K salary, earnings test should reduce below full family benefit
-  assert.ok(sim.monthlyData[ssStart].ssBenefit < s.ssFamilyTotal,
-    `SS at ${sim.monthlyData[ssStart].ssBenefit} should be < full family ${s.ssFamilyTotal} due to earnings test`);
+  // B1 (2026-06-10): whole-check withholding — at $120K salary the first
+  // checks of each calendar year are $0 and full checks resume once the
+  // year's required withholding is recovered. Assert the SSA-shaped pattern
+  // on a calendar-year basis instead of a smeared monthly reduction.
+  assert.strictEqual(sim.monthlyData[ssStart].ssBenefit, 0,
+    `month ${ssStart}: claim-month check fully withheld under the earnings test`);
+  const firstJanuary = ssStart + ((12 - ((ssStart + 2) % 12)) % 12); // PROJECTION_START_MONTH=2
+  const yearRows = sim.monthlyData.slice(firstJanuary, firstJanuary + 12);
+  const paid = yearRows.reduce((sum, d) => sum + d.ssBenefitGross, 0);
+  assert.ok(paid > 0, 'SS flows during the year once withholding is recovered');
+  assert.ok(paid < 12 * s.ssFamilyTotal,
+    `annual SS paid (${paid}) should be < full family annual (${12 * s.ssFamilyTotal}) due to earnings test`);
 });
 
 test('ssdi-denied has zero ssBenefit all months and backPayActual=0', () => {

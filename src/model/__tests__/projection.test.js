@@ -1323,11 +1323,19 @@ test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits redu
     chadJob: false, ssdiDenied: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // Annual excess: $36,000 - $24,480 = $11,520 (B3: 2026 exempt amount)
-  // Monthly reduction: round($11,520 / 2 / 12) = round($480) = $480
-  const expectedSS = s.ssFamilyTotal - 480;
-  assert.strictEqual(monthlyData[19].ssBenefitGross, expectedSS,
-    `SS benefits should be reduced to ${expectedSS} when consulting is $3,000/mo`); // A1: gross is post-earnings-test, pre-tax
+  // Annual excess: $36,000 - $24,480 = $11,520 (B3: 2026 exempt amount).
+  // B1/B2 (2026-06-10, b-3): SSA withholds WHOLE checks until the annual
+  // withholding (round($11,520/2) = $5,760) is recovered — not a smeared
+  // $480/mo. First check of the cycle (m=19) is the boundary month: $5,760 is
+  // less than one $6,110 check, so SSA nets it out of that single check
+  // (pay $350) and every later month in the year pays in full.
+  assert.strictEqual(monthlyData[19].ssBenefitGross, s.ssFamilyTotal - 5760,
+    'first check of the year absorbs the whole annual withholding'); // A1: gross is post-earnings-test, pre-tax
+  assert.strictEqual(monthlyData[20].ssBenefitGross, s.ssFamilyTotal,
+    'second month of the cycle pays in full (whole-check withholding)');
+  // January (m=22) starts a new withholding cycle.
+  assert.strictEqual(monthlyData[22].ssBenefitGross, s.ssFamilyTotal - 5760,
+    'January restarts the withholding cycle');
 });
 
 test('58. SS earnings test: does NOT apply under SSDI path', () => {
@@ -1455,18 +1463,31 @@ test('Projection: SS at FRA (67) — no earnings test applies', () => {
     'Full PIA at FRA with no earnings test reduction despite $5,000/mo consulting');
 });
 
-test('Projection: SS at 62 — earnings test does not apply after FRA month', () => {
+test('Projection: SS at 62 — FRA recredit (ARF) applies in the MAIN projection (B2)', () => {
   const s = gatherStateWithOverrides({
     expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 3822,
     chadConsulting: 3000, chadJob: false,
     sarahWorkMonths: 96, // extend horizon to 96 months
   });
-  const { monthlyData } = runMonthlySimulation(s);
-  // Before FRA year: standard earnings test applies
+  const result = runMonthlySimulation(s);
+  const { monthlyData, ssWithheldSummary } = result;
+  // Before FRA year: standard earnings test applies (whole-check, B1).
   assert.ok(monthlyData[19].ssBenefitGross < s.ssFamilyTotal, 'earnings test reduces benefits before FRA');
-  // At/after FRA (month >= 79): no earnings test
-  assert.strictEqual(monthlyData[79].ssBenefitGross, s.ssPersonal, 'full personal benefit after FRA — no reduction');
+  // B1: the ARF counter counts only FULLY-withheld months.
+  assert.ok(ssWithheldSummary.monthsFullyWithheld > 0, 'some months are fully withheld');
+  // B2 (2026-06-10): at FRA (m=79) the main projection now applies the SSA
+  // recredit — the personal benefit is recomputed with the withheld months
+  // removed from the early-claim reduction, so monthlyData and the
+  // RetirementIncomeChart (which already used ssRecalculatedBenefit) agree.
+  const recredited = ssRecalculatedBenefit(3822, 62, ssWithheldSummary.monthsFullyWithheld);
+  assert.ok(recredited > s.ssPersonal, 'recredit raises the post-FRA benefit above the claim-62 amount');
+  assert.strictEqual(monthlyData[79].ssBenefitGross, recredited,
+    `post-FRA benefit must be the ARF-recredited amount (${recredited}), not the claim-62 amount (${s.ssPersonal})`);
+  // m=78 (Sep 2032) is the FRA-attainment month: exempt from the test (B7)
+  // but the recredit has not been applied yet — still the claim-62 amount.
+  assert.strictEqual(monthlyData[78].ssBenefitGross, s.ssPersonal,
+    'attainment month: exempt from the earnings test, recredit not yet applied');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1646,14 +1667,18 @@ test('Job + SS at 62: SS income flows with earnings test on salary', () => {
   const { monthlyData } = runMonthlySimulation(s);
   // SS starts month 19 with earnings test on $80K salary
   assert.strictEqual(monthlyData[18].ssBenefitGross, 0, 'no SS before start month');
-  assert.ok(monthlyData[19].ssBenefit > 0, 'SS income flows even with job');
-  // Earnings test (B3, 2026 exempt $24,480): excess = $80K - $24,480 = $55,520; reduction = round($55,520/2/12) = $2,313
-  // A1 (2026-06-10): assert on GROSS (post-earnings-test, pre-tax) — the net
-  // cash haircut is locked in ssTaxHaircut.test.js.
-  const expectedReduction = Math.round((80000 - 24480) / 2 / 12);
-  assert.ok(monthlyData[19].ssBenefitGross < s.ssFamilyTotal, 'SS reduced by earnings test');
-  assert.strictEqual(monthlyData[19].ssBenefitGross, Math.max(0, s.ssFamilyTotal - expectedReduction),
-    'SS reduction matches earnings test formula');
+  // Earnings test (B3, 2026 exempt $24,480): excess = $80K - $24,480 = $55,520;
+  // annual withholding = round($55,520/2) = $27,760.
+  // B1/B2 (2026-06-10, b-3): SSA withholds WHOLE checks — at $6,110/mo the
+  // claim-year months m=19..21 (Oct–Dec 2027) are $0 checks, and the 2028
+  // cycle withholds m=22..25 in full, pays a partial boundary check at m=26
+  // (remaining $27,760 − 4 × $6,110 = $3,320), then full checks.
+  assert.strictEqual(monthlyData[19].ssBenefitGross, 0, 'whole-check: first month fully withheld');
+  assert.strictEqual(monthlyData[21].ssBenefitGross, 0, 'Dec 2027 still fully withheld');
+  assert.strictEqual(monthlyData[26].ssBenefitGross, s.ssFamilyTotal - 3320,
+    'boundary month pays the remainder of the check');
+  assert.strictEqual(monthlyData[27].ssBenefitGross, s.ssFamilyTotal,
+    'after the year\'s withholding is recovered, checks pay in full');
 });
 
 test('Job + SS at 62: full SS after job ends at chadRetirementMonth', () => {
@@ -1686,12 +1711,18 @@ test('Job + SS at 62: low salary ($30K) preserves most SS benefit', () => {
     chadJob: true, chadJobSalary: 30000, chadJobStartMonth: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // Excess = $30K - $24,480 = $5,520 (B3); reduction = round($5,520/2/12) = $230
-  const expectedReduction = Math.round((30000 - 24480) / 2 / 12);
-  const expectedSS = s.ssFamilyTotal - expectedReduction;
-  assert.strictEqual(monthlyData[19].ssBenefitGross, expectedSS,
-    `Low salary preserves most SS: ${expectedSS}/mo (gross, A1)`);
-  assert.ok(monthlyData[19].ssBenefitGross > s.ssFamilyTotal * 0.9, 'over 90% of SS preserved at $30K salary');
+  // Excess = $30K - $24,480 = $5,520 (B3); annual withholding = round($5,520/2) = $2,760.
+  // B1 (2026-06-10): whole-check semantics — the year's withholding is less
+  // than one check, so the boundary month (the year's first check) absorbs it
+  // all and every other month pays in full.
+  assert.strictEqual(monthlyData[19].ssBenefitGross, s.ssFamilyTotal - 2760,
+    'first check of the cycle absorbs the full annual withholding');
+  assert.strictEqual(monthlyData[20].ssBenefitGross, s.ssFamilyTotal,
+    'subsequent months pay in full');
+  // Annually, >90% of the benefit is preserved: 2,760 withheld of ~73,320.
+  const year2028 = monthlyData.filter(d => d.month >= 22 && d.month < 34);
+  const paid = year2028.reduce((sum, d) => sum + d.ssBenefitGross, 0);
+  assert.ok(paid > 12 * s.ssFamilyTotal * 0.9, 'over 90% of SS preserved at $30K salary (annual)');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -2291,8 +2322,14 @@ test('M11. chadJob + SS: both chadJobIncome > 0 AND ssBenefit > 0 coexist after 
   const ssMonth = s.ssStartMonth;
   assert.ok(monthlyData[ssMonth].chadJobIncome > 0,
     `chadJobIncome at month ${ssMonth} should be > 0, got ${monthlyData[ssMonth].chadJobIncome}`);
-  assert.ok(monthlyData[ssMonth].ssBenefit > 0,
-    `ssBenefit at month ${ssMonth} should be > 0 (SS coexists with job), got ${monthlyData[ssMonth].ssBenefit}`);
+  // B1 (2026-06-10): with whole-check withholding the first months of each
+  // calendar year are $0 checks at the default $80K salary; coexistence shows
+  // up once the year's withholding is recovered (m=27, mid-2028).
+  assert.strictEqual(monthlyData[ssMonth].ssBenefit, 0,
+    'claim month check fully withheld under the earnings test (whole-check)');
+  assert.ok(monthlyData[27].chadJobIncome > 0, 'job income still flowing at m=27');
+  assert.ok(monthlyData[27].ssBenefit > 0,
+    `ssBenefit at m=27 should be > 0 (SS coexists with job), got ${monthlyData[27].ssBenefit}`);
 });
 
 test('M12. chadJob + ssdiDenied: both disable SSDI, ssBenefit = 0', () => {
@@ -2552,27 +2589,28 @@ test('EARN-test-1. SS earnings test: 6yr employed, refresh grant 1 expired → 5
     chadWorkMonths: 96,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // SS starts at m=19 with $4214 PIA at age 62. Probe m=72: 6 yrs employed.
-  // Grants issued: m=12, 24, 36, 48, 60, 72 (numGrantsIssued = 6). At m=72,
-  // grant 0 (issued m=12) is exactly 60 months old → 60 < 60 is FALSE → expired.
-  // Grants 1..5 (issued m=24..72) all have m - issueMonth < 60 → 5 active.
-  // annualStockProjected = 5 × 0.20 × $100K = $100K (FIX #7b — old logic was 6).
-  // m=72 is in FRA year (SS_FRA_MONTH=79, FRA-year starts at 79-12=67).
-  // Higher limit applies (B3, 2026 FRA-year exempt $65,160): excess = $100K - $65,160 = $34,840 → reduction = round(34840/3/12) = $968/mo.
-  // m=72 > TWINS_AGE_OUT_MONTH=34 → personal rate (2950 = round(4214 × 0.7)).
-  // Final ssBenefit = max(0, 2950 - 968) = 1982.
-  const expectedReduction = Math.round((100000 - 65160) / 3 / 12);
-  const expectedBenefit = Math.max(0, s.ssPersonal - expectedReduction);
-  assert.strictEqual(monthlyData[72].ssBenefitGross, expectedBenefit,
-    `m=72: 5 grants × 20% = $100K earnings → gross ssBenefit = ${expectedBenefit}, got ${monthlyData[72].ssBenefitGross}`); // A1: gross
+  // SS starts at m=19 with $4214 PIA at age 62. Probe calendar 2032 — the FRA
+  // calendar year (B7: months m=70..77; m≥78 exempt). Grants are issued each
+  // August (m=17, 29, 41, 53, 65, 77); through m=70..76 the five grants
+  // m=17..65 are all < 60 months old → annualStockProjected = 5 × 0.20 ×
+  // $100K = $100K (FIX #7b — old logic also counted expired grants).
+  // FRA-year tier (B3, 2026 exempt $65,160; $1 per $3): annual withholding =
+  // round((100000 − 65160)/3) = $11,613.
+  // B1 (2026-06-10) whole-check schedule at the $2,950 personal rate:
+  // m=70..72 fully withheld (cum $8,850), m=73 pays the boundary remainder
+  // ($2,950 − $2,763 = $187), m=74+ pays in full.
+  assert.strictEqual(monthlyData[70].ssBenefitGross, 0, 'Jan 2032: whole check withheld');
+  assert.strictEqual(monthlyData[72].ssBenefitGross, 0, 'Mar 2032: still fully withheld');
+  assert.strictEqual(monthlyData[73].ssBenefitGross, 2950 - (11613 - 3 * 2950),
+    'boundary month pays the remainder');
+  assert.strictEqual(monthlyData[74].ssBenefitGross, s.ssPersonal,
+    'after $11,613 recovered, checks pay in full');
 
   // Counter-test: with the OLD buggy logic (6 active grants instead of 5), the
-  // earnings would be $120K → reduction = round(54840/3/12) = $1,523 → ssBenefit = 1427.
-  // The new value (1982) is HIGHER (less reduction), confirming we counted 5 grants.
-  const oldBuggyReduction = Math.round((120000 - 65160) / 3 / 12);
-  const oldBuggyBenefit = Math.max(0, s.ssPersonal - oldBuggyReduction);
-  assert.ok(monthlyData[72].ssBenefitGross > oldBuggyBenefit,
-    `with old logic (6 grants), benefit would be ${oldBuggyBenefit}; got ${monthlyData[72].ssBenefitGross} > ${oldBuggyBenefit}`);
+  // annual withholding would be round((120000 − 65160)/3) = $18,280 — more
+  // than 6 × $2,950, so m=74 (and m=75) would ALSO be $0 checks. m=74 paying
+  // in full confirms exactly 5 grants were counted.
+  assert.ok(18280 > 5 * 2950, 'six-grant withholding would still be withholding at m=74');
 });
 
 // FIX #7a: SS earnings test — hire stock projection uses ANNIVERSARY indexing.
@@ -2596,12 +2634,15 @@ test('EARN-test-2. SS earnings test: hire stock projection respects anniversary 
   // m=24 since Y1 anniv was at m=12 and we're past it). yearsWorkedForSS at m=19 = 1
   // (Math.floor(19/12) = 1) → hireStockForSS = chadJobHireStock[0] = 50000.
   // annualStockProjected = 50000. After SS_EARNINGS_LIMIT_ANNUAL = $24,480 (B3):
-  // excess = 50000 - 24480 = 25520 → reduction = round(25520/2/12) = 1063.
-  // m=19 is < TWINS_AGE_OUT_MONTH=34 so family rate applies.
-  const expectedReduction = Math.round((50000 - 24480) / 2 / 12);
-  const expectedBenefit = Math.max(0, s.ssFamilyTotal - expectedReduction);
-  assert.strictEqual(monthlyData[19].ssBenefitGross, expectedBenefit,
-    `m=19 (Y1 anniv passed): hire stock annualized to ${50000} → gross ssBenefit ${expectedBenefit}, got ${monthlyData[19].ssBenefitGross}`); // A1: gross
+  // annual withholding = round((50000 − 24480)/2) = $12,760.
+  // B1 (2026-06-10) whole-check at the $6,110 family rate: m=19 and m=20 are
+  // $0 checks (cum $12,220), m=21 pays the boundary remainder ($6,110 − $540
+  // = $5,570).
+  assert.strictEqual(monthlyData[19].ssBenefitGross, 0,
+    'm=19 (Y1 anniv passed): hire stock annualized to 50000 → whole check withheld'); // A1: gross
+  assert.strictEqual(monthlyData[20].ssBenefitGross, 0, 'm=20: still fully withheld');
+  assert.strictEqual(monthlyData[21].ssBenefitGross, s.ssFamilyTotal - (12760 - 2 * s.ssFamilyTotal),
+    'm=21: boundary month pays the remainder');
 
   // Probe an even later month — m=72 (6 yrs employed, yearsWorkedForSS=6).
   // Per FIX #7a, yearsWorkedForSS=6 is OUTSIDE the 1..4 range → no hire stock contribution.
@@ -2635,11 +2676,17 @@ test('EARN-test-3. SS earnings test: no refresh counted before the first AUGUST 
     assert.strictEqual(monthlyData[m].ssBenefitGross, s.ssFamilyTotal,
       `m=${m}: refresh not yet issued (first Aug issuance m=29) → full family ${s.ssFamilyTotal}, got ${monthlyData[m].ssBenefitGross}`);
   }
-  // m=30 (grant issued m=29): estimate = 0.20 × 200K = 40K → excess over 24,480 (B3)
-  // → reduction = round(15,520 / 2 / 12) = 647 → family 6321 - 647.
-  const expectedReduction = Math.round((0.20 * 200000 - 24480) / 2 / 12);
-  assert.strictEqual(monthlyData[30].ssBenefitGross, s.ssFamilyTotal - expectedReduction,
-    `m=30: grant issued m=29 → reduction ${expectedReduction}, got gross benefit ${monthlyData[30].ssBenefitGross}`);
+  // m=30 (grant issued m=29): estimate = 0.20 × 200K = 40K → annual
+  // withholding = round((40000 − 24480)/2) = $7,760 (B3 limit).
+  // B1 (2026-06-10) whole-check: m=30 is a $0 check, m=31 pays the boundary
+  // remainder ($6,110 − $1,650 = $4,460), m=32+ pays in full.
+  const annualWithholding = Math.round((0.20 * 200000 - 24480) / 2);
+  assert.strictEqual(monthlyData[30].ssBenefitGross, 0,
+    'm=30: grant issued m=29 → whole check withheld');
+  assert.strictEqual(monthlyData[31].ssBenefitGross, s.ssFamilyTotal - (annualWithholding - s.ssFamilyTotal),
+    'm=31: boundary month pays the remainder');
+  assert.strictEqual(monthlyData[32].ssBenefitGross, s.ssFamilyTotal,
+    'm=32: year\'s withholding recovered → full check');
 });
 
 // Remediation 2026-06-09 phase 5: the annualized refresh estimate must equal the
@@ -2655,21 +2702,121 @@ test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actua
     chadWorkMonths: 120, msftGrowth: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // m0=66: steady state (5 active grants: issued Aug at m=17,29,41,53,65) and
-  // still before the FRA year (starts m=67), so the standard $1-per-$2 test applies.
-  const m0 = 66;
+  // Steady-state vest window [66, 78): 5 active grants (issued Aug at
+  // m=17,29,41,53,65), 4 vest months × 5 grants × 5% × $60K = $60K.
   const netMult = 1 - 0.25; // chadJobBonusNetMult with taxRate=25, no FICA savings
-  // Sum the ACTUAL refresh vests the engine pays over [m0, m0+11].
   let windowNet = 0;
-  for (let m = m0; m < m0 + 12; m++) windowNet += monthlyData[m].chadJobStockRefreshNet;
+  for (let m = 66; m < 78; m++) windowNet += monthlyData[m].chadJobStockRefreshNet;
   const windowGross = windowNet / netMult;
-  // Steady state: 4 vest months × 5 grants × 5% × $60K = $60K.
   near(windowGross, 60000, 5, 'actual 12-month refresh vests in steady state');
-  // The earnings-test estimate must imply the same annual stock figure:
-  // reduction = round((windowGross - 24,480) / 2 / 12) and benefit = personal - reduction (B3: 2026 exempt).
-  const expectedReduction = Math.round(Math.max(0, windowGross - 24480) / 2 / 12);
-  assert.strictEqual(monthlyData[m0].ssBenefitGross, Math.max(0, s.ssPersonal - expectedReduction),
-    `m=${m0}: estimate should match actual vests (${windowGross}) → gross benefit ${Math.max(0, s.ssPersonal - expectedReduction)}, got ${monthlyData[m0].ssBenefitGross}`); // A1: gross
+  // B1 (2026-06-10) whole-check withholding over calendar 2031 (m=58..69 —
+  // B7: still before the FRA calendar year 2032). The estimate is $48K while
+  // 4 grants are active (m=58..65) and $60K once the m=65 grant is issued
+  // (m=66..69), so the year's required withholding finishes at the
+  // steady-state figure: round((60000 − 24480)/2) = $17,760 — the same annual
+  // amount the actual vests imply.
+  const required = Math.round(Math.max(0, windowGross - 24480) / 2);
+  let withheldYear = 0;
+  for (let m = 58; m < 70; m++) withheldYear += s.ssPersonal - monthlyData[m].ssBenefitGross;
+  assert.strictEqual(withheldYear, required,
+    `calendar-2031 withholding (${withheldYear}) must equal the vest-implied annual amount (${required})`);
+  // Whole-check schedule: 4-grant phase requires round((48000−24480)/2) =
+  // $11,760 → m=58..60 are $0 checks, m=61 pays the $40 boundary remainder;
+  // the m=65 issuance raises the requirement by $6,000 → m=66..67 are $0
+  // checks again, m=68 pays $2,850, m=69 pays in full.
+  assert.strictEqual(monthlyData[58].ssBenefitGross, 0, 'Jan 2031: whole check withheld');
+  assert.strictEqual(monthlyData[61].ssBenefitGross, s.ssPersonal - (11760 - 3 * s.ssPersonal),
+    '4-grant boundary month pays the remainder');
+  assert.strictEqual(monthlyData[66].ssBenefitGross, 0, 'new grant raises the requirement → $0 check');
+  assert.strictEqual(monthlyData[69].ssBenefitGross, s.ssPersonal, 'year fully recovered → full check');
+});
+
+// B7 (2026-06-10): the FRA-year ($1-per-$3, higher limit) earnings-test tier is
+// CALENDAR-YEAR anchored — it applies only in the FRA calendar year (2032,
+// m=70..77 for this household) and the attainment month and later (m≥78) are
+// fully exempt. The old anniversary-anchored window (m ≥ SS_FRA_MONTH − 12)
+// wrongly gave Oct–Dec 2031 the generous tier and kept testing m=78.
+test('EARN-B7. FRA-year tier is calendar-anchored; attainment month exempt', () => {
+  // Consulting $6,000/mo = $72,000/yr sits between the standard ($24,480) and
+  // FRA-year ($65,160) limits, so the two tiers produce different withholding.
+  const s = gatherStateWithOverrides({
+    expenseInflation: false,
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadConsulting: 6000, chadJob: false,
+    sarahWorkMonths: 96,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // Calendar 2031 (m=58..69): STANDARD tier — required = round((72000−24480)/2)
+  // = $23,760 at the $2,950 personal rate → m=58..65 are $0 checks (cum
+  // $23,600), m=66 pays the $160 boundary remainder, m=67..69 (Oct–Dec 2031,
+  // which the OLD code treated as FRA-year months) pay in full because the
+  // standard-year withholding is complete — NOT because the $1/$3 tier applied.
+  assert.strictEqual(monthlyData[58].ssBenefitGross, 0, 'Jan 2031: standard tier withholds whole checks');
+  assert.strictEqual(monthlyData[66].ssBenefitGross, 2950 - (23760 - 8 * 2950), 'boundary month');
+  assert.strictEqual(monthlyData[67].ssBenefitGross, 2950, 'Oct 2031: standard cycle complete');
+  // Calendar 2032 (FRA year, m=70..77): $1/$3 tier — required =
+  // round((72000−65160)/3) = $2,280 < one check → January pays the remainder.
+  assert.strictEqual(monthlyData[70].ssBenefitGross, 2950 - 2280,
+    'Jan 2032: FRA-year tier withholds only $2,280');
+  assert.strictEqual(monthlyData[71].ssBenefitGross, 2950, 'Feb 2032: full check');
+  // m=78 (Sep 2032) is the FRA-attainment month — fully exempt (the old code
+  // still tested it).
+  assert.strictEqual(monthlyData[78].ssBenefitGross, 2950, 'attainment month: exempt');
+});
+
+// C18 (2026-06-10): the earnings-test RSU wage estimate must include the
+// msftGrowth appreciation factor — each grant's expected annual vests scale
+// from issuance to the test month, exactly like the actual vest engine.
+test('EARN-C18. earnings-test refresh estimate includes msftGrowth appreciation', () => {
+  const mk = (growth) => gatherStateWithOverrides({
+    expenseInflation: false,
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 0, chadJobStartMonth: 12,
+    chadJobStockRefresh: 200000, chadJobRefreshStartMonth: 12,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
+    chadWorkMonths: 96, msftGrowth: growth,
+  });
+  // Single grant issued m=29 (Aug 2028). January 2029 = m=34, family rate $6,110.
+  // Flat estimate: 0.20 × 200K = $40,000. With 12% growth the estimate at
+  // month m is 40000 × 1.12^((m − 29)/12) — the same issue→vest scaling the
+  // vest engine applies.
+  const { monthlyData: flat } = runMonthlySimulation(mk(0));
+  const { monthlyData: grown } = runMonthlySimulation(mk(12));
+  // m=34: both fully withhold (required > one check either way).
+  assert.strictEqual(flat[34].ssBenefitGross, 0, 'flat: Jan 2029 fully withheld');
+  assert.strictEqual(grown[34].ssBenefitGross, 0, 'grown: Jan 2029 fully withheld');
+  // m=35 boundary month: flat required = round((40000−24480)/2) = 7760 →
+  // pays 6110 − 1650 = 4460. Grown required at m=35 =
+  // round((40000 × 1.12^(6/12) − 24480)/2) → pays less.
+  const grownRequired35 = Math.round((40000 * Math.pow(1.12, 6 / 12) - 24480) / 2);
+  assert.strictEqual(flat[35].ssBenefitGross, 6110 - (7760 - 6110), 'flat boundary month');
+  assert.strictEqual(grown[35].ssBenefitGross, 6110 - (grownRequired35 - 6110),
+    'grown boundary month reflects the appreciated estimate');
+  assert.ok(grown[35].ssBenefitGross < flat[35].ssBenefitGross,
+    'growth ⇒ higher estimated wages ⇒ more withholding');
+});
+
+test('EARN-C18b. earnings-test hire-stock estimate includes msftGrowth appreciation', () => {
+  const mk = (growth) => gatherStateWithOverrides({
+    expenseInflation: false,
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
+    chadJobHireStockY1: 25000, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobStockRefresh: 0, chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
+    chadWorkMonths: 96, msftGrowth: growth,
+  });
+  // Jan 2028 = m=22, employment year 1 → hire estimate = 25000 (flat) or
+  // 25000 × 1.12^(22/12) (grown). Both are under one family check, so the
+  // January boundary month shows the exact difference.
+  const { monthlyData: flat } = runMonthlySimulation(mk(0));
+  const { monthlyData: grown } = runMonthlySimulation(mk(12));
+  const flatRequired = Math.round((25000 - 24480) / 2);
+  const grownRequired = Math.round((25000 * Math.pow(1.12, 22 / 12) - 24480) / 2);
+  assert.strictEqual(flat[22].ssBenefitGross, 6110 - flatRequired, 'flat hire estimate');
+  assert.strictEqual(grown[22].ssBenefitGross, 6110 - grownRequired,
+    'grown hire estimate scales from hire month to the test month');
+  assert.ok(grownRequired > flatRequired, 'growth raises the hire-stock wage estimate');
 });
 
 // B4 (2026-06-10): SSDI child benefits are calendar-anchored to the student-rule

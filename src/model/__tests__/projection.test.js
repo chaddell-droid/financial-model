@@ -2424,6 +2424,66 @@ test('EARN-test-2. SS earnings test: hire stock projection respects anniversary 
     `m=72: no hire/refresh → no earnings test reduction → ssPersonal=${s.ssPersonal}, got ${monthlyData[72].ssBenefit}`);
 });
 
+// Remediation 2026-06-09 phase 5: SS earnings-test refresh estimate must use the
+// SAME August-aligned issuance months as the actual vest engine —
+// firstAugustAtOrAfter(start + refreshStart) + 12·g — not start + refreshStart + 12·g.
+test('EARN-test-3. SS earnings test: no refresh counted before the first AUGUST issuance', () => {
+  // start=12 (Mar 2027), refreshStart=12 → naive issuance month 24 (Mar 2028),
+  // but MSFT issues refreshes end-of-August → actual first issuance is m=29 (Aug 2028).
+  // Probe m=25 (SS active since m=19, employed since m=12): the old estimate
+  // counted a $200K grant issued at m=24 → 0.20 × 200K = $40K annual earnings →
+  // benefits reduced. The vest engine pays NOTHING from refreshes before m=29,
+  // so the estimate must be $0 → full family benefit.
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 0, chadJobStartMonth: 12,
+    chadJobStockRefresh: 200000, chadJobRefreshStartMonth: 12,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
+    chadWorkMonths: 96, msftGrowth: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m=25..28: grant not yet issued (first August issuance is m=29) → no reduction.
+  for (const m of [25, 26, 27, 28]) {
+    assert.strictEqual(monthlyData[m].ssBenefit, s.ssFamilyTotal,
+      `m=${m}: refresh not yet issued (first Aug issuance m=29) → full family ${s.ssFamilyTotal}, got ${monthlyData[m].ssBenefit}`);
+  }
+  // m=30 (grant issued m=29): estimate = 0.20 × 200K = 40K → excess over 22,320
+  // → reduction = round(17,680 / 2 / 12) = 737 → family 6321 - 737.
+  const expectedReduction = Math.round((0.20 * 200000 - 22320) / 2 / 12);
+  assert.strictEqual(monthlyData[30].ssBenefit, s.ssFamilyTotal - expectedReduction,
+    `m=30: grant issued m=29 → reduction ${expectedReduction}, got benefit ${monthlyData[30].ssBenefit}`);
+});
+
+// Remediation 2026-06-09 phase 5: the annualized refresh estimate must equal the
+// ACTUAL vests the engine pays over a 12-month window (steady state, msftGrowth=0).
+test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actual vests over 12 months', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
+    chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0, chadJobTaxRate: 25, chadJobNoFICA: false,
+    chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 12,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
+    chadWorkMonths: 120, msftGrowth: 0,
+  });
+  const { monthlyData } = runMonthlySimulation(s);
+  // m0=66: steady state (5 active grants: issued Aug at m=17,29,41,53,65) and
+  // still before the FRA year (starts m=67), so the standard $1-per-$2 test applies.
+  const m0 = 66;
+  const netMult = 1 - 0.25; // chadJobBonusNetMult with taxRate=25, no FICA savings
+  // Sum the ACTUAL refresh vests the engine pays over [m0, m0+11].
+  let windowNet = 0;
+  for (let m = m0; m < m0 + 12; m++) windowNet += monthlyData[m].chadJobStockRefreshNet;
+  const windowGross = windowNet / netMult;
+  // Steady state: 4 vest months × 5 grants × 5% × $60K = $60K.
+  near(windowGross, 60000, 5, 'actual 12-month refresh vests in steady state');
+  // The earnings-test estimate must imply the same annual stock figure:
+  // reduction = round((windowGross - 22,320) / 2 / 12) and benefit = personal - reduction.
+  const expectedReduction = Math.round(Math.max(0, windowGross - 22320) / 2 / 12);
+  assert.strictEqual(monthlyData[m0].ssBenefit, Math.max(0, s.ssPersonal - expectedReduction),
+    `m=${m0}: estimate should match actual vests (${windowGross}) → benefit ${Math.max(0, s.ssPersonal - expectedReduction)}, got ${monthlyData[m0].ssBenefit}`);
+});
+
 // FIX #8: SSDI kids age-out is calendar-anchored (TWINS_AGE_OUT_MONTH), not relative.
 // With approval=20, kidsAgeOutMonths=36 (legacy), TWINS_AGE_OUT_MONTH=34: family
 // benefits END at m=34 (not m=56 as the old buggy `approval + kidsAgeOutMonths` logic).

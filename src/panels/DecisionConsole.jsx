@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo } from 'react';
 import AddLeverInline from './AddLeverInline.jsx';
 import TopMovesPanel from './TopMovesPanel.jsx';
 import { fmt } from '../model/formatters.js';
+import { getEffectiveCuts } from '../model/scenarioLevers.js';
 
 /**
  * Decision Console — Plan tab left pane.
@@ -28,13 +29,24 @@ function DecisionConsole({
   const {
     retireDebt, lifestyleCutsApplied, vanSold,
     debtService = 0, vanMonthlySavings = 0,
-    cutsOverride = 0,
+    cutsOverride = null,
+    lifestyleCuts = 0, cutInHalf = 0, extraCuts = 0,
     bcsAnnualTotal = 0, bcsParentsAnnual = 0, bcsYearsLeft = 0,
   } = scenarioStripProps;
 
   const setter = useCallback((field) => (v) => onFieldChange?.(field)(v), [onFieldChange]);
 
-  const effectiveCuts = Number.isFinite(cutsOverride) ? cutsOverride : 0;
+  // Display parity (remediation phase 5): show the EFFECTIVE cuts total the
+  // engine applies — cutsOverride when set, otherwise the individual-cut detail
+  // sum. Legacy scenarios (cut fields set, cutsOverride null) previously showed $0.
+  const cutsTotals = getEffectiveCuts({
+    lifestyleCutsApplied: Boolean(lifestyleCutsApplied),
+    cutsOverride: Number.isFinite(cutsOverride) ? cutsOverride : null,
+    lifestyleCuts: Number(lifestyleCuts) || 0,
+    cutInHalf: Number(cutInHalf) || 0,
+    extraCuts: Number(extraCuts) || 0,
+  });
+  const effectiveCuts = Number.isFinite(cutsTotals.effectiveTotal) ? cutsTotals.effectiveTotal : 0;
 
   const toggleLever = useCallback((field, current) => {
     onFieldChange?.(field)(!current);

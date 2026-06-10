@@ -13,6 +13,7 @@ import { INITIAL_STATE } from '../../state/initialState.js';
 import { DAYS_PER_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
 import { computeW2Diagnostic } from '../w2Diagnostic.js';
 import { projectedPostRetirementVests } from '../chadLevels.js';
+import { getEffectiveCuts } from '../scenarioLevers.js';
 import { computeW2EmployeeFica, computeAdditionalMedicare } from '../taxEngine.js';
 import { SS_WAGE_BASE } from '../taxConstants.js';
 
@@ -231,9 +232,14 @@ test('D12: netImpactSteady — SS path with pension contrib (FICA-correct)', () 
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== Section 3: Pension Calculation Parity ===');
 
+// Remediation 2026-06-09 phase 5: the accrual month count matches what the
+// simulation actually pays — the work window [startMonth, chadWorkMonths] is
+// inclusive on BOTH ends, so paid months = (chadWorkMonths - startMonth) + 1.
+// (Raise/promotion handling is covered by D-P1..D-P3 below; these four cases
+// all use chadJobRaisePct=0 and no promotions, so base salary IS final salary.)
 function computeUiPension(salary, pensionRate, chadWorkMonths, startMonth) {
-  const projMonths = Math.max(0, (chadWorkMonths || 72) - (startMonth || 0));
-  const yrs = projMonths / 12;
+  const paidMonths = Math.max(0, (chadWorkMonths || 72) - (startMonth || 0)) + 1;
+  const yrs = paidMonths / 12;
   return Math.round((salary / 12) * (pensionRate / 100) * yrs);
 }
 
@@ -251,8 +257,8 @@ test('D14: Pension — 80K, 2%, 72mo work, start at month 12', () => {
   const s = gatherStateWithOverrides(overrides);
   assert.strictEqual(s.chadJobPensionMonthly, uiPension,
     `gatherState pension (${s.chadJobPensionMonthly}) should match UI (${uiPension})`);
-  // 60 months worked = 5 years, 80K/12 * 0.02 * 5 = 666.67 → 667
-  assert.strictEqual(uiPension, 667, `Expected pension 667, got ${uiPension}`);
+  // 61 paid months (m=12..72 inclusive), 80K/12 * 0.02 * 61/12 = 677.78 → 678
+  assert.strictEqual(uiPension, 678, `Expected pension 678, got ${uiPension}`);
 });
 
 test('D15: Pension — rate = 0 means no pension', () => {
@@ -269,8 +275,63 @@ test('D16: Pension — 120K, 3.5%, 120mo work, start at 3', () => {
   const s = gatherStateWithOverrides(overrides);
   assert.strictEqual(s.chadJobPensionMonthly, uiPension,
     `gatherState pension (${s.chadJobPensionMonthly}) should match UI (${uiPension})`);
-  // 117 months = 9.75 years, 120K/12 = 10000, 10000 * 0.035 * 9.75 = 3412.5 → 3413
-  near(uiPension, 3413, 1, 'D16 pension value');
+  // 118 paid months (m=3..120 inclusive), 120K/12 = 10000, 10000 * 0.035 * 118/12 = 3441.67 → 3442
+  near(uiPension, 3442, 1, 'D16 pension value');
+});
+
+// Remediation 2026-06-09 phase 5 — pension accrual aligns with the simulation:
+// month count = months the sim actually pays; basis = FINAL salary incl. raises/promotions.
+
+test('D-P1: Pension month count equals the number of salary months the sim pays', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 80000, chadJobPensionRate: 2,
+    chadWorkMonths: 72, chadJobStartMonth: 0, chadJobRaisePct: 0,
+    chadJobTaxRate: 25, chadJobNoFICA: false, chadJobPensionContrib: 0,
+    chadJob401kEnabled: false, chadJobBonusPct: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  const paidMonths = monthlyData.filter(d => (d.chadJobSalaryNet || 0) > 0).length;
+  assert.strictEqual(paidMonths, 73, `sim pays m=0..72 inclusive = 73 months, got ${paidMonths}`);
+  const expected = Math.round((80000 / 12) * 0.02 * (paidMonths / 12));
+  assert.strictEqual(s.chadJobPensionMonthly, expected,
+    `pension accrual (${s.chadJobPensionMonthly}) should use the ${paidMonths} months the sim pays (${expected})`);
+});
+
+test('D-P2: Pension accrual basis includes compounded annual raises (final salary)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 80000, chadJobPensionRate: 2,
+    chadWorkMonths: 72, chadJobStartMonth: 0, chadJobRaisePct: 3,
+    chadJobTaxRate: 25, chadJobNoFICA: false, chadJobPensionContrib: 0,
+    chadJob401kEnabled: false, chadJobBonusPct: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  // Final worked month m=72 → 6 completed years → salary × 1.03^6 (matches the sim).
+  const finalMonthlyGrossFromSim = monthlyData[72].chadJobSalaryNet / 0.75; // netMult = 1 - 0.25
+  near(finalMonthlyGrossFromSim, (80000 * Math.pow(1.03, 6)) / 12, 2, 'sim final-month salary');
+  const expected = Math.round(((80000 * Math.pow(1.03, 6)) / 12) * 0.02 * (73 / 12));
+  assert.strictEqual(s.chadJobPensionMonthly, expected,
+    `pension (${s.chadJobPensionMonthly}) should accrue on the raised final salary (${expected})`);
+  near(s.chadJobPensionMonthly, finalMonthlyGrossFromSim * 0.02 * (73 / 12), 2,
+    'pension parity vs the salary the sim actually pays in the final month');
+});
+
+test('D-P3: Pension accrual basis includes promotions (L64 salary at retirement)', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 80000, chadJobPensionRate: 2,
+    chadWorkMonths: 72, chadJobStartMonth: 0, chadJobRaisePct: 0,
+    chadL64Enabled: true, chadL64Month: 24, chadL64Salary: 120000,
+    chadJobTaxRate: 25, chadJobNoFICA: false, chadJobPensionContrib: 0,
+    chadJob401kEnabled: false, chadJobBonusPct: 0, chadL64BonusPct: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const { monthlyData } = runMonthlySimulation(s);
+  const finalMonthlyGrossFromSim = monthlyData[72].chadJobSalaryNet / 0.75;
+  near(finalMonthlyGrossFromSim, 10000, 2, 'sim pays L64 salary in the final month');
+  const expected = Math.round((120000 / 12) * 0.02 * (73 / 12)); // 1217
+  assert.strictEqual(s.chadJobPensionMonthly, expected,
+    `pension (${s.chadJobPensionMonthly}) should accrue on the L64 salary (${expected}), not the L63 base`);
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1355,6 +1416,104 @@ test('KeyMetrics totalMonthlySpend onChange clamps to min 0 (matches RANGE + sib
     source.includes("onFieldChange('totalMonthlySpend')(v === '' ? null : Math.max(0, Math.round(Number(v))))"),
     'Base Monthly Spend input must clamp to Math.max(0, ...) like the One-Time Extras input'
   );
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Effective cuts display parity (remediation phase 5).
+// ActiveTogglePills and DecisionConsole must show the EFFECTIVE cuts total via
+// getEffectiveCuts (cutsOverride when set, else the individual-cut detail sum)
+// — not raw `cutsOverride ?? 0`, which showed $0 for legacy scenarios whose
+// individual cut fields are set and cutsOverride is null.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Effective cuts display parity (CUTS-1 … CUTS-4) ===');
+
+const LEGACY_CUTS = {
+  cutsOverride: null,
+  cutOliver: 200, cutVacation: 300, cutGym: 100,
+  cutMedical: 150, cutShopping: 250, cutSaaS: 50,
+  cutAmazon: 100, cutEntertainment: 75, cutGroceries: 125, cutPersonalCare: 25, cutSmallItems: 50,
+};
+const LEGACY_DETAIL_TOTAL = 1425;
+
+test('CUTS-1: legacy scenario (override null) — display total equals the engine detail sum', () => {
+  const s = gatherStateWithOverrides({ ...LEGACY_CUTS, lifestyleCutsApplied: true });
+  const engineTotal = s.lifestyleCuts + s.cutInHalf + s.extraCuts;
+  assert.strictEqual(engineTotal, LEGACY_DETAIL_TOTAL, `engine applies detail sum ${LEGACY_DETAIL_TOTAL}`);
+  const ui = getEffectiveCuts({
+    lifestyleCutsApplied: true,
+    cutsOverride: null,
+    lifestyleCuts: 200 + 300 + 100,
+    cutInHalf: 150 + 250 + 50,
+    extraCuts: 100 + 75 + 125 + 25 + 50,
+  });
+  assert.strictEqual(ui.effectiveTotal, engineTotal,
+    `display effectiveTotal (${ui.effectiveTotal}) must equal engine total (${engineTotal}), NOT cutsOverride ?? 0 = 0`);
+  assert.strictEqual(ui.activeSavings, engineTotal);
+});
+
+test('CUTS-2: legacy scenario expenses actually drop by the detail sum (engine ground truth)', () => {
+  const off = gatherStateWithOverrides({ ...LEGACY_CUTS, lifestyleCutsApplied: false });
+  const on = gatherStateWithOverrides({ ...LEGACY_CUTS, lifestyleCutsApplied: true });
+  const offExp = runMonthlySimulation(off).monthlyData[0].expenses;
+  const onExp = runMonthlySimulation(on).monthlyData[0].expenses;
+  assert.strictEqual(offExp - onExp, LEGACY_DETAIL_TOTAL,
+    `engine expense delta (${offExp - onExp}) must equal the detail sum shown in the UI (${LEGACY_DETAIL_TOTAL})`);
+});
+
+test('CUTS-3: override-set scenario — display total equals cutsOverride (detail fields ignored)', () => {
+  const s = gatherStateWithOverrides({ ...LEGACY_CUTS, cutsOverride: 2000, lifestyleCutsApplied: true });
+  const engineTotal = s.lifestyleCuts + s.cutInHalf + s.extraCuts;
+  assert.strictEqual(engineTotal, 2000);
+  const ui = getEffectiveCuts({
+    lifestyleCutsApplied: true, cutsOverride: 2000,
+    lifestyleCuts: 600, cutInHalf: 450, extraCuts: 375,
+  });
+  assert.strictEqual(ui.effectiveTotal, 2000);
+});
+
+test('CUTS-4: ActiveTogglePills and DecisionConsole consume getEffectiveCuts, not raw cutsOverride', () => {
+  const fmSource = fs.readFileSync(new URL('../../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(fmSource.includes('getEffectiveCuts'),
+    'FinancialModel.jsx must derive the pills total via getEffectiveCuts');
+  assert.ok(!fmSource.includes('totalCuts={cutsOverride ?? 0}'),
+    'FinancialModel.jsx must not pass raw `cutsOverride ?? 0` to ActiveTogglePills');
+  const dcSource = fs.readFileSync(new URL('../../panels/DecisionConsole.jsx', import.meta.url), 'utf8');
+  assert.ok(dcSource.includes('getEffectiveCuts'),
+    'DecisionConsole.jsx must derive effectiveCuts via getEffectiveCuts');
+  assert.ok(!dcSource.includes('Number.isFinite(cutsOverride) ? cutsOverride : 0'),
+    'DecisionConsole.jsx must not fall back to 0 when cutsOverride is null');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SSDI back-pay "Gross" row label parity (remediation phase 5).
+// The displayed gross INCLUDES auxiliary (kids') back pay, but the label read
+// "Gross (months × personal)" — worker share only. The label math must
+// reconcile exactly with the displayed number.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== SSDI back-pay Gross label parity (BP-1 … BP-2) ===');
+
+test('BP-1: Gross label components (worker + kids aux) sum exactly to the displayed gross', () => {
+  // Mirror of FinancialModel.jsx's ssdiBackPayGross derivation with INITIAL_STATE values.
+  const { ssdiPersonal, ssdiFamilyTotal, ssdiBackPayMonths, kidsAgeOutMonths } = INITIAL_STATE;
+  const auxMonths = Math.min(ssdiBackPayMonths, kidsAgeOutMonths || 0);
+  const auxMonthly = Math.max(0, (ssdiFamilyTotal || 0) - ssdiPersonal);
+  const labelSum = ssdiBackPayMonths * ssdiPersonal + auxMonths * auxMonthly;
+  const displayedGross = ssdiBackPayMonths * ssdiPersonal + auxMonths * auxMonthly; // ssdiBackPayGross
+  assert.strictEqual(labelSum, displayedGross, 'label math must equal the displayed gross');
+  // And the displayed gross reconciles to the engine: gross - fee = backPayActual.
+  const s = gatherStateWithOverrides({});
+  const { backPayActual } = runMonthlySimulation(s);
+  const fee = Math.min(Math.round(ssdiBackPayMonths * ssdiPersonal * 0.25), SSDI_ATTORNEY_FEE_CAP);
+  assert.strictEqual(displayedGross - fee, backPayActual,
+    `displayed gross (${displayedGross}) minus fee (${fee}) must equal engine backPayActual (${backPayActual})`);
+});
+
+test('BP-2: IncomeControls Gross row label includes the kids auxiliary component', () => {
+  const source = fs.readFileSync(new URL('../../panels/IncomeControls.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('ssdiAuxBackPay'),
+    'IncomeControls.jsx must compute the auxiliary back-pay share for the Gross row label');
+  assert.ok(!/Gross \(\{ssdiBackPayMonths\} × \{fmtFull\(ssdiPersonal\)\}\):/.test(source),
+    'the Gross label must no longer claim it is only months × personal when aux back pay is included');
 });
 
 // ════════════════════════════════════════════════════════════════════════

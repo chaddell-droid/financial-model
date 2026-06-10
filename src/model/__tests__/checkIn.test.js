@@ -3,6 +3,8 @@
  * Run with: node src/model/__tests__/checkIn.test.js
  */
 import assert from 'node:assert';
+import fs from 'node:fs';
+import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import {
   getCurrentModelMonth,
   getMonthLabel,
@@ -67,6 +69,29 @@ test('clamps to 72 for dates far in the future', () => {
 test('returns exactly 72 for March 2032 (72 months after baseline)', () => {
   const march2032 = new Date(2032, 2, 1);
   assert.strictEqual(getCurrentModelMonth(march2032), 72);
+});
+
+// Remediation 2026-06-09 phase 5: the clamp must follow the projection's actual
+// horizon (e.g. 204-month projections), not a hardcoded 72.
+test('respects an explicit maxMonth beyond 72 (long projection horizons)', () => {
+  const farFuture = new Date(2050, 0, 1);
+  assert.strictEqual(getCurrentModelMonth(farFuture, 204), 204);
+});
+
+test('maxMonth does not change in-range results', () => {
+  const march2032 = new Date(2032, 2, 1); // month 72
+  assert.strictEqual(getCurrentModelMonth(march2032, 204), 72);
+});
+
+test('maxMonth below 72 clamps tighter', () => {
+  const march2032 = new Date(2032, 2, 1); // month 72
+  assert.strictEqual(getCurrentModelMonth(march2032, 24), 24);
+});
+
+test('FinancialModel passes the projection horizon to getCurrentModelMonth', () => {
+  const source = fs.readFileSync(new URL('../../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(/getCurrentModelMonth\(new Date\(\),\s*projectionHorizonMonths\)/.test(source),
+    'FinancialModel.jsx must clamp the current model month to the actual projection horizon, not the default 72');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -287,6 +312,45 @@ test('single check-in works correctly', () => {
   assert.strictEqual(result.latestMonth, 3);
 });
 
+// Remediation 2026-06-09 phase 5: crash guards for malformed latest check-ins.
+test('does not crash when the latest check-in is missing actuals', () => {
+  const history = [
+    {
+      month: 0,
+      actuals: { totalIncome: 11000, expenses: 7500, balance: 51000 },
+      planSnapshot: { totalIncome: 10000, expenses: 8000, balance: 50000 },
+    },
+    { month: 1 }, // missing actuals AND planSnapshot
+  ];
+  const result = computeCumulativeDrift(history);
+  assert.strictEqual(result.months, 2);
+  assert.strictEqual(result.totalIncomeDelta, 1000);
+  // balanceDelta falls back to the most recent COMPLETE check-in (month 0).
+  assert.strictEqual(result.balanceDelta, 1000);
+  assert.strictEqual(result.latestMonth, 1);
+});
+
+test('does not crash when the latest check-in is missing planSnapshot', () => {
+  const history = [
+    {
+      month: 2,
+      actuals: { totalIncome: 9000, expenses: 8000, balance: 47000 },
+      planSnapshot: { totalIncome: 10000, expenses: 8000, balance: 50000 },
+    },
+    { month: 3, actuals: { totalIncome: 9500, expenses: 8100, balance: 46000 } },
+  ];
+  const result = computeCumulativeDrift(history);
+  assert.strictEqual(result.balanceDelta, -3000, 'falls back to last complete check-in');
+  assert.strictEqual(result.latestMonth, 3);
+});
+
+test('balanceDelta is null when NO check-in has both actuals and planSnapshot balances', () => {
+  const history = [{ month: 0 }, { month: 1, actuals: {} }];
+  const result = computeCumulativeDrift(history);
+  assert.strictEqual(result.balanceDelta, null);
+  assert.strictEqual(result.totalIncomeDelta, 0);
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // buildReforecast
 // ════════════════════════════════════════════════════════════════════════
@@ -329,6 +393,21 @@ test('overrides startingSavings from actual balance', () => {
   }
   // If we got here without the guard returning null, the logic path is correct.
   assert.ok(true, 'buildReforecast accepted valid checkIn and called gatherState');
+});
+
+// Remediation 2026-06-09 phase 5: a check-in whose actuals lack a usable balance
+// must NOT produce a projection seeded with undefined/NaN startingSavings.
+test('returns null when latestCheckIn.actuals.balance is missing (no NaN projection)', () => {
+  const gatherState = () => gatherStateWithOverrides({});
+  const result = buildReforecast(gatherState, { month: 2, actuals: { totalIncome: 9000 } });
+  assert.strictEqual(result, null);
+});
+
+test('returns a real projection when actuals.balance is present', () => {
+  const gatherState = () => gatherStateWithOverrides({});
+  const result = buildReforecast(gatherState, { month: 2, actuals: { balance: 95000 } });
+  assert.ok(result && Array.isArray(result.monthlyData), 'should return a projection');
+  assert.ok(Number.isFinite(result.monthlyData[0].balance), 'projection balances must be finite');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -438,6 +517,23 @@ test('includes correct monthLabel, actualBalance, and plannedBalance', () => {
   const result = buildStatusSummary(checkIn, drift, null);
   assert.strictEqual(result.monthLabel, 'April 2026');
   assert.strictEqual(result.actualBalance, 51000);
+  assert.strictEqual(result.plannedBalance, 50000);
+});
+
+// Remediation 2026-06-09 phase 5: missing planSnapshot must not crash.
+test('does not crash when checkIn.planSnapshot is missing', () => {
+  const checkIn = { month: 1, actuals: { balance: 51000 } }; // no planSnapshot
+  const drift = { balance: { status: 'on-track', delta: 0 } };
+  const result = buildStatusSummary(checkIn, drift, null);
+  assert.strictEqual(result.actualBalance, 51000);
+  assert.strictEqual(result.plannedBalance, null);
+});
+
+test('does not crash when checkIn.actuals is missing balance', () => {
+  const checkIn = { month: 1, actuals: {}, planSnapshot: { balance: 50000 } };
+  const drift = { balance: { status: 'on-track', delta: 0 } };
+  const result = buildStatusSummary(checkIn, drift, null);
+  assert.strictEqual(result.actualBalance, null);
   assert.strictEqual(result.plannedBalance, 50000);
 });
 

@@ -83,6 +83,37 @@ export function levelAtMonthsWorked(monthsWorked, s) {
 }
 
 /**
+ * Projected monthly pension at retirement — single source of truth shared by
+ * gatherState (engine state), FinancialModel (prop mirror), and IncomeControls
+ * (panel preview). Remediation 2026-06-09 phase 5:
+ *  - Month count matches what the simulation actually pays: the work window
+ *    [chadJobStartMonth, chadWorkMonths] is inclusive on BOTH ends, so the sim
+ *    pays (chadWorkMonths − chadJobStartMonth) + 1 salary months.
+ *  - The accrual basis is the salary in effect at the LAST worked month —
+ *    including promotions (L64/L65) and compounded annual raises — mirroring
+ *    projection.js's per-month salary resolution, instead of the L63 base.
+ *
+ * @param {object} s - state (raw model fields; reads chadJob, chadJobPensionRate,
+ *   chadWorkMonths, chadJobStartMonth, chadJobRaisePct + level fields)
+ * @returns {number} projected monthly pension (today's $; COLA ≈ inflation)
+ */
+export function computeChadPensionMonthly(s) {
+  if (!s.chadJob || !((s.chadJobPensionRate || 0) > 0)) return 0;
+  const startMonth = s.chadJobStartMonth || 0;
+  const retirementMonth = s.chadWorkMonths || 72;
+  if (retirementMonth < startMonth) return 0; // never worked a month
+  const monthsWorkedFinal = retirementMonth - startMonth;
+  const paidMonths = monthsWorkedFinal + 1; // inclusive window, matches projection.js inWorkWindow
+  // Final salary = level salary at the last worked month, compounded by the
+  // annual raise for each completed year at that level (same math as projection.js).
+  const lvl = levelAtMonthsWorked(monthsWorkedFinal, s);
+  const raisePct = (s.chadJobRaisePct || 0) / 100;
+  const yearsAtCurrentLevel = Math.floor((monthsWorkedFinal - lvl.promoMonthsWorked) / 12);
+  const finalAnnualSalary = lvl.salary * Math.pow(1 + raisePct, yearsAtCurrentLevel);
+  return Math.round((finalAnnualSalary / 12) * (s.chadJobPensionRate / 100) * (paidMonths / 12));
+}
+
+/**
  * Decide whether RSU refresh grants continue vesting after Chad retires.
  *
  * Rule: if Chad is age 65+ at retirement, his unvested grants keep vesting on

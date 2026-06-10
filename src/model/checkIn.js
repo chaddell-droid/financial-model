@@ -2,13 +2,17 @@ import { computeProjection } from './projection.js';
 
 /**
  * Get the current model month based on today's date.
- * Month 0 = March 2026. Clamps to 0..72.
+ * Month 0 = March 2026. Clamps to 0..maxMonth.
+ *
+ * Remediation 2026-06-09 phase 5: `maxMonth` replaces the hardcoded 72-month
+ * clamp — callers pass the projection's actual horizon (up to ~204 months for
+ * long vest-tail projections). Default stays 72 for legacy callers.
  */
-export function getCurrentModelMonth(today = new Date()) {
+export function getCurrentModelMonth(today = new Date(), maxMonth = 72) {
   const baseYear = 2026;
   const baseMonth = 2; // March (0-indexed)
   const monthsSinceBase = (today.getFullYear() - baseYear) * 12 + (today.getMonth() - baseMonth);
-  return Math.max(0, Math.min(72, monthsSinceBase));
+  return Math.max(0, Math.min(maxMonth, monthsSinceBase));
 }
 
 /**
@@ -96,15 +100,27 @@ export function computeCumulativeDrift(checkInHistory) {
     totalExpenseDelta += (actuals.expenses || 0) - (planSnapshot.expenses || 0);
   }
 
+  // Remediation 2026-06-09 phase 5: a latest check-in missing actuals or
+  // planSnapshot must not crash. Use the most recent COMPLETE check-in for the
+  // balance delta; null when none exists.
   const latest = checkInHistory[checkInHistory.length - 1];
-  const balanceDelta = latest.actuals.balance - latest.planSnapshot.balance;
+  let balanceDelta = null;
+  for (let i = checkInHistory.length - 1; i >= 0; i--) {
+    const c = checkInHistory[i];
+    const actualBal = c?.actuals?.balance;
+    const planBal = c?.planSnapshot?.balance;
+    if (Number.isFinite(actualBal) && Number.isFinite(planBal)) {
+      balanceDelta = actualBal - planBal;
+      break;
+    }
+  }
 
   return {
     months: checkInHistory.length,
     totalIncomeDelta,
     totalExpenseDelta,
     balanceDelta,
-    latestMonth: latest.month,
+    latestMonth: latest?.month ?? null,
   };
 }
 
@@ -116,7 +132,9 @@ export function computeCumulativeDrift(checkInHistory) {
  * @returns {Object|null} projection result from computeProjection()
  */
 export function buildReforecast(gatherState, latestCheckIn) {
-  if (!latestCheckIn || !latestCheckIn.actuals) return null;
+  // Remediation 2026-06-09 phase 5: a check-in without a usable balance would
+  // seed the projection with undefined startingSavings → NaN balances. Bail out.
+  if (!latestCheckIn || !latestCheckIn.actuals || !Number.isFinite(latestCheckIn.actuals.balance)) return null;
   const base = gatherState();
   base.startingSavings = latestCheckIn.actuals.balance;
   if (latestCheckIn.actuals.balance401k != null) {
@@ -170,8 +188,10 @@ export function buildStatusSummary(checkIn, drift, savingsData) {
   return {
     monthLabel: getMonthLabel(checkIn.month),
     headline,
-    actualBalance: checkIn.actuals.balance,
-    plannedBalance: checkIn.planSnapshot.balance,
+    // Crash guards (remediation phase 5): malformed check-ins may lack
+    // actuals/planSnapshot — surface null rather than throwing.
+    actualBalance: checkIn.actuals?.balance ?? null,
+    plannedBalance: checkIn.planSnapshot?.balance ?? null,
     runway,
   };
 }

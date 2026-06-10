@@ -5,7 +5,7 @@ import { fmtFull } from '../model/formatters.js';
 import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OFFSET } from '../model/constants.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
-import { levelAtMonthsWorked, age65VestEligibility, projectedPostRetirementVests, vestSchedule } from '../model/chadLevels.js';
+import { levelAtMonthsWorked, age65VestEligibility, projectedPostRetirementVests, vestSchedule, computeChadPensionMonthly } from '../model/chadLevels.js';
 import { computeW2Diagnostic } from '../model/w2Diagnostic.js';
 import { SS_WAGE_BASE } from '../model/taxConstants.js';
 
@@ -253,15 +253,14 @@ const IncomeControls = ({
                     {chadJobPensionRate > 0 && (
                       <>
                         {(() => {
-                          // FIX M-Pension: Ideally use s.chadJobPensionMonthly from gathered state
-                          // (computed in gatherState.js:77 with the same formula). The displayParity
-                          // test D14 already locks parity to that gathered value. The prop is not
-                          // currently passed via incomeControlsProps, so this preview replicates the
-                          // formula inline. TODO: thread chadJobPensionMonthly through the prop bundle
-                          // and replace this block with a direct read.
-                          const projMonths = Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0));
-                          const yrs = projMonths / 12;
-                          const pensionMo = Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * yrs);
+                          // Shared helper — same value gatherState computes into
+                          // s.chadJobPensionMonthly (remediation phase 5: inclusive
+                          // paid-month count + final salary incl. promotions/raises).
+                          const pensionMo = computeChadPensionMonthly({
+                            chadJob, chadJobPensionRate, chadJobSalary, chadWorkMonths, chadJobStartMonth, chadJobRaisePct,
+                            chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
+                            chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
+                          });
                           return (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
                               <span style={{ color: COLORS.textDim }}>Est. pension at retirement:</span>
@@ -270,7 +269,7 @@ const IncomeControls = ({
                           );
                         })()}
                         <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>
-                          {chadJobPensionRate}% × {(Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12).toFixed(1)} yrs, flat in today's $ (COLA ≈ inflation)
+                          {chadJobPensionRate}% × {((Math.max(0, (chadWorkMonths || 72) - (chadJobStartMonth || 0)) + 1) / 12).toFixed(1)} yrs paid × final salary (incl. promotions/raises), flat in today's $ (COLA ≈ inflation)
                         </div>
                       </>
                     )}
@@ -1152,17 +1151,26 @@ const IncomeControls = ({
               );
             })()}
 
-            {ssType === 'ssdi' && !chadJob && (
+            {ssType === 'ssdi' && !chadJob && (() => {
+              // Auxiliary (kids') back-pay mirror of FinancialModel.jsx / projection.js —
+              // the displayed gross INCLUDES the kids' share, so the label math must too
+              // (remediation phase 5: label said "months × personal" but showed adult + aux).
+              const ssdiAuxBackPayMonths = Math.min(ssdiBackPayMonths, kidsAgeOutMonths || 0);
+              const ssdiAuxMonthly = Math.max(0, (ssdiFamilyTotal || 0) - ssdiPersonal);
+              const ssdiAuxBackPayGross = ssdiAuxBackPayMonths * ssdiAuxMonthly;
+              return (
             <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>SSDI Back Pay (Lump Sum)</h4>
               <Slider label="Back pay months" value={ssdiBackPayMonths} onChange={set('ssdiBackPayMonths')} commitStrategy={commitStrategy} min={6} max={48} color={COLORS.green} format={(v) => v + " mo"} />
               <Slider label="SSDI approval (months out)" value={ssdiApprovalMonth} onChange={set('ssdiApprovalMonth')} commitStrategy={commitStrategy} min={0} max={36} color={COLORS.green} format={(v) => v + " mo"} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6 }}>
-                <span style={{ color: COLORS.textDim }}>Gross ({ssdiBackPayMonths} × {fmtFull(ssdiPersonal)}):</span>
+                <span style={{ color: COLORS.textDim }}>
+                  Gross ({ssdiBackPayMonths} × {fmtFull(ssdiPersonal)}{ssdiAuxBackPayGross > 0 ? ` + ${ssdiAuxBackPayMonths} × ${fmtFull(ssdiAuxMonthly)} kids` : ''}):
+                </span>
                 <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(ssdiBackPayGross)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: COLORS.textDim }}>Attorney fee (25% cap):</span>
+                <span style={{ color: COLORS.textDim }}>Attorney fee (25% of worker share, capped):</span>
                 <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(ssdiAttorneyFee)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
@@ -1170,7 +1178,8 @@ const IncomeControls = ({
                 <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(ssdiBackPayActual)}</span>
               </div>
             </div>
-            )}
+              );
+            })()}
           </div>
   );
 };

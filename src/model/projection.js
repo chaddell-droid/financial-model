@@ -417,16 +417,18 @@ export function runMonthlySimulation(s) {
       // grant 1 had expired after 5+ years. New logic: count grants whose 60-month
       // vesting window still includes month m. Each grant carries the size in
       // effect at its issuance month (level-aware after promotions).
+      // Remediation 2026-06-09 phase 5: issuance months use the SAME August
+      // alignment as the actual vest engine above (firstAugustAtOrAfter + 12·g),
+      // so the earnings-test estimate matches what actually vests instead of
+      // assuming grants issue at start + refreshStart + 12·g.
       let annualStockFromRefresh = 0;
-      const monthsSinceFirstRefreshForSS = (m - chadJobStartMonth) - chadJobRefreshStartMonth;
-      if (monthsSinceFirstRefreshForSS >= 0) {
-        const numGrantsIssued = Math.floor(monthsSinceFirstRefreshForSS / 12) + 1;
-        for (let g = 0; g < numGrantsIssued; g++) {
-          const issueMonth = chadJobStartMonth + chadJobRefreshStartMonth + 12 * g;
-          if (m - issueMonth >= 60) continue; // grant fully vested, stop counting
-          const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
-          annualStockFromRefresh += grantSize * 0.20; // 20% per year
-        }
+      const firstRefreshIssueForSS = firstAugustAtOrAfter(chadJobStartMonth + chadJobRefreshStartMonth);
+      for (let g = 0; ; g++) {
+        const issueMonth = firstRefreshIssueForSS + 12 * g;
+        if (issueMonth >= m) break;        // not yet issued (no instant vest on grant date)
+        if (m - issueMonth >= 60) continue; // grant fully vested
+        const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
+        annualStockFromRefresh += grantSize * 0.20; // 20% per year while vesting
       }
       const annualStockProjected = annualStockFromRefresh + hireStockForSS;
       // Sign-on cash: 50% in employment year 0, 50% in year 1.

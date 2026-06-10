@@ -2,6 +2,8 @@ import { useReducer, useMemo, useEffect, useState, useDeferredValue, useCallback
 import { DAYS_PER_MONTH, SSDI_ATTORNEY_FEE_CAP } from './model/constants.js';
 import { fmt, fmtFull } from './model/formatters.js';
 import { getVestEvents, getTotalRemainingVesting } from './model/vesting.js';
+import { computeChadPensionMonthly } from './model/chadLevels.js';
+import { getEffectiveCuts } from './model/scenarioLevers.js';
 import { computeProjection, findOperationalBreakevenIndex } from './model/projection.js';
 import { exportModelData } from './model/exportData.js';
 import { evaluateAllGoals } from './model/goalEvaluation.js';
@@ -205,6 +207,13 @@ export default function FinancialModel() {
   const lifestyleCuts = cutOliver + cutVacation + cutGym;
   const cutInHalf = cutMedical + cutShopping + cutSaaS;
   const extraCuts = cutAmazon + cutEntertainment + cutGroceries + cutPersonalCare + cutSmallItems;
+  // Effective cuts total for display surfaces (ActiveTogglePills) — same
+  // resolution as gatherState/the engine: cutsOverride when set, otherwise the
+  // individual-cut detail sum. Raw `cutsOverride ?? 0` showed $0 for legacy
+  // scenarios with individual cut fields set (remediation phase 5).
+  const effectiveCutsTotal = getEffectiveCuts({
+    lifestyleCutsApplied, cutsOverride, lifestyleCuts, cutInHalf, extraCuts,
+  }).effectiveTotal;
 
   // Derived values
   const daysPerMonth = DAYS_PER_MONTH;
@@ -231,10 +240,11 @@ export default function FinancialModel() {
   const oneTimeTotal = computeOneTimeTotal(effectiveCapitalItems);
   const advanceNeeded = (retireDebt ? debtTotal : 0) + oneTimeTotal;
 
-  // Projected PERS pension at retirement — mirrors gatherState.chadJobPensionMonthly
-  const chadJobPensionMonthly = (chadJob && chadJobPensionRate > 0)
-    ? Math.round((chadJobSalary / 12) * (chadJobPensionRate / 100) * Math.max(0, ((chadWorkMonths || 72) - (chadJobStartMonth || 0)) / 12))
-    : 0;
+  // Projected PERS pension at retirement — same shared helper as
+  // gatherState.chadJobPensionMonthly (remediation phase 5: inclusive month
+  // count + final salary incl. promotions/raises). `state` carries the raw
+  // model fields the helper reads.
+  const chadJobPensionMonthly = computeChadPensionMonthly(state);
 
   // Mirror of projection.js back-pay formula. Auxiliary back pay for dependent kids
   // (the portion of family total exceeding the worker's PIA) is added on top, bounded
@@ -278,7 +288,14 @@ export default function FinancialModel() {
     return evaluateAllGoals(goals, monthlyDetail, { wealthData, retireDebt });
   }, [goals, monthlyDetail, wealthData, retireDebt]);
 
-  const currentModelMonth = useMemo(() => getCurrentModelMonth(), []);
+  // Clamp "today" to the projection's ACTUAL horizon (monthlyDetail covers
+  // months 0..N), not the legacy hardcoded 72 — long vest-tail projections run
+  // to ~204 months (remediation phase 5).
+  const projectionHorizonMonths = Math.max(0, (monthlyDetail?.length || 73) - 1);
+  const currentModelMonth = useMemo(
+    () => getCurrentModelMonth(new Date(), projectionHorizonMonths),
+    [projectionHorizonMonths],
+  );
 
   const reforecastProjection = useMemo(() => {
     if (!checkInHistory || checkInHistory.length === 0) return null;
@@ -1109,7 +1126,7 @@ export default function FinancialModel() {
           lifestyleCutsApplied={lifestyleCutsApplied}
           vanSold={vanSold}
           debtService={debtService}
-          totalCuts={cutsOverride ?? 0}
+          totalCuts={effectiveCutsTotal}
         />
 
         {showCompareBanner ? (
@@ -1148,6 +1165,7 @@ export default function FinancialModel() {
     lifestyleCuts,
     cutInHalf,
     extraCuts,
+    effectiveCutsTotal,
     showCompareBanner,
     comparisons,
     compareProjections,

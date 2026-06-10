@@ -2,6 +2,7 @@ import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 import { ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_START_OFFSET } from '../model/constants.js';
 import { composePreviewState } from './previewState.js';
 import { computeEffectiveLeverConstraints } from '../model/leverClassification.js';
+import { computeChadPensionMonthly } from '../model/chadLevels.js';
 import { migrate, validateAndSanitize } from './schemaValidation.js';
 
 /**
@@ -120,16 +121,10 @@ export function gatherState(state) {
     s.sarahSpousalAmount = 0;
     s.sarahSpousalStartMonth = 999;
   }
-  // Compute projected pension at retirement
-  if (s.chadJob && s.chadJobPensionRate > 0) {
-    const projectedMonthsWorked = Math.max(0, (s.chadWorkMonths || 72) - (s.chadJobStartMonth || 0));
-    const yearsOfService = projectedMonthsWorked / 12;
-    s.chadJobPensionMonthly = Math.round(
-      (s.chadJobSalary / 12) * (s.chadJobPensionRate / 100) * yearsOfService
-    );
-  } else {
-    s.chadJobPensionMonthly = 0;
-  }
+  // Compute projected pension at retirement — shared helper (remediation phase 5):
+  // month count matches the simulation's inclusive work window, and the accrual
+  // basis is the final salary including promotions and compounded raises.
+  s.chadJobPensionMonthly = computeChadPensionMonthly(s);
 
   // Cross-field clamping: ensure sarahRate never exceeds sarahMaxRate.
   if (s.sarahRate > s.sarahMaxRate) s.sarahRate = s.sarahMaxRate;

@@ -2,6 +2,7 @@
 import { INITIAL_STATE } from '../state/initialState.js';
 import { computeOneTimeTotal } from '../state/gatherState.js';
 import { findOperationalBreakevenIndex } from './projection.js';
+import { SGA_LIMIT } from './constants.js';
 
 export function exportModelData(state, projection, vestEvents, totalRemainingVesting, extras) {
   const { rawMonthlyGap, sarahCurrentNet, advanceNeeded, ssdiDenied, lifestyleCutsApplied,
@@ -38,7 +39,7 @@ export function exportModelData(state, projection, vestEvents, totalRemainingVes
       msft: { startPrice: s.msftPrice, growth: s.msftGrowth, currentMonthly: data[0]?.msftVesting, totalRemaining: totalRemainingVesting },
       trustLLC: { currentMonthly: s.trustIncomeNow, futureMonthly: s.trustIncomeFuture, increaseMonth: s.trustIncreaseMonth },
       ssdi: { approvalMonth: s.ssdiApprovalMonth, denied: ssdiDenied, personal: s.ssdiPersonal, familyTotal: s.ssdiFamilyTotal, kidsAgeOutMonths: s.kidsAgeOutMonths, backPayMonths: s.ssdiBackPayMonths, backPayNet: projection.backPayActual },
-      consulting: { monthly: s.chadConsulting, sgaLimit: 1690 },
+      consulting: { monthly: s.chadConsulting, sgaLimit: SGA_LIMIT },
       totalMonthly: data[0]?.netCashFlow + data[0]?.expenses,
     },
     expenses: {

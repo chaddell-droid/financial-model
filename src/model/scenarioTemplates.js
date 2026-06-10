@@ -6,6 +6,8 @@
  * before applying overrides, so each template is a clean what-if scenario that
  * preserves the user's real spend/extras/savings.
  */
+import { SGA_LIMIT } from './constants.js';
+
 export const SCENARIO_TEMPLATES = [
   {
     id: 'optimistic-sarah',
@@ -76,10 +78,10 @@ export const SCENARIO_TEMPLATES = [
   {
     id: 'ssdi-max-consulting',
     name: 'SSDI + Max Consulting',
-    description: 'SSDI benefits with consulting at SGA limit ($1,690/mo)',
+    description: `SSDI benefits with consulting at SGA limit ($${SGA_LIMIT.toLocaleString()}/mo)`,
     overrides: {
       ssType: 'ssdi', ssdiDenied: false, chadJob: false,
-      chadConsulting: 1690,
+      chadConsulting: SGA_LIMIT, // statutory SGA limit - single source: constants.js SSA_LIMITS
     },
   },
 ];

@@ -8,6 +8,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
+import { SS_START_OFFSET, ssAdjustmentFactor } from '../constants.js';
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -34,34 +35,38 @@ function buildState(overrides) {
 }
 
 test('PJB-1: default is ssRetirement, age-gates correctly (no payout before claim age)', () => {
-  // Chad retires at month 24 (age 57). Claim age 67 = age 67. Gap is ~10 years (120 months).
-  // So months 25..143 (age 57..67) should have ZERO ssBenefit. Month 144+ should pay.
+  // Chad retires at month 24. Claim age 67 → calendar anchor month
+  // (67 − 62) × 12 + SS_START_OFFSET = 79, past the default 72-month horizon.
+  // So EVERY post-retirement month in the projection must have ZERO ssBenefit.
+  // (Remediation 2.4: gate is calendar-anchored, same as the pre-job path.)
   const s = buildState({});                 // postJobBenefit undefined → 'ssRetirement' default
   const { monthlyData } = runMonthlySimulation(s);
-  // Just after retirement at month 30 — should NOT pay
-  assert.strictEqual(monthlyData[30].ssBenefit, 0,
-    `Expected 0 at month 30 (age 57.5, well below claim age 67), got ${monthlyData[30].ssBenefit}`);
-  // Sample at age 65 (month 120) — still below claim age 67, must be 0
-  if (monthlyData.length > 120) {
-    assert.strictEqual(monthlyData[120].ssBenefit, 0,
-      `Expected 0 at month 120 (age 65), got ${monthlyData[120].ssBenefit}`);
+  for (let m = 25; m < monthlyData.length; m++) {
+    assert.strictEqual(monthlyData[m].ssBenefit, 0,
+      `Expected 0 at month ${m} (claim-age anchor is month 79, beyond horizon), got ${monthlyData[m].ssBenefit}`);
   }
 });
 
-test('PJB-2: ssRetirement pays once Chad reaches claim age', () => {
-  // Need horizon long enough to reach age 67. Set chadWorkMonths and let projection extend.
-  const s = buildState({ chadCurrentAge: 65, chadWorkMonths: 12 });   // Retires at age 66, claim age 67
+test('PJB-2: ssRetirement pays once the calendar reaches the claim-age anchor', () => {
+  // Remediation 2.4: the gate is calendar-anchored — claim age 62 → anchor
+  // month (62 − 62) × 12 + SS_START_OFFSET = 19. Chad retires at month 12,
+  // so months 13..18 are a gap and month 19 starts paying.
+  const anchor = (62 - 62) * 12 + SS_START_OFFSET;
+  const s = buildState({ ssClaimAge: 62, chadWorkMonths: 12 });
   const { monthlyData } = runMonthlySimulation(s);
   // Month 11 (during work) — no ssBenefit (suppressed during chadJob)
   assert.strictEqual(monthlyData[11].ssBenefit, 0, `During-work month must be 0`);
-  // Month 13 (after retirement at month 12, age ~66) — should still be 0 (below claim age 67)
+  // Months just after retirement but before the anchor — still 0
   assert.strictEqual(monthlyData[13].ssBenefit, 0,
-    `Just after retirement at age 66 must be 0 (claim age is 67), got ${monthlyData[13].ssBenefit}`);
-  // Month 24 (age 67) — should pay
-  assert.strictEqual(monthlyData[24].ssBenefit, 4214,
-    `At age 67 (claim age) must pay PIA × adjustment = 4214, got ${monthlyData[24].ssBenefit}`);
-  assert.strictEqual(monthlyData[24].ssBenefitType, 'retirement',
-    `Label must be 'retirement' (not 'ssdi' like the prior bug), got ${monthlyData[24].ssBenefitType}`);
+    `Just after retirement (month 13, before anchor ${anchor}) must be 0, got ${monthlyData[13].ssBenefit}`);
+  assert.strictEqual(monthlyData[anchor - 1].ssBenefit, 0,
+    `Month ${anchor - 1} (one before anchor) must be 0, got ${monthlyData[anchor - 1].ssBenefit}`);
+  // Anchor month — pays PIA × early-claim adjustment: round(4214 × 0.70) = 2950
+  const expected = Math.round(4214 * ssAdjustmentFactor(62));
+  assert.strictEqual(monthlyData[anchor].ssBenefit, expected,
+    `At anchor month ${anchor} must pay PIA × adjustment = ${expected}, got ${monthlyData[anchor].ssBenefit}`);
+  assert.strictEqual(monthlyData[anchor].ssBenefitType, 'retirement',
+    `Label must be 'retirement' (not 'ssdi' like the prior bug), got ${monthlyData[anchor].ssBenefitType}`);
 });
 
 test('PJB-3: ssdi mode pays SSDI immediately after job ends', () => {
@@ -93,15 +98,18 @@ test('PJB-4: none mode pays zero post-retirement', () => {
 test('PJB-5: ssBenefitType is "retirement" for ssRetirement post-job (fixes prior mislabel)', () => {
   // Prior bug: useSS=false made the post-job fallback label as 'ssdi' even though the math used PIA.
   // Now postJobBenefit explicitly chose 'ssRetirement' so the label MUST be 'retirement'.
-  const s = buildState({ postJobBenefit: 'ssRetirement', chadCurrentAge: 67, chadWorkMonths: 12 });
-  // Chad starts at 67, works 1 year, retires at 68 — already past claim age 67, so pays immediately
+  // Claim age 62 → calendar anchor month 19; Chad retires at month 24, already
+  // past the anchor, so the benefit pays immediately after the job ends.
+  const s = buildState({ postJobBenefit: 'ssRetirement', ssClaimAge: 62, chadWorkMonths: 24 });
   const { monthlyData } = runMonthlySimulation(s);
   // Find the first month where ssBenefit > 0 post-retirement
   let firstPay = null;
-  for (let m = 13; m < monthlyData.length; m++) {
+  for (let m = 25; m < monthlyData.length; m++) {
     if (monthlyData[m].ssBenefit > 0) { firstPay = m; break; }
   }
-  assert.ok(firstPay !== null, `Should pay post-retirement at age 68+`);
+  assert.ok(firstPay !== null, `Should pay post-retirement (already past the claim-age anchor)`);
+  assert.strictEqual(firstPay, 25,
+    `Already past the anchor (19) → pays the first month after retirement (25), got ${firstPay}`);
   assert.strictEqual(monthlyData[firstPay].ssBenefitType, 'retirement',
     `Post-job ssRetirement must label as 'retirement', got '${monthlyData[firstPay].ssBenefitType}'`);
 });
@@ -125,6 +133,73 @@ test('PJB-7: pre-bug behavior (postJobBenefit defaults to ssRetirement) — Chad
   for (let m = 25; m <= Math.min(48, monthlyData.length - 1); m++) {
     assert.strictEqual(monthlyData[m].ssBenefit, 0,
       `Bug regression: month ${m} (Chad age ${(55 + m/12).toFixed(1)}) must be 0, got ${monthlyData[m].ssBenefit}`);
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Remediation 2.4 (2026-06-09 audit): the post-job ssRetirement age gate must
+// be anchored to the SAME calendar math as the pre-job SS path
+// (gatherState.js: ssStartMonth = (claimAge − 62) × 12 + SS_START_OFFSET).
+// The pre-fix gate ((chadCurrentAge × 12 + m) >= claimAge × 12) treated Chad
+// as exactly chadCurrentAge years old at month 0 and fired ~7 months early.
+// ────────────────────────────────────────────────────────────────────────
+
+test('PJB-8 (2.4): pre-job and post-job paths start SS benefits in the SAME month for the same claim age', () => {
+  for (const claimAge of [62, 65, 67, 70]) {
+    const anchor = (claimAge - 62) * 12 + SS_START_OFFSET;
+
+    // Pre-job path: ssType='ss', no job — benefits start at gatherState's ssStartMonth.
+    const pre = gatherStateWithOverrides({
+      ssType: 'ss', ssClaimAge: claimAge, ssPIA: 4214,
+      chadJob: false, chadConsulting: 0,
+      chadWorkMonths: 132, sarahWorkMonths: 132,
+    });
+    assert.strictEqual(pre.ssStartMonth, anchor,
+      `gatherState ssStartMonth for claim age ${claimAge} must be ${anchor}, got ${pre.ssStartMonth}`);
+    const preData = runMonthlySimulation(pre).monthlyData;
+    const preFirst = preData.findIndex(d => d.ssBenefit > 0);
+
+    // Post-job path: Chad's job ends at month 12, postJobBenefit='ssRetirement'.
+    const post = gatherStateWithOverrides({
+      chadJob: true, chadJobStartMonth: 0, chadJobSalary: 180000, chadWorkMonths: 12,
+      ssType: 'ssdi', postJobBenefit: 'ssRetirement',
+      ssClaimAge: claimAge, ssPIA: 4214,
+      sarahWorkMonths: 132,
+    });
+    const postData = runMonthlySimulation(post).monthlyData;
+    const postFirst = postData.findIndex(d => d.ssBenefit > 0);
+
+    assert.strictEqual(preFirst, anchor,
+      `Pre-job path (claim ${claimAge}) must start at calendar month ${anchor}, got ${preFirst}`);
+    assert.strictEqual(postFirst, anchor,
+      `Post-job path (claim ${claimAge}) must start at calendar month ${anchor}, got ${postFirst} (pre-fix bug: fired ~7 months early)`);
+    // Personal amounts agree too: both pay round(PIA × ssAdjustmentFactor(claimAge)).
+    const expectedPersonal = Math.round(4214 * ssAdjustmentFactor(claimAge));
+    assert.strictEqual(preData[preFirst].ssBenefitPersonal, expectedPersonal,
+      `Pre-job personal at claim ${claimAge} must be ${expectedPersonal}`);
+    assert.strictEqual(postData[postFirst].ssBenefitPersonal, expectedPersonal,
+      `Post-job personal at claim ${claimAge} must be ${expectedPersonal}`);
+  }
+});
+
+test('PJB-9 (2.4): post-job gate does NOT depend on chadCurrentAge (calendar anchor only)', () => {
+  // The calendar anchor is the single source of truth; a hypothetical
+  // chadCurrentAge must not shift the start month (the pre-job path already
+  // ignores it). Claim age 62 → anchor month 19.
+  const anchor = (62 - 62) * 12 + SS_START_OFFSET;
+  for (const age of [55, 61, 65]) {
+    const s = gatherStateWithOverrides({
+      chadJob: true, chadJobStartMonth: 0, chadJobSalary: 180000, chadWorkMonths: 12,
+      ssType: 'ssdi', postJobBenefit: 'ssRetirement',
+      ssClaimAge: 62, ssPIA: 4214, chadCurrentAge: age,
+      sarahWorkMonths: 96,
+    });
+    const { monthlyData } = runMonthlySimulation(s);
+    const first = monthlyData.findIndex(d => d.ssBenefit > 0);
+    assert.strictEqual(first, anchor,
+      `chadCurrentAge=${age} must not move the start month (expected ${anchor}, got ${first})`);
+    assert.strictEqual(monthlyData[first].ssBenefitType, 'retirement',
+      `Post-job benefit must label as 'retirement'`);
   }
 });
 

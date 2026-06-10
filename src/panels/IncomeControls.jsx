@@ -185,10 +185,13 @@ const IncomeControls = ({
                       the engine paid the FRA amount immediately regardless of age. */}
                   {(() => {
                     const effectivePostJobBenefit = postJobBenefit || 'ssRetirement';
-                    const chadAgeAtRetireExact = (chadCurrentAge || 0) + ((chadWorkMonths || 0) / 12);
                     const claimAge = ssClaimAge || 67;
+                    // Same calendar anchor as the engine (projection.js post-job gate /
+                    // gatherState ssStartMonth): months from baseline to Chad's first
+                    // eligible month at the claim age. Remediation 2.4 display parity.
+                    const ssAnchorStartMonth = (claimAge - 62) * 12 + SS_START_OFFSET;
                     const gapYears = effectivePostJobBenefit === 'ssRetirement'
-                      ? Math.max(0, claimAge - chadAgeAtRetireExact)
+                      ? Math.max(0, ssAnchorStartMonth - (chadWorkMonths || 0)) / 12
                       : 0;
                     const helperText = effectivePostJobBenefit === 'ssRetirement'
                       ? (gapYears > 0

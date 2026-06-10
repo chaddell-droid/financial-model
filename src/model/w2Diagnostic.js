@@ -101,16 +101,21 @@ export function computeW2Diagnostic(state) {
   const totalAvgYr = annualSalaryNet + bonusNetYr + refreshNetYr + hireNetAvgYr;
   const totalAvgMo = Math.round(totalAvgYr / 12);
   // Total annual GROSS comp (steady state, excludes one-time sign-on) — the
-  // denominator for the net total. Mirrors the components rolled into totalAvgYr.
-  const totalGrossYr = effectiveSalary + bonusGrossYr + chadJobStockRefresh * refreshSteadyMult + hireGrownTotal;
+  // denominator for the net total. Mirrors the components rolled into totalAvgYr
+  // ON THE SAME PER-YEAR BASIS: hireNetAvgYr averages the 4 anniversary vests
+  // (÷ 4), so the gross counts hireGrownTotal / 4 too (remediation 2026-06-09
+  // item 2.2 — previously all four hire years were counted at once, deflating
+  // the blended take-home % and inflating the FICA base).
+  const totalGrossYr = effectiveSalary + bonusGrossYr + chadJobStockRefresh * refreshSteadyMult + hireGrownTotal / 4;
   // Blended steady-state take-home fraction (net ÷ gross). Guard divide-by-zero.
   const blendedTakeHomePct = totalGrossYr > 0 ? totalAvgYr / totalGrossYr : 0;
 
   // ─── Real FICA breakdown (traceable, computed by the tax engine) ──────────
   // The flat salary/bonus multiplier above bundles income tax + FICA into one
   // effective rate. FICA itself is exact and depends ONLY on Chad's gross W-2
-  // wages (Box 3/5 = full steady-state gross, excl. one-time sign-on), so we
-  // compute it precisely here via the same functions the Tax tab uses:
+  // wages (Box 3/5 = steady-state PER-YEAR gross, hire stock averaged ÷ 4,
+  // excl. one-time sign-on), so we compute it precisely here via the same
+  // functions the Tax tab uses:
   //   SS       = min(gross, SS_WAGE_BASE) × 6.2%   (0 when noFICA employer)
   //   Medicare = gross × 1.45%
   //   Addl Med = (gross − $250k)₊ × 0.9%

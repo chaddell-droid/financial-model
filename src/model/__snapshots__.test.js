@@ -303,10 +303,13 @@ test('zero-target net worth progress flips to 1 at non-negative net worth', () =
 console.log('\n=== computeProjection quarterly aggregation ===');
 
 const proj = computeProjection(base);
-test('20 quarterly data points', () => eq(proj.data.length, 20));
+// Remediation 2026-06-09 item 2.7: buildQuarterlySchedule now covers the FULL
+// 72-month horizon (24 quarters). The old snapshot locked 20 quarters because
+// the schedule stopped at totalProjectionMonths − 12, hiding the final year.
+test('24 quarterly data points (full horizon)', () => eq(proj.data.length, 24));
 test('73 savings data points', () => eq(proj.savingsData.length, 73));
 test('first quarter label', () => eq(proj.data[0].label, "Q1'26"));
-test('last quarter label', () => eq(proj.data[19].label, "Q4'30"));
+test('last quarter label covers the final projection year', () => eq(proj.data[23].label, "Q4'31"));
 test('month 0 savings label is M0', () => eq(proj.savingsData[0].label, 'M0'));
 test('month 12 savings label is Y1', () => eq(proj.savingsData[12].label, 'Y1'));
 test('operational breakeven uses netCashFlow, not netMonthly', () => {

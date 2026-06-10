@@ -54,9 +54,11 @@ test('Baseline: monthlyData length = totalProjectionMonths + 1', () => {
 
 test('Baseline: quarterly data has expected count', () => {
   const { proj } = runScenario();
-  // Default 72 months → quarters at months 0,3,6,...,57 = 20 quarters (last 12 months excluded)
+  // Default 72 months → quarters at months 0,3,6,...,69 = 24 quarters.
+  // Remediation 2026-06-09 item 2.7: the schedule now covers the FULL horizon
+  // (the old limit excluded the last 12 months → only 20 quarters).
   assert.ok(proj.data.length > 0, 'should have quarterly data');
-  assert.ok(proj.data.length <= 20, `unexpected quarter count: ${proj.data.length}`);
+  assert.strictEqual(proj.data.length, 24, `unexpected quarter count: ${proj.data.length}`);
 });
 
 test('Baseline: savingsData mirrors monthlyData length and month indices', () => {

@@ -71,7 +71,11 @@ export function buildQuarterlySchedule(totalProjectionMonths = 72) {
   const monthValues = [];
   const baseYear = 26;
   const baseQuarter = 1;
-  const limit = totalProjectionMonths - 12;
+  // Cover the FULL projection horizon (remediation 2026-06-09 item 2.7 — the
+  // old `totalProjectionMonths - 12` limit hid the last 12 months from every
+  // quarterly chart). computeProjection's aggregation already averages partial
+  // trailing quarters over however many months exist, so no padding is needed.
+  const limit = totalProjectionMonths;
   for (let m = 0; m < limit; m += 3) {
     const quarterIndex = m / 3;
     const q = ((baseQuarter - 1 + quarterIndex) % 4) + 1;

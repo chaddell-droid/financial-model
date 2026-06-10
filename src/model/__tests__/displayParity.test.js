@@ -768,7 +768,7 @@ test('D33: steadyState — short horizon fallback to last quarter', () => {
   const steadyIdxRaw = data.findIndex(d => d.month >= 36);
   // With 24-month horizon, quarterly data may not reach month 36
   // totalProjectionMonths = max(24, 24) = 24
-  // Quarterly schedule goes up to totalProjectionMonths - 12 = 12, so months 0, 3, 6, 9
+  // Quarterly schedule covers the full horizon (remediation 2.7): months 0, 3, ..., 21 — still short of 36
   if (steadyIdxRaw < 0) {
     // Falls back to last quarter
     const steadyIdx = data.length - 1;
@@ -1224,7 +1224,11 @@ test('W2-SignOn-engine: diagnostic signOnNet matches engine sign-on halves (50/5
     `Engine sign-on halves (${m0 + m12}) must equal diagnostic signOnNet (${Math.round(d.signOnNet)})`);
 });
 
-test('W2-GrossTotal: computeW2Diagnostic returns totalGrossYr = salary + bonus + refresh×mult + hireGrown', () => {
+test('W2-GrossTotal: computeW2Diagnostic returns totalGrossYr = salary + bonus + refresh×mult + hireGrown/4', () => {
+  // Remediation 2026-06-09 item 2.2: hire stock enters the gross on the SAME
+  // per-year basis as hireNetAvgYr (hireGrownTotal / 4). The previous locked
+  // value (416,000) counted all four hire years at once, so gross/net/FICA/
+  // blended-% mixed a 4-year gross with a 1-year net.
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
@@ -1233,13 +1237,37 @@ test('W2-GrossTotal: computeW2Diagnostic returns totalGrossYr = salary + bonus +
   };
   const s = gatherStateWithOverrides(overrides);
   const d = computeW2Diagnostic(s);
-  const expected = 180000 + d.bonusGrossYr + 40000 * d.refreshSteadyMult + d.hireGrownTotal;
+  const expected = 180000 + d.bonusGrossYr + 40000 * d.refreshSteadyMult + d.hireGrownTotal / 4;
   near(d.totalGrossYr, expected, 1e-6, 'totalGrossYr');
-  // g=0: 180000 + 36000 + 40000 + 160000 = 416000.
-  assert.strictEqual(Math.round(d.totalGrossYr), 416000, `totalGrossYr expected 416000, got ${Math.round(d.totalGrossYr)}`);
+  // g=0: 180000 + 36000 + 40000 + 160000/4 = 296000.
+  assert.strictEqual(Math.round(d.totalGrossYr), 296000, `totalGrossYr expected 296000, got ${Math.round(d.totalGrossYr)}`);
   // Sign-on is NOT part of steady-state gross either.
   const dSignOn = computeW2Diagnostic(gatherStateWithOverrides({ ...overrides, chadJobSignOnCash: 100000 }));
-  assert.strictEqual(Math.round(dSignOn.totalGrossYr), 416000, `Sign-on must not change totalGrossYr`);
+  assert.strictEqual(Math.round(dSignOn.totalGrossYr), 296000, `Sign-on must not change totalGrossYr`);
+});
+
+test('W2-Basis (remediation 2.2): gross, net, FICA and blended % share ONE steady-state per-year basis', () => {
+  // Finding 2.2 (2026-06-09 audit): hireNetAvgYr divides hireGrownTotal by 4
+  // (per-year average over the 4 anniversary vests), so the gross denominator
+  // must count hire stock the same way (hireGrownTotal / 4). The pre-fix
+  // totalGrossYr counted ALL FOUR hire years at once (160K vs 40K/yr), so the
+  // blended take-home % mixed a 4-year gross with a 1-year net.
+  // With g=0, no 401k/pension/sign-on, EVERY component nets at (1 − taxRate),
+  // so blendedTakeHomePct must equal exactly 1 − 0.25 = 0.75 (pre-fix: 53.4%).
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
+    chadJobStockRefresh: 40000,
+    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    msftGrowth: 0,
+  };
+  const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
+  // Per-year steady-state gross: 180000 + 36000 + 40000 + 160000/4 = 296000.
+  assert.strictEqual(Math.round(d.totalGrossYr), 296000,
+    `totalGrossYr must use hireGrownTotal/4 (296000), got ${Math.round(d.totalGrossYr)}`);
+  // Net 222000 ÷ gross 296000 = exactly the flat 75% take-home assumption.
+  near(d.blendedTakeHomePct, 0.75, 1e-12, 'blendedTakeHomePct = 1 − taxRate on a consistent basis');
+  // FICA base shares the same per-year basis as the gross denominator.
+  near(d.ficaBaseAnnual, d.totalGrossYr, 1e-9, 'ficaBaseAnnual = totalGrossYr');
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1250,7 +1278,8 @@ test('W2-GrossTotal: computeW2Diagnostic returns totalGrossYr = salary + bonus +
 console.log('\n=== Section W2-FICA: real FICA breakdown ===');
 
 test('W2-FICA: SS/Medicare/Addl computed on the W-2 gross via the tax engine', () => {
-  // Fixture matches W2-GrossTotal: totalGrossYr = 416,000 at g=0.
+  // Fixture matches W2-GrossTotal: totalGrossYr = 296,000 at g=0 (per-year
+  // basis post remediation 2.2 — hire stock averaged ÷ 4; was 416,000).
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
@@ -1258,15 +1287,15 @@ test('W2-FICA: SS/Medicare/Addl computed on the W-2 gross via the tax engine', (
     msftGrowth: 0,
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
-  assert.strictEqual(Math.round(d.ficaBaseAnnual), 416000, 'FICA base = steady-state W-2 gross');
-  // SS: min(gross, wage base) × 6.2%  → min(416000, 184500) × 0.062 = 11,439
+  assert.strictEqual(Math.round(d.ficaBaseAnnual), 296000, 'FICA base = steady-state per-year W-2 gross');
+  // SS: min(gross, wage base) × 6.2%  → min(296000, 184500) × 0.062 = 11,439
   near(d.ficaSocialSecurity, SS_WAGE_BASE * 0.062, 1e-6, 'ficaSocialSecurity');
   assert.strictEqual(Math.round(d.ficaSocialSecurity), 11439, 'SS capped at wage base');
-  // Medicare: gross × 1.45% = 6,032
-  near(d.ficaMedicare, 416000 * 0.0145, 1e-6, 'ficaMedicare');
-  assert.strictEqual(Math.round(d.ficaMedicare), 6032, 'Medicare uncapped');
-  // Additional Medicare: 0.9% over $250k = (416000 − 250000) × 0.009 = 1,494
-  assert.strictEqual(Math.round(d.ficaAddlMedicare), 1494, 'Additional Medicare over threshold');
+  // Medicare: gross × 1.45% = 296000 × 0.0145 = 4,292
+  near(d.ficaMedicare, 296000 * 0.0145, 1e-6, 'ficaMedicare');
+  assert.strictEqual(Math.round(d.ficaMedicare), 4292, 'Medicare uncapped');
+  // Additional Medicare: 0.9% over $250k = (296000 − 250000) × 0.009 = 414
+  assert.strictEqual(Math.round(d.ficaAddlMedicare), 414, 'Additional Medicare over threshold');
 });
 
 test('W2-FICA: reconciles exactly with taxEngine.computeW2EmployeeFica (single source)', () => {
@@ -1294,7 +1323,8 @@ test('W2-FICA: no-FICA employer suppresses SS but keeps Medicare', () => {
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
   assert.strictEqual(d.ficaSocialSecurity, 0, 'no SS withheld under a non-FICA employer');
-  assert.strictEqual(Math.round(d.ficaMedicare), 6032, 'Medicare still applies');
+  // 296000 × 0.0145 = 4,292 (per-year basis post remediation 2.2; was 6,032 on the 4-year basis).
+  assert.strictEqual(Math.round(d.ficaMedicare), 4292, 'Medicare still applies');
 });
 
 test('W2-FICA: adding the breakdown does NOT change net totals (engine parity preserved)', () => {

@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, TWINS_AGE_OUT_MONTH } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -1808,6 +1808,43 @@ test('VH7. Quarterly data adapts to variable horizon', () => {
   assert.ok(p8.data.length < p10.data.length, `8yr (${p8.data.length}) should have fewer quarters than 10yr (${p10.data.length})`);
 });
 
+test('VH8 (2.7): quarterly data covers the FINAL projection year at the default 72-month horizon', () => {
+  // Remediation 2.7 (2026-06-09 audit): buildQuarterlySchedule stopped at
+  // totalProjectionMonths − 12, so the last 12 months were invisible in every
+  // quarterly chart. The schedule must reach the last full/partial quarter.
+  const s = gatherStateWithOverrides({});
+  assert.strictEqual(s.totalProjectionMonths, 72);
+  const proj = computeProjection(s);
+  const last = proj.data[proj.data.length - 1];
+  assert.ok(last.month >= s.totalProjectionMonths - 3,
+    `Last quarter must start within 3 months of the horizon end (expected >= 69, got ${last.month})`);
+  assert.strictEqual(proj.data.length, 24, `72-month horizon = 24 quarters, got ${proj.data.length}`);
+  assert.strictEqual(last.label, "Q4'31", `Final projection year (Q4'31) must appear, got ${last.label}`);
+});
+
+test('VH9 (2.7): quarterly data covers the final year at an extended horizon (sarahWorkMonths=120)', () => {
+  const s = gatherStateWithOverrides({ sarahWorkMonths: 120 });
+  assert.strictEqual(s.totalProjectionMonths, 120);
+  const proj = computeProjection(s);
+  const last = proj.data[proj.data.length - 1];
+  assert.ok(last.month >= 117,
+    `Last quarter must start at month 117 for a 120-month horizon, got ${last.month}`);
+  assert.strictEqual(proj.data.length, 40, `120-month horizon = 40 quarters, got ${proj.data.length}`);
+  assert.strictEqual(last.label, "Q4'35", `Final projection year (Q4'35) must appear, got ${last.label}`);
+});
+
+test('VH10 (2.7): partial trailing quarter aggregates the remaining months (horizon not divisible by 3)', () => {
+  // 70-month horizon: last quarter window starts at month 69 but only months
+  // 69-70 exist — the aggregation must average the 2 available months, not NaN.
+  const s = gatherStateWithOverrides({ chadWorkMonths: 70, sarahWorkMonths: 70 });
+  assert.strictEqual(s.totalProjectionMonths, 70);
+  const proj = computeProjection(s);
+  const last = proj.data[proj.data.length - 1];
+  assert.strictEqual(last.month, 69, `Partial trailing quarter (month 69) must be present, got ${last.month}`);
+  assert.ok(Number.isFinite(last.netMonthly), `Partial quarter netMonthly must be finite, got ${last.netMonthly}`);
+  assert.ok(Number.isFinite(last.expenses), `Partial quarter expenses must be finite, got ${last.expenses}`);
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // ssBenefitType disambiguation
 // ════════════════════════════════════════════════════════════════════════
@@ -2884,10 +2921,15 @@ test('P15. Extended horizon scenario does not crash savings (post-ret SS fallbac
     `P15 horizon should extend to ${expectedHorizon}, got ${s.totalProjectionMonths}`);
   assert.strictEqual(monthlyData.length, expectedHorizon + 1,
     `P15 monthlyData should have ${expectedHorizon + 1} entries (months 0-N), got ${monthlyData.length}`);
-  // Auto-SS fallback should fire post-retirement.
-  const postRetMonth = s.chadRetirementMonth + 6;
+  // Auto-SS fallback should fire post-retirement, at the calendar claim-age
+  // anchor (remediation 2.4): claim age 67 → (67 − 62) × 12 + SS_START_OFFSET
+  // = 79. (Pre-fix this test sampled m=78 — inside the bug's 7-months-early
+  // window; the corrected gate starts at the FRA month, 79.)
+  const postRetMonth = (67 - 62) * 12 + SS_START_OFFSET;
   assert.ok(monthlyData[postRetMonth].ssBenefit > 0,
     `P15 post-retirement SS fallback should provide income at m=${postRetMonth}, got ${monthlyData[postRetMonth].ssBenefit}`);
+  assert.strictEqual(monthlyData[postRetMonth - 1].ssBenefit, 0,
+    `P15 month ${postRetMonth - 1} (one before the claim-age anchor) must still be 0`);
   // Post-retirement RSU vests should appear in vest months (the original feature ask).
   const postRetVests = monthlyData
     .filter(d => d.month > s.chadRetirementMonth && (d.chadJobStockRefreshNet || 0) > 0);
@@ -2918,11 +2960,14 @@ test('P16. Auto-SS fallback uses ssPIA × FRA factor, not stale ssPersonal', () 
     startingSavings: 200000, starting401k: 1000000,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // Post-retirement month 73: should show full FRA amount, not stale ssPersonal.
-  const postRet = monthlyData[s.chadRetirementMonth + 1];
+  // Benefits start at the calendar claim-age anchor (remediation 2.4):
+  // claim 67 → month (67 − 62) × 12 + SS_START_OFFSET = 79. The pre-fix test
+  // sampled month 73 (inside the bug's 7-months-early window).
+  const anchorMonth = (67 - 62) * 12 + SS_START_OFFSET;
+  const postRet = monthlyData[anchorMonth];
   // Allow ±1 for rounding. Expect ~4214, not 2933.
   assert.ok(Math.abs(postRet.ssBenefit - 4214) <= 2,
-    `P16 expected post-retirement SS = $4214 (PIA at FRA), got $${postRet.ssBenefit}`);
+    `P16 expected post-retirement SS = $4214 (PIA at FRA) at m=${anchorMonth}, got $${postRet.ssBenefit}`);
 });
 
 test('P17. Income chart data: post-retirement vest months have nonzero chadJobIncome', () => {

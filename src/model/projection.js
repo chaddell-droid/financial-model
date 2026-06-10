@@ -1,4 +1,4 @@
-import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, buildQuarterlySchedule, ssAdjustmentFactor } from './constants.js';
+import { MONTHS, MONTH_VALUES, DAYS_PER_MONTH, SGA_LIMIT, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, SS_FRA_MONTH, SS_START_OFFSET, SSDI_ATTORNEY_FEE_CAP, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, buildQuarterlySchedule, ssAdjustmentFactor } from './constants.js';
 
 /**
  * Helpers for lumpy stock-vest calendar math.
@@ -345,9 +345,15 @@ export function runMonthlySimulation(s) {
       const postJobMode = s.postJobBenefit || 'ssRetirement';
       if (postJobMode === 'ssRetirement') {
         const claimAge = s.ssClaimAge || 67;
-        const chadAgeMonths = ((s.chadCurrentAge || 0) * 12) + m;
-        // Age gate: only pay once Chad has reached the claim age.
-        if (chadAgeMonths >= claimAge * 12) {
+        // Age gate anchored to the SAME calendar math as the pre-job SS path
+        // (gatherState.js: ssStartMonth = (claimAge − 62) × 12 + SS_START_OFFSET,
+        // where SS_START_OFFSET is the months from baseline Mar 2026 to Chad's
+        // first eligible month at 62 — mid-September birthday → Oct 2027, m=19).
+        // Remediation 2026-06-09 item 2.4: the previous gate
+        // ((chadCurrentAge × 12 + m) >= claimAge × 12) treated Chad as exactly
+        // chadCurrentAge years old at m=0 and fired ~7 months early.
+        const ssAnchorStartMonth = (claimAge - 62) * 12 + SS_START_OFFSET;
+        if (m >= ssAnchorStartMonth) {
           const piaForFallback = s.ssPIA || 0;
           const computedSS = piaForFallback > 0
             ? Math.round(piaForFallback * ssAdjustmentFactor(claimAge))

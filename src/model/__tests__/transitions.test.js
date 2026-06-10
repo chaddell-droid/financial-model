@@ -166,12 +166,15 @@ console.log('\n=== 4. SS/SSDI Start ===');
 
 {
   // Setup A: SSDI
+  // A2 (2026-06-10): expenseInflation off — isolates the start boundary from
+  // SS COLA (COLA behavior is locked separately in ssCola.test.js).
   const sA = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: 10, ssdiDenied: false,
     ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 60,
     chadJob: false, chadConsulting: 0, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0,
+    expenseInflation: false,
   });
   const simA = runMonthlySimulation(sA);
 
@@ -195,6 +198,7 @@ console.log('\n=== 4. SS/SSDI Start ===');
     chadJob: false, chadConsulting: 0, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0,
+    expenseInflation: false, // A2: isolate the boundary from SS COLA
   });
   const simB = runMonthlySimulation(sB);
 
@@ -231,6 +235,7 @@ console.log('\n=== 5. Kids Age Out ===');
     chadJob: false, chadConsulting: 0, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0,
+    expenseInflation: false, // A2: isolate the boundary from SS COLA
   });
   const simA = runMonthlySimulation(sA);
 
@@ -251,6 +256,7 @@ console.log('\n=== 5. Kids Age Out ===');
     chadJob: false, chadConsulting: 0, vanSold: false, retireDebt: true,
     lifestyleCutsApplied: false, milestones: [], oneTimeExtras: 0,
     bcsYearsLeft: 0, starting401k: 0, homeEquity: 0, trustIncreaseMonth: 0,
+    expenseInflation: false, // A2: isolate the boundary from SS COLA
   });
   const simB = runMonthlySimulation(sB);
 

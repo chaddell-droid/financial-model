@@ -131,6 +131,11 @@ export function estimateAnnualSSBenefits(s) {
       }
       // 'none' — benefit stays 0
     }
+    // A2 (2026-06-10): mirror projection.js's SS COLA so the tax schedule sees
+    // the same nominal benefit amounts (gated on expense inflation, like the engine).
+    if (benefit > 0 && s.expenseInflation) {
+      benefit = Math.round(benefit * Math.pow(1 + (s.ssColaRate ?? 2.5) / 100, m / 12));
+    }
     annualBenefits[Math.floor(m / 12)] += benefit;
   }
 

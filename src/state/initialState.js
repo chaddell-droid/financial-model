@@ -26,6 +26,12 @@ export const INITIAL_STATE = {
   kidsAgeOutMonths: 36,
   chadConsulting: 0,
   ssdiBackPayMonths: 18,
+  // A2 (remediation 2026-06-10, D2): annual SS COLA %, applied as
+  // (1+rate/100)^(m/12) to ALL SS/SSDI/spousal/child streams in the engine —
+  // but ONLY while expenseInflation is on (keeps both sides of the ledger in
+  // the same nominal frame). Benefits are indexed by law (42 U.S.C. §415(i));
+  // 2.5 ≈ recent-decade average (2026 actual COLA was 2.8). RANGE 0–4.
+  ssColaRate: 2.5,
   // SS retirement (configurable claiming age 62–70)
   ssClaimAge: 67,            // Claiming age (62–70); default FRA
   ssPIA: 4214,               // Primary Insurance Amount (benefit at FRA) — per SSA tool
@@ -298,7 +304,7 @@ export const MODEL_KEYS = [
   'sarahRate', 'sarahMaxRate', 'sarahRateGrowth', 'sarahCurrentClients', 'sarahMaxClients', 'sarahClientGrowth', 'sarahTaxRate',
   'chadWorkMonths', 'sarahWorkMonths',
   'msftPrice', 'msftGrowth',
-  'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
+  'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting', 'ssColaRate',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'postJobBenefit',
   'sarahSpousalEnabled', 'sarahCurrentAge', 'sarahSpousalClaimAge', 'sarahOwnSS',

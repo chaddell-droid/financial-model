@@ -37,6 +37,8 @@ const RANGE = {
   mcCutsDiscipline: { min: 0, max: 100 },
   // SS claiming
   ssClaimAge: { min: 62, max: 70 },
+  // A2 (2026-06-10): annual SS COLA % (D2 — default 2.5, slider 0–4)
+  ssColaRate: { min: 0, max: 4 },
   ssPIA: { min: 0, max: 5000 },
   // Sarah's spousal SS — current age + claim age (62–70 per SSA rules)
   sarahCurrentAge: { min: 18, max: 100 },

@@ -71,6 +71,8 @@ const NON_DEFAULT_VALUES = {
   kidsAgeOutMonths: 42,
   chadConsulting: 2500,
   ssdiBackPayMonths: 24,
+  ssColaRate: 3.2,                 // A2 (2026-06-10): non-default COLA
+
   // Social Security — retirement side
   ssClaimAge: 70,
   ssPIA: 4500,

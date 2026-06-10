@@ -112,6 +112,7 @@ test('8. Sarah income caps at sarahMaxRate * sarahMaxClients * DAYS_PER_MONTH (a
 test('9. SSDI income: 0 before approval, ssdiFamilyTotal after', () => {
   const approvalMonth = 10;
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: false,
     ssdiFamilyTotal: 6500, kidsAgeOutMonths: 60, chadJob: false,
   });
@@ -128,6 +129,7 @@ test('10. SSDI transitions to ssdiPersonal at SS_CHILD_BENEFIT_END_MONTH (studen
   // CTC anchor (age-17 timeline).
   const approvalMonth = 5;
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ssdi', ssdiApprovalMonth: approvalMonth, ssdiDenied: false,
     ssdiFamilyTotal: 6500, ssdiPersonal: 4166, kidsAgeOutMonths: 10, chadJob: false,
   });
@@ -153,6 +155,7 @@ test('11. SSDI denied: SSDI stays 0 forever', () => {
 test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth', () => {
   // ssClaimAge 62 → ssStartMonth 19 (Oct 2027, mid-month birthday), PIA 4214 → personal 2950
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214, chadJob: false,
   });
   assert.strictEqual(s.ssStartMonth, 19, 'ssStartMonth = Oct 2027 (mid-month birthday +1)');
@@ -1020,6 +1023,7 @@ test('43. bcsYearsLeft: 0 — expenses at month 0 should NOT include BCS tuition
 
 test('44. ssdiApprovalMonth: 0 — SSDI income should appear at month 0 (not delayed to month 7)', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
     ssdiFamilyTotal: 6500, kidsAgeOutMonths: 60, chadJob: false,
   });
@@ -1120,6 +1124,7 @@ test('49. ssdiApprovalMonth = 0 — SSDI income amount matches ssdiFamilyTotal a
   const familyTotal = 6500;
   const personal = 4166;
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
     ssdiFamilyTotal: familyTotal, ssdiPersonal: personal,
     kidsAgeOutMonths: 36, // legacy default; ignored by SSDI age-out path now
@@ -1296,6 +1301,7 @@ test('56. SS earnings test: consulting at limit ($2,040/mo) — no reduction', (
   // ssClaimAge 62, PIA 4214 → ssStartMonth 19, ssFamilyTotal computed
   // B3 (remediation 2026-06-10): 2026 lower exempt amount is $24,480 (was 2024's $22,320).
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadConsulting: 2040, // $24,480/yr = exactly at limit
     chadJob: false, ssdiDenied: false,
@@ -1308,6 +1314,7 @@ test('56. SS earnings test: consulting at limit ($2,040/mo) — no reduction', (
 test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits reduced', () => {
   // ssClaimAge 62, PIA 4214 → ssStartMonth 19
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadConsulting: 3000, // $36,000/yr
     chadJob: false, ssdiDenied: false,
@@ -1392,6 +1399,7 @@ test('gatherState: SSDI path is unaffected by ssClaimAge/ssPIA', () => {
 
 test('Projection: SS at FRA (67) — no earnings test applies', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 67, ssPIA: 3822,
     chadConsulting: 5000, chadJob: false,
     sarahWorkMonths: 96, // extend horizon to 96 months to cover FRA
@@ -1404,6 +1412,7 @@ test('Projection: SS at FRA (67) — no earnings test applies', () => {
 
 test('Projection: SS at 62 — earnings test does not apply after FRA month', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 3822,
     chadConsulting: 3000, chadJob: false,
     sarahWorkMonths: 96, // extend horizon to 96 months
@@ -1467,6 +1476,7 @@ test('P22. Sarah spousal SS flows after she reaches claim age and Chad has claim
   // Sarah reaches sarahSpousalClaimAge=67 in (67-59)*12 = 96 months from now.
   // At m=96, Sarah's spousal should flow: 50% of PIA × ssAdjustmentFactor(67) = 4214 × 0.5 × 1.0 = 2107.
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     chadJob: true, chadJobSalary: 190000, ssType: 'ssdi',
     chadCurrentAge: 61, sarahCurrentAge: 59,
     sarahSpousalEnabled: true, sarahSpousalClaimAge: 67,
@@ -1582,6 +1592,7 @@ console.log('\n=== Job + SS Coexistence ===');
 
 test('Job + SS at 62: SS income flows with earnings test on salary', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 80000, chadJobStartMonth: 0,
   });
@@ -1598,6 +1609,7 @@ test('Job + SS at 62: SS income flows with earnings test on salary', () => {
 
 test('Job + SS at 62: full SS after job ends at chadRetirementMonth', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 80000, chadJobStartMonth: 0,
     sarahWorkMonths: 96, // extend horizon beyond default chadWorkMonths=72
@@ -1620,6 +1632,7 @@ test('Job + SSDI: SSDI still zeroed (SGA rules)', () => {
 
 test('Job + SS at 62: low salary ($30K) preserves most SS benefit', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 30000, chadJobStartMonth: 0,
   });
@@ -2481,6 +2494,7 @@ console.log('\n=== Engine fix regressions (FIX #7/#8/#9/#10) ===');
 // grant Y1 (issued at m=12) is now 60 months old → expired. Active = 5, not 6.
 test('EARN-test-1. SS earnings test: 6yr employed, refresh grant 1 expired → 5 active grants (not 6)', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
     chadJobStockRefresh: 100000, chadJobRefreshStartMonth: 12,
@@ -2520,6 +2534,7 @@ test('EARN-test-2. SS earnings test: hire stock projection respects anniversary 
   // Start month 0 puts Y0 = m=0..11, Y1 anniv at m=12, etc.
   // chadJobSalary=0 isolates the stock effect.
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
     chadJobHireStockY1: 50000, chadJobHireStockY2: 0,
@@ -2557,6 +2572,7 @@ test('EARN-test-3. SS earnings test: no refresh counted before the first AUGUST 
   // benefits reduced. The vest engine pays NOTHING from refreshes before m=29,
   // so the estimate must be $0 → full family benefit.
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 12,
     chadJobStockRefresh: 200000, chadJobRefreshStartMonth: 12,
@@ -2581,6 +2597,7 @@ test('EARN-test-3. SS earnings test: no refresh counted before the first AUGUST 
 // ACTUAL vests the engine pays over a 12-month window (steady state, msftGrowth=0).
 test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actual vests over 12 months', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0, chadJobTaxRate: 25, chadJobNoFICA: false,
     chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 12,
@@ -2612,6 +2629,7 @@ test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actua
 // (not m=56 as the old buggy `approval + kidsAgeOutMonths` logic).
 test('SSDI-AgeOut. SSDI family benefits end at SS_CHILD_BENEFIT_END_MONTH, not approval+kidsAgeOutMonths', () => {
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ssdi', ssdiApprovalMonth: 20, ssdiDenied: false,
     ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 36, // legacy default
     chadJob: false, chadConsulting: 0,
@@ -2637,6 +2655,7 @@ test('SSDI-AgeOut. SSDI family benefits end at SS_CHILD_BENEFIT_END_MONTH, not a
 test('CHILD-BENEFIT-Constant. SS_CHILD_BENEFIT_END_MONTH=40 first ineligible; TWINS_AGE_OUT_MONTH stays 34 for CTC', () => {
   // Use SSDI with early approval so the boundary is crossed mid-projection.
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
     ssdiFamilyTotal: 6321, ssdiPersonal: 4214, kidsAgeOutMonths: 36,
     chadJob: false, chadConsulting: 0,
@@ -3137,6 +3156,7 @@ test('P16. Auto-SS fallback uses ssPIA × FRA factor, not stale ssPersonal', () 
   // Auto-SS fallback should compute 4214 * ssAdjustmentFactor(67) = 4214 (FRA),
   // NOT use stale ssPersonal=2933.
   const s = gatherStateWithOverrides({
+    expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     chadJob: true, chadJobSalary: 190000, chadJobTaxRate: 27,
     chadJobStockRefresh: 100000, chadJobRefreshStartMonth: 12,
     chadCurrentAge: 61, chadAge65VestOverride: 'auto',

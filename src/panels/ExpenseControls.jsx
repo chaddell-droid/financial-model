@@ -8,7 +8,7 @@ import { COLORS } from '../charts/chartUtils.js';
 
 const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
-  expenseInflation, expenseInflationRate,
+  expenseInflation, expenseInflationRate, ssColaRate,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   vanMonthlySavings,
   milestones,
@@ -89,6 +89,12 @@ const ExpenseControls = ({
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.cyan }}>
                       {fmtFull(Math.round(baseExpenses * Math.pow(1 + expenseInflationRate / 100, 6)))}/mo
                     </span>
+                  </div>
+                  {/* A2 (2026-06-10): SS COLA — benefits are indexed by law, so while
+                      expenses inflate the SS/SSDI/spousal streams get a COLA too. */}
+                  <Slider label="SS/SSDI COLA rate" value={ssColaRate} onChange={set('ssColaRate')} commitStrategy={commitStrategy} min={0} max={4} step={0.1} color={COLORS.cyan} format={(v) => v + '%'} />
+                  <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, fontStyle: "italic" }}>
+                    Applied to all SS/SSDI benefit streams while inflation is on (benefits are indexed by law).
                   </div>
                 </>
               )}

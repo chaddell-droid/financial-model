@@ -53,7 +53,9 @@ test('family-rate window equals max(0, SS_CHILD_BENEFIT_END_MONTH − approvalMo
   // B4 (2026-06-10): the SS/SSDI child-benefit window is anchored to the
   // student-rule end month (HS graduation), not the 18th birthday.
   for (const approval of [0, 7, 20, 45]) {
-    const s = gatherStateWithOverrides({ ssdiApprovalMonth: approval, ssdiBackPayMonths: 0 });
+    // A2 (2026-06-10): expenseInflation off so ssBenefit === the flat family
+    // rate is an exact filter (COLA behavior is locked in ssCola.test.js).
+    const s = gatherStateWithOverrides({ ssdiApprovalMonth: approval, ssdiBackPayMonths: 0, expenseInflation: false });
     const { monthlyData } = runMonthlySimulation(s);
     // Family rate (6321) is distinct from the personal rate (4214) in the
     // default state, so counting family-total months is unambiguous.

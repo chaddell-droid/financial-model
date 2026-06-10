@@ -414,6 +414,24 @@ export function runMonthlySimulation(s) {
       sarahSpousal = s.sarahSpousalAmount || 0;
     }
 
+    // A2 (remediation 2026-06-10, plan 1.1): SS COLA. Benefits are statutorily
+    // indexed (42 U.S.C. §415(i)) but were paid flat forever while expenses
+    // inflated 3%/yr — a mixed nominal/real frame that penalized the
+    // benefit-dependent path (~$700–$1,050/mo of guaranteed income missing by
+    // year 6). Applied to ALL SS/SSDI/spousal/child streams, gated on
+    // expense inflation being ON so both ledger sides share one nominal frame
+    // (D2: ssColaRate default 2.5%/yr, RANGE 0–4). ssBenefitPersonal scales by
+    // the same factor so the kids' share (ssBenefit − ssBenefitPersonal)
+    // remains internally consistent for chart tooltips. The earnings test
+    // below operates on the COLA'd amount (SSA withholds from current-year
+    // benefits). Back pay is NOT COLA'd — it compensates past months.
+    if (s.expenseInflation && (ssBenefit > 0 || sarahSpousal > 0)) {
+      const ssColaFactor = Math.pow(1 + (s.ssColaRate ?? 2.5) / 100, m / 12);
+      ssBenefit = Math.round(ssBenefit * ssColaFactor);
+      ssBenefitPersonal = Math.round(ssBenefitPersonal * ssColaFactor);
+      sarahSpousal = Math.round(sarahSpousal * ssColaFactor);
+    }
+
     // Consulting: only when not employed full-time
     const consulting = (m > chadRetirementMonth) ? 0
       : chadJob ? 0

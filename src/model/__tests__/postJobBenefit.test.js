@@ -20,6 +20,9 @@ console.log('\n=== postJobBenefit feature ===');
 
 function buildState(overrides) {
   return gatherStateWithOverrides({
+    // A2 (2026-06-10): expenseInflation off — isolates post-job benefit gating
+    // from SS COLA (COLA behavior is locked separately in ssCola.test.js).
+    expenseInflation: false,
     chadJob: true,
     chadJobStartMonth: 0,
     chadJobSalary: 180000,
@@ -153,6 +156,7 @@ test('PJB-8 (2.4): pre-job and post-job paths start SS benefits in the SAME mont
       ssType: 'ss', ssClaimAge: claimAge, ssPIA: 4214,
       chadJob: false, chadConsulting: 0,
       chadWorkMonths: 132, sarahWorkMonths: 132,
+      expenseInflation: false, // A2: isolate the start-month parity from SS COLA
     });
     assert.strictEqual(pre.ssStartMonth, anchor,
       `gatherState ssStartMonth for claim age ${claimAge} must be ${anchor}, got ${pre.ssStartMonth}`);
@@ -165,6 +169,7 @@ test('PJB-8 (2.4): pre-job and post-job paths start SS benefits in the SAME mont
       ssType: 'ssdi', postJobBenefit: 'ssRetirement',
       ssClaimAge: claimAge, ssPIA: 4214,
       sarahWorkMonths: 132,
+      expenseInflation: false, // A2: isolate the start-month parity from SS COLA
     });
     const postData = runMonthlySimulation(post).monthlyData;
     const postFirst = postData.findIndex(d => d.ssBenefit > 0);

@@ -318,6 +318,7 @@ test('P4-SSEST-5. horizon covers the final projection month (ceil((months+1)/12)
     ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7,
     ssdiPersonal: 4214, ssdiFamilyTotal: 6321, ssdiBackPayMonths: 0,
     chadJob: false, chadConsulting: 0,
+    expenseInflation: false, // A2 (2026-06-10): isolate the horizon check from SS COLA
   });
   const months = s.totalProjectionMonths || 72;
   const est = estimateAnnualSSBenefits(s);

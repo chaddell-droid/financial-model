@@ -33,7 +33,7 @@ export function useChartPropBundles({
     chadCurrentAge, chadAge65VestOverride,
     chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
     chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
-    totalMonthlySpend, debtService, expenseInflation, expenseInflationRate,
+    totalMonthlySpend, debtService, expenseInflation, expenseInflationRate, ssColaRate,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     lifestyleCutsApplied, cutsOverride,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
@@ -157,7 +157,7 @@ export function useChartPropBundles({
 
   const expenseControlsProps = useMemo(() => ({
     totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
-    expenseInflation, expenseInflationRate,
+    expenseInflation, expenseInflationRate, ssColaRate, // A2 (2026-06-10)
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
@@ -172,7 +172,7 @@ export function useChartPropBundles({
     onFieldChange: set,
   }), [
     totalMonthlySpend, effectiveBaseExpenses, debtService,
-    expenseInflation, expenseInflationRate,
+    expenseInflation, expenseInflationRate, ssColaRate, // A2 (2026-06-10)
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,

@@ -141,14 +141,14 @@ test('backPayActual', () => eq(backPayActual, 104578));
 test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -657378)); // B4 (2026-06-10): student rule pays SSDI family rate m34-39 (+6 x $2,107) -> end balance improves ~$13.3k
+test('month 72 balance', () => eq(monthlyData[72].balance, -628826)); // B4 student rule +$13.3k, then A2 SS COLA (2.5%/yr on benefits) +$28.6k
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
-test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -30241)); // B4: m=36 now pays family 6321 (was personal 4214) -> +2,107/mo
-test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -33914));
+test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -29755)); // B4 family rate at m=36; A2 COLA adds ~+486 at m=36
+test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -33241)); // A2 (2026-06-10): COLA'd SSDI personal at m=72 (+673)
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -657378); // re-baselined for D7 gross-up, then B4 student rule (+$13.3k)
+  eq(minBal, -628826); // re-baselined for D7 gross-up, B4 student rule (+$13.3k), A2 SS COLA (+$28.6k)
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -201,10 +201,10 @@ const debtRetired = gatherState({ retireDebt: true });
 const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
 test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948));
-test('month 12 balance', () => eq(debtData[12].balance, 39648));
+test('month 12 balance', () => eq(debtData[12].balance, 40417)); // A2 (2026-06-10): COLA on months 7-12 SSDI (+769)
 // Re-baselined for D7 gross-up (was 0): the grossed-up draws now exhaust the
 // reserves before month 72 even with debt retired.
-test('month 72 balance', () => eq(debtData[72].balance, -111567)); // B4 (2026-06-10): student rule pays SSDI family rate m34-39 (+6 x $2,107) -> end balance improves ~$13.3k
+test('month 72 balance', () => eq(debtData[72].balance, -81255)); // B4 student rule +$13.3k, A2 SS COLA +$30.3k
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
 });
@@ -217,7 +217,7 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
 // Re-baselined for D7 gross-up (was -487171, matching the default scenario).
-test('month 72 balance', () => eq(cutsData[72].balance, -657378)); // B4 (2026-06-10): student rule pays SSDI family rate m34-39 (+6 x $2,107) -> end balance improves ~$13.3k
+test('month 72 balance', () => eq(cutsData[72].balance, -628826)); // B4 student rule +$13.3k, A2 SS COLA +$28.6k
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -252,9 +252,9 @@ const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDeb
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -657378)); // B4 student rule +$13.3k
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -628826)); // B4 +$13.3k, A2 SS COLA +$28.6k
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
-test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -30241)); // B4: family rate at m=36
+test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -29755)); // B4 family rate; A2 COLA at m=36
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
 test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, 0));
 test('income target uses operational cash flow, not netMonthly', () => {
@@ -295,7 +295,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -657378)); // B4 student rule +$13.3k
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -628826)); // B4 +$13.3k, A2 SS COLA +$28.6k
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -1464,20 +1464,23 @@ test('default household: 72-month projection yields 7 tax years', () => {
 });
 
 test('tax year 0 locks (income, deductions, components)', () => {
+  // A2 (2026-06-10): year-0 SSDI months (7-11) now carry SS COLA, raising the
+  // benefit estimate ~$502 -> +$111 of tax. Re-baselined from the pre-COLA locks
+  // (sarahMonthlyTax 4171, totalTax 50050, ssTaxable 115756).
   const y = taxSnapSchedule[0];
   eq(y.annualSarahGross, 206888, 'Sarah gross');
   eq(y.schCNet, 155166, 'Sch C net at 25% expense ratio');
   eq(y.chadW2, 0, 'no W-2 in the default household');
-  eq(y.sarahMonthlyTax, 4171, 'Sarah monthly tax');
+  eq(y.sarahMonthlyTax, 4180, 'Sarah monthly tax');
   eq(y.chadMonthlyTax, 0);
-  eq(Math.round(y.annualTotalTax), 50050, 'household total tax');
-  eq(Math.round(y.annualSarahTax), 50050, 'all attributed to Sarah (no W-2)');
+  eq(Math.round(y.annualTotalTax), 50161, 'household total tax');
+  eq(Math.round(y.annualSarahTax), 50161, 'all attributed to Sarah (no W-2)');
   eq(y.annualChadTax, 0);
-  eq(Math.round(y.fullTax.totalIncome), 267922);
-  eq(Math.round(y.fullTax.ssTaxableIncome), 115756, 'SSDI + back-pay year-0 taxable amount');
-  eq(Math.round(y.fullTax.agi), 256960);
-  eq(Math.round(y.fullTax.taxableIncome), 195919);
-  eq(Math.round(y.fullTax.fedTax), 32526);
+  eq(Math.round(y.fullTax.totalIncome), 268424);
+  eq(Math.round(y.fullTax.ssTaxableIncome), 116258, 'SSDI + back-pay year-0 taxable amount (with COLA)');
+  eq(Math.round(y.fullTax.agi), 257462);
+  eq(Math.round(y.fullTax.taxableIncome), 196421);
+  eq(Math.round(y.fullTax.fedTax), 32637);
   eq(Math.round(y.fullTax.seTax), 21924);
   eq(Math.round(y.fullTax.qbi), 28841);
   eq(y.fullTax.totalCredits, 4400, 'CTC for 2 kids');
@@ -1494,12 +1497,14 @@ test('CTC steps down when the twins age out (years 0-1 credit, year 2+ none)', (
 });
 
 test('final tax year locks (year 6, partial-year annualization)', () => {
+  // A2 (2026-06-10): the trailing SSDI month (m=72) carries 6 years of COLA
+  // (4214 -> 4887; 85% taxable = 4154). Re-baselined from 4030/48355/3582.
   const y = taxSnapSchedule[6];
   eq(y.annualSarahGross, 290256, 'capped Sarah gross, annualized');
   eq(y.schCNet, 217692);
-  eq(y.sarahMonthlyTax, 4030);
-  eq(Math.round(y.annualTotalTax), 48355);
-  eq(Math.round(y.fullTax.ssTaxableIncome), 3582, 'single trailing SSDI month');
+  eq(y.sarahMonthlyTax, 4038);
+  eq(Math.round(y.annualTotalTax), 48455);
+  eq(Math.round(y.fullTax.ssTaxableIncome), 4154, 'single trailing SSDI month (with COLA)');
   eq(Math.round(y.fullTax.seTax), 28708);
   eq(y.marginalRate, 0.22);
 });
@@ -2254,14 +2259,17 @@ test('R2: month-0 chadJobIncome with job', () => {
 test('R3: SS at 62 benefit at month 19', () => {
   const s = gatherState({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[19].ssBenefit, 6110);
+  // A2 (2026-06-10): 19 months of 2.5%/yr COLA on the B5 family total:
+  // round(6110 x 1.025^(19/12)) = 6354.
+  assert.strictEqual(monthlyData[19].ssBenefit, 6354);
 });
 
 // R4 — SS at FRA (67) first month, extended horizon
 test('R4: SS at FRA benefit at month 79', () => {
   const s = gatherState({ ssType: 'ss', ssClaimAge: 67, ssPIA: 4214, sarahWorkMonths: 96 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[79].ssBenefit, 4214);
+  // A2 (2026-06-10): 79 months of 2.5%/yr COLA: round(4214 x 1.025^(79/12)) = 4958.
+  assert.strictEqual(monthlyData[79].ssBenefit, 4958);
 });
 
 // R5 — Denied SSDI: no income support, balance deeply negative
@@ -2275,14 +2283,14 @@ test('R5: denied SSDI balance at month 71', () => {
 test('R6: van sold at month 6, balance at month 71', () => {
   const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -505255); // was -518665 pre-B4 (student rule +$13.4k), -333183 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -477252); // was -505255 pre-A2 (SS COLA +$28k), -518665 pre-B4, -333183 pre-D7
 });
 
 // R7 — Lifestyle cuts active with override
 test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
   const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -208383); // was -222214 pre-B4 (student rule +$13.8k), -19887 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -179291); // was -208383 pre-A2 (SS COLA +$29.1k), -222214 pre-B4, -19887 pre-D7
 });
 
 // R8 — Debt retired. Was 0 pre-D7 (reserves still covered the deficit); the
@@ -2290,7 +2298,7 @@ test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
 test('R8: debt retired, balance at month 71', () => {
   const s = gatherState({ retireDebt: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -84087); // was -98156 pre-B4 (student rule +$14.1k)
+  assert.strictEqual(monthlyData[71].balance, -54448); // was -84087 pre-A2 (SS COLA +$29.6k), -98156 pre-B4
 });
 
 // R9 — All toggles on: debt retired + van sold + cuts + job

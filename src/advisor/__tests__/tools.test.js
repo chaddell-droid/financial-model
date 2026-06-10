@@ -114,6 +114,22 @@ test('startMonth/endMonth bounds respected', () => {
   }
 });
 
+test('startMonth: 0 alone still returns monthlyData (falsy-zero regression)', () => {
+  const result = runTool('runProjection', baseState(), { startMonth: 0 });
+  assert.ok(result.ok);
+  assert.ok(Array.isArray(result.monthlyData), 'startMonth=0 must trigger the sparse monthly view');
+  assert.ok(result.monthlyData.length > 0);
+});
+
+test('endMonth: 0 alone returns exactly month 0 (falsy-zero regression)', () => {
+  const result = runTool('runProjection', baseState(), { endMonth: 0 });
+  assert.ok(result.ok);
+  assert.ok(Array.isArray(result.monthlyData), 'endMonth=0 must trigger the sparse monthly view');
+  for (const row of result.monthlyData) {
+    assert.strictEqual(row.month, 0);
+  }
+});
+
 console.log('\n=== whatIf ===');
 
 test('Mutation produces non-null delta', () => {
@@ -162,6 +178,28 @@ test('Returns ranked moves with required fields', () => {
     assert.ok(typeof m.key === 'string');
     assert.ok(typeof m.label === 'string');
     assert.ok(typeof m.finalBalanceDelta === 'number');
+  }
+});
+
+test('Every move carries its one-click mutation object ("Apply this move" support)', () => {
+  const state = gatherStateWithOverrides({ chadJob: false });
+  const result = runTool('topMoves', state, { topN: 5 });
+  assert.ok(result.ok);
+  assert.ok(result.moves.length > 0, 'expected at least one move for a chadJob=false state');
+  for (const m of result.moves) {
+    assert.ok(m.mutation && typeof m.mutation === 'object' && !Array.isArray(m.mutation),
+      `move ${m.key} must include its mutation object`);
+    assert.ok(Object.keys(m.mutation).length > 0, `move ${m.key} mutation must not be empty`);
+  }
+});
+
+test('topMoves mutations round-trip through whatIf (MODEL_KEYS-valid)', () => {
+  const state = gatherStateWithOverrides({ chadJob: false });
+  const result = runTool('topMoves', state, { topN: 5 });
+  assert.ok(result.ok && result.moves.length > 0);
+  for (const m of result.moves) {
+    const w = runTool('whatIf', state, { mutation: m.mutation });
+    assert.ok(w.ok, `whatIf rejected topMoves mutation for ${m.key}: ${w.error}`);
   }
 });
 

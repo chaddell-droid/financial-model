@@ -6,6 +6,14 @@
  */
 import assert from 'node:assert';
 import { streamAdvisorTurn } from '../advisorAgent.js';
+import {
+  ADVISOR_REQUEST_TIMEOUT_MS,
+  ADVISOR_PRICE_INPUT_PER_MTOK,
+  ADVISOR_PRICE_OUTPUT_PER_MTOK,
+  ADVISOR_PRICE_CACHE_READ_PER_MTOK,
+  ADVISOR_PRICE_CACHE_WRITE_PER_MTOK,
+  estimateCost,
+} from '../config.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
@@ -32,12 +40,15 @@ function test(name, fn) {
  */
 function makeFakeClient(script) {
   let idx = 0;
-  return {
+  const calls = []; // { req, opts } per .stream() invocation
+  const client = {
+    _calls: calls,
     messages: {
-      stream: (req) => {
+      stream: (req, opts) => {
         const turn = script[idx];
         if (!turn) throw new Error(`Fake client out of script (called ${idx + 1} times)`);
         idx++;
+        calls.push({ req, opts });
         const handlers = { text: [], contentBlock: [] };
         // Simulate emitting events synchronously when the caller registers handlers.
         // We defer firing until both handlers are attached using process.nextTick.
@@ -69,6 +80,7 @@ function makeFakeClient(script) {
       },
     },
   };
+  return client;
 }
 
 const baseState = () => gatherStateWithOverrides({
@@ -229,11 +241,128 @@ await test('Iteration cap prevents runaway tool loops', async () => {
   }));
   const client = makeFakeClient(script);
   let errored = false;
-  await streamAdvisorTurn({
+  const out = await streamAdvisorTurn({
     client, state: baseState(), messages: [], userMessage: 'loop forever',
     onError: () => { errored = true; },
   });
   assert.ok(errored, 'onError should have been called when iteration cap hit');
+  // The UI relies on stopReason === 'tool_use' to render the "cut off" banner.
+  assert.strictEqual(out.stopReason, 'tool_use');
+});
+
+console.log('\n=== request options — abort signal + timeout ===');
+
+await test('AbortSignal and ADVISOR_REQUEST_TIMEOUT_MS are passed in the SDK request options', async () => {
+  const client = makeFakeClient([
+    { textDeltas: ['ok'], stop_reason: 'end_turn' },
+  ]);
+  const controller = new AbortController();
+  await streamAdvisorTurn({
+    client, state: baseState(), messages: [], userMessage: 'hi',
+    signal: controller.signal,
+  });
+  assert.strictEqual(client._calls.length, 1);
+  const opts = client._calls[0].opts;
+  assert.ok(opts, 'stream() must receive a second (request options) argument');
+  assert.strictEqual(opts.signal, controller.signal, 'AbortSignal must be forwarded so Stop works');
+  assert.strictEqual(opts.timeout, ADVISOR_REQUEST_TIMEOUT_MS, 'request timeout must be wired');
+});
+
+await test('Request options carry the timeout even without a signal', async () => {
+  const client = makeFakeClient([
+    { textDeltas: ['ok'], stop_reason: 'end_turn' },
+  ]);
+  await streamAdvisorTurn({ client, state: baseState(), messages: [], userMessage: 'hi' });
+  const opts = client._calls[0].opts;
+  assert.ok(opts);
+  assert.strictEqual(opts.timeout, ADVISOR_REQUEST_TIMEOUT_MS);
+  assert.strictEqual(opts.signal, undefined);
+});
+
+await test('Pre-aborted signal fires onError and makes no request', async () => {
+  const client = makeFakeClient([
+    { textDeltas: ['ok'], stop_reason: 'end_turn' },
+  ]);
+  const controller = new AbortController();
+  controller.abort();
+  let errored = null;
+  await assert.rejects(streamAdvisorTurn({
+    client, state: baseState(), messages: [], userMessage: 'hi',
+    signal: controller.signal,
+    onError: (e) => { errored = e; },
+  }));
+  assert.ok(errored);
+  assert.strictEqual(client._calls.length, 0, 'no API call after an already-aborted signal');
+});
+
+console.log('\n=== prompt-cache breakpoints ===');
+
+await test('System blocks: one breakpoint on the last static block; household volatile block last, uncached', async () => {
+  const client = makeFakeClient([
+    { textDeltas: ['ok'], stop_reason: 'end_turn' },
+  ]);
+  await streamAdvisorTurn({ client, state: baseState(), messages: [], userMessage: 'hi' });
+  const sys = client._calls[0].req.system;
+  assert.ok(Array.isArray(sys));
+  assert.strictEqual(sys.length, 4);
+  const tagged = sys.filter((b) => b.cache_control);
+  assert.strictEqual(tagged.length, 1, 'exactly one system cache breakpoint');
+  assert.deepStrictEqual(sys[2].cache_control, { type: 'ephemeral' }, 'breakpoint sits on the last static block');
+  assert.strictEqual(sys[3].cache_control, undefined, 'volatile household block is last and uncached');
+});
+
+await test('Most recent message carries a breakpoint on its last content block, each iteration', async () => {
+  const client = makeFakeClient([
+    {
+      textDeltas: ['checking '],
+      toolUse: [{ id: 'tu_cache', name: 'getCurrentState', input: {} }],
+      stop_reason: 'tool_use',
+    },
+    { textDeltas: ['done'], stop_reason: 'end_turn' },
+  ]);
+  const out = await streamAdvisorTurn({ client, state: baseState(), messages: [], userMessage: 'hi' });
+  assert.strictEqual(client._calls.length, 2);
+  // First request: the (string) user message is wrapped so its last block can be tagged.
+  const m1 = client._calls[0].req.messages;
+  const last1 = m1[m1.length - 1];
+  assert.ok(Array.isArray(last1.content), 'string content wrapped into blocks for the breakpoint');
+  assert.deepStrictEqual(last1.content[last1.content.length - 1].cache_control, { type: 'ephemeral' });
+  // Second request: the tool_result message gets the breakpoint; older messages must not keep one.
+  const m2 = client._calls[1].req.messages;
+  const last2 = m2[m2.length - 1];
+  assert.ok(Array.isArray(last2.content));
+  assert.deepStrictEqual(last2.content[last2.content.length - 1].cache_control, { type: 'ephemeral' });
+  for (const msg of m2.slice(0, -1)) {
+    const blocks = Array.isArray(msg.content) ? msg.content : [];
+    for (const b of blocks) {
+      assert.strictEqual(b.cache_control, undefined, 'older messages must not retain stale breakpoints');
+    }
+  }
+  // The conversation we keep (and persist) must never be polluted with cache_control.
+  for (const msg of out.finalMessages) {
+    const blocks = Array.isArray(msg.content) ? msg.content : [];
+    for (const b of blocks) assert.strictEqual(b.cache_control, undefined);
+  }
+});
+
+console.log('\n=== pricing (Opus 4.7) ===');
+
+test('Pricing constants are 5 / 25 / 0.5 / 6.25 per MTok', () => {
+  assert.strictEqual(ADVISOR_PRICE_INPUT_PER_MTOK, 5);
+  assert.strictEqual(ADVISOR_PRICE_OUTPUT_PER_MTOK, 25);
+  assert.strictEqual(ADVISOR_PRICE_CACHE_READ_PER_MTOK, 0.5);
+  assert.strictEqual(ADVISOR_PRICE_CACHE_WRITE_PER_MTOK, 6.25);
+});
+
+test('estimateCost applies each rate per million tokens', () => {
+  assert.strictEqual(estimateCost({ inputTokens: 1_000_000 }), 5);
+  assert.strictEqual(estimateCost({ outputTokens: 1_000_000 }), 25);
+  assert.strictEqual(estimateCost({ cacheReadTokens: 1_000_000 }), 0.5);
+  assert.strictEqual(estimateCost({ cacheCreateTokens: 1_000_000 }), 6.25);
+  assert.strictEqual(
+    estimateCost({ inputTokens: 2_000_000, outputTokens: 1_000_000, cacheReadTokens: 4_000_000, cacheCreateTokens: 2_000_000 }),
+    2 * 5 + 25 + 4 * 0.5 + 2 * 6.25,
+  );
 });
 
 await test('Missing client throws synchronously via onError', async () => {

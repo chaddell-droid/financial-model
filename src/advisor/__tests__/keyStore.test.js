@@ -55,11 +55,12 @@ await test('getKey returns null when storage is empty and no env', async () => {
   assert.strictEqual(k, null);
 });
 
-await test('setKey then getKey round-trips a string', async () => {
+await test('setKey then getKey round-trips a string (default: session tier)', async () => {
   const storage = makeFakeStorage();
   await setKey('sk-ant-test-12345', storage);
   const k = await getKey(storage);
   assert.strictEqual(k, 'sk-ant-test-12345');
+  await clearKey(storage);
 });
 
 await test('setKey trims whitespace', async () => {
@@ -67,6 +68,7 @@ await test('setKey trims whitespace', async () => {
   await setKey('  sk-ant-spaces  ', storage);
   const k = await getKey(storage);
   assert.strictEqual(k, 'sk-ant-spaces');
+  await clearKey(storage);
 });
 
 await test('setKey rejects empty/whitespace input', async () => {
@@ -98,10 +100,11 @@ await test('keySource reports null when empty', async () => {
   assert.strictEqual(await keySource(storage), null);
 });
 
-await test('keySource reports "storage" when only stored', async () => {
+await test('keySource reports "storage" when remembered (persisted)', async () => {
   const storage = makeFakeStorage();
-  await setKey('sk-ant-stored', storage);
+  await setKey('sk-ant-stored', storage, { remember: true });
   assert.strictEqual(await keySource(storage), 'storage');
+  await clearKey(storage);
 });
 
 await test('Operations gracefully handle missing storage adapter', async () => {
@@ -109,8 +112,13 @@ await test('Operations gracefully handle missing storage adapter', async () => {
   assert.strictEqual(await getKey(null), null);
   assert.strictEqual(await hasKey(null), false);
   assert.strictEqual(await keySource(null), null);
-  assert.strictEqual(await setKey('sk-x', null), false);
-  assert.strictEqual(await clearKey(null), false);
+  // Session-tier set works without a persistent adapter…
+  assert.strictEqual(await setKey('sk-x', null), true);
+  assert.strictEqual(await getKey(null), 'sk-x');
+  assert.strictEqual(await clearKey(null), true);
+  assert.strictEqual(await getKey(null), null);
+  // …but a remembered (persisted) set requires the adapter.
+  assert.strictEqual(await setKey('sk-x', null, { remember: true }), false);
 });
 
 await test('getKey survives storage.get throwing "not found"', async () => {
@@ -119,6 +127,56 @@ await test('getKey survives storage.get throwing "not found"', async () => {
   // Storage starts empty, so .get('advisor-key') will throw — getKey must return null, not propagate.
   const k = await getKey(storage);
   assert.strictEqual(k, null);
+});
+
+console.log('\n=== keyStore — remember toggle (session vs persisted) ===');
+
+await test('Default setKey is session-only: nothing written to persistent storage', async () => {
+  const storage = makeFakeStorage();
+  await setKey('sk-ant-session-only', storage);
+  assert.strictEqual(await getKey(storage), 'sk-ant-session-only');
+  assert.strictEqual(await keySource(storage), 'session');
+  assert.strictEqual(storage._data.has('advisor-key'), false, 'default save must NOT persist the key');
+  await clearKey(storage);
+});
+
+await test('remember: true persists to storage and reports source "storage"', async () => {
+  const storage = makeFakeStorage();
+  await setKey('sk-ant-persisted', storage, { remember: true });
+  assert.strictEqual(storage._data.get('advisor-key'), 'sk-ant-persisted');
+  assert.strictEqual(await keySource(storage), 'storage');
+  assert.strictEqual(await getKey(storage), 'sk-ant-persisted');
+  await clearKey(storage);
+});
+
+await test('Saving with remember OFF removes a previously-persisted key (single source of truth)', async () => {
+  const storage = makeFakeStorage();
+  await setKey('sk-ant-old-persisted', storage, { remember: true });
+  await setKey('sk-ant-new-session', storage); // remember defaults to false
+  assert.strictEqual(await getKey(storage), 'sk-ant-new-session');
+  assert.strictEqual(await keySource(storage), 'session');
+  assert.strictEqual(storage._data.has('advisor-key'), false, 'persisted copy must be removed');
+  await clearKey(storage);
+});
+
+await test('Saving with remember ON replaces the session copy', async () => {
+  const storage = makeFakeStorage();
+  await setKey('sk-ant-session-first', storage);
+  await setKey('sk-ant-then-persisted', storage, { remember: true });
+  assert.strictEqual(await getKey(storage), 'sk-ant-then-persisted');
+  assert.strictEqual(await keySource(storage), 'storage');
+  await clearKey(storage);
+});
+
+await test('clearKey clears BOTH tiers', async () => {
+  const storage = makeFakeStorage();
+  await setKey('sk-ant-persisted', storage, { remember: true });
+  await setKey('sk-ant-session', storage); // wipes persisted, sets session
+  await setKey('sk-ant-persisted-2', storage, { remember: true });
+  await clearKey(storage);
+  assert.strictEqual(await getKey(storage), null);
+  assert.strictEqual(await keySource(storage), null);
+  assert.strictEqual(storage._data.has('advisor-key'), false);
 });
 
 console.log(`\n${'='.repeat(60)}`);

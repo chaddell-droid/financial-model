@@ -20,7 +20,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Anthropic from '@anthropic-ai/sdk';
-import { ADVISOR_MODEL, estimateCost, ADVISOR_STORAGE_KEY_USAGE } from '../advisor/config.js';
+import { ADVISOR_MODEL, estimateCost, ADVISOR_STORAGE_KEY_USAGE, ADVISOR_STORAGE_KEY_CONVERSATIONS } from '../advisor/config.js';
 import { getKey, setKey, clearKey, hasKey, keySource } from '../advisor/keyStore.js';
 import {
   loadAll, save, createNew, appendMessage, updateMessage, deleteConversation,
@@ -231,6 +231,9 @@ export default function AdvisorPane({ state, gatherState, onApplyMove, scenarioN
         onTextDelta,
         onToolCallStart,
         onToolCallResult,
+        // Surfaces non-fatal loop failures too (e.g., the tool-iteration cap),
+        // which return normally rather than throwing.
+        onError: (turnErr) => setError(turnErr && turnErr.message ? turnErr.message : String(turnErr)),
         signal: abortRef.current.signal,
       });
       // Finalize assistant message with content + verifier + final tool calls
@@ -513,7 +516,9 @@ function AdvisorMessage({ message, streaming, onApplyMove }) {
       {/* Tool calls (assistant only) */}
       {!isUser && Array.isArray(message.toolCalls) && message.toolCalls.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {message.toolCalls.map((tc) => <AdvisorToolCallCard key={tc.id} call={tc} onApplyMove={onApplyMove} />)}
+          {message.toolCalls.map((tc, i) => (
+            <AdvisorToolCallCard key={tc.id || `${tc.name}-${i}`} call={tc} onApplyMove={onApplyMove} />
+          ))}
         </div>
       )}
 
@@ -532,10 +537,32 @@ function AdvisorMessage({ message, streaming, onApplyMove }) {
         {streaming && text.length > 0 && <span style={{ color: COLORS.textDim }}>▍</span>}
       </div>
 
+      {/* Truncation notice (assistant only): max_tokens = response length cap;
+          tool_use as a FINAL stop reason = the tool-iteration cap was hit. */}
+      {!isUser && !streaming && (message.stopReason === 'max_tokens' || message.stopReason === 'tool_use') && (
+        <TruncationNotice stopReason={message.stopReason} />
+      )}
+
       {/* Verifier badge (assistant only) */}
       {!isUser && message.verifier && message.verifier.stats && message.verifier.stats.total > 0 && (
         <VerifierBadge stats={message.verifier.stats} mismatches={message.verifier.mismatches} />
       )}
+    </div>
+  );
+}
+
+function TruncationNotice({ stopReason }) {
+  const reason = stopReason === 'max_tokens' ? 'response length limit' : 'tool-iteration limit';
+  return (
+    <div title={`The model stopped at the ${reason} before finishing.`}
+      style={{
+        alignSelf: 'flex-start',
+        fontSize: 10, color: COLORS.warn,
+        background: 'rgba(251, 191, 36, 0.1)',
+        border: `1px solid ${COLORS.warn}`, opacity: 0.85,
+        borderRadius: 10, padding: '2px 8px', fontWeight: 600,
+      }}>
+      ⚠ Response was cut off ({reason}) — ask me to continue
     </div>
   );
 }
@@ -566,7 +593,8 @@ function AdvisorToolCallCard({ call, onApplyMove }) {
   const [expanded, setExpanded] = useState(false);
   const inProgress = call.result == null;
   const errored = call.result && call.result.ok === false;
-  const isWhatIf = call.name === 'whatIf' || call.name === 'topMoves' || call.name === 'moveCascade';
+  // moveCascade results have no applicable single mutation — excluded.
+  const isWhatIf = call.name === 'whatIf' || call.name === 'topMoves';
   const showApply = !inProgress && !errored && isWhatIf && onApplyMove && hasApplicableMutation(call);
 
   return (
@@ -607,7 +635,9 @@ function AdvisorToolCallCard({ call, onApplyMove }) {
               }}
               style={{ ...primaryBtn, marginTop: 8, fontSize: 11, padding: '4px 10px' }}
             >
-              Apply this move
+              {call.name === 'topMoves'
+                ? `Apply top move: ${firstMoveWithMutation(call)?.label || ''}`
+                : 'Apply this move'}
             </button>
           )}
         </div>
@@ -616,19 +646,22 @@ function AdvisorToolCallCard({ call, onApplyMove }) {
   );
 }
 
+/** First (top-ranked) move in a topMoves result that carries a mutation. */
+function firstMoveWithMutation(call) {
+  const moves = call.result?.moves;
+  if (!Array.isArray(moves)) return null;
+  return moves.find((m) => m && m.mutation && typeof m.mutation === 'object') || null;
+}
+
 function hasApplicableMutation(call) {
   if (call.name === 'whatIf') return Boolean(call.input?.mutation);
-  if (call.name === 'topMoves') return Array.isArray(call.result?.moves) && call.result.moves.length > 0;
+  if (call.name === 'topMoves') return Boolean(firstMoveWithMutation(call));
   return false;
 }
 
 function extractMutation(call) {
   if (call.name === 'whatIf') return call.input?.mutation || null;
-  if (call.name === 'topMoves' && call.result?.moves?.[0]) {
-    // Top moves don't expose mutations in the result; we'd need to re-run buildLeverCandidates.
-    // For now, prompt the user to ask the advisor to whatIf it.
-    return null;
-  }
+  if (call.name === 'topMoves') return firstMoveWithMutation(call)?.mutation || null;
   return null;
 }
 
@@ -698,7 +731,16 @@ function SettingsDrawer({ usage, lifetimeUsage, onClose, onKeySet, onKeyCleared,
   const [keyInput, setKeyInput] = useState('');
   const [source, setSource] = useState(null);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { (async () => { setSource(await keySource()); })(); }, []);
+  // Default OFF: the key lives in this tab's session only. ON mirrors the
+  // current source so re-saving a remembered key stays remembered.
+  const [remember, setRemember] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const src = await keySource();
+      setSource(src);
+      setRemember(src === 'storage');
+    })();
+  }, []);
 
   return (
     <div style={{
@@ -720,8 +762,10 @@ function SettingsDrawer({ usage, lifetimeUsage, onClose, onKeySet, onKeyCleared,
             {source === 'env'
               ? <>Currently using <code style={{ color: COLORS.cyan }}>VITE_ANTHROPIC_API_KEY</code> from your build environment. To override, save a key here.</>
               : source === 'storage'
-                ? 'Key configured (stored in this browser). Clear to remove or replace.'
-                : 'No key configured. Get one at console.anthropic.com.'}
+                ? 'Key configured (remembered in this browser). Clear to remove or replace.'
+                : source === 'session'
+                  ? 'Key active for this session only — it is NOT saved and disappears when this tab closes.'
+                  : 'No key configured. Get one at console.anthropic.com.'}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <input
@@ -736,7 +780,7 @@ function SettingsDrawer({ usage, lifetimeUsage, onClose, onKeySet, onKeyCleared,
             />
             <button disabled={saving || !keyInput.trim()} onClick={async () => {
               setSaving(true);
-              const ok = await setKey(keyInput);
+              const ok = await setKey(keyInput, undefined, { remember });
               setSaving(false);
               if (ok) {
                 setKeyInput('');
@@ -745,15 +789,23 @@ function SettingsDrawer({ usage, lifetimeUsage, onClose, onKeySet, onKeyCleared,
               }
             }} style={primaryBtn}>Save</button>
           </div>
-          {source === 'storage' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11, color: COLORS.textMuted, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            Remember key on this device (off = kept for this session only)
+          </label>
+          {(source === 'storage' || source === 'session') && (
             <button style={{ ...chipBtn, marginTop: 6 }} onClick={async () => {
               await clearKey();
               setSource(await keySource());
               onKeyCleared();
-            }}>Clear stored key</button>
+            }}>Clear key</button>
           )}
           <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 8, lineHeight: 1.5 }}>
-            Your key is stored in this browser only and is sent directly to Anthropic over HTTPS. It is not shared with any other server. The advisor uses <code style={{ color: COLORS.cyan }}>{ADVISOR_MODEL}</code>.
+            Your key never leaves this browser except to Anthropic directly over HTTPS. Recommendation: use a dedicated key with a monthly spend cap (set one at console.anthropic.com) so a leaked key can't run up charges. The advisor uses <code style={{ color: COLORS.cyan }}>{ADVISOR_MODEL}</code>.
           </div>
         </Section>
 
@@ -766,7 +818,7 @@ function SettingsDrawer({ usage, lifetimeUsage, onClose, onKeySet, onKeyCleared,
           <button onClick={() => {
             if (typeof window !== 'undefined' && window.confirm && window.confirm('Delete all advisor conversations? This cannot be undone.')) {
               onClearConversations();
-              if (typeof window !== 'undefined' && window.storage) window.storage.delete('fin-advisor-conversations').catch(() => {});
+              if (typeof window !== 'undefined' && window.storage) window.storage.delete(ADVISOR_STORAGE_KEY_CONVERSATIONS).catch(() => {});
               onClose();
             }
           }} style={{ ...chipBtn, color: COLORS.error, borderColor: COLORS.error }}>

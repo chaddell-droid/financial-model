@@ -147,13 +147,16 @@ export async function save(conversations, storage, opts = {}) {
     pruned = trimmed.length - ADVISOR_MAX_CONVERSATIONS;
     trimmed = trimmed.slice(0, ADVISOR_MAX_CONVERSATIONS);
   }
-  // Trim tool-call payloads in every message before serializing.
+  // Trim tool-call payloads in every message before serializing. The tool-call
+  // `id` is preserved — the UI uses it as the React key, so dropping it caused
+  // key collisions after a reload.
   const forStorage = trimmed.map((c) => ({
     ...c,
     messages: (c.messages || []).map((m) => ({
       ...m,
       toolCalls: Array.isArray(m.toolCalls)
         ? m.toolCalls.map((tc) => ({
+          id: tc.id,
           name: tc.name,
           input: trimForStorage(tc.input),
           result: trimForStorage(tc.result),
@@ -279,6 +282,7 @@ export function exportAsJSON(convo) {
       ...m,
       toolCalls: Array.isArray(m.toolCalls)
         ? m.toolCalls.map((tc) => ({
+          id: tc.id,
           name: tc.name,
           input: trimForStorage(tc.input),
           result: trimForStorage(tc.result),

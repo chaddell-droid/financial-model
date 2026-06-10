@@ -24,6 +24,30 @@ import { buildSystemPrompt } from './systemPrompt.js';
 import { verifyTurn } from './verifier.js';
 
 /**
+ * Return a request-time copy of `messages` with a prompt-cache breakpoint
+ * (`cache_control: {type:'ephemeral'}`) on the LAST content block of the
+ * MOST RECENT message. Combined with the single system-prompt breakpoint,
+ * this caches the whole conversation prefix between tool iterations and
+ * follow-up turns. The stored conversation itself is never mutated, so
+ * persisted history stays free of stale cache markers.
+ */
+function withMessageCacheBreakpoint(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+  const last = messages[messages.length - 1];
+  let content = last.content;
+  if (typeof content === 'string') {
+    content = [{ type: 'text', text: content, cache_control: { type: 'ephemeral' } }];
+  } else if (Array.isArray(content) && content.length > 0) {
+    content = content.map((b, i) => (
+      i === content.length - 1 ? { ...b, cache_control: { type: 'ephemeral' } } : b
+    ));
+  } else {
+    return messages;
+  }
+  return [...messages.slice(0, -1), { ...last, content }];
+}
+
+/**
  * Stream a single advisor turn.
  *
  * @param {object} args
@@ -77,19 +101,15 @@ export async function streamAdvisorTurn({
       throw err;
     }
 
+    // Request options: forward the caller's AbortSignal so Stop actually
+    // cancels the HTTP request, and cap each request at the advisor timeout.
     const stream = client.messages.stream({
       model: ADVISOR_MODEL,
       max_tokens: ADVISOR_MAX_TOKENS,
       system: systemBlocks,
       tools: toolDefs,
-      messages: conversation,
-    });
-
-    // Track tool_use blocks as they stream in. SDK emits content_block_start
-    // (with name+id), then content_block_delta (input_json_delta), then
-    // content_block_stop. We capture the final block off the stream's
-    // finalMessage().
-    const inFlightTool = new Map(); // index → { id, name, inputJson: '' }
+      messages: withMessageCacheBreakpoint(conversation),
+    }, { signal, timeout: ADVISOR_REQUEST_TIMEOUT_MS });
 
     if (stream.on) {
       // Use the SDK's typed event emitters when available.
@@ -103,18 +123,16 @@ export async function streamAdvisorTurn({
         }
       });
     } else if (typeof stream[Symbol.asyncIterator] === 'function') {
-      // Fallback: iterate raw events ourselves.
+      // Fallback: iterate raw events ourselves. Tool inputs are NOT
+      // accumulated here — the complete tool_use blocks (with parsed input)
+      // are read off finalMessage() below.
       for await (const event of stream) {
         if (!event) continue;
         if (event.type === 'content_block_delta' && event.delta && event.delta.type === 'text_delta') {
           assistantText += event.delta.text;
           if (onTextDelta) onTextDelta(event.delta.text);
         } else if (event.type === 'content_block_start' && event.content_block && event.content_block.type === 'tool_use') {
-          inFlightTool.set(event.index, { id: event.content_block.id, name: event.content_block.name, inputJson: '' });
           if (onToolCallStart) onToolCallStart({ id: event.content_block.id, name: event.content_block.name, input: {} });
-        } else if (event.type === 'content_block_delta' && event.delta && event.delta.type === 'input_json_delta') {
-          const inFlight = inFlightTool.get(event.index);
-          if (inFlight) inFlight.inputJson += event.delta.partial_json;
         }
       }
     }
@@ -190,7 +208,7 @@ export async function streamAdvisorTurn({
     if (onError) onError(err);
   }
 
-  const verifier = verifyTurn({ assistantText, toolCalls: allToolCalls });
+  const verifier = verifyTurn({ assistantText, toolCalls: allToolCalls, state });
   const cost = estimateCost(accumulatedUsage);
   const out = {
     finalMessages: conversation,

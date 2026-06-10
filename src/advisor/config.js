@@ -18,11 +18,13 @@ export const ADVISOR_STORAGE_KEY_API_KEY = 'advisor-key';
 export const ADVISOR_STORAGE_KEY_USAGE = 'fin-advisor-usage';
 
 // Pricing — used only for the cumulative usage display. Update if Anthropic changes.
-// Opus 4.7 indicative rates ($ per 1M tokens).
-export const ADVISOR_PRICE_INPUT_PER_MTOK = 15;
-export const ADVISOR_PRICE_OUTPUT_PER_MTOK = 75;
-export const ADVISOR_PRICE_CACHE_READ_PER_MTOK = 1.5;
-export const ADVISOR_PRICE_CACHE_WRITE_PER_MTOK = 18.75;
+// Opus 4.7 rates ($ per 1M tokens): input 5, output 25, cache read 0.5,
+// cache write 6.25. The lifetime display self-corrects on rate changes since
+// raw token counts (not dollars) are what's stored.
+export const ADVISOR_PRICE_INPUT_PER_MTOK = 5;
+export const ADVISOR_PRICE_OUTPUT_PER_MTOK = 25;
+export const ADVISOR_PRICE_CACHE_READ_PER_MTOK = 0.5;
+export const ADVISOR_PRICE_CACHE_WRITE_PER_MTOK = 6.25;
 
 export function estimateCost({ inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreateTokens = 0 } = {}) {
   return (

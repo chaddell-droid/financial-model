@@ -150,6 +150,34 @@ await test('Save trims heavy fields (monthlyData)', async () => {
   assert.strictEqual(tc.result.monthlyData, '<trimmed-for-storage>');
 });
 
+await test('Save preserves tool-call ids (React keys after reload)', async () => {
+  const storage = makeFakeStorage();
+  let c = createNew({ state: gatherStateWithOverrides({}) });
+  c = appendMessage(c, {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'ok' }],
+    toolCalls: [
+      { id: 'toolu_01', name: 'runProjection', input: {}, result: { ok: true }, durationMs: 5 },
+      { id: 'toolu_02', name: 'getCurrentState', input: {}, result: { ok: true }, durationMs: 3 },
+    ],
+  });
+  await save([c], storage);
+  const loaded = await loadAll(storage);
+  const ids = loaded[0].messages[0].toolCalls.map((tc) => tc.id);
+  assert.deepStrictEqual(ids, ['toolu_01', 'toolu_02'], 'tool-call ids must survive the storage round-trip');
+});
+
+test('exportAsJSON preserves tool-call ids', () => {
+  let c = createNew({ scenarioName: null, state: gatherStateWithOverrides({}) });
+  c = appendMessage(c, {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'ok' }],
+    toolCalls: [{ id: 'toolu_x', name: 'runProjection', input: {}, result: { ok: true }, durationMs: 2 }],
+  });
+  const parsed = JSON.parse(exportAsJSON(c));
+  assert.strictEqual(parsed.messages[0].toolCalls[0].id, 'toolu_x');
+});
+
 console.log('\n=== pruning at cap ===');
 
 await test(`Save prunes oldest when count > ADVISOR_MAX_CONVERSATIONS (${ADVISOR_MAX_CONVERSATIONS})`, async () => {

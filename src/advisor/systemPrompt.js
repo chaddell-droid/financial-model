@@ -2,13 +2,15 @@
  * CFP Advisor — system prompt builder.
  *
  * Composes a four-block prompt:
- *   A. Persona      (static)
- *   B. Household    (deterministic from current state, regenerated per turn)
- *   C. Tool philosophy (static)
- *   D. Boundaries   (static)
+ *   A. Persona         (static)
+ *   B. Tool philosophy (static)
+ *   C. Boundaries      (static)
+ *   D. Household       (deterministic from current state, regenerated per turn)
  *
- * The static blocks are returned with cache_control hints so the
- * advisorAgent can apply Anthropic prompt caching to drop repeat-prompt cost.
+ * The static blocks come FIRST so they form a stable cacheable prefix; a
+ * single cache_control breakpoint on the last static block lets Anthropic
+ * prompt caching cover all three. The volatile household block sits after
+ * the breakpoint so a state change never invalidates the static prefix.
  *
  * `buildSystemPrompt(state)` returns an array of blocks suitable for
  * Anthropic's `system` parameter (with cache_control on static blocks).
@@ -31,7 +33,7 @@ You have tools that wrap a thoroughly tested financial engine. Use them.
 
 **Hard rule: every dollar amount, percentage, and date you state must come from a tool call in the current turn.** If you state "$50K" in your reply, that exact figure must appear in a tool result you executed this turn. Do not estimate. Do not approximate from memory. Do not invent. If you need a number, call a tool.
 
-**Equally important: only describe what's actually in the current plan.** The household snapshot above distinguishes ACTIVE income/expenses (currently flowing in this scenario) from INACTIVE LEVERS (configured but turned off). When the user says "the current plan" or asks "what does my plan look like", they mean the ACTIVE branches. Don't describe Chad's MSFT W-2 details unless \`chadJob\` is on. Don't describe SSDI as a current income unless \`ssType='ssdi'\` and not denied. Inactive levers are options the user could turn on — bring them up only when discussing what to change.
+**Equally important: only describe what's actually in the current plan.** The household snapshot (at the end of this system prompt) distinguishes ACTIVE income/expenses (currently flowing in this scenario) from INACTIVE LEVERS (configured but turned off). When the user says "the current plan" or asks "what does my plan look like", they mean the ACTIVE branches. Don't describe Chad's MSFT W-2 details unless \`chadJob\` is on. Don't describe SSDI as a current income unless \`ssType='ssdi'\` and not denied. Inactive levers are options the user could turn on — bring them up only when discussing what to change.
 
 Watch for the **plan-consistency notes** in the household snapshot — they flag combinations that the engine permits but real life does not (e.g., SSDI + a substantial W-2 job). Acknowledge those tensions when relevant; don't paper over them.
 
@@ -254,25 +256,28 @@ export function summarizeHousehold(state) {
 
 /**
  * Build the system prompt as an array of structured blocks for the
- * Anthropic API. Static blocks (persona, tool-philosophy, boundaries) are
- * marked with `cache_control` so they can be cached server-side. The
- * household block is uncached because it changes every state mutation.
+ * Anthropic API. Static blocks (persona, tool-philosophy, boundaries) come
+ * first and a SINGLE `cache_control` breakpoint on the last of them caches
+ * the entire static prefix server-side. The household block is last and
+ * uncached because it changes on every state mutation — placing it after
+ * the breakpoint keeps the static prefix cache-hit across turns.
  *
  * @param {object} state - gathered state
  * @returns {Array<{type:'text', text:string, cache_control?:object}>}
  */
 export function buildSystemPrompt(state) {
   return [
-    { type: 'text', text: PERSONA, cache_control: { type: 'ephemeral' } },
-    { type: 'text', text: summarizeHousehold(state) }, // uncached — varies per turn
-    { type: 'text', text: TOOL_PHILOSOPHY, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: PERSONA },
+    { type: 'text', text: TOOL_PHILOSOPHY },
     { type: 'text', text: BOUNDARIES, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: summarizeHousehold(state) }, // uncached — varies per turn
   ];
 }
 
 /**
- * Plain-string variant for tests / logging.
+ * Plain-string variant for tests / logging. Same block order as
+ * buildSystemPrompt (static prefix first, household last).
  */
 export function buildSystemPromptString(state) {
-  return [PERSONA, summarizeHousehold(state), TOOL_PHILOSOPHY, BOUNDARIES].join('\n\n---\n\n');
+  return [PERSONA, TOOL_PHILOSOPHY, BOUNDARIES, summarizeHousehold(state)].join('\n\n---\n\n');
 }

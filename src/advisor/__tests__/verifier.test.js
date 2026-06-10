@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert';
 import { verifyTurn } from '../verifier.js';
+import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
 let failed = 0;
@@ -161,6 +162,113 @@ test('Stats by kind', () => {
   assert.strictEqual(r.stats.byKind.dollar, 1);
   assert.strictEqual(r.stats.byKind.percent, 1);
   assert.strictEqual(r.stats.byKind.month, 1);
+});
+
+console.log('\n=== kind-matched pools (no cross-kind false verification) ===');
+
+test('Dollar mention does NOT verify against a month value', () => {
+  const r = verifyTurn({
+    assistantText: 'That costs $42.',
+    toolCalls: [{ name: 'x', input: {}, result: { breakevenMonth: 42 } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 1, '$42 must not be "verified" by month 42');
+});
+
+test('Month mention does NOT verify against a dollar value', () => {
+  const r = verifyTurn({
+    assistantText: 'You break even in 60 months.',
+    toolCalls: [{ name: 'x', input: {}, result: { finalBalance: 60 } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 1);
+});
+
+test('Percent mention does NOT verify against a dollar value', () => {
+  const r = verifyTurn({
+    assistantText: 'Returns about 12%.',
+    toolCalls: [{ name: 'x', input: {}, result: { balance: 12 } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 1);
+});
+
+test('Dollar mention does NOT verify against a percent (rate) value', () => {
+  const r = verifyTurn({
+    assistantText: 'You pay $25.',
+    toolCalls: [{ name: 'x', input: {}, result: { taxRate: 25 } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 1);
+});
+
+test('Pct-suffixed keys classify as percents', () => {
+  const r = verifyTurn({
+    assistantText: 'Blended take-home is 71.5%.',
+    toolCalls: [{ name: 'x', input: {}, result: { blendedTakeHomePct: 71.5 } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 0);
+});
+
+test('Month-suffixed nested keys classify as months', () => {
+  const r = verifyTurn({
+    assistantText: 'The van sells at month 12.',
+    toolCalls: [{ name: 'x', input: {}, result: { van: { saleMonth: 12 } } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 0);
+});
+
+test('netMonthly stays a dollar despite containing "month"', () => {
+  const r = verifyTurn({
+    assistantText: 'Net monthly comes to $4,200.',
+    toolCalls: [{ name: 'x', input: {}, result: { netMonthly: 4200 } }],
+  });
+  assert.strictEqual(r.stats.mismatchCount, 0);
+});
+
+console.log('\n=== household snapshot pool (state values verify) ===');
+
+test('State dollar values verify without any tool call', () => {
+  const state = gatherStateWithOverrides({ chadJob: true, chadJobSalary: 165000 });
+  const r = verifyTurn({ assistantText: 'Your salary is $165,000.', toolCalls: [], state });
+  assert.strictEqual(r.stats.mismatchCount, 0, JSON.stringify(r.mismatches));
+});
+
+test('State month values verify (chadWorkMonths)', () => {
+  const state = gatherStateWithOverrides({ chadWorkMonths: 72 });
+  const r = verifyTurn({ assistantText: 'Chad retires in 72 months.', toolCalls: [], state });
+  assert.strictEqual(r.stats.mismatchCount, 0, JSON.stringify(r.mismatches));
+});
+
+test('State percent values verify (investmentReturn)', () => {
+  const state = gatherStateWithOverrides({ investmentReturn: 5 });
+  const r = verifyTurn({ assistantText: 'We assume a 5% return on savings.', toolCalls: [], state });
+  assert.strictEqual(r.stats.mismatchCount, 0, JSON.stringify(r.mismatches));
+});
+
+test("Sarah's hourly rate classifies as a dollar, not a percent", () => {
+  const state = gatherStateWithOverrides({ sarahRate: 250 });
+  const r = verifyTurn({ assistantText: 'Sarah charges $250 per session hour.', toolCalls: [], state });
+  assert.strictEqual(r.stats.mismatchCount, 0, JSON.stringify(r.mismatches));
+});
+
+test('Derived debt total shown in the snapshot verifies', () => {
+  const state = gatherStateWithOverrides({ debtCC: 92000, debtPersonal: 57000, debtIRS: 17000, debtFirstmark: 21000 });
+  const r = verifyTurn({ assistantText: 'Total debt stands at $187,000.', toolCalls: [], state });
+  assert.strictEqual(r.stats.mismatchCount, 0, JSON.stringify(r.mismatches));
+});
+
+test('Numbers NOT in state still mismatch when the state pool is present', () => {
+  const state = gatherStateWithOverrides({});
+  const r = verifyTurn({ assistantText: 'You will end up with $123,456,789.', toolCalls: [], state });
+  assert.strictEqual(r.stats.mismatchCount, 1);
+});
+
+test('Tool results and state pool combine', () => {
+  const state = gatherStateWithOverrides({ chadJob: true, chadJobSalary: 165000 });
+  const r = verifyTurn({
+    assistantText: 'On a $165,000 salary the final balance lands at $325,000.',
+    toolCalls: [{ name: 'runProjection', input: {}, result: { ok: true, summary: { finalBalance: 325000 } } }],
+    state,
+  });
+  assert.strictEqual(r.stats.mismatchCount, 0, JSON.stringify(r.mismatches));
+  assert.strictEqual(r.stats.covered, 2);
 });
 
 console.log(`\n${'='.repeat(60)}`);

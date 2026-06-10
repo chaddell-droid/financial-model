@@ -17,7 +17,7 @@ function test(name, fn) {
 
 console.log('\n=== systemPrompt — structure ===');
 
-test('buildSystemPrompt returns 4 blocks (persona, household, philosophy, boundaries)', () => {
+test('buildSystemPrompt returns 4 blocks (persona, philosophy, boundaries, household)', () => {
   const state = gatherStateWithOverrides({});
   const prompt = buildSystemPrompt(state);
   assert.ok(Array.isArray(prompt));
@@ -26,16 +26,23 @@ test('buildSystemPrompt returns 4 blocks (persona, household, philosophy, bounda
     assert.strictEqual(block.type, 'text');
     assert.ok(typeof block.text === 'string' && block.text.length > 50);
   }
+  // Static blocks come FIRST (cacheable prefix); volatile household block LAST.
+  assert.ok(prompt[0].text.includes('Certified Financial Planner'), 'persona first');
+  assert.ok(prompt[1].text.includes('Tool philosophy'), 'tool philosophy second');
+  assert.ok(prompt[2].text.includes('Boundaries'), 'boundaries third');
+  assert.ok(prompt[3].text.includes('CURRENT PLAN'), 'household block last');
 });
 
-test('Static blocks (persona, philosophy, boundaries) are cache_control-tagged', () => {
+test('Single cache breakpoint on the LAST static block; household uncached', () => {
   const state = gatherStateWithOverrides({});
   const prompt = buildSystemPrompt(state);
-  // 0 = persona, 1 = household, 2 = philosophy, 3 = boundaries
-  assert.deepStrictEqual(prompt[0].cache_control, { type: 'ephemeral' });
-  assert.strictEqual(prompt[1].cache_control, undefined, 'household must NOT be cached (varies per turn)');
-  assert.deepStrictEqual(prompt[2].cache_control, { type: 'ephemeral' });
-  assert.deepStrictEqual(prompt[3].cache_control, { type: 'ephemeral' });
+  // 0 = persona, 1 = philosophy, 2 = boundaries, 3 = household
+  const tagged = prompt.filter((b) => b.cache_control);
+  assert.strictEqual(tagged.length, 1, 'exactly one system breakpoint (covers the whole static prefix)');
+  assert.strictEqual(prompt[0].cache_control, undefined);
+  assert.strictEqual(prompt[1].cache_control, undefined);
+  assert.deepStrictEqual(prompt[2].cache_control, { type: 'ephemeral' }, 'breakpoint on boundaries (last static)');
+  assert.strictEqual(prompt[3].cache_control, undefined, 'household must NOT be cached (varies per turn)');
 });
 
 test('Persona block emphasizes CFP role and explanatory stance', () => {
@@ -47,7 +54,7 @@ test('Persona block emphasizes CFP role and explanatory stance', () => {
 
 test('Tool philosophy includes the hard rule about citing every number', () => {
   const state = gatherStateWithOverrides({});
-  const [, , philosophy] = buildSystemPrompt(state);
+  const [, philosophy] = buildSystemPrompt(state);
   assert.ok(philosophy.text.includes('every dollar'));
   assert.ok(philosophy.text.toLowerCase().includes('tool result'));
 });
@@ -163,7 +170,7 @@ test('Active income summary lists all currently-flowing sources in one line', ()
 
 test('Tool philosophy mentions active vs inactive distinction', () => {
   const state = gatherStateWithOverrides({});
-  const [, , philosophy] = buildSystemPrompt(state);
+  const [, philosophy] = buildSystemPrompt(state);
   assert.ok(philosophy.text.toLowerCase().includes('active'), 'philosophy should reference active branches');
   assert.ok(philosophy.text.toLowerCase().includes('inactive') || philosophy.text.toLowerCase().includes('turned off'),
     'philosophy should reference inactive levers');
@@ -211,6 +218,14 @@ test('buildSystemPromptString concatenates blocks with separators', () => {
   assert.ok(str.includes('Certified Financial Planner'));
   assert.ok(str.includes('Tool philosophy'));
   assert.ok(str.includes('Boundaries'));
+  // Same order as the block form: static prefix first, household last.
+  const personaIdx = str.indexOf('Certified Financial Planner');
+  const philosophyIdx = str.indexOf('Tool philosophy');
+  const boundariesIdx = str.indexOf('# Boundaries');
+  const householdIdx = str.indexOf('CURRENT PLAN');
+  assert.ok(personaIdx < philosophyIdx, 'persona before philosophy');
+  assert.ok(philosophyIdx < boundariesIdx, 'philosophy before boundaries');
+  assert.ok(boundariesIdx < householdIdx, 'household block last');
 });
 
 console.log(`\n${'='.repeat(60)}`);

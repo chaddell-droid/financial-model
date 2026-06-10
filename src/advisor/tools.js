@@ -20,7 +20,7 @@
 import { gatherStateWithOverrides } from '../state/gatherState.js';
 import { computeProjection, findOperationalBreakevenIndex } from '../model/projection.js';
 import { evaluateAllGoals } from '../model/goalEvaluation.js';
-import { computeTopMoves } from '../model/sensitivityAnalysis.js';
+import { computeTopMoves, buildLeverCandidates } from '../model/sensitivityAnalysis.js';
 import { computeMoveCascade } from '../model/moveCascade.js';
 import { runMonteCarlo } from '../model/monteCarlo.js';
 import { buildTaxSchedule } from '../model/taxProjection.js';
@@ -311,7 +311,8 @@ export const TOOLS = Object.freeze([
       const proj = computeProjection(state);
       const summary = summarizeProjection(proj);
       const result = { ok: true, summary };
-      if (args.everyNthMonth || args.fields || args.startMonth || args.endMonth) {
+      // != null (not truthiness): startMonth/endMonth of 0 are valid bounds.
+      if (args.everyNthMonth != null || args.fields != null || args.startMonth != null || args.endMonth != null) {
         result.monthlyData = sparseMonthly(proj.monthlyData, args);
       }
       return result;
@@ -382,10 +383,14 @@ export const TOOLS = Object.freeze([
   {
     name: 'topMoves',
     description:
-      'Compute the top single-lever moves ranked by goal-aware score. Each move is a one-click mutation (e.g., enable L64, sell van, take MSFT offer bundle) with predicted final-balance delta, breakeven delta, and goal-progress delta. Use this when the user asks "what should I do?" or "what helps the most?"',
+      'Compute the top single-lever moves ranked by goal-aware score. Each move is a one-click mutation (e.g., enable L64, sell van, take MSFT offer bundle) with predicted final-balance delta, breakeven delta, goal-progress delta, and the exact `mutation` object that applies it (usable directly with whatIf or the one-click Apply button). Use this when the user asks "what should I do?" or "what helps the most?"',
     input_schema: TOP_MOVES_SCHEMA,
     handler: (state, args = {}) => {
       const moves = computeTopMoves(state, args.topN ?? 5);
+      // Each move's key is the lever-candidate id; expose the candidate's
+      // mutation so the UI "Apply this move" button (and the model's whatIf
+      // follow-ups) can act on it directly.
+      const mutationByKey = new Map(buildLeverCandidates(state).map((c) => [c.id, c.mutation]));
       return {
         ok: true,
         moves: moves.map((m) => ({
@@ -397,6 +402,7 @@ export const TOOLS = Object.freeze([
           breakevenMonthDelta: m.breakevenMonthDelta,
           goalProgressDelta: r2(m.goalProgressDelta || 0),
           score: r(m.score),
+          mutation: mutationByKey.get(m.key) || null,
         })),
       };
     },

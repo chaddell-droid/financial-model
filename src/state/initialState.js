@@ -135,6 +135,20 @@ export const INITIAL_STATE = {
   // If actual graduation is mid-2029 not 2030, change to 3.25 (graduation June 2029 = m=39).
   bcsYearsLeft: 3.5,           // Freshmen 2025–2026, payments through month 41 (3.5 years)
 
+  // Twins' college (6.2 — remediation 2026-06-10, improvement a-3, gate D4).
+  // The "Twins to college" milestone (below) keeps modeling the HOUSEHOLD
+  // running-cost drop when they move out; these fields carry the tuition
+  // itself, which the audit found entirely missing (the combined event
+  // wrongly REDUCED expenses $3,000/mo). Cost applies PER KID — the engine
+  // charges 2× for the twins. Nominal dollars (like BCS, treated as a fixed
+  // contract — not inflated). The 529 draws down first, dollar-for-dollar
+  // (no growth modeled on the 529 itself); only the uncovered remainder
+  // lands in monthly expenses (expenseBreakdown.college).
+  collegeCostPerKidMonthly: 2833,  // $/mo per kid ≈ $34k/kid/yr in-state all-in (D4)
+  collegeStartMonth: 39,           // Sept 2029 (m=39 from Mar-2026 baseline)
+  collegeMonths: 48,               // 4 academic years
+  college529Balance: 0,            // Current 529 balance (D4: Chad to fill in)
+
   // Spending Cuts — single slider amount (applied when lifestyleCutsApplied is true)
   lifestyleCutsApplied: false,
   cutsOverride: null,                // null = no override (use individual cut sliders); number = total cut amount
@@ -335,6 +349,8 @@ export const MODEL_KEYS = [
   'totalMonthlySpend', 'oneTimeExtras', 'oneTimeMonths', 'baseExpenses', 'debtService',
   'expenseInflation', 'expenseInflationRate',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
+  // Twins' college (6.2 — remediation 2026-06-10, D4)
+  'collegeCostPerKidMonthly', 'collegeStartMonth', 'collegeMonths', 'college529Balance',
   'lifestyleCutsApplied', 'cutsOverride',
   'cutOliver', 'cutVacation', 'cutShopping', 'cutMedical', 'cutGym',
   'cutAmazon', 'cutSaaS', 'cutEntertainment', 'cutGroceries', 'cutPersonalCare', 'cutSmallItems',

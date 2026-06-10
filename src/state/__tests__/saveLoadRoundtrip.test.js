@@ -136,6 +136,11 @@ const NON_DEFAULT_VALUES = {
   bcsAnnualTotal: 50000,
   bcsParentsAnnual: 27500,
   bcsYearsLeft: 4,
+  // Twins' college (6.2 — remediation 2026-06-10, D4)
+  collegeCostPerKidMonthly: 3500,
+  collegeStartMonth: 45,
+  collegeMonths: 36,
+  college529Balance: 80000,
   // Spending cuts
   lifestyleCutsApplied: true,      // flipped
   cutsOverride: 1500,              // non-null

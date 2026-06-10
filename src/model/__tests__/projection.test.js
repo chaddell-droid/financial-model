@@ -525,6 +525,7 @@ test('19. Van monthly cost added when vanSold is false', () => {
     retireDebt: true, lifestyleCutsApplied: false,
     bcsAnnualTotal: 0, milestones: [], chadJob: false,
     expenseInflation: false,
+    collegeMonths: 0, // 6.2 (2026-06-10): isolate the van component from the default-on tuition
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].expenses, s.baseExpenses + s.vanMonthlySavings);
@@ -949,6 +950,7 @@ const C12_OVERCUT = {
   lifestyleCutsApplied: true, cutsOverride: 5000, cutInHalf: 0, extraCuts: 0,
   bcsYearsLeft: 0, milestones: [], chadJob: false, ssdiDenied: true,
   expenseInflation: false, oneTimeExtras: 0,
+  collegeMonths: 0, // 6.2 (2026-06-10): tuition from m=39 would unbind the clamp this scenario relies on
 };
 
 test('34k. C12: clamp binding → clampAdjustment line restores Σbreakdown = expenses + row flag', () => {
@@ -1215,6 +1217,7 @@ test('48. bcsYearsLeft = 0 — no BCS expenses at any month', () => {
     lifestyleCutsApplied: false, milestones: [], chadJob: false,
     vanLoanBalance: 0, vanSalePrice: 0,
     expenseInflation: false,
+    collegeMonths: 0, // 6.2 (2026-06-10): isolate the BCS component from the default-on tuition
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Every single month's expenses should equal baseExpenses (no BCS component)

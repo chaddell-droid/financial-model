@@ -437,6 +437,12 @@ function solventBase() {
     starting401k: 478000,
     return401k: 8,
     startingSavings: 1000000,
+    // 6.2 (2026-06-10): disable the (default-on) twins' college tuition so
+    // this household stays cash-solvent — these tests isolate variance
+    // sources, and the tuition tips low-MSFT sims into 401(k) deficit draws,
+    // which legitimately leak MSFT variance into the 401k/home bands via the
+    // deficit chain.
+    collegeMonths: 0,
   });
 }
 

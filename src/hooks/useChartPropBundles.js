@@ -36,6 +36,7 @@ export function useChartPropBundles({
     chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
     totalMonthlySpend, debtService, expenseInflation, expenseInflationRate, ssColaRate,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
+    collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance, // 6.2 (2026-06-10)
     lifestyleCutsApplied, cutsOverride,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
@@ -165,6 +166,7 @@ export function useChartPropBundles({
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+    collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance, // 6.2 (2026-06-10)
     vanSold, vanMonthlySavings, vanSaleMonth,
     chadJob, chadJobStartMonth, chadJobHealthSavings,
     milestones,
@@ -180,6 +182,7 @@ export function useChartPropBundles({
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+    collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance, // 6.2 (2026-06-10)
     vanSold, vanMonthlySavings, vanSaleMonth,
     chadJob, chadJobStartMonth, chadJobHealthSavings,
     milestones,

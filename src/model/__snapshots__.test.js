@@ -141,14 +141,14 @@ test('backPayActual', () => eq(backPayActual, 90394)); // A1 (2026-06-10): -14,1
 test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 SS taxability haircut -$80.0k (benefits + back pay now taxed)
+test('month 72 balance', () => eq(monthlyData[72].balance, -902668)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k; 6.2 college tuition -$193.9k (34 mo x $5,666 from m=39)
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
 test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -30604)); // B4 family rate; A2 COLA; A1 haircut -849 at m=36
-test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -34155)); // A2 COLA +673; A1 haircut -914 at m=72
+test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -39821)); // A2 COLA +673; A1 haircut -914; 6.2 college -5,666/mo at m=72
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -708785); // re-baselined for D7 gross-up, B4 (+$13.3k), A2 COLA (+$28.6k), A1 haircut (-$80.0k)
+  eq(minBal, -902668); // re-baselined for D7 gross-up, B4 (+$13.3k), A2 COLA (+$28.6k), A1 haircut (-$80.0k), 6.2 college (-$193.9k)
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -176,8 +176,8 @@ const { monthlyData: deniedData } = runMonthlySimulation(denied);
 
 test('month 12 balance', () => eq(deniedData[12].balance, 0));
 test('month 36 balance', () => eq(deniedData[36].balance, 0));
-// Re-baselined for D7 gross-up (was -998480).
-test('month 72 balance', () => eq(deniedData[72].balance, -1163553));
+// Re-baselined for D7 gross-up (was -998480); 6.2 college tuition -$192.7k.
+test('month 72 balance', () => eq(deniedData[72].balance, -1356227));
 test('ssdi is always 0', () => {
   assert.ok(deniedData.every(d => d.ssBenefit === 0), 'SSDI should be 0 for all months when denied');
 });
@@ -204,7 +204,7 @@ test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948)
 test('month 12 balance', () => eq(debtData[12].balance, 20764)); // A2 COLA +769; A1 haircut (benefit tax m7-12 + back-pay tax 14,184) -19,653
 // Re-baselined for D7 gross-up (was 0): the grossed-up draws now exhaust the
 // reserves before month 72 even with debt retired.
-test('month 72 balance', () => eq(debtData[72].balance, -168232)); // B4 +$13.3k, A2 COLA +$30.3k, A1 haircut -$87.0k
+test('month 72 balance', () => eq(debtData[72].balance, -366923)); // B4 +$13.3k, A2 COLA +$30.3k, A1 haircut -$87.0k; 6.2 college -$198.7k
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
 });
@@ -217,7 +217,7 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
 // Re-baselined for D7 gross-up (was -487171, matching the default scenario).
-test('month 72 balance', () => eq(cutsData[72].balance, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k
+test('month 72 balance', () => eq(cutsData[72].balance, -902668)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k; 6.2 college -$193.9k
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -252,7 +252,7 @@ const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDeb
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -902668)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k; 6.2 college -$193.9k
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
 test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -30604)); // B4; A2 COLA; A1 haircut at m=36
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
@@ -295,7 +295,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -902668)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k; 6.2 college -$193.9k
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -2272,7 +2272,7 @@ console.log('\n=== Integration Regression Snapshots ===');
 test('R1: job scenario balance at month 71', () => {
   const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -398240); // was -209379 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -587939); // was -209379 pre-D7; 6.2 college -$189.7k (33 mo x $5,666 by m=71)
 });
 
 // R2 — Month-0 job income
@@ -2311,21 +2311,21 @@ test('R4: SS at FRA benefit at month 79', () => {
 test('R5: denied SSDI balance at month 71', () => {
   const s = gatherState({ ssdiDenied: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -1125425); // was -960352 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -1312433); // was -960352 pre-D7; 6.2 college -$187.0k
 });
 
 // R6 — Van sold at month 6
 test('R6: van sold at month 6, balance at month 71', () => {
   const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -556751); // was -477252 pre-A1 (taxability haircut -$79.5k), -505255 pre-A2, -518665 pre-B4, -333183 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -745423); // was -477252 pre-A1 (taxability haircut -$79.5k), -505255 pre-A2, -518665 pre-B4, -333183 pre-D7; 6.2 college -$188.7k
 });
 
 // R7 — Lifestyle cuts active with override
 test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
   const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -263291); // was -179291 pre-A1 (haircut -$84.0k), -208383 pre-A2, -222214 pre-B4, -19887 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -454687); // was -179291 pre-A1 (haircut -$84.0k), -208383 pre-A2, -222214 pre-B4, -19887 pre-D7; 6.2 college -$191.4k
 });
 
 // R8 — Debt retired. Was 0 pre-D7 (reserves still covered the deficit); the
@@ -2333,7 +2333,7 @@ test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
 test('R8: debt retired, balance at month 71', () => {
   const s = gatherState({ retireDebt: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -140511); // was -54448 pre-A1 (haircut -$86.1k), -84087 pre-A2, -98156 pre-B4
+  assert.strictEqual(monthlyData[71].balance, -333536); // was -54448 pre-A1 (haircut -$86.1k), -84087 pre-A2, -98156 pre-B4; 6.2 college -$193.0k
 });
 
 // R9 — All toggles on: debt retired + van sold + cuts + job

@@ -76,6 +76,8 @@ const DataTable = ({ data, presentMode }) => {
     { key: 'van',             label: 'Van' },
     { key: 'bcs',             label: 'BCS' },
     { key: 'oneTimeExtras',   label: 'One-Time' },
+    // 6.2 (2026-06-10): twins' tuition (out-of-pocket after the 529)
+    { key: 'college',         label: 'College' },
     { key: 'lifestyleCuts',   label: 'Cuts (−)' },
     { key: 'milestones',      label: 'Milestones (−)' },
     { key: 'healthInsurance', label: 'Health (−)' },

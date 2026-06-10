@@ -254,6 +254,21 @@ export function runMonthlySimulation(s) {
   // Sarah's practice stops at her work duration
   const sarahRetirementMonth = s.sarahWorkMonths || 72;
 
+  // 6.2 (remediation 2026-06-10, improvement a-3, gate D4): twins' college.
+  // Tuition for BOTH twins runs collegeStartMonth..+collegeMonths at
+  // collegeCostPerKidMonthly × 2 (nominal dollars — treated like BCS as a
+  // fixed contract, not inflated). The 529 balance draws down FIRST,
+  // dollar-for-dollar (no growth modeled on the 529); only the uncovered
+  // remainder lands in monthly expenses as expenseBreakdown.college. The
+  // "Twins to college" milestone stays separate — it models the household
+  // running-cost DROP when they move out; this models the tuition the audit
+  // found missing (the combined event previously REDUCED expenses).
+  const COLLEGE_KIDS = 2; // the twins
+  const collegeStartMonth = s.collegeStartMonth ?? 39;
+  const collegeMonths = s.collegeMonths ?? 48;
+  const collegeMonthlyCost = COLLEGE_KIDS * Math.max(0, s.collegeCostPerKidMonthly ?? 2833);
+  let college529 = Math.max(0, s.college529Balance || 0);
+
   for (let m = 0; m <= months; m++) {
     let sarahIncome = 0;
     let sarahGross = 0; // A8: her net SE earnings drive the spousal earnings test
@@ -736,6 +751,17 @@ export function runMonthlySimulation(s) {
       expenses -= milestoneSavings;
       expenseBreakdown.milestones = -milestoneSavings;
     }
+    // 6.2: twins' college window — 529 draws down first, remainder is expense.
+    let college529Draw = 0;
+    if (collegeMonthlyCost > 0 && m >= collegeStartMonth && m < collegeStartMonth + collegeMonths) {
+      college529Draw = Math.min(college529, collegeMonthlyCost);
+      college529 -= college529Draw;
+      const collegeOutOfPocket = collegeMonthlyCost - college529Draw;
+      if (collegeOutOfPocket > 0) {
+        expenses += collegeOutOfPocket;
+        expenseBreakdown.college = collegeOutOfPocket;
+      }
+    }
     // Employer health insurance savings — applied for ALL months once Chad has
     // started his job (no retirement boundary). User-specified: post-retirement
     // healthcare is covered by retiree benefits / Sarah's practice / Medicare,
@@ -852,6 +878,10 @@ export function runMonthlySimulation(s) {
       chadJob401kContribGross, chadJob401kMatchGross, chadJob401kFlow, // 401(k) breakdown for tooltips/audit
       customLeverMonthly, // FIX RA-2: expose on row so charts/tooltips can sum back to cashIncome
       investReturn, cashIncome, cashIncomeSmoothed, expenses, expenseBreakdown, homeEquity,
+      // 6.2: 529 traceability — the tuition covered by the 529 this month and
+      // the balance remaining AFTER the draw (expenseBreakdown.college only
+      // carries the out-of-pocket remainder, so Σ breakdown == expenses).
+      college529Draw, college529Balance: college529,
       expensesClamped, // C12: true when the floor-at-zero clamp bound this month
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,

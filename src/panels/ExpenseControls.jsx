@@ -10,6 +10,7 @@ const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
   expenseInflation, expenseInflationRate, ssColaRate,
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
+  collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance,
   vanMonthlySavings,
   milestones,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
@@ -111,6 +112,28 @@ const ExpenseControls = ({
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", color: bcsFamilyMonthly > 0 ? COLORS.red : COLORS.green }}>
                   {bcsFamilyMonthly > 0 ? fmtFull(bcsFamilyMonthly) + "/mo" : "Fully covered"}
                 </span>
+              </div>
+            </div>
+
+            {/* Twins' College (6.2 — remediation 2026-06-10, D4). Tuition for
+                BOTH twins; the "Twins to college" milestone below stays the
+                separate household-savings side of the same event. */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+              <h4 style={{ fontSize: 11, color: COLORS.purple, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Twins' College</h4>
+              <Slider label="Cost per kid" value={collegeCostPerKidMonthly} onChange={set('collegeCostPerKidMonthly')} commitStrategy={commitStrategy} min={0} max={8000} step={50} color={COLORS.purple} format={(v) => fmtFull(v) + "/mo"} />
+              <Slider label="Start month" value={collegeStartMonth} onChange={set('collegeStartMonth')} commitStrategy={commitStrategy} min={0} max={totalProjectionMonths || 144} format={(v) => v + "mo"} color={COLORS.purple} />
+              <Slider label="Duration" value={collegeMonths} onChange={set('collegeMonths')} commitStrategy={commitStrategy} min={0} max={72} step={6} format={(v) => v + "mo"} color={COLORS.purple} />
+              <Slider label="529 balance (draws first)" value={college529Balance} onChange={set('college529Balance')} commitStrategy={commitStrategy} min={0} max={500000} step={5000} color={COLORS.purple} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
+                <span>Both twins:</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: collegeCostPerKidMonthly > 0 && collegeMonths > 0 ? COLORS.red : COLORS.green }}>
+                  {collegeCostPerKidMonthly > 0 && collegeMonths > 0
+                    ? `${fmtFull(2 * collegeCostPerKidMonthly)}/mo × ${collegeMonths}mo`
+                    : "Off"}
+                </span>
+              </div>
+              <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, fontStyle: "italic" }}>
+                529 covers tuition dollar-for-dollar until empty; the remainder hits monthly expenses.
               </div>
             </div>
 

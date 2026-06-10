@@ -104,6 +104,13 @@ const RANGE = {
   expenseInflationRate: { min: 0, max: 15 },
   bcsAnnualTotal: { min: 0 },
   bcsParentsAnnual: { min: 0 },
+  // Twins' college (6.2 — remediation 2026-06-10, D4). Cost ceiling is a
+  // corruption guard (~$120k/kid/yr), not a UI mirror; start month parallels
+  // the milestone guard (well past any projection horizon).
+  collegeCostPerKidMonthly: { min: 0, max: 10000 },
+  collegeStartMonth: { min: 0, max: 240 },
+  collegeMonths: { min: 0, max: 120 },
+  college529Balance: { min: 0, max: 5_000_000 },
   trustIncomeNow: { min: 0 },
   trustIncomeFuture: { min: 0 },
   vanMonthlySavings: { min: 0 },

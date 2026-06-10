@@ -269,6 +269,8 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                     oneTimeExtras: 'One-time extras',
                     lifestyleCuts: 'Lifestyle cuts',
                     milestones: 'Milestones',
+                    // 6.2 (2026-06-10): twins' tuition (out-of-pocket after the 529)
+                    college: 'College (twins)',
                     healthInsurance: 'Health ins. (employer)',
                     // C12: cuts over-shot total expenses — floor-at-$0 adjustment.
                     clampAdjustment: 'Floor at $0 (cuts exceed expenses)',

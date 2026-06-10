@@ -295,6 +295,15 @@ export function buildTaxSchedule(s) {
   // Gated by master toggle chadJob401kEnabled — matches projection.js semantics.
   const chadJob401kEnabled = !!s.chadJob401kEnabled;
   const chadJob401kDeferralAnnual = chadJob401kEnabled ? (s.chadJob401kDeferral || 0) : 0;
+  // 6.1 (remediation 2026-06-10, improvement a-2): SEHI premium = the SAME
+  // family private premium that employer coverage replaces
+  // (chadJobHealthSavings, $/mo — one source of truth with projection.js's
+  // expense offset, including its `|| 4200` default convention). A month has
+  // employer coverage when the projection's offset condition holds
+  // (chadJob && m >= chadJobStartMonth — no retirement boundary, matching
+  // projection.js); every OTHER month's premium is §162(l)-eligible.
+  const sehiPremiumMonthly = s.chadJobHealthSavings || 4200;
+  const hasEmployerCoverage = (m) => chadJob && m >= chadJobStartMonth;
   // C6 (remediation 2026-06-10): the tax schedule consumes the ADULT-ONLY
   // benefit estimate (Pub 915: kids' auxiliary benefits and kids' back pay
   // are the kids' income, never the parents'). The family-total view remains
@@ -369,9 +378,12 @@ export function buildTaxSchedule(s) {
     // projection.js's getVestingMonthly cashflow (same growth/price inputs)
     // but at GROSS (pre-withholding) dollars, which is what tax law sees.
     let chadLegacyVestGross = 0;
+    // 6.1: months this year WITHOUT employer coverage (SEHI-eligible).
+    let sehiMonths = 0;
 
     for (let m = startMonth; m <= endMonth; m++) {
       chadLegacyVestGross += getVestingGrossMonthly(m, msftGrowthPct, s.msftPrice);
+      if (!hasEmployerCoverage(m)) sehiMonths++;
       if (m <= sarahRetirementMonth) {
         const rate = Math.min(
           s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12),
@@ -473,6 +485,15 @@ export function buildTaxSchedule(s) {
     // Sch C net after business expenses
     const schCNet = Math.round(annualSarahGross * (1 - expenseRatio));
 
+    // 6.1: eligible SEHI premiums this tax year. Partial final years are
+    // annualized by the uncovered-month FRACTION (sehiMonths/monthsInYear ×
+    // 12 × premium) so the premium basis matches the annualized Sarah gross
+    // above — a 1-month trailing year with no coverage deducts a full year's
+    // premium against a full-year-equivalent Sch C.
+    const sehiPremiums = monthsInYear > 0
+      ? Math.round(sehiPremiumMonthly * 12 * (sehiMonths / monthsInYear))
+      : 0;
+
     // Chad's W-2 wages (salary + bonus + RSU vesting + sign-on, with compounded raises).
     // A4: legacy MSFT vest gross stacks on top UNCONDITIONALLY (W-2 wages in the
     // vest year even with no job) — into BOTH the Box 1 gross and the FICA base.
@@ -558,6 +579,7 @@ export function buildTaxSchedule(s) {
       ctcChildren: ctcChildrenForYear,
       odcDependents: taxInputs.odcDependents,
       solo401kContribution: taxInputs.solo401kContribution,
+      sehiPremiums, // 6.1: §162(l) SEHI for non-employer-coverage months
       ssBenefitAnnual: ssAnnualBenefits[y] || 0,
       saltCap,
       saltThreshold,
@@ -586,6 +608,7 @@ export function buildTaxSchedule(s) {
       ctcChildren: ctcChildrenForYear,
       odcDependents: taxInputs.odcDependents,
       solo401kContribution: 0, // No Solo 401(k) without self-employment
+      sehiPremiums, // 6.1: passed for symmetry — schCNet=0 caps the deduction at 0, so the SEHI benefit attributes to Sarah
       ssBenefitAnnual: ssAnnualBenefits[y] || 0, // FIX RA-1: include SS in counterfactual to avoid attribution drift
       saltCap,
       saltThreshold,
@@ -651,6 +674,7 @@ export function buildTaxSchedule(s) {
       chadPensionDollar: pensionDollar, // FIX #1: pre-tax pension dollar amount this year
       chad401kDeferralDollar, // 401(k): pre-tax deferral dollars this year (already prorated)
       ctcChildrenForYear, // FIX #M3: CTC kids actually used this year
+      sehiPremiums,       // 6.1: eligible §162(l) premiums this year (deducted amount = fullTax.sehi)
       noFICA: chadJobNoFICA, // FIX #1
 
       // C3/b-10: §86(e) lump-sum election detail for the back-pay receipt

@@ -1484,25 +1484,33 @@ test('tax year 0 locks (income, deductions, components)', () => {
   // post-TCJA): taxable SS 74899 -> 82719 (+85% x 9200), totalTax
   // 92827 -> 94704 (+$1,877). The §86(e) election ties at 85% for this
   // high-income year, so the standard treatment stands (ssLumpSum below).
+  // 6.1 (2026-06-10, improvement a-2): §162(l) SEHI — the default (no-job)
+  // household deducts the full $50,400/yr private premium above the line.
+  // Re-baselined: AGI 389367 -> 338967 (−50400), QBI 28841 -> 18761 (base net
+  // of SEHI), taxableIncome 328326 -> 288006, fedTax 63994 -> 54317,
+  // totalTax 94704 -> 85027 (−$9,677 of year-0 tax previously overstated on
+  // the SSDI path; the relief attributes to Sarah: 50140 -> 40463).
   const y = taxSnapSchedule[0];
   eq(y.annualSarahGross, 206888, 'Sarah gross');
   eq(y.schCNet, 155166, 'Sch C net at 25% expense ratio');
   eq(y.chadW2, 165444, 'legacy MSFT vest gross (A4); no job W-2 in default household');
-  eq(y.sarahMonthlyTax, 4178, 'Sarah monthly tax');
+  eq(y.sarahMonthlyTax, 3372, 'Sarah monthly tax (6.1 SEHI)');
   eq(y.chadMonthlyTax, 3714, 'vest W-2 tax attributed to Chad (A4)');
-  eq(Math.round(y.annualTotalTax), 94704, 'household total tax (C6 adult-only SS, C3 gross back pay)');
-  eq(Math.round(y.annualSarahTax), 50140, 'Sarah marginal attribution');
-  eq(Math.round(y.annualChadTax), 44564, 'Chad vest-only counterfactual (A4)');
+  eq(Math.round(y.annualTotalTax), 85027, 'household total tax (C6 adult-only SS, C3 gross back pay, 6.1 SEHI)');
+  eq(Math.round(y.annualSarahTax), 40463, 'Sarah marginal attribution (6.1: SEHI relief is hers)');
+  eq(Math.round(y.annualChadTax), 44564, 'Chad vest-only counterfactual (A4; schCNet=0 -> no SEHI)');
   eq(Math.round(y.fullTax.totalIncome), 400329);
-  eq(Math.round(y.fullTax.ssTaxableIncome), 82719, 'ADULT SSDI + adult GROSS back pay (C6+C3, with COLA)');
-  eq(Math.round(y.fullTax.agi), 389367);
-  eq(Math.round(y.fullTax.taxableIncome), 328326);
-  eq(Math.round(y.fullTax.fedTax), 63994);
-  eq(Math.round(y.fullTax.seTax), 21924, 'unchanged — A3 keeps SE per-individual');
-  eq(Math.round(y.fullTax.qbi), 28841);
+  eq(Math.round(y.fullTax.ssTaxableIncome), 82719, 'ADULT SSDI + adult GROSS back pay (C6+C3, with COLA) — still at the 85% ceiling with SEHI');
+  eq(Math.round(y.fullTax.agi), 338967, '6.1: AGI net of $50,400 SEHI');
+  eq(Math.round(y.fullTax.taxableIncome), 288006, '6.1');
+  eq(Math.round(y.fullTax.fedTax), 54317, '6.1');
+  eq(Math.round(y.fullTax.seTax), 21924, 'unchanged — SEHI is income-tax-only, never reduces SE tax');
+  eq(Math.round(y.fullTax.qbi), 18761, '6.1: QBI base net of SEHI (§199A(c)(4)(C))');
+  eq(y.fullTax.sehi, 50400, '6.1: full premium deductible (earned-income cap 144204 not binding)');
+  eq(y.sehiPremiums, 50400, '6.1: 12 uncovered months × $4,200');
   eq(y.fullTax.totalCredits, 4400, 'CTC for 2 kids — MAGI back under $400K once kids\' SS leaves (C6)');
   eq(y.marginalRate, 0.24);
-  near(y.effectiveTaxRate, 0.2432, 0.0005, 'effective rate on AGI');
+  near(y.effectiveTaxRate, 0.2508, 0.0005, 'effective rate on the (SEHI-reduced) AGI');
   // b-10: the §86(e) comparison is exposed; this year it ties (both 85%).
   eq(y.ssLumpSum.backPayGross, 75852, 'gross adult back pay (C3)');
   eq(y.ssLumpSum.electionApplied, false, '§86(e) election ties at the 85% ceiling here');
@@ -1519,14 +1527,17 @@ test('CTC steps down when the twins age out (years 0-1 credit, year 2+ none)', (
 test('final tax year locks (year 6, partial-year annualization)', () => {
   // A2 (2026-06-10): the trailing SSDI month (m=72) carries 6 years of COLA
   // (4214 -> 4887; 85% taxable = 4154). Re-baselined from 4030/48355/3582.
+  // 6.1 (2026-06-10): SEHI deducts a full-year-equivalent $50,400 against the
+  // annualized Sch C (the single trailing month has no employer coverage):
+  // sarahMonthlyTax 4038 -> 3326, totalTax 48455 -> 39914 (−$8,541).
   const y = taxSnapSchedule[6];
   eq(y.annualSarahGross, 290256, 'capped Sarah gross, annualized');
   eq(y.schCNet, 217692);
-  eq(y.sarahMonthlyTax, 4038);
-  eq(Math.round(y.annualTotalTax), 48455);
+  eq(y.sarahMonthlyTax, 3326, '6.1 SEHI');
+  eq(Math.round(y.annualTotalTax), 39914, '6.1 SEHI');
   eq(Math.round(y.fullTax.ssTaxableIncome), 4154, 'single trailing SSDI month (with COLA)');
   eq(Math.round(y.fullTax.seTax), 28708);
-  eq(y.marginalRate, 0.22);
+  eq(y.marginalRate, 0.12, '6.1: SEHI drops ordinary taxable income into the 12% bracket');
 });
 
 console.log('\n=== Monte Carlo Guards ===');

@@ -663,8 +663,10 @@ test('C50: waterfall income -> AGI -> taxable-income steps reconcile', () => {
     for (let y = 0; y < schedule.length; y++) {
       const row = schedule[y];
       const ft = row.fullTax;
-      // AGI = total income − half SE tax − solo 401(k) (above-the-line steps)
-      near(ft.totalIncome - ft.halfSeTax - ft.solo401kContribution, ft.agi, 0.01,
+      // AGI = total income − half SE tax − solo 401(k) − SEHI (above-the-line
+      // steps; 6.1 remediation 2026-06-10 added the §162(l) SE health
+      // insurance deduction, rendered as its own waterfall step).
+      near(ft.totalIncome - ft.halfSeTax - ft.solo401kContribution - (ft.sehi ?? 0), ft.agi, 0.01,
         `${label} year ${y} AGI step`);
       // Taxable income = max(0, AGI − deduction) − QBI, floored at 0
       near(Math.max(0, ft.agi - ft.deductionUsed), ft.taxableBeforeQbi, 0.01,

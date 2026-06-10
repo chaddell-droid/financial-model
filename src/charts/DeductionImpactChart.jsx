@@ -14,6 +14,8 @@ function buildItems(yr) {
     { label: 'Medical (above floor)', amount: ft.medicalDeductible, savings: ft.medicalDeductible * mr },
     { label: 'Half SE Deduction', amount: ft.halfSeTax, savings: ft.halfSeTax * mr },
     { label: 'Solo 401(k)', amount: ft.solo401kContribution, savings: ft.solo401kContribution * mr },
+    // 6.1 (remediation 2026-06-10): §162(l) SE health insurance deduction.
+    { label: 'SE Health Insurance', amount: ft.sehi ?? 0, savings: (ft.sehi ?? 0) * mr },
     { label: 'QBI Deduction', amount: ft.qbi, savings: ft.qbi * mr },
   ].filter(d => d.amount > 0);
 }

@@ -217,6 +217,14 @@ export function calculateTax(inputs) {
     // Retirement
     solo401kContribution = 0,
 
+    // 6.1 (remediation 2026-06-10, improvement a-2): self-employed health
+    // insurance premiums eligible for the §162(l) above-the-line deduction
+    // this year (annual $). Callers pass only the premiums for months WITHOUT
+    // employer coverage (§162(l)(2)(B) disallows months the taxpayer is
+    // eligible for an employer-subsidized plan) — buildTaxSchedule derives
+    // this from chadJobHealthSavings × non-coverage months.
+    sehiPremiums = 0,
+
     // SS benefit taxation
     ssBenefitAnnual = 0,
     // b-10 (remediation 2026-06-10): pre-computed taxable SS amount, used by
@@ -302,17 +310,26 @@ export function calculateTax(inputs) {
   const ltGain = capAdj > 0 ? Math.round(capAdj * ltShare) : 0;
   const max401k = computeMax401k(schCNet, se.halfSeTax);
   const effective401k = Math.min(solo401kContribution, max401k.totalMax);
+  // 6.1 (remediation 2026-06-10): §162(l) SEHI — above the line, limited to
+  // the earned income from the trade or business net of ½SE tax and the SE
+  // retirement deduction (§162(l)(2)(A)). Never negative.
+  const sehi = Math.min(
+    Math.max(0, sehiPremiums),
+    Math.max(0, Math.round(schCNet - se.halfSeTax - effective401k))
+  );
   // Provisional income (IRS Pub 915) uses "other AGI" — AGI excluding SS —
-  // which is NET of above-the-line deductions (half SE tax + solo 401k).
-  // Remediation 2026-06-09 Phase 4: previously fed the gross w2+schC+capAdj.
-  const otherAGI = w2Wages + schCNet + capAdj - se.halfSeTax - effective401k;
+  // which is NET of above-the-line deductions (half SE tax + solo 401k +
+  // SEHI, item 6.1). Remediation 2026-06-09 Phase 4: previously fed the
+  // gross w2+schC+capAdj.
+  const otherAGI = w2Wages + schCNet + capAdj - se.halfSeTax - effective401k - sehi;
   // b-10: a caller-supplied §86(e) elected amount can replace the standard
   // computation (never raising it above the statutory 85% ceiling).
   const ssTaxableIncome = ssTaxableOverride !== null
     ? Math.min(Math.round(ssTaxableOverride), Math.round(ssBenefitAnnual * SS_TAXABLE_TIER_2))
     : computeSSTaxableAmount(ssBenefitAnnual, otherAGI);
   const totalIncome = w2Wages + schCNet + capAdj + ssTaxableIncome;
-  const agi = totalIncome - se.halfSeTax - effective401k;
+  // 6.1: SEHI joins ½SE tax and the solo 401(k) as an above-the-line deduction.
+  const agi = totalIncome - se.halfSeTax - effective401k - sehi;
 
   // Deductions
   let deductions;
@@ -337,8 +354,11 @@ export function calculateTax(inputs) {
   // QBI — base is Sch C net REDUCED by the deductible half of SE tax and the
   // self-employed retirement deduction (IRC §199A(c)(4) / Form 8995 line 1).
   // Remediation 2026-06-09 Phase 4: previously used raw schCNet.
+  // 6.1: SEHI also reduces the QBI base (§199A(c)(4)(C) / Form 8995 line 1 —
+  // QBI is net of ALL deductions attributable to the trade or business,
+  // including the SE health insurance deduction).
   const taxableBeforeQbi = Math.max(0, agi - deductions.deductionUsed);
-  const qbiBase = Math.max(0, schCNet - se.halfSeTax - effective401k);
+  const qbiBase = Math.max(0, schCNet - se.halfSeTax - effective401k - sehi);
   // C1: isSSTB default true (therapy practice); the §199A(a)(2) cap nets out
   // the LT capital gain computed above.
   const qbi = computeQBI({ schCNet: qbiBase, taxableBeforeQbi, skipPhaseOut: skipQbiPhaseOut, isSSTB, netCapitalGain: ltGain });
@@ -430,6 +450,8 @@ export function calculateTax(inputs) {
     // Solo 401(k)
     solo401kContribution: effective401k,
     max401k,
+    // 6.1: §162(l) SEHI actually deducted (premiums capped by SE earned income)
+    sehi,
     // Deductions
     ...deductions,
     // QBI

@@ -28,6 +28,8 @@ function buildSteps(yr) {
   // Above-the-line deductions
   if (ft.halfSeTax > 0) steps.push({ label: 'Half SE Deduction', value: -ft.halfSeTax, type: 'sub', section: 'agi' });
   if (ft.solo401kContribution > 0) steps.push({ label: 'Solo 401(k)', value: -ft.solo401kContribution, type: 'sub', section: 'agi' });
+  // 6.1 (remediation 2026-06-10): §162(l) SE health insurance — above the line.
+  if ((ft.sehi ?? 0) > 0) steps.push({ label: 'SE Health Insurance', value: -ft.sehi, type: 'sub', section: 'agi' });
   steps.push({ label: 'AGI', value: ft.agi, type: 'total', section: 'agi' });
 
   // Below-the-line deductions

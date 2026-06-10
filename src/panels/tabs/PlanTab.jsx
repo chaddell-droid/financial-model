@@ -30,6 +30,7 @@ function PlanTab({
   netWorthChartProps,
   incomeChartProps,
   capitalItems = [],
+  capitalFundingSource = 'advance',
   customLevers = [],
   onFieldChange,
   gatherState,
@@ -70,6 +71,7 @@ function PlanTab({
             incomeControlsProps={incomeControlsProps}
             expenseControlsProps={expenseControlsProps}
             capitalItems={capitalItems}
+            capitalFundingSource={capitalFundingSource}
             onFieldChange={onFieldChange}
           />
         </div>

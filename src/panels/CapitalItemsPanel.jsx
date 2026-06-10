@@ -53,6 +53,13 @@ function CapitalItemsPanel({ capitalItems = [], onChange }) {
     <div data-testid="plan-capital-items">
       {capitalItems.map((it) => {
         const pct = Math.min(100, Math.round(((it.cost || 0) / CAPITAL_TOTAL_MAX) * 100));
+        // D6b: likelihood-weighted expected value — what this item actually
+        // contributes to the advance ask / savings deduction.
+        const lk = Number.isFinite(Number(it.likelihood))
+          ? Math.min(100, Math.max(0, Number(it.likelihood)))
+          : 100;
+        const expectedCost = Math.round(Math.max(0, Number(it.cost) || 0) * lk / 100);
+        const weighted = lk < 100;
         return (
           <div
             key={it.id}
@@ -69,10 +76,12 @@ function CapitalItemsPanel({ capitalItems = [], onChange }) {
             <SmallToggle checked={!!it.include} onChange={(v) => updateItem(it.id, { include: v })} color="warn" />
             <div>
               <div style={{ fontSize: 12, color: 'var(--plan-ink)', fontWeight: 500 }}>{it.name}</div>
-              {it.description && (
+              {(it.description || weighted) && (
                 <div style={{ fontSize: 11, color: 'var(--plan-ink-dim)', marginTop: 1 }}>
                   {it.description}
-                  {typeof it.likelihood === 'number' && it.likelihood !== 100 ? ` · ${it.likelihood}% likelihood` : ''}
+                  {weighted
+                    ? `${it.description ? ' · ' : ''}${lk}% likelihood → ${fmt(expectedCost)} expected`
+                    : ''}
                 </div>
               )}
             </div>

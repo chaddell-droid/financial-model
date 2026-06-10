@@ -210,6 +210,8 @@ const NON_DEFAULT_VALUES = {
   capitalItems: [
     { id: 'test-1', name: 'Test capital item', description: 'audit', cost: 50000, include: true, likelihood: 80 },
   ],
+  // Capital funding source (remediation 2026-06-09 D4 — enum, default 'advance')
+  capitalFundingSource: 'savings',
   customLevers: [
     { id: 'lv-test', name: 'Test lever', description: 'audit', maxImpact: 5000, currentValue: 2500, active: true },
   ],

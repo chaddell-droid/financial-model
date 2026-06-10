@@ -7,7 +7,7 @@ import CapitalAssumeColumn from './CapitalAssumeColumn.jsx';
  * AssumptionsGrid — Plan tab Row 2.
  * Horizontal 3-column layout: Income (cyan) · Cashflow & spend (magenta) · Capital (amber).
  */
-function AssumptionsGrid({ incomeControlsProps, expenseControlsProps, capitalItems, onFieldChange }) {
+function AssumptionsGrid({ incomeControlsProps, expenseControlsProps, capitalItems, capitalFundingSource, onFieldChange }) {
   return (
     <div data-testid="plan-assumptions-grid">
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '4px 4px 10px' }}>
@@ -30,6 +30,7 @@ function AssumptionsGrid({ incomeControlsProps, expenseControlsProps, capitalIte
         />
         <CapitalAssumeColumn
           capitalItems={capitalItems}
+          capitalFundingSource={capitalFundingSource}
           onFieldChange={onFieldChange}
           incomeControlsProps={incomeControlsProps}
           expenseControlsProps={expenseControlsProps}

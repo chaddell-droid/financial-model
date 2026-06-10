@@ -98,8 +98,15 @@ export default function MonteCarloPanel({
           </div>
 
           {/* Uncertainty controls */}
-          <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700, marginBottom: 6 }}>
-            Stress assumptions
+          <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700, marginBottom: 2 }}>
+            Stress assumptions — assumption uncertainty
+          </div>
+          {/* D8 (remediation 2026-06-09): each simulated path draws ONE constant
+              value per assumption and holds it for the whole horizon, so this
+              panel models uncertainty about the long-run assumptions — NOT
+              year-to-year market swings (sequence-of-returns risk). */}
+          <div style={{ fontSize: 10, color: COLORS.borderLight, fontStyle: "italic", marginBottom: 8, lineHeight: 1.4 }}>
+            Each simulated path draws one constant value per assumption (e.g. a single average return) and holds it for the whole horizon — this measures assumption uncertainty, not year-to-year market swings (no sequence-of-returns risk). See the Sequence of Returns chart for early-bad-years stress.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
             <div style={{ background: COLORS.bgDeep, borderRadius: 6, padding: "8px 10px", border: `1px solid ${COLORS.bgCard}` }}>

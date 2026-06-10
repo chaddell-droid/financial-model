@@ -176,16 +176,35 @@ export function prepareComparisonState(savedState) {
 }
 
 /**
- * Total one-time capital cost for the included items — the single source of
- * truth shared by FinancialModel's advanceNeeded derivation and the JSON
- * export (remediation phase 5 — export parity).
+ * Likelihood fraction for a capital item (remediation 2026-06-09 D6b).
+ * Missing/invalid likelihood is treated as 100% — legacy items predate the
+ * field. Clamped to [0, 1].
+ */
+export function capitalItemLikelihoodFraction(it) {
+  const lk = Number(it?.likelihood);
+  if (!Number.isFinite(lk)) return 1;
+  return Math.min(100, Math.max(0, lk)) / 100;
+}
+
+/**
+ * EXPECTED one-time capital cost for the included items — the single source of
+ * truth shared by FinancialModel's advanceNeeded derivation, the JSON export
+ * (remediation phase 5 — export parity), scenarioLevers' capital consequences,
+ * and the engine's savings-funding deduction (D4).
+ *
+ * D6b: each included item contributes cost × likelihood/100 (an expected
+ * value, labeled as such everywhere it surfaces). Items at 100% likelihood —
+ * including every legacy-derived item — contribute their full cost, so the
+ * default ask is unchanged. Rounded to whole dollars.
  */
 export function computeOneTimeTotal(capitalItems) {
   if (!Array.isArray(capitalItems)) return 0;
-  return capitalItems.reduce(
-    (sum, it) => sum + (it && it.include ? Math.max(0, Number(it.cost) || 0) : 0),
+  return Math.round(capitalItems.reduce(
+    (sum, it) => sum + (it && it.include
+      ? Math.max(0, Number(it.cost) || 0) * capitalItemLikelihoodFraction(it)
+      : 0),
     0
-  );
+  ));
 }
 
 /**

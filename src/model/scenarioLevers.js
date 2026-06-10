@@ -1,4 +1,5 @@
 import { fmtFull } from './formatters.js';
+import { capitalItemLikelihoodFraction } from '../state/gatherState.js';
 
 export const PRIMARY_LEVERS_BCS_STATUS_QUO = 25000;
 
@@ -161,14 +162,25 @@ export function buildPrimaryLeversModel(input) {
         { id: 'legacy-other', name: 'House projects + toilets', cost: otherProjects || 0, include: Boolean(otherInclude) },
       ];
 
-  const capitalConsequenceItems = effectiveCapitalItems.map((it) => ({
-    id: LEGACY_ID_BY_KEY[it.id] || `capital:${it.id}`,
-    group: 'other_assumptions',
-    label: it.name || 'Capital item',
-    amount: it.include ? Math.max(0, Number(it.cost) || 0) : 0,
-    active: Boolean(it.include),
-    kind: 'one_time',
-  }));
+  // D6b (remediation 2026-06-09): `amount` is the likelihood-weighted EXPECTED
+  // value (cost × likelihood/100) so the per-item rows sum to the same expected
+  // total as advanceNeeded / computeOneTimeTotal. Raw `cost` + `likelihood` are
+  // exposed so the UI can label weighted amounts clearly as "expected".
+  const capitalConsequenceItems = effectiveCapitalItems.map((it) => {
+    const cost = Math.max(0, Number(it.cost) || 0);
+    const likelihoodFraction = capitalItemLikelihoodFraction(it);
+    return {
+      id: LEGACY_ID_BY_KEY[it.id] || `capital:${it.id}`,
+      group: 'other_assumptions',
+      label: it.name || 'Capital item',
+      amount: it.include ? Math.round(cost * likelihoodFraction) : 0,
+      cost,
+      likelihood: Math.round(likelihoodFraction * 100),
+      expected: likelihoodFraction < 1,
+      active: Boolean(it.include),
+      kind: 'one_time',
+    };
+  });
 
   const consequenceItems = [
     {

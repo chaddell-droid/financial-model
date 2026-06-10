@@ -176,6 +176,17 @@ export const INITIAL_STATE = {
   // Shape: { id: string, name: string, description: string, cost: number, include: boolean, likelihood: number }
   capitalItems: [],
 
+  // Capital funding source (remediation 2026-06-09 D4):
+  //   'advance' — one-time capital items + the retire-debt payoff are covered
+  //               externally (Dad's advance) and never touch savings (the
+  //               historical behavior; default).
+  //   'savings' — the engine deducts the expected capital total (likelihood-
+  //               weighted, per D6b) and the debt payoff (when retireDebt is
+  //               on) from the savings balance at month 0. Capital items carry
+  //               no scheduled month on their shape, so they are treated as
+  //               immediate outlays.
+  capitalFundingSource: 'advance',
+
   // Custom Levers — user-added recurring-income levers (Plan tab Decision Console).
   // Shape: { id: string, name: string, description: string, maxImpact: number, currentValue: number, active: boolean }
   customLevers: [],
@@ -310,7 +321,7 @@ export const MODEL_KEYS = [
   'retireDebt',
   'startingSavings', 'investmentReturn', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
-  'capitalItems', 'customLevers', 'leverConstraintsOverride',
+  'capitalItems', 'capitalFundingSource', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate',
   'seqBadY1', 'seqBadY2',

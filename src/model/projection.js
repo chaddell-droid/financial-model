@@ -17,6 +17,7 @@ function nextStockVestMonthAfter(month) {
 }
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
+import { computeOneTimeTotal } from '../state/gatherState.js';
 
 export function findOperationalBreakevenIndex(rows) {
   if (!Array.isArray(rows)) return -1;
@@ -137,6 +138,23 @@ export function runMonthlySimulation(s) {
   // withdrawals. Defensive clamp below 100% — the gross-up divides by (1-rate)
   // (schema RANGE caps the field at 60, but raw callers may pass anything).
   const deficit401kTaxRate = Math.min(Math.max((s.deficit401kTaxRate ?? 25) / 100, 0), 0.99);
+
+  // D4 (remediation 2026-06-09): capital-items funding source.
+  // 'advance' (default) keeps the historical behavior — one-time capital items
+  // and the retire-debt payoff are funded externally (Dad's advance) and never
+  // touch savings. 'savings' deducts them from the savings balance at MONTH 0:
+  // capital items carry no scheduled-month field on their shape ({id, name,
+  // description, cost, include, likelihood}), so the model treats them as
+  // immediate outlays. The deduction uses the same likelihood-weighted
+  // EXPECTED total as the advance-ask metric (computeOneTimeTotal, D6b) so
+  // the engine and every display surface agree. Note: like the van sale and
+  // SSDI back pay, this one-time event re-fires when buildReforecast re-runs
+  // the simulation from month 0 with an updated starting balance.
+  const capitalFromSavings = s.capitalFundingSource === 'savings';
+  const debtPayoffTotal = (s.debtCC || 0) + (s.debtPersonal || 0) + (s.debtIRS || 0) + (s.debtFirstmark || 0);
+  const capitalOutlayAtStart = capitalFromSavings
+    ? computeOneTimeTotal(s.capitalItems) + (s.retireDebt ? debtPayoffTotal : 0)
+    : 0;
 
   const monthlyData = [];
   let balance = s.startingSavings || 0;
@@ -530,6 +548,11 @@ export function runMonthlySimulation(s) {
 
     balance += investReturn;
     balance += (cashIncome - expenses);
+    // D4: savings-funded one-time capital outlay (+ debt payoff when retireDebt
+    // is on) leaves the savings balance once, at month 0. See block above loop.
+    if (m === 0 && capitalOutlayAtStart > 0) {
+      balance -= capitalOutlayAtStart;
+    }
     // FIX RA-3: only deposit back-pay when SSDI is actually active (effectiveSsdiApproval !== 999)
     // AND backPayActual > 0. Previously the m===999+2 branch could fire on long projections.
     if (effectiveSsdiApproval !== 999 && backPayActual > 0 && m === effectiveSsdiApproval + 2) {

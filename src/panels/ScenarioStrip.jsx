@@ -58,6 +58,11 @@ function formatConsequenceValue(item) {
   if (item.id === 'bcs_support_delta') {
     return `${formatSignedAmount(item.signedAmount)} over remaining years`;
   }
+  // D6b: likelihood-weighted capital items show the EXPECTED amount, labeled
+  // clearly so the ask reconciles with the per-item likelihoods.
+  if (item.expected) {
+    return `${fmtFull(item.amount)} expected (${item.likelihood}% × ${fmtFull(item.cost)})`;
+  }
   return fmtFull(item.amount);
 }
 

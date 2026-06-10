@@ -162,6 +162,8 @@ const ENUMS = {
   chadAge65VestOverride: ['auto', 'on', 'off'],
   postJobBenefit: ['ssRetirement', 'ssdi', 'none'],
   taxMode: ['flat', 'engine'],
+  // Remediation 2026-06-09 D4 — capital items funding source.
+  capitalFundingSource: ['advance', 'savings'],
 };
 
 // Must cover every type GoalPanel.jsx offers (GOAL_TYPES) — a missing entry

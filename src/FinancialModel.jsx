@@ -188,7 +188,7 @@ export default function FinancialModel() {
     startingSavings, investmentReturn,
     ssdiBackPayMonths,
     moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
-    capitalItems, customLevers,
+    capitalItems, capitalFundingSource, customLevers,
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     comparisons,
@@ -1231,6 +1231,7 @@ export default function FinancialModel() {
             compareProjections, compareColors: COMPARE_COLORS,
           }}
           capitalItems={effectiveCapitalItems}
+          capitalFundingSource={capitalFundingSource}
           customLevers={customLevers}
           onFieldChange={set}
           shellWidthBucket={shellWidthBucket}
@@ -1363,6 +1364,7 @@ export default function FinancialModel() {
     goals,
     goalResults,
     stableGatherState,
+    capitalFundingSource,        // D4: Plan-tab funding-source toggle
     railConfig, RAIL_COMPONENTS, railPropsMap,
     actualsDispatch,             // stable wrapper around dispatch for ActualsTab
     state, set,                  // advisor pane reads state + uses set() to apply moves

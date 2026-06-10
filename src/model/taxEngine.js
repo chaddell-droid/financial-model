@@ -2,7 +2,7 @@ import {
   BRACKETS_MFJ_2026, SS_WAGE_BASE, SS_RATE, MEDICARE_RATE,
   SE_FACTOR, STD_DED, SALT_CAP, SALT_CAP_FLOOR, SALT_MAGI_THRESHOLD, SALT_PHASEOUT_RATE,
   MEDICAL_FLOOR, CAP_LOSS_LIMIT,
-  SOLO_401K_EMPLOYEE_LIMIT, SOLO_401K_EMPLOYER_RATE, SOLO_401K_TOTAL_LIMIT,
+  SOLO_401K_EMPLOYEE_LIMIT, SOLO_401K_EMPLOYER_RATE_SE, SOLO_401K_TOTAL_LIMIT,
   QBI_RATE, QBI_PHASE_OUT, QBI_PHASE_OUT_RANGE, ADDL_MEDICARE_RATE,
   ADDL_MEDICARE_THRESHOLD, ADDL_MEDICARE_W2_THRESHOLD,
   CTC_AMOUNT, ODC_AMOUNT, CTC_PHASEOUT_THRESHOLD_MFJ, CTC_PHASEOUT_RATE,
@@ -129,7 +129,12 @@ export function computeW2EmployeeFica(w2Wages, noFICA = false) {
 export function computeMax401k(schCNet, halfSeTax) {
   const employeeMax = SOLO_401K_EMPLOYEE_LIMIT;
   const netForEmployer = Math.max(0, schCNet - halfSeTax);
-  const employerMax = Math.round(netForEmployer * SOLO_401K_EMPLOYER_RATE);
+  // C2 (remediation 2026-06-10): self-employed employer contribution uses the
+  // Pub 560 reduced rate 0.25/1.25 = 20% of net SE earnings (the 25% plan rate
+  // applies to a base that already excludes the contribution; solving the
+  // circular definition gives rate/(1+rate)). The old 25% overstated Sarah's
+  // employer max by ~$4.6k on a $100k Sch C year.
+  const employerMax = Math.round(netForEmployer * SOLO_401K_EMPLOYER_RATE_SE);
   const totalMax = Math.min(employeeMax + employerMax, SOLO_401K_TOTAL_LIMIT);
   return { employeeMax, employerMax, totalMax };
 }

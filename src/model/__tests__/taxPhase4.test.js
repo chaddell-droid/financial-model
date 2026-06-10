@@ -233,10 +233,11 @@ test('P4-401K-2. total DC limit = $72,000 (2026)', () => {
   assert.strictEqual(computeMax401k(500000, 5000).totalMax, 72000);
 });
 
-test('P4-401K-3. typical Sarah year: employee + 25% employer under the cap', () => {
+test('P4-401K-3. typical Sarah year: employee + 20% SE employer rate under the cap', () => {
+  // C2 (remediation 2026-06-10): self-employed employer rate = 0.25/1.25 = 20%.
   const max = computeMax401k(101816, 1363);
   assert.strictEqual(max.employeeMax, 24500);
-  assert.strictEqual(max.employerMax, Math.round((101816 - 1363) * 0.25));
+  assert.strictEqual(max.employerMax, Math.round((101816 - 1363) * 0.20));
   assert.strictEqual(max.totalMax, max.employeeMax + max.employerMax);
 });
 

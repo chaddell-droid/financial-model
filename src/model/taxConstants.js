@@ -173,7 +173,13 @@ export const CTC_PHASEOUT_RATE = 0.05;
 
 // Solo 401(k) — 2026 limits (IRS Notice 2025-67). Remediation 2026-06-09 Phase 4.
 export const SOLO_401K_EMPLOYEE_LIMIT = BASE.solo401kEmployeeLimit;
+// Plan-document employer rate for common-law employees (25% of comp).
 export const SOLO_401K_EMPLOYER_RATE = 0.25;
+// C2 (remediation 2026-06-10): for the SELF-EMPLOYED, Pub 560 reduces the
+// employer rate because the contribution base is net SE earnings net of the
+// contribution itself: effective rate = rate / (1 + rate) = 0.25/1.25 = 20%.
+// computeMax401k (Sarah's Sch C) must use this, never the raw 25%.
+export const SOLO_401K_EMPLOYER_RATE_SE = SOLO_401K_EMPLOYER_RATE / (1 + SOLO_401K_EMPLOYER_RATE);
 export const SOLO_401K_TOTAL_LIMIT = BASE.solo401kTotalLimit;
 
 // SS benefit taxation thresholds (Married Filing Jointly) — legally frozen.

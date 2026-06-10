@@ -796,21 +796,23 @@ describe("GUARD RAILS: bad/negative inputs produce safe results", () => {
 
 describe("computeMax401k", () => {
   // Phase 4 (2026-06-09): 2026 limits — employee $24,500, total DC $72,000.
+  // C2 (remediation 2026-06-10): the self-employed employer contribution uses
+  // the Pub 560 REDUCED rate 0.25/1.25 = 20% of net SE earnings, not the
+  // common-law-employee 25%.
   it("computes max for typical Sch C net", () => {
     // schCNet=101816, halfSeTax≈1363
     const max = computeMax401k(101816, 1363);
     expect(max.employeeMax).toBe(24500);
-    // employerMax = (101816 - 1363) × 0.25 ≈ 25113
-    expect(max.employerMax).toBeGreaterThan(25000);
-    expect(max.employerMax).toBeLessThan(26000);
+    // employerMax = (101816 - 1363) × 0.20 ≈ 20091 (C2: was wrongly × 0.25)
+    expect(max.employerMax).toBe(Math.round((101816 - 1363) * 0.20));
     expect(max.totalMax).toBe(max.employeeMax + max.employerMax);
     expect(max.totalMax).toBeLessThan(72000); // under total cap
   });
 
   it("caps at total limit for high net income", () => {
     const max = computeMax401k(500000, 5000);
-    // employerMax = (500000 - 5000) × 0.25 = 123750
-    // total = 24500 + 123750 = 148250, capped at 72000
+    // employerMax = (500000 - 5000) × 0.20 = 99000 (C2 reduced rate)
+    // total = 24500 + 99000 = 123500, capped at 72000
     expect(max.totalMax).toBe(72000);
   });
 

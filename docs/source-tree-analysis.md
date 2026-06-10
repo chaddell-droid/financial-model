@@ -33,24 +33,30 @@ financial-model/
 │   │   ├── historicalReturns.js        # Blended stock/bond returns interface
 │   │   ├── pwaDistribution.js          # Historical cohort spending distribution
 │   │   ├── pwaStrategies.js            # Adaptive withdrawal strategies (fixed, sticky, nudge)
-│   │   ├── shillerReturns.js           # Raw Shiller data 1871-2025 (1900+ LOC)
+│   │   ├── shillerReturns.js           # Raw Shiller data 1871-2025 (MONTHLY_REAL_RETURNS)
 │   │   └── __snapshots__.test.js       # Contract tests (Node assert, no framework)
 │   │
 │   ├── charts/                         # Custom SVG chart components
 │   │   ├── chartUtils.js               # Shared scales, ticks, color palettes
 │   │   ├── chartContract.js            # Formatting contracts (time labels, legends)
+│   │   ├── ChartXAxis.jsx              # Shared X-axis labels (10px mono, textDim)
+│   │   ├── ChartYAxis.jsx              # Shared Y-axis grid + fmt money labels
+│   │   ├── ChartEmptyState.jsx         # Shared friendly empty state
 │   │   ├── BridgeChart.jsx             # Cash flow bridge with narrative markers (827 LOC)
 │   │   ├── SavingsDrawdownChart.jsx    # Savings balance trajectory with comparison
-│   │   ├── MonthlyCashFlowChart.jsx    # Quarterly bar chart with MSFT/SSDI overlays
 │   │   ├── MonteCarloPanel.jsx         # Fan chart + sensitivity tornado (405 LOC)
 │   │   ├── MsftVestingChart.jsx        # Vesting payout bars
 │   │   ├── IncomeCompositionChart.jsx  # Stacked income vs. expense bars
-│   │   ├── TimelineChart.jsx           # Diamond-marker event timeline
 │   │   ├── SarahPracticeChart.jsx      # Practice growth trajectory
 │   │   ├── NetWorthChart.jsx           # Multi-line wealth tracking
 │   │   ├── SequenceOfReturnsChart.jsx  # Return ordering risk comparison
 │   │   ├── RetirementIncomeChart.jsx   # ERN SWR + PWA strategies (1600+ LOC)
-│   │   └── PwaDistributionChart.jsx    # Historical cohort histogram
+│   │   ├── PwaDistributionChart.jsx    # Historical cohort histogram
+│   │   ├── RetirementCompositionChart.jsx # Stacked retirement income vs target
+│   │   ├── Chad401kChart.jsx           # 401(k) balance decomposition (rail)
+│   │   ├── MiniNetWorthChart.jsx       # Overview net-worth sparkline
+│   │   ├── MiniIncomeExpenseChart.jsx  # Overview income vs expenses
+│   │   └── Tax*.jsx                    # Tax tab charts (rates, composition, waterfall, attribution)
 │   │
 │   ├── components/                     # Shared UI components
 │   │   ├── Slider.jsx                  # Range input: continuous/settled commit (168 LOC)
@@ -60,7 +66,7 @@ financial-model/
 │   │   ├── ActiveTogglePills.jsx       # Inline plan state badges
 │   │   ├── ComparisonBanner.jsx        # Scenario comparison alert banner
 │   │   ├── SaveLoadPanel.jsx           # Scenario save/load/compare workspace
-│   │   ├── TabBar.jsx                  # 6-tab sticky navigation
+│   │   ├── TabBar.jsx                  # 9-tab sticky navigation
 │   │   ├── ui/
 │   │   │   ├── SurfaceCard.jsx         # Toned container (default/featured/compare/success)
 │   │   │   └── ActionButton.jsx        # Variant button (primary/secondary/ghost/destructive/chip)
@@ -73,8 +79,6 @@ financial-model/
 │   │
 │   ├── panels/                         # Feature panels and tab containers
 │   │   ├── ScenarioStrip.jsx           # Primary levers decision console (640 LOC)
-│   │   ├── DadMode.jsx                 # Family support perspective (499 LOC)
-│   │   ├── SarahMode.jsx              # Business growth perspective (440 LOC)
 │   │   ├── IncomeControls.jsx          # Income assumption sliders
 │   │   ├── ExpenseControls.jsx         # Expense assumption sliders
 │   │   ├── GoalPanel.jsx               # Goal cards with MC success rates (313 LOC)
@@ -85,7 +89,9 @@ financial-model/
 │   │       ├── PlanTab.jsx             # Planning workspace orchestrator
 │   │       ├── TrackTab.jsx            # Monthly check-in tracking (291 LOC)
 │   │       ├── IncomeTab.jsx           # MSFT + practice + income composition
-│   │       ├── RiskTab.jsx             # MC + sequence + savings risk workflow
+│   │       ├── RiskTab.jsx             # MC + sequence + balance damage + goals
+│   │       ├── ActualsTab.jsx          # CSV import + merchant classification
+│   │       ├── TaxTab.jsx              # Tax settings + tax engine charts
 │   │       └── DetailsTab.jsx          # Data table + summary ask
 │   │
 │   ├── ui/                             # Design system and utility hooks

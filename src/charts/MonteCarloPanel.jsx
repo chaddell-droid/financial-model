@@ -4,6 +4,8 @@ import { computeProjection } from '../model/projection.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 import { COLORS } from './chartUtils.js';
+import ChartXAxis from './ChartXAxis.jsx';
+import ChartYAxis from './ChartYAxis.jsx';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
@@ -192,10 +194,10 @@ function MonteCarloPanel({
               ? savingsData.filter(d => d.month <= months).map(d => `${d.month === 0 ? "M" : "L"} ${xOf(d.month).toFixed(1)},${yOf(d.balance).toFixed(1)}`).join(" ")
               : null;
             const legendItems = buildLegendItems([
-              { id: 'mc-p50', label: `Typical ${view.label.toLowerCase()} path (P50)`, color: '#22d3ee', type: 'line' },
-              { id: 'mc-mid-band', label: 'Likely middle range (P25-P75)', color: '#22d3ee', type: 'band', opacity: 0.12 },
-              { id: 'mc-wide-band', label: 'Wide range (P10-P90)', color: '#22d3ee', type: 'band', opacity: 0.06 },
-              ...(reserveView === 'savings' ? [{ id: 'mc-base', label: 'Deterministic base case', color: '#94a3b8', type: 'dashed' }] : []),
+              { id: 'mc-p50', label: `Typical ${view.label.toLowerCase()} path (P50)`, color: COLORS.cyan, type: 'line' },
+              { id: 'mc-mid-band', label: 'Likely middle range (P25-P75)', color: COLORS.cyan, type: 'band', opacity: 0.12 },
+              { id: 'mc-wide-band', label: 'Wide range (P10-P90)', color: COLORS.cyan, type: 'band', opacity: 0.06 },
+              ...(reserveView === 'savings' ? [{ id: 'mc-base', label: 'Deterministic base case', color: COLORS.textMuted, type: 'dashed' }] : []),
             ]);
 
             const solvColor = solvencyRate >= 0.95 ? COLORS.green : solvencyRate >= 0.80 ? COLORS.yellow : COLORS.red;
@@ -252,7 +254,7 @@ function MonteCarloPanel({
                     <div key={i} style={{
                       flex: 1, minWidth: 110,
                       background: COLORS.bgDeep, borderRadius: 6, padding: "6px 10px",
-                      border: item.accent ? `1px solid ${item.color}33` : "1px solid #1e293b"
+                      border: item.accent ? `1px solid ${item.color}33` : `1px solid ${COLORS.bgCard}`
                     }}>
                       <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>{item.label}</div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -265,7 +267,7 @@ function MonteCarloPanel({
 
                 {/* Drawdown summary — only when reserves were touched */}
                 {drawdownFiredCount > 0 && (
-                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12, padding: "6px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid #1e293b` }}>
+                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12, padding: "6px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.bgCard}` }}>
                     <span style={{ color: COLORS.yellow, fontWeight: 700 }}>Drawdown waterfall fired in {drawdownFiredCount}/{mcResults.numSims} paths.</span>
                     {' '}
                     Median 401(k) drawn: <span style={{ color: COLORS.amber }}>{fmtFull(mcResults.medianWithdrawal401k || 0)}</span>;
@@ -311,21 +313,14 @@ function MonteCarloPanel({
                     onMouseMove={handleMouseMove}
                     onMouseLeave={() => setMcTooltip(null)}
                   >
-                    {/* Y-axis */}
+                    {/* Y-axis grid + labels (shared component, fmt money labels) */}
                     {(() => {
                       const ticks = [];
                       const step = range > 2000000 ? 500000 : range > 1000000 ? 250000 : range > 500000 ? 100000 : 50000;
                       for (let v = Math.ceil(minBal / step) * step; v <= maxBal; v += step) {
                         ticks.push(v);
                       }
-                      return ticks.map(v => (
-                        <g key={v}>
-                          <line x1={padL} x2={svgW - padR} y1={yOf(v)} y2={yOf(v)} stroke={COLORS.bgCard} strokeWidth="1" />
-                          <text x={padL - 6} y={yOf(v) + 3} textAnchor="end" fill={COLORS.borderLight} fontSize="9" fontFamily="'JetBrains Mono', monospace">
-                            {v >= 1000000 || v <= -1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 || v <= -1000 ? `$${Math.round(v/1000)}K` : `$${v}`}
-                          </text>
-                        </g>
-                      ));
+                      return <ChartYAxis ticks={ticks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} formatter={fmt} />;
                     })()}
 
                     {/* Zero line */}
@@ -333,12 +328,12 @@ function MonteCarloPanel({
                       <line x1={padL} x2={svgW - padR} y1={zeroY} y2={zeroY} stroke={`${COLORS.red}55`} strokeWidth="1.5" />
                     )}
 
-                    {/* X-axis labels */}
-                    {Array.from({ length: Math.round(months / 12) + 1 }, (_, i) => i * 12).map(m => (
-                      <text key={m} x={xOf(m)} y={svgH - 4} textAnchor="middle" fill={COLORS.borderLight} fontSize="9" fontFamily="'JetBrains Mono', monospace">
-                        {m === 0 ? "M0" : `Y${m/12}`}
-                      </text>
-                    ))}
+                    {/* X-axis labels (shared component, model-time convention) */}
+                    <ChartXAxis
+                      data={Array.from({ length: Math.round(months / 12) + 1 }, (_, i) => ({ month: i * 12 }))}
+                      xOf={xOf}
+                      svgH={svgH}
+                    />
 
                     {/* Band fills */}
                     {bandPaths.map((bp, i) => (

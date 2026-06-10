@@ -11,10 +11,6 @@ export function getSsBenefitLabel(ssType) {
   return ssType === 'ss' ? 'SS Retirement' : 'SSDI';
 }
 
-export function getSsBenefitShortLabel(ssType) {
-  return ssType === 'ss' ? 'SS' : 'SSDI';
-}
-
 /**
  * Per-month SS label driven by the engine-emitted `ssBenefitType` field
  * (set in projection.js per month). Used in chart tooltips when a single

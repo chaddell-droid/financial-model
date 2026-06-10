@@ -4,6 +4,7 @@ import { COLORS, createScales, generateYTicks, autoTickStep } from './chartUtils
 import { formatModelTimeLabel } from './chartContract.js';
 import ChartYAxis from './ChartYAxis.jsx';
 import ChartXAxis from './ChartXAxis.jsx';
+import ChartEmptyState from './ChartEmptyState.jsx';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
 /**
@@ -35,11 +36,7 @@ export default function Chad401kChart({
   const data = Array.isArray(monthlyDetail) ? monthlyDetail : [];
   const n = data.length;
   if (n === 0) {
-    return (
-      <div style={{ padding: 20, color: COLORS.textDim, fontSize: 12, textAlign: 'center' }}>
-        No 401(k) data available.
-      </div>
-    );
+    return <ChartEmptyState testId="chad-401k-empty" message="No 401(k) data available." />;
   }
 
   // Compute per-month decomposition
@@ -100,10 +97,10 @@ export default function Chad401kChart({
   const retIdx = data.findIndex(d => d.month === chadRetirementMonth);
 
   const layerColors = {
-    starting: '#475569',
-    contrib: '#3b82f6',
-    match: '#14b8a6',
-    growth: '#f59e0b',
+    starting: COLORS.borderLight,
+    contrib: COLORS.blueBright,
+    match: COLORS.teal,
+    growth: COLORS.amber,
   };
 
   const kpis = [

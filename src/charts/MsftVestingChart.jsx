@@ -82,17 +82,17 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
 
   return (
   <div data-testid="msft-vesting-chart" style={{
-    background: "#1e293b", borderRadius: 12, padding: "16px 20px",
-    border: "1px solid #f59e0b33", marginBottom: 24
+    background: COLORS.bgCard, borderRadius: 12, padding: "16px 20px",
+    border: `1px solid ${COLORS.amber}33`, marginBottom: 24
   }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <h3 style={{ fontSize: 14, color: "#f59e0b", margin: 0, fontWeight: 700 }}>Legacy MSFT Vesting (Pre-Job Grants) — Actual Quarterly Payouts</h3>
-        <div style={{ fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
+        <h3 style={{ fontSize: 14, color: COLORS.amber, margin: 0, fontWeight: 700 }}>Legacy MSFT Vesting (Pre-Job Grants) — Actual Quarterly Payouts</h3>
+        <div style={{ fontSize: 11, color: COLORS.textDim, fontStyle: "italic" }}>
           From Chad&apos;s prior MSFT grants (scheduled through Aug &apos;28) — runs in parallel to any new-job stock comp shown elsewhere in the Income tab.
         </div>
       </div>
-      <span data-testid="msft-vesting-total-remaining" style={{ fontSize: 12, color: "#94a3b8" }}>Total remaining: <span style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(totalRemainingVesting)}</span></span>
+      <span data-testid="msft-vesting-total-remaining" style={{ fontSize: 12, color: COLORS.textMuted }}>Total remaining: <span style={{ color: COLORS.amber, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(totalRemainingVesting)}</span></span>
     </div>
     <div style={{ display: "flex", gap: 3, height: 80, alignItems: "flex-end", position: "relative" }}>
       {vestEvents.map((v, i) => {
@@ -116,13 +116,13 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
           >
             <div style={{
               fontSize: 10,
-              color: isPast ? "#64748b" : (isLow ? "#f87171" : "#f59e0b"),
+              color: isPast ? COLORS.textDim : (isLow ? COLORS.red : COLORS.amber),
               fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", fontWeight: 600
             }}>
               {isPast ? '✓ ' : ''}{fmtFull(v.net)}
             </div>
             <div style={{
-              fontSize: 9, color: "#475569",
+              fontSize: 9, color: COLORS.borderLight,
               fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap", marginBottom: 1
             }}>
               {v.shares}sh
@@ -130,12 +130,12 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
             <div style={{
               width: "85%", height: barH, borderRadius: "3px 3px 0 0",
               background: isLow
-                ? "linear-gradient(180deg, #f87171, #dc2626)"
-                : "linear-gradient(180deg, #fbbf24, #f59e0b)",
+                ? `linear-gradient(180deg, ${COLORS.red}, ${COLORS.redDeep})`
+                : `linear-gradient(180deg, ${COLORS.yellow}, ${COLORS.amber})`,
               opacity: barOpacity,
               outline: isHovered
-                ? "2px solid #fcd34d"
-                : (isInflight ? "1px dashed #fcd34d" : "none"),
+                ? `2px solid ${COLORS.amberLight}`
+                : (isInflight ? `1px dashed ${COLORS.amberLight}` : "none"),
               outlineOffset: isHovered ? 1 : (isInflight ? 1 : 0),
               transition: "outline 0.1s, opacity 0.1s",
             }} />
@@ -163,13 +163,13 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
               position: "absolute",
               top: "100%",
               marginTop: 10,
-              background: "#0f172a",
-              border: "1px solid #f59e0b55",
+              background: COLORS.bgDeep,
+              border: `1px solid ${COLORS.amber}55`,
               borderRadius: 8,
               padding: "10px 12px",
               minWidth: 200,
               fontSize: 11,
-              color: "#e2e8f0",
+              color: COLORS.textSecondary,
               fontFamily: "'Inter', sans-serif",
               boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
               zIndex: 9999,
@@ -180,71 +180,71 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
             <div style={{
               fontSize: 12,
               fontWeight: 700,
-              color: "#f59e0b",
+              color: COLORS.amber,
               marginBottom: 6,
-              borderBottom: "1px dashed #334155",
+              borderBottom: `1px dashed ${COLORS.border}`,
               paddingBottom: 4,
             }}>
               {v.label} vest
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 10px", fontFamily: "'JetBrains Mono', monospace" }}>
-              <span style={{ color: "#94a3b8" }}>Shares vesting</span>
-              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{v.shares}</span>
-              <span style={{ color: "#94a3b8" }}>Share price</span>
-              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>${Math.round(v.price).toLocaleString()}</span>
-              <span style={{ color: "#94a3b8" }}>Gross value</span>
-              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{fmtFull(gross)}</span>
-              <span style={{ color: "#94a3b8" }}>Tax withholding</span>
-              <span style={{ color: "#f87171", fontWeight: 600 }}>−{fmtFull(withheld)} ({taxRate}%)</span>
+              <span style={{ color: COLORS.textMuted }}>Shares vesting</span>
+              <span style={{ color: COLORS.textSecondary, fontWeight: 600 }}>{v.shares}</span>
+              <span style={{ color: COLORS.textMuted }}>Share price</span>
+              <span style={{ color: COLORS.textSecondary, fontWeight: 600 }}>${Math.round(v.price).toLocaleString()}</span>
+              <span style={{ color: COLORS.textMuted }}>Gross value</span>
+              <span style={{ color: COLORS.textSecondary, fontWeight: 600 }}>{fmtFull(gross)}</span>
+              <span style={{ color: COLORS.textMuted }}>Tax withholding</span>
+              <span style={{ color: COLORS.red, fontWeight: 600 }}>−{fmtFull(withheld)} ({taxRate}%)</span>
               <span style={{
-                color: "#e2e8f0",
+                color: COLORS.textSecondary,
                 fontWeight: 600,
-                borderTop: "1px dashed #334155",
+                borderTop: `1px dashed ${COLORS.border}`,
                 paddingTop: 4,
                 marginTop: 2,
               }}>Net deposited</span>
               <span style={{
-                color: "#4ade80",
+                color: COLORS.green,
                 fontWeight: 700,
-                borderTop: "1px dashed #334155",
+                borderTop: `1px dashed ${COLORS.border}`,
                 paddingTop: 4,
                 marginTop: 2,
               }}>{fmtFull(v.net)}</span>
-              <span style={{ color: "#64748b", fontSize: 10 }}>Remaining after</span>
-              <span style={{ color: "#64748b", fontSize: 10, fontWeight: 500 }}>{fmtFull(Math.max(0, remainingAfter))}</span>
+              <span style={{ color: COLORS.textDim, fontSize: 10 }}>Remaining after</span>
+              <span style={{ color: COLORS.textDim, fontSize: 10, fontWeight: 500 }}>{fmtFull(Math.max(0, remainingAfter))}</span>
             </div>
           </div>
         );
       })()}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-        <div style={{ fontSize: 10, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>$0</div>
-        <div style={{ width: "85%", height: 2, background: "#334155", borderRadius: 1 }} />
+        <div style={{ fontSize: 10, color: COLORS.borderLight, fontFamily: "'JetBrains Mono', monospace" }}>$0</div>
+        <div style={{ width: "85%", height: 2, background: COLORS.border, borderRadius: 1 }} />
       </div>
     </div>
     <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
       {vestEvents.map((v, i) => (
         <div key={i} style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: 10, color: "#64748b" }}>{v.label}</div>
-          <div style={{ fontSize: 9, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: 10, color: COLORS.textDim }}>{v.label}</div>
+          <div style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
             ${Math.round(v.price)}
           </div>
         </div>
       ))}
-      <div style={{ flex: 1, textAlign: "center", fontSize: 10, color: "#ef4444", fontWeight: 700 }}>Done</div>
+      <div style={{ flex: 1, textAlign: "center", fontSize: 10, color: COLORS.redDark, fontWeight: 700 }}>Done</div>
     </div>
-    <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
+    <div style={{ marginTop: 8, fontSize: 11, color: COLORS.textDim, fontStyle: "italic" }}>
       Each bar = one quarterly vest (net after 20% tax). Nothing arrives between vests.
     </div>
     <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           <Slider label="MSFT current price" value={msftPrice} onChange={onMsftPriceChange} commitStrategy='release'
-            min={200} max={600} step={1} format={(v) => "$" + v} color="#f59e0b" />
+            min={200} max={600} step={1} format={(v) => "$" + v} color={COLORS.amber} />
           <button onClick={handleRefreshPrice} disabled={fetching}
             title="Fetch current MSFT price"
             style={{
-              background: 'transparent', border: '1px solid #334155', borderRadius: 4,
-              color: fetching ? '#64748b' : '#f59e0b', fontSize: 10, padding: '2px 6px',
+              background: 'transparent', border: `1px solid ${COLORS.border}`, borderRadius: 4,
+              color: fetching ? COLORS.textDim : COLORS.amber, fontSize: 10, padding: '2px 6px',
               cursor: fetching ? 'wait' : 'pointer', whiteSpace: 'nowrap', marginTop: 12,
             }}>
             {fetching ? '...' : '↻ Live'}
@@ -252,11 +252,11 @@ function MsftVestingChart({ vestEvents, totalRemainingVesting, msftPrice, msftGr
         </div>
       </div>
       <Slider label="MSFT annual price growth" value={msftGrowth} onChange={onMsftGrowthChange} commitStrategy='release'
-        min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color="#f59e0b" />
+        min={-30} max={30} format={(v) => (v >= 0 ? "+" : "") + v + "%"} color={COLORS.amber} />
     </div>
     {msftGrowth !== 0 && (
-      <div style={{ marginTop: 4, fontSize: 11, color: "#64748b", textAlign: "right" }}>
-        Y5 price: <span data-testid="msft-vesting-y5-price" style={{ color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(getMsftPrice(60, msftGrowth, msftPrice))}</span>
+      <div style={{ marginTop: 4, fontSize: 11, color: COLORS.textDim, textAlign: "right" }}>
+        Y5 price: <span data-testid="msft-vesting-y5-price" style={{ color: COLORS.amber, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(getMsftPrice(60, msftGrowth, msftPrice))}</span>
       </div>
     )}
   </div>

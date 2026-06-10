@@ -2,6 +2,10 @@ import React, { useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
+import { COLORS } from './chartUtils.js';
+import ChartXAxis from './ChartXAxis.jsx';
+import ChartYAxis from './ChartYAxis.jsx';
+import ChartEmptyState from './ChartEmptyState.jsx';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
 export default function SequenceOfReturnsChart({
@@ -14,6 +18,9 @@ export default function SequenceOfReturnsChart({
   const svgW = useContainerWidth(containerRef);
 
   if (presentMode) return null;
+  if (!monthlyDetail || monthlyDetail.length === 0) {
+    return <ChartEmptyState testId="sequence-returns-empty" message="Sequence-of-returns analysis needs projection data — adjust the model to generate a projection." />;
+  }
 
   const set = onParamChange;
   const annualReturn = investmentReturn;
@@ -41,9 +48,9 @@ export default function SequenceOfReturnsChart({
   const steady = Array(years).fill(annualReturn);
 
   const scenarios = [
-    { name: "Steady returns", schedule: steady, color: "#94a3b8", dash: "6,4" },
-    { name: "Bad luck early", schedule: badEarly, color: "#f87171", dash: "" },
-    { name: "Good luck early", schedule: goodEarly, color: "#4ade80", dash: "" },
+    { name: "Steady returns", schedule: steady, color: COLORS.textMuted, dash: "6,4" },
+    { name: "Bad luck early", schedule: badEarly, color: COLORS.red, dash: "" },
+    { name: "Good luck early", schedule: goodEarly, color: COLORS.green, dash: "" },
   ];
 
   const scenarioData = scenarios.map(sc => {
@@ -101,52 +108,52 @@ export default function SequenceOfReturnsChart({
   })();
 
   return (
-    <div ref={containerRef} style={{ marginTop: 16, padding: "14px 16px", background: "#1e293b", borderRadius: 12, border: "1px solid #334155", marginBottom: 24 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", marginBottom: 2 }}>
+    <div ref={containerRef} style={{ marginTop: 16, padding: "14px 16px", background: COLORS.bgCard, borderRadius: 12, border: `1px solid ${COLORS.border}`, marginBottom: 24 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSecondary, marginBottom: 2 }}>
         What if bad returns arrive before the plan reaches stability?
       </div>
-      <div style={{ fontSize: 10, color: "#475569", marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: COLORS.borderLight, marginBottom: 10 }}>
         Months 0-30 are the vulnerable window. This keeps the same average {years}-year return and changes only the order that returns arrive.
       </div>
 
       <div data-testid="sequence-returns-summary" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 12 }}>
-        <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #334155" }}>
-          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Bad early path at M18</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#f87171", fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ background: COLORS.bgDeep, borderRadius: 6, padding: "8px 10px", border: `1px solid ${COLORS.border}` }}>
+          <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>Bad early path at M18</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(balAtCliff[1])}
           </div>
         </div>
-        <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #fbbf2433" }}>
-          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Difference by the cliff</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ background: COLORS.bgDeep, borderRadius: 6, padding: "8px 10px", border: `1px solid ${COLORS.yellow}33` }}>
+          <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>Difference by the cliff</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.yellow, fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(cliffGap)}
           </div>
         </div>
-        <div style={{ background: "#0f172a", borderRadius: 6, padding: "8px 10px", border: "1px solid #334155" }}>
-          <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2 }}>Good early path at M18</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ background: COLORS.bgDeep, borderRadius: 6, padding: "8px 10px", border: `1px solid ${COLORS.border}` }}>
+          <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>Good early path at M18</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
             {fmtFull(balAtCliff[2])}
           </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>
+      <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700, marginBottom: 6 }}>
         Scenario setup
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
-          <Slider label="Bad year 1 return" value={seqBadY1} onChange={set('seqBadY1')} commitStrategy='release' min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
+        <div style={{ flex: 1, background: COLORS.bgDeep, borderRadius: 6, padding: "6px 10px", border: `1px solid ${COLORS.border}` }}>
+          <Slider label="Bad year 1 return" value={seqBadY1} onChange={set('seqBadY1')} commitStrategy='release' min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color={COLORS.red} />
         </div>
-        <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155" }}>
-          <Slider label="Bad year 2 return" value={seqBadY2} onChange={set('seqBadY2')} commitStrategy='release' min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color="#f87171" />
+        <div style={{ flex: 1, background: COLORS.bgDeep, borderRadius: 6, padding: "6px 10px", border: `1px solid ${COLORS.border}` }}>
+          <Slider label="Bad year 2 return" value={seqBadY2} onChange={set('seqBadY2')} commitStrategy='release' min={-40} max={10} step={1} format={v => (v >= 0 ? "+" : "") + v + "%"} color={COLORS.red} />
         </div>
-        <div style={{ flex: 1, background: "#0f172a", borderRadius: 6, padding: "6px 10px", border: "1px solid #334155", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Recovery years (auto)</div>
-          <div style={{ fontSize: 11, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ flex: 1, background: COLORS.bgDeep, borderRadius: 6, padding: "6px 10px", border: `1px solid ${COLORS.border}`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 2 }}>Recovery years (auto)</div>
+          <div style={{ fontSize: 11, color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
             {spread.slice(2).map(v => (v >= 0 ? "+" : "") + v + "%").join(", ")}
           </div>
-          <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>
+          <div style={{ fontSize: 9, color: COLORS.borderLight, marginTop: 2 }}>
             {years}yr avg: {Math.round(spread.reduce((a, b) => a + b, 0) / years * 10) / 10}% = base {annualReturn}%
           </div>
         </div>
@@ -160,8 +167,8 @@ export default function SequenceOfReturnsChart({
           const deficitLabel = useSS ? 'PRE-SS DEFICIT' : 'PRE-SSDI DEFICIT';
           return (
             <>
-              <rect x={seqX(0)} y={spt} width={seqX(deficitEnd) - seqX(0)} height={sph} fill="#f8717108" />
-              <text x={seqX(deficitEnd / 2)} y={spt + 10} textAnchor="middle" fill="#f87171" fontSize="9" opacity="0.75">
+              <rect x={seqX(0)} y={spt} width={seqX(deficitEnd) - seqX(0)} height={sph} fill={`${COLORS.red}08`} />
+              <text x={seqX(deficitEnd / 2)} y={spt + 10} textAnchor="middle" fill={COLORS.red} fontSize="9" opacity="0.75">
                 {deficitLabel}
               </text>
             </>
@@ -169,31 +176,20 @@ export default function SequenceOfReturnsChart({
         })()}
 
         {/* MSFT cliff marker */}
-        <line x1={seqX(cliffMonth)} x2={seqX(cliffMonth)} y1={spt} y2={spt + sph} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
-        <text x={seqX(cliffMonth)} y={spt + sph + 10} textAnchor="middle" fill="#f59e0b" fontSize="9">MSFT cliff</text>
+        <line x1={seqX(cliffMonth)} x2={seqX(cliffMonth)} y1={spt} y2={spt + sph} stroke={COLORS.amber} strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
+        <text x={seqX(cliffMonth)} y={spt + sph + 10} textAnchor="middle" fill={COLORS.amber} fontSize="9">MSFT cliff</text>
 
         {/* MSFT end marker */}
-        <line x1={seqX(msftEndMonth)} x2={seqX(msftEndMonth)} y1={spt} y2={spt + sph} stroke="#f87171" strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
-        <text x={seqX(msftEndMonth)} y={spt + sph + 10} textAnchor="middle" fill="#f87171" fontSize="9">MSFT ends</text>
+        <line x1={seqX(msftEndMonth)} x2={seqX(msftEndMonth)} y1={spt} y2={spt + sph} stroke={COLORS.red} strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
+        <text x={seqX(msftEndMonth)} y={spt + sph + 10} textAnchor="middle" fill={COLORS.red} fontSize="9">MSFT ends</text>
 
-        {seqMin < 0 && <line x1={spl} x2={seqW - spr} y1={seqZeroY} y2={seqZeroY} stroke="#f8717133" strokeWidth="1" />}
+        {seqMin < 0 && <line x1={spl} x2={seqW - spr} y1={seqZeroY} y2={seqZeroY} stroke={`${COLORS.red}33`} strokeWidth="1" />}
 
-        {/* Y-axis labels */}
-        {yTicks.map(v => (
-          <g key={v}>
-            <line x1={spl} x2={seqW - spr} y1={seqY(v)} y2={seqY(v)} stroke="#1e293b" strokeWidth="0.5" />
-            <text x={spl - 5} y={seqY(v) + 3} textAnchor="end" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
-            {fmt(v)}
-          </text>
-        </g>
-      ))}
+        {/* Y-axis grid + labels (shared component) */}
+        <ChartYAxis ticks={yTicks} yOf={seqY} svgW={seqW} padL={spl} padR={spr} formatter={fmt} />
 
-        {/* X-axis labels */}
-        {Array.from({ length: Math.floor(months / 12) + 1 }, (_, i) => i * 12).map(m => (
-          <text key={m} x={seqX(m)} y={seqH - 4} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="'JetBrains Mono', monospace">
-            {formatModelTimeLabel(m)}
-          </text>
-        ))}
+        {/* X-axis labels (shared component) */}
+        <ChartXAxis data={monthlyDetail} xOf={seqX} svgH={seqH} />
 
         {/* Scenario lines */}
         {scenarioData.map((s, i) => (
@@ -210,10 +206,10 @@ export default function SequenceOfReturnsChart({
           const cx = seqX(cliffMonth);
           return (
             <g>
-              <line x1={cx + 3} x2={cx + 3} y1={goodY} y2={badY} stroke="#fbbf24" strokeWidth="2" />
-              <line x1={cx + 1} x2={cx + 5} y1={goodY} y2={goodY} stroke="#fbbf24" strokeWidth="1.5" />
-              <line x1={cx + 1} x2={cx + 5} y1={badY} y2={badY} stroke="#fbbf24" strokeWidth="1.5" />
-              <text x={cx + 8} y={midY + 4} fill="#fbbf24" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              <line x1={cx + 3} x2={cx + 3} y1={goodY} y2={badY} stroke={COLORS.yellow} strokeWidth="2" />
+              <line x1={cx + 1} x2={cx + 5} y1={goodY} y2={goodY} stroke={COLORS.yellow} strokeWidth="1.5" />
+              <line x1={cx + 1} x2={cx + 5} y1={badY} y2={badY} stroke={COLORS.yellow} strokeWidth="1.5" />
+              <text x={cx + 8} y={midY + 4} fill={COLORS.yellow} fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
                 {fmtFull(cliffGap)} gap
               </text>
             </g>
@@ -255,10 +251,10 @@ export default function SequenceOfReturnsChart({
       </div>
 
       {/* Narrative */}
-      <div data-testid="sequence-returns-narrative" style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
-        With {seqBadY1}% and {seqBadY2}% returns in years 1-2, <strong style={{ color: "#f87171" }}>bad early returns</strong> reach the MSFT cliff with {fmtFull(cliffGap)} less cash than
-        <strong style={{ color: "#4ade80" }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1-2), even though the {years}-year average return is identical.
-        {" "}<span style={{ color: "#fbbf24" }}>That difference is the sequence-risk cost of taking losses before the plan reaches stability. The inheritance advance reduces the deficit during this window and preserves more runway regardless of market direction.</span>
+      <div data-testid="sequence-returns-narrative" style={{ marginTop: 10, fontSize: 11, color: COLORS.textMuted, lineHeight: 1.6 }}>
+        With {seqBadY1}% and {seqBadY2}% returns in years 1-2, <strong style={{ color: COLORS.red }}>bad early returns</strong> reach the MSFT cliff with {fmtFull(cliffGap)} less cash than
+        <strong style={{ color: COLORS.green }}> good early returns</strong> ({goodEarly[0]}% and {goodEarly[1]}% in years 1-2), even though the {years}-year average return is identical.
+        {" "}<span style={{ color: COLORS.yellow }}>That difference is the sequence-risk cost of taking losses before the plan reaches stability. The inheritance advance reduces the deficit during this window and preserves more runway regardless of market direction.</span>
       </div>
     </div>
   );

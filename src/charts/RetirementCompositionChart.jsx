@@ -2,13 +2,17 @@ import { memo, useMemo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildLegendItems } from './chartContract.js';
 import { useChartTooltip } from './useChartTooltip.js';
+import { COLORS } from './chartUtils.js';
+import ChartXAxis from './ChartXAxis.jsx';
+import ChartYAxis from './ChartYAxis.jsx';
+import ChartEmptyState from './ChartEmptyState.jsx';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
 const LAYERS = [
-  { key: 'ssIncome', label: 'Social Security', color: '#34d399' },
-  { key: 'trustIncome', label: 'Trust LLC', color: '#a78bfa' },
-  { key: 'pensionIncome', label: 'PERS Pension', color: '#fbbf24' },
-  { key: 'poolDraw', label: 'Pool Draw', color: '#60a5fa' },
+  { key: 'ssIncome', label: 'Social Security', color: COLORS.emerald },
+  { key: 'trustIncome', label: 'Trust LLC', color: COLORS.purpleLight },
+  { key: 'pensionIncome', label: 'PERS Pension', color: COLORS.yellow },
+  { key: 'poolDraw', label: 'Pool Draw', color: COLORS.blue },
 ];
 
 function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChadAge, inhDuringCouple, hasInheritance }) {
@@ -49,7 +53,9 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   });
 
   // Empty-data return AFTER all hooks (stable hook order across renders).
-  if (!yearlyData || yearlyData.length === 0) return null;
+  if (!yearlyData || yearlyData.length === 0) {
+    return <ChartEmptyState testId="retirement-composition-empty" message="Retirement income composition appears once the simulation produces yearly data." />;
+  }
 
   // Build stacked area paths (bottom-up: SS, Trust, Pension, Pool Draw)
   const layerKeys = ['ssIncome', 'trustIncome', 'pensionIncome', 'poolDraw'];
@@ -77,20 +83,23 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   const yTicks = [];
   for (let v = 0; v <= yMax; v += tickStep) yTicks.push(v);
 
+  // X-axis label cadence (ages, not months)
+  const xStep = n > 25 ? 5 : n > 15 ? 3 : 2;
+
   const legendItems = buildLegendItems([
     ...LAYERS.map(l => ({ id: l.key, label: l.label, color: l.color })),
-    { id: 'target', label: 'Spending Target', color: '#f87171', line: true },
+    { id: 'target', label: 'Spending Target', color: COLORS.red, line: true },
   ]);
 
   return (
     <div ref={containerRef} data-testid="retirement-composition-chart" style={{
-      background: "#1e293b", borderRadius: 12, padding: "16px 12px 12px",
-      border: "1px solid #334155", marginBottom: 16,
+      background: COLORS.bgCard, borderRadius: 12, padding: "16px 12px 12px",
+      border: `1px solid ${COLORS.border}`, marginBottom: 16,
     }}>
-      <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
+      <div style={{ fontSize: 13, color: COLORS.textMuted, fontWeight: 600, marginBottom: 2 }}>
         Retirement Income vs Spending
       </div>
-      <div style={{ fontSize: 10, color: "#475569", marginBottom: 8 }}>
+      <div style={{ fontSize: 10, color: COLORS.borderLight, marginBottom: 8 }}>
         Stacked income sources vs spending target — {n} year horizon
       </div>
 
@@ -100,17 +109,8 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
           onMouseMove={onMouseMove}
           onMouseLeave={onMouseLeave}>
 
-          {/* Y-axis grid + labels */}
-          {yTicks.map(v => (
-            <g key={v}>
-              <line x1={padL} x2={svgW - padR} y1={yOf(v)} y2={yOf(v)}
-                stroke="#334155" strokeWidth={0.5} opacity={0.4} />
-              <text x={padL - 5} y={yOf(v) + 3.5} textAnchor="end"
-                fill="#64748b" fontSize={9} fontFamily="'JetBrains Mono', monospace">
-                {fmt(v)}
-              </text>
-            </g>
-          ))}
+          {/* Y-axis grid + labels (shared component) */}
+          <ChartYAxis ticks={yTicks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} formatter={fmt} />
 
           {/* Stacked area fills */}
           {areaPaths.map(area => (
@@ -128,7 +128,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
           })()}
 
           {/* Spending target line */}
-          <path d={targetPath} fill="none" stroke="#f87171" strokeWidth={2.5}
+          <path d={targetPath} fill="none" stroke={COLORS.red} strokeWidth={2.5}
             strokeLinejoin="round" strokeLinecap="round" />
 
           {/* Phase boundary: Chad passes */}
@@ -136,9 +136,9 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
             <>
               <line x1={xOf(chadPassesAge - 67)} y1={padT}
                 x2={xOf(chadPassesAge - 67)} y2={padT + plotH}
-                stroke="#fbbf24" strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
+                stroke={COLORS.yellow} strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
               <text x={xOf(chadPassesAge - 67)} y={padT - 2} textAnchor="middle"
-                fill="#fbbf24" fontSize={8} fontWeight={600}>Survivor</text>
+                fill={COLORS.yellow} fontSize={8} fontWeight={600}>Survivor</text>
             </>
           )}
 
@@ -147,27 +147,26 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
             <>
               <line x1={xOf(inheritanceChadAge - 67)} y1={padT}
                 x2={xOf(inheritanceChadAge - 67)} y2={padT + plotH}
-                stroke="#34d399" strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
+                stroke={COLORS.emerald} strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
               <text x={xOf(inheritanceChadAge - 67)} y={padT - 2} textAnchor="middle"
-                fill="#34d399" fontSize={8} fontWeight={600}>Inheritance</text>
+                fill={COLORS.emerald} fontSize={8} fontWeight={600}>Inheritance</text>
             </>
           )}
 
-          {/* X-axis labels */}
-          {enriched.map((d, i) => {
-            const step = n > 25 ? 5 : n > 15 ? 3 : 2;
-            return (i % step === 0 || i === n - 1) ? (
-              <text key={i} x={xOf(i)} y={svgH - 6} textAnchor="middle"
-                fill="#64748b" fontSize={9} fontFamily="'JetBrains Mono', monospace">
-                {d.age}
-              </text>
-            ) : null;
-          })}
+          {/* X-axis labels (shared component; labels are ages) */}
+          <ChartXAxis
+            data={enriched}
+            xOf={xOf}
+            svgH={svgH}
+            monthAccessor={(d) => d.i}
+            filterFn={(d) => d.i % xStep === 0 || d.i === n - 1}
+            labelFn={(d) => d.age}
+          />
 
           {/* Hover crosshair */}
           {tooltip && (
             <line x1={xOf(tooltip.index)} y1={padT} x2={xOf(tooltip.index)} y2={padT + plotH}
-              stroke="#94a3b8" strokeWidth={0.8} opacity={0.5} />
+              stroke={COLORS.textMuted} strokeWidth={0.8} opacity={0.5} />
           )}
         </svg>
 
@@ -184,8 +183,8 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
               top: 8,
               marginLeft: flipLeft ? undefined : 12,
               marginRight: flipLeft ? 12 : undefined,
-              background: "#0f172aee",
-              border: "1px solid #475569",
+              background: `${COLORS.bgDeep}ee`,
+              border: `1px solid ${COLORS.borderLight}`,
               borderRadius: 8,
               padding: "8px 12px",
               pointerEvents: "none",
@@ -195,33 +194,33 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
               minWidth: 170,
               fontSize: 11,
             }}>
-              <div style={{ fontSize: 11, color: "#f8fafc", fontWeight: 700, marginBottom: 4, borderBottom: "1px solid #334155", paddingBottom: 3 }}>
+              <div style={{ fontSize: 11, color: COLORS.textPrimary, fontWeight: 700, marginBottom: 4, borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 3 }}>
                 Chad {d.age} / Sarah {d.sarahAge}
                 {d.phase === 'survivor' ? ' (survivor)' : ''}
                 {d.isInheritanceYear ? ' — Inheritance' : ''}
               </div>
               {[
-                { label: 'Pool Draw', color: '#60a5fa', value: d.poolDraw || 0 },
-                { label: 'Social Security', color: '#34d399', value: d.ssIncome || 0, detail: d.ssLabel },
-                { label: 'Trust', color: '#a78bfa', value: d.trustIncome },
-                { label: 'PERS Pension', color: '#fbbf24', value: d.pensionIncome || 0 },
+                { label: 'Pool Draw', color: COLORS.blue, value: d.poolDraw || 0 },
+                { label: 'Social Security', color: COLORS.emerald, value: d.ssIncome || 0, detail: d.ssLabel },
+                { label: 'Trust', color: COLORS.purpleLight, value: d.trustIncome },
+                { label: 'PERS Pension', color: COLORS.yellow, value: d.pensionIncome || 0 },
               ].filter(s => s.value > 0).map((s, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <div style={{ width: 7, height: 7, borderRadius: 2, background: s.color }} />
-                    <span style={{ color: "#94a3b8" }}>{s.label}</span>
+                    <span style={{ color: COLORS.textMuted }}>{s.label}</span>
                   </div>
                   <span style={{ color: s.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(s.value)}</span>
                 </div>
               ))}
-              <div style={{ borderTop: "1px solid #334155", marginTop: 4, paddingTop: 3 }}>
+              <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 4, paddingTop: 3 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 1 }}>
-                  <span style={{ color: "#94a3b8" }}>Target</span>
-                  <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(d.totalTarget)}</span>
+                  <span style={{ color: COLORS.textMuted }}>Target</span>
+                  <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(d.totalTarget)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 1 }}>
-                  <span style={{ color: "#94a3b8" }}>Pool</span>
-                  <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(d.pool)}</span>
+                  <span style={{ color: COLORS.textMuted }}>Pool</span>
+                  <span style={{ color: COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(d.pool)}</span>
                 </div>
               </div>
             </div>
@@ -234,7 +233,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
         {legendItems.map(item => (
           <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: item.line ? 14 : 10, height: item.line ? 2 : 10, borderRadius: item.line ? 0 : 2, background: item.line ? undefined : item.color, borderTop: item.line ? `2px solid ${item.color}` : undefined, opacity: item.line ? 1 : 0.55 }} />
-            <span style={{ fontSize: 10, color: "#94a3b8" }}>{item.label}</span>
+            <span style={{ fontSize: 10, color: COLORS.textMuted }}>{item.label}</span>
           </div>
         ))}
       </div>

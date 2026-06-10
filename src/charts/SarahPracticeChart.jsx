@@ -2,6 +2,10 @@ import React, { useMemo, useRef } from "react";
 import { fmt, fmtFull } from "../model/formatters.js";
 import { DAYS_PER_MONTH } from "../model/constants.js";
 import { useChartTooltip } from './useChartTooltip.js';
+import { formatModelTimeLabel } from './chartContract.js';
+import { COLORS } from './chartUtils.js';
+import ChartXAxis from './ChartXAxis.jsx';
+import ChartYAxis from './ChartYAxis.jsx';
 import Slider from '../components/Slider.jsx';
 
 export default function SarahPracticeChart({
@@ -106,31 +110,31 @@ export default function SarahPracticeChart({
 
   return (
     <div data-testid="sarah-practice-chart" style={{
-      background: "#1e293b", borderRadius: 12, padding: "20px 16px",
-      border: "1px solid #334155", marginBottom: 24
+      background: COLORS.bgCard, borderRadius: 12, padding: "20px 16px",
+      border: `1px solid ${COLORS.border}`, marginBottom: 24
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <h3 style={{ fontSize: 14, color: "#60a5fa", margin: 0, fontWeight: 600 }}>Sarah's Practice Growth</h3>
-        <div data-testid="sarah-practice-summary" style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 12 }}>
+        <h3 style={{ fontSize: 14, color: COLORS.blue, margin: 0, fontWeight: 600 }}>Sarah's Practice Growth</h3>
+        <div data-testid="sarah-practice-summary" style={{ fontSize: 11, color: COLORS.textDim, display: "flex", alignItems: "center", gap: 12 }}>
           <span>
-            <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(currentGross)}</span>
+            <span style={{ color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(currentGross)}</span>
             <span> → </span>
-            <span style={{ color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(targetGross)}</span>
+            <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(targetGross)}</span>
             <span>/mo</span>
           </span>
           <span style={{ display: "flex", gap: 8, fontSize: 10 }}>
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 12, height: 2, background: "#60a5fa", display: "inline-block" }} />
-              <span style={{ color: "#64748b" }}>Gross</span>
+              <span style={{ width: 12, height: 2, background: COLORS.blue, display: "inline-block" }} />
+              <span style={{ color: COLORS.textDim }}>Gross</span>
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 12, height: 0, display: "inline-block", borderTop: "2px dashed #34d399" }} />
-              <span style={{ color: "#64748b" }}>Net</span>
+              <span style={{ width: 12, height: 0, display: "inline-block", borderTop: `2px dashed ${COLORS.emerald}` }} />
+              <span style={{ color: COLORS.textDim }}>Net</span>
             </span>
           </span>
         </div>
       </div>
-      <p data-testid="sarah-practice-subtitle" style={{ fontSize: 11, color: "#475569", margin: "0 0 12px" }}>
+      <p data-testid="sarah-practice-subtitle" style={{ fontSize: 11, color: COLORS.borderLight, margin: "0 0 12px" }}>
         ${sarahRate}/hr × {sarahCurrentClients.toFixed(1)} clients → ${sarahMaxRate}/hr × {sarahMaxClients.toFixed(1)} clients
         {" "}| Rate +{sarahRateGrowth}%/yr, Clients +{sarahClientGrowth}%/yr
       </p>
@@ -139,39 +143,26 @@ export default function SarahPracticeChart({
         <svg ref={svgRef} viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: "100%", height: "auto", display: 'block' }}
           onMouseMove={onMouseMove}
           onMouseLeave={onMouseLeave}>
-          {/* Grid lines */}
-          {yTicks.map(v => (
-            <g key={v}>
-              <line x1={padL} x2={chartW - padR} y1={yOf(v)} y2={yOf(v)}
-                stroke="#334155" strokeWidth="0.5" opacity="0.4" />
-              <text x={padL - 6} y={yOf(v) + 3} textAnchor="end"
-                fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-                {v >= 1000 ? `$${Math.round(v/1000)}K` : `$${v}`}
-              </text>
-            </g>
-          ))}
+          {/* Y-axis grid + labels (shared component) */}
+          <ChartYAxis ticks={yTicks} yOf={yOf} svgW={chartW} padL={padL} padR={padR} formatter={fmt} />
 
-          {/* Year markers on X axis */}
-          {Array.from({ length: Math.floor(months / 12) + 1 }, (_, i) => i * 12).map(m => (
-            <text key={m} x={xOf(m)} y={chartH - 4} textAnchor="middle"
-              fill="#475569" fontSize="10" fontFamily="'JetBrains Mono', monospace">
-              {m === 0 ? "Now" : `'${26 + Math.floor((2+m)/12)}`}
-            </text>
-          ))}
+          {/* X-axis labels (shared component, model-time convention) */}
+          <ChartXAxis data={pts} xOf={xOf} svgH={chartH} monthAccessor={(p) => p.m}
+            filterFn={(p) => p.m % 12 === 0} labelFn={(p) => formatModelTimeLabel(p.m)} />
 
           {/* Target line */}
           <line x1={padL} x2={chartW - padR} y1={targetY} y2={targetY}
-            stroke="#4ade80" strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
+            stroke={COLORS.green} strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
           <text x={chartW - padR - 2} y={targetY - 5} textAnchor="end"
-            fill="#4ade80" fontSize="10" opacity="0.8" fontFamily="'JetBrains Mono', monospace">
+            fill={COLORS.green} fontSize="10" opacity="0.8" fontFamily="'JetBrains Mono', monospace">
             Target: {fmtFull(targetGross)}
           </text>
 
           {/* Current line */}
           <line x1={padL} x2={chartW - padR} y1={currentY} y2={currentY}
-            stroke="#64748b" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
+            stroke={COLORS.textDim} strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
           <text x={padL + 4} y={currentY - 5}
-            fill="#64748b" fontSize="10" fontFamily="'JetBrains Mono', monospace">
+            fill={COLORS.textDim} fontSize="10" fontFamily="'JetBrains Mono', monospace">
             Today: {fmtFull(currentGross)}
           </text>
 
@@ -181,26 +172,26 @@ export default function SarahPracticeChart({
           {/* Gradient def */}
           <defs>
             <linearGradient id="sarahGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.02" />
+              <stop offset="0%" stopColor={COLORS.blue} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={COLORS.blue} stopOpacity="0.02" />
             </linearGradient>
           </defs>
 
           {/* Gross income line */}
-          <path d={linePath} fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d={linePath} fill="none" stroke={COLORS.blue} strokeWidth="2.5" strokeLinejoin="round" />
           {/* Net income line */}
-          <path d={netLinePath} fill="none" stroke="#34d399" strokeWidth="2" strokeLinejoin="round" strokeDasharray="6,3" />
+          <path d={netLinePath} fill="none" stroke={COLORS.emerald} strokeWidth="2" strokeLinejoin="round" strokeDasharray="6,3" />
 
           {/* Target reached marker */}
           {targetMonth > 0 && targetMonth < months && (
             <g>
               <line x1={xOf(targetMonth)} x2={xOf(targetMonth)}
                 y1={padT} y2={padT + plotH}
-                stroke="#4ade80" strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
+                stroke={COLORS.green} strokeWidth="1" strokeDasharray="4,3" opacity="0.4" />
               <circle cx={xOf(targetMonth)} cy={yOf(pts[targetMonth].gross)}
-                r="4" fill="#4ade80" stroke="#0f172a" strokeWidth="1.5" />
+                r="4" fill={COLORS.green} stroke={COLORS.bgDeep} strokeWidth="1.5" />
               <text x={xOf(targetMonth) + 6} y={yOf(pts[targetMonth].gross) - 6}
-                fill="#4ade80" fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+                fill={COLORS.green} fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
                 Target hit ~{Math.floor(targetMonth / 12)}y{targetMonth % 12}m ({Math.floor((months - targetMonth) / 12)}y{(months - targetMonth) % 12}m at ceiling)
               </text>
             </g>
@@ -210,9 +201,9 @@ export default function SarahPracticeChart({
           {tooltip && (
             <>
               <line x1={xOf(tooltip.dataPoint.m)} y1={padT} x2={xOf(tooltip.dataPoint.m)} y2={padT + plotH}
-                stroke="#94a3b8" strokeWidth={0.8} opacity={0.5} />
+                stroke={COLORS.textMuted} strokeWidth={0.8} opacity={0.5} />
               <circle cx={xOf(tooltip.dataPoint.m)} cy={yOf(tooltip.dataPoint.gross)} r="5"
-                fill="#60a5fa" stroke="#0f172a" strokeWidth="2" />
+                fill={COLORS.blue} stroke={COLORS.bgDeep} strokeWidth="2" />
             </>
           )}
         </svg>
@@ -230,8 +221,8 @@ export default function SarahPracticeChart({
               top: 8,
               marginLeft: flipLeft ? undefined : 12,
               marginRight: flipLeft ? 12 : undefined,
-              background: "#0f172aee",
-              border: "1px solid #475569",
+              background: `${COLORS.bgDeep}ee`,
+              border: `1px solid ${COLORS.borderLight}`,
               borderRadius: 8,
               padding: "8px 12px",
               pointerEvents: "none",
@@ -241,33 +232,33 @@ export default function SarahPracticeChart({
               minWidth: 170,
               fontSize: 11,
             }}>
-              <div style={{ fontSize: 11, color: "#f8fafc", fontWeight: 700, marginBottom: 4, borderBottom: "1px solid #334155", paddingBottom: 3 }}>
+              <div style={{ fontSize: 11, color: COLORS.textPrimary, fontWeight: 700, marginBottom: 4, borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 3 }}>
                 {p.dateLabel} ({p.label})
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Gross income</span>
-                <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(p.gross)}/mo</span>
+                <span style={{ color: COLORS.textMuted }}>Gross income</span>
+                <span style={{ color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(p.gross)}/mo</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Net after tax</span>
-                <span style={{ color: "#34d399", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(p.net)}/mo</span>
+                <span style={{ color: COLORS.textMuted }}>Net after tax</span>
+                <span style={{ color: COLORS.emerald, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(p.net)}/mo</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Hourly rate</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${p.rate}/hr</span>
+                <span style={{ color: COLORS.textMuted }}>Hourly rate</span>
+                <span style={{ color: COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${p.rate}/hr</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Clients/day</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{p.clients}</span>
+                <span style={{ color: COLORS.textMuted }}>Clients/day</span>
+                <span style={{ color: COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{p.clients}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Daily gross</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(p.rate * p.clients)}</span>
+                <span style={{ color: COLORS.textMuted }}>Daily gross</span>
+                <span style={{ color: COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(p.rate * p.clients)}</span>
               </div>
               {p.m > 0 && (
-                <div style={{ borderTop: "1px solid #334155", marginTop: 4, paddingTop: 3, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#94a3b8" }}>Growth</span>
-                  <span style={{ color: growth >= 0 ? "#4ade80" : "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 4, paddingTop: 3, display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: COLORS.textMuted }}>Growth</span>
+                  <span style={{ color: growth >= 0 ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
                     {growth >= 0 ? "+" : ""}{growth}%
                   </span>
                 </div>
@@ -300,21 +291,21 @@ export default function SarahPracticeChart({
             const annualNetScaled = monthsInYear < 12 ? Math.round(annualNet * 12 / monthsInYear) : annualNet;
             return (
               <div key={i} data-testid={`sarah-practice-stat-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} style={{
-                flex: 1, minWidth: 110, background: "#0f172a", borderRadius: 6, padding: "6px 8px",
-                border: i === 0 ? "1px solid #60a5fa33" : "1px solid #1e293b"
+                flex: 1, minWidth: 110, background: COLORS.bgDeep, borderRadius: 6, padding: "6px 8px",
+                border: i === 0 ? `1px solid ${COLORS.blue}33` : `1px solid ${COLORS.bgCard}`
               }}>
-                <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace" }}>
+                <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace" }}>
                   {fmtFull(p.gross)}
                 </div>
-                <div style={{ fontSize: 10, color: "#475569" }}>
+                <div style={{ fontSize: 10, color: COLORS.borderLight }}>
                   ${p.rate}/hr × {p.clients}/day
                 </div>
-                <div style={{ fontSize: 10, color: "#475569", marginTop: 2, borderTop: "1px solid #1e293b", paddingTop: 2 }}>
-                  <span style={{ color: "#60a5fa" }}>{fmt(annualGrossScaled)}</span>
-                  <span style={{ color: "#334155" }}> / </span>
-                  <span style={{ color: "#34d399" }}>{fmt(annualNetScaled)}</span>
-                  <span style={{ color: "#475569" }}>/yr</span>
+                <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 2, borderTop: `1px solid ${COLORS.bgCard}`, paddingTop: 2 }}>
+                  <span style={{ color: COLORS.blue }}>{fmt(annualGrossScaled)}</span>
+                  <span style={{ color: COLORS.border }}> / </span>
+                  <span style={{ color: COLORS.emerald }}>{fmt(annualNetScaled)}</span>
+                  <span style={{ color: COLORS.borderLight }}>/yr</span>
                 </div>
               </div>
             );
@@ -325,51 +316,51 @@ export default function SarahPracticeChart({
       {/* Sliders */}
       {set && (
         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Rate</div>
+          <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+            <div style={{ fontSize: 11, color: COLORS.blue, marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Rate</div>
             <Slider label="Current hourly rate" value={sarahRate} onChange={set('sarahRate')} commitStrategy={commitStrategy} min={150} max={300} step={10} format={(v) => "$" + v + "/hr"} />
             <Slider label="Rate growth/yr" value={sarahRateGrowth} onChange={set('sarahRateGrowth')} commitStrategy={commitStrategy} min={0} max={20} format={(v) => v + "%"} />
-            <Slider label="Max rate (ceiling)" value={sarahMaxRate} onChange={set('sarahMaxRate')} commitStrategy={commitStrategy} min={200} max={400} step={10} format={(v) => "$" + v + "/hr"} color="#64748b" />
+            <Slider label="Max rate (ceiling)" value={sarahMaxRate} onChange={set('sarahMaxRate')} commitStrategy={commitStrategy} min={200} max={400} step={10} format={(v) => "$" + v + "/hr"} color={COLORS.textDim} />
           </div>
-          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Clients</div>
+          <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+            <div style={{ fontSize: 11, color: COLORS.blue, marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Clients</div>
             <Slider label="Current clients/day" value={sarahCurrentClients} onChange={set('sarahCurrentClients')} commitStrategy={commitStrategy} min={1} max={5} step={0.1} format={(v) => v.toFixed(1)} />
             <Slider label="Client growth/yr" value={sarahClientGrowth} onChange={set('sarahClientGrowth')} commitStrategy={commitStrategy} min={0} max={30} format={(v) => v + "%"} />
-            <Slider label="Max clients/day (ceiling)" value={sarahMaxClients} onChange={set('sarahMaxClients')} commitStrategy={commitStrategy} min={3} max={7} step={0.5} format={(v) => v.toFixed(1)} color="#64748b" />
+            <Slider label="Max clients/day (ceiling)" value={sarahMaxClients} onChange={set('sarahMaxClients')} commitStrategy={commitStrategy} min={3} max={7} step={0.5} format={(v) => v.toFixed(1)} color={COLORS.textDim} />
           </div>
-          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tax</div>
-            <Slider label="Effective tax rate (SE + federal)" value={sarahTaxRate} onChange={set('sarahTaxRate')} commitStrategy={commitStrategy} min={15} max={40} color="#60a5fa" format={(v) => v + "%"} />
+          <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+            <div style={{ fontSize: 11, color: COLORS.blue, marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tax</div>
+            <Slider label="Effective tax rate (SE + federal)" value={sarahTaxRate} onChange={set('sarahTaxRate')} commitStrategy={commitStrategy} min={15} max={40} color={COLORS.blue} format={(v) => v + "%"} />
           </div>
-          <div style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-            <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Working Duration</div>
-            <Slider label="Sarah works for" value={sarahWorkMonths || 72} onChange={set('sarahWorkMonths')} commitStrategy='release' min={36} max={144} step={3} color="#a78bfa" format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
+          <div style={{ padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+            <div style={{ fontSize: 11, color: COLORS.blue, marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Working Duration</div>
+            <Slider label="Sarah works for" value={sarahWorkMonths || 72} onChange={set('sarahWorkMonths')} commitStrategy='release' min={36} max={144} step={3} color={COLORS.purpleLight} format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
           </div>
-          <div style={{ padding: "8px 12px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+          <div style={{ padding: "8px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-              <span style={{ color: "#64748b" }}>Current gross:</span>
-              <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCurrentGross)}</span>
+              <span style={{ color: COLORS.textDim }}>Current gross:</span>
+              <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCurrentGross)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-              <span style={{ color: "#60a5fa", fontWeight: 600 }}>After tax ({sarahTaxRate}%):</span>
-              <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}/mo</span>
+              <span style={{ color: COLORS.blue, fontWeight: 600 }}>After tax ({sarahTaxRate}%):</span>
+              <span style={{ color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(sarahCurrentNet)}/mo</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
-              <span style={{ color: "#64748b" }}>Net ceiling ({sarahTaxRate}%):</span>
-              <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeiling)}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
+              <span style={{ color: COLORS.textDim }}>Net ceiling ({sarahTaxRate}%):</span>
+              <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(sarahCeiling)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-              <span style={{ color: "#64748b" }}>Capacity used:</span>
-              <span style={{ color: sarahCurrentGross / sarahCeilingGross > 0.8 ? "#eab308" : "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentGross / sarahCeilingGross * 100)}%</span>
+              <span style={{ color: COLORS.textDim }}>Capacity used:</span>
+              <span style={{ color: sarahCurrentGross / sarahCeilingGross > 0.8 ? COLORS.yellow : COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(sarahCurrentGross / sarahCeilingGross * 100)}%</span>
             </div>
-            <div style={{ borderTop: "1px solid #334155", marginTop: 4, paddingTop: 4 }}>
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 4, paddingTop: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ color: "#64748b" }}>Total gross ({Math.round((sarahWorkMonths || 72) / 12)}yr):</span>
-                <span style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{fmt(pts.reduce((s, p) => s + p.gross, 0))}</span>
+                <span style={{ color: COLORS.textDim }}>Total gross ({Math.round((sarahWorkMonths || 72) / 12)}yr):</span>
+                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(pts.reduce((s, p) => s + p.gross, 0))}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
-                <span style={{ color: "#34d399", fontWeight: 600 }}>Total net ({Math.round((sarahWorkMonths || 72) / 12)}yr):</span>
-                <span style={{ color: "#34d399", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmt(pts.reduce((s, p) => s + p.net, 0))}</span>
+                <span style={{ color: COLORS.emerald, fontWeight: 600 }}>Total net ({Math.round((sarahWorkMonths || 72) / 12)}yr):</span>
+                <span style={{ color: COLORS.emerald, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmt(pts.reduce((s, p) => s + p.net, 0))}</span>
               </div>
             </div>
           </div>

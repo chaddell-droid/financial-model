@@ -90,11 +90,11 @@ export default function PwaDistributionChart({
   if (chart.sortedValues.length === 0) {
     return (
       <div data-testid={`${testIdPrefix}-empty`} style={{
-        background: '#0f172a',
+        background: COLORS.bgDeep,
         borderRadius: 8,
         padding: '12px 14px',
-        border: '1px solid #334155',
-        color: '#94a3b8',
+        border: `1px solid ${COLORS.border}`,
+        color: COLORS.textMuted,
         fontSize: 11,
         lineHeight: 1.45,
       }}>
@@ -118,28 +118,28 @@ export default function PwaDistributionChart({
       label: `Selected (${Math.round(basePercentile)}th)`,
       shortLabel: 'Selected',
       value: selectedWithdrawal,
-      color: '#4ade80',
+      color: COLORS.green,
       dash: null,
     },
     {
       label: 'Median',
       shortLabel: 'Median',
       value: chart.medianWithdrawal,
-      color: '#60a5fa',
+      color: COLORS.blue,
       dash: '5,4',
     },
     {
       label: `Band low (${Math.round(lowerTolerancePercentile)}th)`,
       shortLabel: 'Band low',
       value: chart.lowerWithdrawal,
-      color: '#f59e0b',
+      color: COLORS.amber,
       dash: '3,3',
     },
     {
       label: `Band high (${Math.round(upperTolerancePercentile)}th)`,
       shortLabel: 'Band high',
       value: chart.upperWithdrawal,
-      color: '#f59e0b',
+      color: COLORS.amber,
       dash: '3,3',
     },
   ];
@@ -156,24 +156,24 @@ export default function PwaDistributionChart({
       ref={containerRef}
       data-testid={`${testIdPrefix}-container`}
       style={{
-        background: '#0f172a',
+        background: COLORS.bgDeep,
         borderRadius: 8,
         padding: '12px 14px',
-        border: '1px solid #334155',
+        border: `1px solid ${COLORS.border}`,
         marginBottom: 12,
       }}
       onMouseLeave={() => setTooltip(null)}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 700 }}>
+          <div style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: 700 }}>
             Current PWA Distribution
           </div>
-          <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2, lineHeight: 1.45 }}>
             Histogram of historical-cohort spending targets from the current balance and remaining horizon.
           </div>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 10, color: '#cbd5e1', lineHeight: 1.45, fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ textAlign: 'right', fontSize: 10, color: COLORS.textSoft, lineHeight: 1.45, fontFamily: "'JetBrains Mono', monospace" }}>
           {chart.sortedValues.length.toLocaleString()} cohorts · {fmtFull(Math.round(chart.min))} to {fmtFull(Math.round(chart.max))}
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function PwaDistributionChart({
         {legendItems.map((item) => (
           <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 16, height: 0, borderTop: `2px ${item.dash ? 'dashed' : 'solid'} ${item.color}` }} />
-            <span style={{ fontSize: 10, color: '#94a3b8' }}>{item.label}</span>
+            <span style={{ fontSize: 10, color: COLORS.textMuted }}>{item.label}</span>
           </div>
         ))}
       </div>
@@ -195,14 +195,14 @@ export default function PwaDistributionChart({
                 x2={svgW - padR}
                 y1={yScale(count)}
                 y2={yScale(count)}
-                stroke={count === 0 ? '#475569' : '#1e293b'}
+                stroke={count === 0 ? COLORS.borderLight : COLORS.bgCard}
                 strokeWidth={count === 0 ? 1 : 0.5}
               />
               <text
                 x={padL - 8}
                 y={yScale(count) + 4}
                 textAnchor="end"
-                fill="#94a3b8"
+                fill={COLORS.textMuted}
                 fontSize="10"
                 fontFamily="'JetBrains Mono', monospace"
               >
@@ -225,7 +225,7 @@ export default function PwaDistributionChart({
                 y={y}
                 width={width}
                 height={height}
-                fill="#60a5fa"
+                fill={COLORS.blue}
                 opacity="0.32"
                 rx="2"
                 onMouseEnter={() => setTooltip({
@@ -292,7 +292,7 @@ export default function PwaDistributionChart({
                 x={xScale(value)}
                 y={svgH - 16}
                 textAnchor="middle"
-                fill="#94a3b8"
+                fill={COLORS.textMuted}
                 fontSize="10"
                 fontFamily="'JetBrains Mono', monospace"
               >
@@ -304,7 +304,7 @@ export default function PwaDistributionChart({
           <text
             x={padL}
             y={svgH - 28}
-            fill="#64748b"
+            fill={COLORS.textDim}
             fontSize="10"
             fontFamily="'JetBrains Mono', monospace"
           >
@@ -314,7 +314,7 @@ export default function PwaDistributionChart({
             x={xScale(chart.medianWithdrawal)}
             y={svgH - 28}
             textAnchor="middle"
-            fill="#64748b"
+            fill={COLORS.textDim}
             fontSize="10"
             fontFamily="'JetBrains Mono', monospace"
           >
@@ -324,7 +324,7 @@ export default function PwaDistributionChart({
             x={svgW - padR}
             y={svgH - 28}
             textAnchor="end"
-            fill="#64748b"
+            fill={COLORS.textDim}
             fontSize="10"
             fontFamily="'JetBrains Mono', monospace"
           >
@@ -338,8 +338,8 @@ export default function PwaDistributionChart({
             left: `${Math.max(12, Math.min(tooltip.anchorX, 88))}%`,
             top: `${Math.max(8, Math.min(tooltip.anchorY, 58))}%`,
             transform: 'translate(-50%, -115%)',
-            background: '#020617',
-            border: '1px solid #475569',
+            background: COLORS.bgInk,
+            border: `1px solid ${COLORS.borderLight}`,
             borderRadius: 6,
             padding: '8px 10px',
             pointerEvents: 'none',
@@ -347,13 +347,13 @@ export default function PwaDistributionChart({
             boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
             zIndex: 10,
           }}>
-            <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 700, marginBottom: 4 }}>
+            <div style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: 700, marginBottom: 4 }}>
               {tooltip.title}
             </div>
             {tooltip.lines.map((line, index) => (
               <div
                 key={index}
-                style={{ fontSize: 10, color: '#cbd5e1', lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}
+                style={{ fontSize: 10, color: COLORS.textSoft, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}
               >
                 {line}
               </div>

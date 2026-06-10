@@ -5,21 +5,24 @@ import { getVestingMonthly } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
 import { buildBridgeStoryModel } from '../model/overviewStory.js';
 import { formatModelTimeLabel } from './chartContract.js';
-import { UI_COLORS, UI_SPACE, UI_TEXT } from '../ui/tokens.js';
+import { COLORS } from './chartUtils.js';
+import ChartXAxis from './ChartXAxis.jsx';
+import ChartYAxis from './ChartYAxis.jsx';
+import { UI_SPACE, UI_TEXT } from '../ui/tokens.js';
 
 const MARKER_COLORS = {
-  breakeven: UI_COLORS.positive,
-  benefit: UI_COLORS.positive,
-  transition: UI_COLORS.info,
-  cliff: UI_COLORS.caution,
-  milestone: UI_COLORS.textMuted,
+  breakeven: COLORS.green,
+  benefit: COLORS.green,
+  transition: COLORS.cyan,
+  cliff: COLORS.yellow,
+  milestone: COLORS.textMuted,
 };
 
 function getChipToneColor(tone) {
-  if (tone === 'positive') return UI_COLORS.positive;
-  if (tone === 'caution') return UI_COLORS.caution;
-  if (tone === 'destructive') return UI_COLORS.destructive;
-  return UI_COLORS.textStrong;
+  if (tone === 'positive') return COLORS.green;
+  if (tone === 'caution') return COLORS.yellow;
+  if (tone === 'destructive') return COLORS.red;
+  return COLORS.textPrimary;
 }
 
 function getTickStep(minValue, maxValue) {
@@ -127,8 +130,8 @@ function layoutMarkerLabels(markers, xOf, padT, plotH, variant) {
 
 function getMarkerTextColor(item, markerColor, isPrimary) {
   if (isPrimary) return markerColor;
-  if (item.kind === 'cliff') return UI_COLORS.caution;
-  return UI_COLORS.textStrong;
+  if (item.kind === 'cliff') return COLORS.yellow;
+  return COLORS.textPrimary;
 }
 
 function getMarkerLeaderY(marker, pointY) {
@@ -256,7 +259,7 @@ function getMarkerLineTargetY(pointY, marker) {
 }
 
 function getMarkerCircleStroke() {
-  return '#0f172a';
+  return COLORS.bgDeep;
 }
 
 function getMarkerLayouts(story, xOf, padT, plotH, variant) {
@@ -603,11 +606,11 @@ const BridgeChart = ({
     >
       <div data-testid={variant === 'overview' ? 'bridge-variant-overview' : 'bridge-variant-plan'}>
         <div style={{ marginBottom: UI_SPACE.md }}>
-          <div style={{ fontSize: variant === 'overview' ? UI_TEXT.heading : UI_TEXT.title, color: UI_COLORS.textStrong, fontWeight: 700, marginBottom: 4 }}>
+          <div style={{ fontSize: variant === 'overview' ? UI_TEXT.heading : UI_TEXT.title, color: COLORS.textPrimary, fontWeight: 700, marginBottom: 4 }}>
             {story.title}
           </div>
           {variant === 'overview' ? (
-            <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textMuted, lineHeight: 1.45 }}>
+            <div style={{ fontSize: UI_TEXT.caption, color: COLORS.textMuted, lineHeight: 1.45 }}>
               {story.subtitle}
             </div>
           ) : null}
@@ -629,12 +632,12 @@ const BridgeChart = ({
                 key={chip.id}
                 style={{
                   background: 'rgba(15, 23, 42, 0.65)',
-                  border: `1px solid ${UI_COLORS.border}`,
+                  border: `1px solid ${COLORS.border}`,
                   borderRadius: 10,
                   padding: `${UI_SPACE.sm}px ${UI_SPACE.md}px`,
                 }}
               >
-                <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted, marginBottom: 4 }}>
+                <div style={{ fontSize: UI_TEXT.micro, color: COLORS.textMuted, marginBottom: 4 }}>
                   {chip.label}
                 </div>
                 <div style={{ fontSize: UI_TEXT.label, color: chipColor, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -646,33 +649,12 @@ const BridgeChart = ({
         </div>
 
         <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-          {yTicks.map((value) => (
-            <g key={value}>
-              <line x1={padL} x2={svgW - padR} y1={yOf(value)} y2={yOf(value)} stroke='rgba(71, 85, 105, 0.28)' strokeWidth='1' />
-              <text x={padL - 8} y={yOf(value) + 4} textAnchor='end' fill={UI_COLORS.textDim} fontSize='11' fontFamily="'JetBrains Mono', monospace">
-                {Math.abs(value) >= 1000 ? `$${Math.round(value / 1000)}K` : `$${Math.round(value)}`}
-              </text>
-            </g>
-          ))}
+          {/* Y-axis grid + labels (shared component; bolds the zero line and
+              labels it "$0" via fmt — yTicks always contains 0 here) */}
+          <ChartYAxis ticks={yTicks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} />
 
-          <line x1={padL} x2={svgW - padR} y1={zeroY} y2={zeroY} stroke={UI_COLORS.textMuted} strokeWidth='1.5' />
-          <text x={padL - 8} y={zeroY + 4} textAnchor='end' fill={UI_COLORS.textMuted} fontSize='11' fontWeight='700' fontFamily="'JetBrains Mono', monospace">
-            $0
-          </text>
-
-          {xTicks.map((month) => (
-            <text
-              key={month}
-              x={xOf(month)}
-              y={svgH - 6}
-              textAnchor='middle'
-              fill={UI_COLORS.textDim}
-              fontSize='11'
-              fontFamily="'JetBrains Mono', monospace"
-            >
-              {formatModelTimeLabel(month)}
-            </text>
-          ))}
+          {/* X-axis labels (shared component, model-time convention) */}
+          <ChartXAxis data={xTicks.map((month) => ({ month }))} xOf={xOf} svgH={svgH} />
 
           <clipPath id={`bridge-above-${variant}`}>
             <rect x={padL} y={padT} width={plotW} height={Math.max(0, zeroY - padT)} />
@@ -692,14 +674,14 @@ const BridgeChart = ({
             clipPath={`url(#bridge-below-${variant})`}
           />
 
-          <path d={path} fill='none' stroke={UI_COLORS.textStrong} strokeWidth='2.25' strokeLinejoin='round' />
+          <path d={path} fill='none' stroke={COLORS.textPrimary} strokeWidth='2.25' strokeLinejoin='round' />
 
           <g data-testid='bridge-marker-layer'>
             {markerLayouts.map((marker) => {
               const x = xOf(marker.month);
               const point = points.find((row) => row.month >= marker.month) || points[0];
               const pointY = yOf(trendNet(point));
-              const markerColor = MARKER_COLORS[marker.kind] || UI_COLORS.textMuted;
+              const markerColor = MARKER_COLORS[marker.kind] || COLORS.textMuted;
               const bubble = getMarkerBubble(marker, x, markerColor);
               const markerLine = getMarkerLine(marker, x, pointY, padT, plotH, markerColor);
               const markerDot = getMarkerDot(marker, x, pointY, markerColor);
@@ -777,7 +759,7 @@ const BridgeChart = ({
             x={svgW - padR - 4}
             y={yOf(finalNet)}
             textAnchor='end'
-            fill={finalNet >= 0 ? UI_COLORS.positive : UI_COLORS.destructive}
+            fill={finalNet >= 0 ? COLORS.green : COLORS.red}
             fontSize='11'
             fontWeight='700'
             fontFamily="'JetBrains Mono', monospace"
@@ -800,17 +782,17 @@ const BridgeChart = ({
             <div
               key={group.id}
               style={{
-                border: `1px solid ${UI_COLORS.border}`,
+                border: `1px solid ${COLORS.border}`,
                 borderRadius: 10,
                 padding: `${UI_SPACE.sm}px ${UI_SPACE.md}px`,
                 background: 'rgba(15, 23, 42, 0.48)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: UI_SPACE.sm, alignItems: 'baseline', marginBottom: 8 }}>
-                <div style={{ fontSize: UI_TEXT.caption, color: UI_COLORS.textStrong, fontWeight: 700 }}>
+                <div style={{ fontSize: UI_TEXT.caption, color: COLORS.textPrimary, fontWeight: 700 }}>
                   {group.label}
                 </div>
-                <div style={{ fontSize: UI_TEXT.micro, color: group.totalImpact >= 0 ? UI_COLORS.positive : UI_COLORS.destructive, fontFamily: "'JetBrains Mono', monospace" }}>
+                <div style={{ fontSize: UI_TEXT.micro, color: group.totalImpact >= 0 ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>
                   {(group.totalImpact >= 0 ? '+' : '') + fmtFull(group.totalImpact)}/mo
                 </div>
               </div>
@@ -818,13 +800,13 @@ const BridgeChart = ({
               <div style={{ display: 'grid', gap: 6 }}>
                 {group.items.map((item, itemIdx) => (
                   <div key={`${item.id}-${itemIdx}`} style={{ display: 'flex', justifyContent: 'space-between', gap: UI_SPACE.sm, alignItems: 'baseline' }}>
-                    <div style={{ fontSize: UI_TEXT.micro, color: UI_COLORS.textMuted }}>
+                    <div style={{ fontSize: UI_TEXT.micro, color: COLORS.textMuted }}>
                       {item.label}
                       {item.month > 0 ? (
-                        <span style={{ color: UI_COLORS.textDim }}> · {formatModelTimeLabel(item.month)}</span>
+                        <span style={{ color: COLORS.textDim }}> · {formatModelTimeLabel(item.month)}</span>
                       ) : null}
                     </div>
-                    <div style={{ fontSize: UI_TEXT.micro, color: item.impact >= 0 ? UI_COLORS.positive : UI_COLORS.destructive, fontFamily: "'JetBrains Mono', monospace" }}>
+                    <div style={{ fontSize: UI_TEXT.micro, color: item.impact >= 0 ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>
                       {(item.impact >= 0 ? '+' : '') + fmtFull(item.impact)}
                     </div>
                   </div>

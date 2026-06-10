@@ -2,13 +2,18 @@ import React, { memo } from 'react';
 import { fmt } from '../model/formatters.js';
 import { buildIncomeSources, COLORS } from './chartUtils.js';
 import { buildLegendItems } from './chartContract.js';
+import ChartEmptyState from './ChartEmptyState.jsx';
 
 /**
  * Compact income-vs-expenses stacked bar chart for Overview tab.
- * Matches IncomeCompositionChart source grouping and colors, but no tooltips,
- * no annotations, no sliders — pure read-only summary.
+ * Matches IncomeCompositionChart source grouping and colors — including the
+ * expense line's slate-white (COLORS.textBright) stroke over a dark halo —
+ * but no tooltips, no annotations, no sliders. Pure read-only summary.
  */
 function MiniIncomeExpenseChart({ monthlyDetail, ssType, onTabChange }) {
+  if (!monthlyDetail || monthlyDetail.length === 0) {
+    return <ChartEmptyState testId="mini-income-expense-empty" message="Income vs expenses appears once the projection has data." />;
+  }
   const data = monthlyDetail;
   const n = data.length;
   const chartH = 160;
@@ -25,7 +30,7 @@ function MiniIncomeExpenseChart({ monthlyDetail, ssType, onTabChange }) {
 
   const legendItems = buildLegendItems([
     ...sources.map(s => ({ id: s.key, label: s.label, color: s.color })),
-    { id: 'expenses', label: 'Expenses', color: '#f87171', line: true },
+    { id: 'expenses', label: 'Expenses', color: COLORS.textBright, line: true },
   ]);
 
   const formatMonthLabel = (m) => {
@@ -77,7 +82,7 @@ function MiniIncomeExpenseChart({ monthlyDetail, ssType, onTabChange }) {
             </div>
             <div style={{
               position: 'absolute', left: yPad, right: 0, top: t.yPos,
-              height: 1, background: '#1e293b80', zIndex: 0,
+              height: 1, background: `${COLORS.bgCard}80`, zIndex: 0,
             }} />
           </React.Fragment>
         ))}
@@ -113,13 +118,14 @@ function MiniIncomeExpenseChart({ monthlyDetail, ssType, onTabChange }) {
             );
           })}
 
-          {/* Expense line */}
+          {/* Expense line — dark halo + bright slate-white stroke, matching
+              IncomeCompositionChart's neutral-anchor treatment exactly. */}
           <svg viewBox={`0 0 ${n * 100} ${chartH}`} preserveAspectRatio="none"
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: chartH, pointerEvents: 'none', zIndex: 3 }}>
             <path d={`M ${data.map((d, i) => `${i * 100 + 50},${chartH - (d.expenses / stackMax) * chartH}`).join(' L ')}`}
-              fill="none" stroke="#0f172a" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" />
+              fill="none" stroke={COLORS.bgDeep} strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
             <path d={`M ${data.map((d, i) => `${i * 100 + 50},${chartH - (d.expenses / stackMax) * chartH}`).join(' L ')}`}
-              fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+              fill="none" stroke={COLORS.textBright} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
         </div>
       </div>

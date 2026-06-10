@@ -1,6 +1,6 @@
 # Architecture Document
 
-**Generated:** 2026-03-25 | **Scan Level:** Deep | **Type:** Web (React SPA)
+**Generated:** 2026-03-25 | **Updated:** 2026-06-09 (post-remediation) | **Scan Level:** Deep | **Type:** Web (React SPA)
 
 ---
 
@@ -138,9 +138,9 @@ CSS custom properties define the dark theme. JavaScript tokens mirror them for i
 
 `AppShell` provides a consistent layout:
 - **Summary bar** (KeyMetrics + ActiveTogglePills + ComparisonBanner)
-- **Tab bar** (6 tabs: Overview, Plan, Track, Income, Risk, Details)
+- **Tab bar** (9 tabs: Overview, Plan, Track, Actuals, Income, Tax, Risk, Details, Advisor)
 - **Workspace** (active tab content)
-- **Right rail** (SavingsDrawdownChart, NetWorthChart, RetirementIncomeChart — side or stacked based on width)
+- **Right rail** (user-configurable chart stack via `rail/chartRegistry.js`: Savings Balance, Net Worth, Retirement Income, Monthly Gap Path, Income vs Expenses, Monte Carlo, Sequence of Returns, 401(k) Decomposition — side or stacked based on width; selection, order, and width persist)
 
 ### 4.3 Help System
 
@@ -153,16 +153,17 @@ Three-tier architecture:
 
 | Tab | Component | Contents |
 |-----|-----------|----------|
-| Overview | `OverviewTab` | BridgeChart (overview variant) |
-| Plan | `PlanTab` | ScenarioStrip, IncomeControls, ExpenseControls, MonthlyCashFlowChart, BridgeChart (plan), GoalPanel |
+| Overview | `OverviewTab` | Hero cards, BridgeChart (overview variant), MiniNetWorthChart, MiniIncomeExpenseChart, RecommendationCascade, GoalStatusStrip |
+| Plan | `PlanTab` | DecisionConsole (levers + TopMovesPanel) split with ChartStackPanel (Savings + NetWorth) and IncomeChartPanel, then the 3-column AssumptionsGrid (IncomeControls / ExpenseControls / CapitalItemsPanel) |
 | Track | `TrackTab` | Monthly check-in form, drift table, reforecast, status card |
+| Actuals | `ActualsTab` | CSV statement import, merchant classification, actuals vs plan |
 | Income | `IncomeTab` | MsftVestingChart, SarahPracticeChart, IncomeCompositionChart |
-| Risk | `RiskTab` | MonteCarloPanel, SequenceOfReturnsChart, (optional) balance charts |
+| Tax | `TaxTab` | TaxSettingsPanel + TaxVisualization (rates/composition/waterfall/attribution charts, engine mode) |
+| Risk | `RiskTab` | MonteCarloPanel, SequenceOfReturnsChart, SavingsDrawdownChart + NetWorthChart (balance damage), GoalPanel |
 | Details | `DetailsTab` | DataTable, SummaryAsk |
+| Advisor | `AdvisorPane` | LLM advisor chat with projection tools |
 
-**Special modes** (replace tab layout):
-- **Sarah Mode** — Business-focused dashboard with practice metrics, spending capacity, goal progress
-- **Dad Mode** — 3-act narrative: expense breakdown → self-help levers → support ask
+**Shared chart conventions** (`src/charts/`): one palette (`chartUtils.js` COLORS — no raw hex outside it, guard-tested), shared `ChartXAxis`/`ChartYAxis` components (10px JetBrains Mono, `COLORS.textDim` ticks, `fmt()` money labels), `formatModelTimeLabel` time axes, and a shared `ChartEmptyState` for missing data.
 
 ## 6. Data Flow
 
@@ -197,7 +198,8 @@ When monthly cash flow is negative:
 
 ## 7. Testing Strategy
 
-- **Contract tests** (`__snapshots__.test.js`) — Node `assert`, no framework. Verify model exports, state shape, projection contracts.
+- **Test gate** (`scripts/run-tests.mjs`) — `npm test` glob-discovers every `*.test.js` under `src/` and `tests/`; a meta-test (`tests/meta/gateCoverage.test.js`) fails if any test file on disk is not executed.
+- **Contract tests** (`__snapshots__.test.js`, `src/**/__tests__/*.test.js`) — Node `assert`, no framework. Verify model exports, state shape, projection contracts, and chart consistency guards (`src/charts/__tests__/chartConsistency.test.js`: one palette, shared axes, empty states).
 - **UI swarm** (`tests/ui/run-swarm.js`) — Parallel browser-based test runner.
 - **Performance benchmarks** (`tests/ui/perf/run-perf.js`) — Measure render counts, slider responsiveness.
 - **Test harness** (`uiHarness.js`) — `window.__FIN_MODEL_TEST__` API for controlling MC seed, storage, metrics from test scripts.

@@ -1,9 +1,10 @@
 import { useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { fmt, fmtFull } from '../model/formatters.js';
-import { buildIncomeSources } from '../charts/chartUtils.js';
+import { buildIncomeSources, COLORS } from '../charts/chartUtils.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 import { getSsBenefitLabelForMonth } from './ssBenefitLabel.js';
+import ChartEmptyState from './ChartEmptyState.jsx';
 
 /**
  * Monthly income composition vs expenses chart.
@@ -15,6 +16,12 @@ import { getSsBenefitLabelForMonth } from './ssBenefitLabel.js';
  */
 function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings, compareProjections, compareColors }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
+
+  // Friendly empty state AFTER the hook (stable hook order) — previously
+  // crashed on data[0].expenses with empty monthlyDetail.
+  if (!monthlyDetail || monthlyDetail.length === 0) {
+    return <ChartEmptyState testId="income-composition-empty" message="Income composition appears once the projection has data." />;
+  }
 
   // Map monthly field names: chart sources use 'msftVesting' key but monthly data has 'msftSmoothed'
   const getVal = (d, key) => key === 'msftVesting' ? (d.msftSmoothed || 0) : (d[key] || 0);
@@ -39,8 +46,8 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
   );
   const legendItems = buildLegendItems([
     ...sources.map((source) => ({ id: source.key, label: source.label, color: source.color })),
-    { id: 'expenses', label: 'Expenses', color: '#f1f5f9', line: true },
-    ...((compareProjections || []).map((cp, ci) => ({ id: `compare-${ci}`, label: `"${cp.name}" expenses`, color: (compareColors || [])[ci] || '#fbbf24', line: true, dash: true }))),
+    { id: 'expenses', label: 'Expenses', color: COLORS.textBright, line: true },
+    ...((compareProjections || []).map((cp, ci) => ({ id: `compare-${ci}`, label: `"${cp.name}" expenses`, color: (compareColors || [])[ci] || COLORS.yellow, line: true, dash: true }))),
   ]);
 
   // Compute totalIncome (smoothed) for a month — consistent with what bars show
@@ -107,21 +114,21 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
 
   return (
     <div data-testid="income-composition-chart" style={{
-      background: "#1e293b", borderRadius: 12, padding: "20px 16px",
-      border: "1px solid #334155", marginBottom: 24
+      background: COLORS.bgCard, borderRadius: 12, padding: "20px 16px",
+      border: `1px solid ${COLORS.border}`, marginBottom: 24
     }}>
-      <h3 style={{ fontSize: 14, color: "#94a3b8", margin: "0 0 4px", fontWeight: 600 }}>Income Composition vs Expenses</h3>
-      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 12px" }}>Monthly income sources stacked against expenses — hover for detail.</p>
+      <h3 style={{ fontSize: 14, color: COLORS.textMuted, margin: "0 0 4px", fontWeight: 600 }}>Income Composition vs Expenses</h3>
+      <p style={{ fontSize: 10, color: COLORS.borderLight, margin: "0 0 12px" }}>Monthly income sources stacked against expenses — hover for detail.</p>
 
       {/* KPI strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 12 }}>
         {[
-          { label: `${getSummaryTimeframeLabel('current')} income`, value: fmtFull(computeTotal(currentMonth)), color: '#4ade80' },
-          { label: `${getSummaryTimeframeLabel('steady')} income`, value: fmtFull(computeTotal(steadyMonth)), color: '#60a5fa' },
-          { label: `${getSummaryTimeframeLabel('current')} expenses`, value: fmtFull(currentMonth.expenses), color: '#f87171' },
+          { label: `${getSummaryTimeframeLabel('current')} income`, value: fmtFull(computeTotal(currentMonth)), color: COLORS.green },
+          { label: `${getSummaryTimeframeLabel('steady')} income`, value: fmtFull(computeTotal(steadyMonth)), color: COLORS.blue },
+          { label: `${getSummaryTimeframeLabel('current')} expenses`, value: fmtFull(currentMonth.expenses), color: COLORS.red },
         ].map((item) => (
-          <div key={item.label} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 10px', border: '1px solid #334155' }}>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{item.label}</div>
+          <div key={item.label} style={{ background: COLORS.bgDeep, borderRadius: 6, padding: '8px 10px', border: `1px solid ${COLORS.border}` }}>
+            <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 2 }}>{item.label}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>{item.value}</div>
           </div>
         ))}
@@ -144,7 +151,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                 fontSize: 9,
                 fontWeight: 600,
                 fontFamily: "'JetBrains Mono', monospace",
-                color: '#4ade80',
+                color: COLORS.green,
                 whiteSpace: 'nowrap',
                 pointerEvents: 'none',
               }}>
@@ -163,7 +170,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
             const yPos = annotationRowH + (i / tickCount) * stackH;
             ticks.push(
               <div key={`sl-${i}`} style={{ position: "absolute", left: 0, top: yPos - 7, width: stackYPad - 8, textAlign: "right" }}>
-                <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                <span style={{ fontSize: 10, color: COLORS.textDim, fontFamily: "'JetBrains Mono', monospace" }}>
                   {fmt(val)}
                 </span>
               </div>
@@ -171,7 +178,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
             ticks.push(
               <div key={`sg-${i}`} style={{
                 position: "absolute", left: stackYPad, right: 0, top: yPos,
-                height: 1, background: "#1e293b80", zIndex: 0
+                height: 1, background: `${COLORS.bgCard}80`, zIndex: 0
               }} />
             );
           }
@@ -302,7 +309,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
 
                 {/* Month label — every 12 months */}
                 {(d.month % 12 === 0) && (
-                  <div style={{ position: "absolute", bottom: -22, fontSize: 9, color: "#64748b", whiteSpace: "nowrap" }}>
+                  <div style={{ position: "absolute", bottom: -22, fontSize: 9, color: COLORS.textDim, whiteSpace: "nowrap" }}>
                     {formatMonthLabel(d.month)}
                   </div>
                 )}
@@ -315,16 +322,16 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
           <svg viewBox={`0 0 ${n * 100} ${stackH}`} preserveAspectRatio="none"
             style={{ position: "absolute", top: 0, left: 0, width: "100%", height: stackH, pointerEvents: "none", zIndex: 3 }}>
             <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-              fill="none" stroke="#0f172a" strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
+              fill="none" stroke={COLORS.bgDeep} strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
             <path d={`M ${data.map((d, i) => `${i * 100 + 50},${stackH - (d.expenses / stackMax) * stackH}`).join(' L ')}`}
-              fill="none" stroke="#f1f5f9" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+              fill="none" stroke={COLORS.textBright} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
 
           {/* Comparison expense lines — one per active comparison, each with distinct color */}
           {compareProjections && compareProjections.map((cp, ci) => {
             const compData = cp.projection.monthlyData;
             if (!compData || compData.length === 0) return null;
-            const color = (compareColors || [])[ci] || '#fbbf24';
+            const color = (compareColors || [])[ci] || COLORS.yellow;
             const compPath = compData.slice(0, n).map((cd, i) =>
               `${i * 100 + 50},${stackH - (cd.expenses / stackMax) * stackH}`
             );
@@ -346,7 +353,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
               top: 0,
               width: 0,
               height: stackH,
-              borderLeft: '1px dashed #4ade80',
+              borderLeft: `1px dashed ${COLORS.green}`,
               opacity: 0.4,
               pointerEvents: 'none',
               zIndex: 2,
@@ -382,8 +389,8 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
             left: clampedX,
             top: topPx,
             transform: `translate(-50%, ${transformY})`,
-            background: "#0f172a",
-            border: "1px solid #475569",
+            background: COLORS.bgDeep,
+            border: `1px solid ${COLORS.borderLight}`,
             borderRadius: 8,
             padding: "10px 14px",
             pointerEvents: "none",
@@ -392,7 +399,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
             boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
             minWidth: 180,
           }}>
-            <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 700, marginBottom: 6, borderBottom: "1px solid #334155", paddingBottom: 4 }}>
+            <div style={{ fontSize: 12, color: COLORS.textPrimary, fontWeight: 700, marginBottom: 6, borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 4 }}>
               {incomeTooltip.label}
             </div>
             {incomeTooltip.sources.map((s, i) => (
@@ -400,40 +407,40 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   {!s.indent && <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />}
                   {s.indent && <div style={{ width: 6, height: 6, borderRadius: 1, background: s.color, flexShrink: 0 }} />}
-                  <span style={{ color: "#94a3b8" }}>{s.label}</span>
+                  <span style={{ color: COLORS.textMuted }}>{s.label}</span>
                 </div>
                 <span style={{ color: s.color, fontFamily: "'JetBrains Mono', monospace", fontWeight: s.indent ? 400 : 600 }}>{fmtFull(s.value)}</span>
               </div>
             ))}
-            <div style={{ borderTop: "1px solid #334155", marginTop: 6, paddingTop: 4 }}>
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 6, paddingTop: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                <span style={{ color: "#94a3b8" }}>Total income</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.total)}</span>
+                <span style={{ color: COLORS.textMuted }}>Total income</span>
+                <span style={{ color: COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.total)}</span>
               </div>
               {incomeTooltip.expenseComponents && incomeTooltip.expenseComponents.length > 0 && (
                 <div style={{ marginTop: 4 }}>
-                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 2 }}>
+                  <div style={{ fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 2 }}>
                     Expense math
                   </div>
                   {incomeTooltip.expenseComponents.map((c, ci) => (
                     <div key={ci} style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginTop: 1, marginLeft: 8 }}>
-                      <span style={{ color: "#94a3b8" }}>{c.label}</span>
-                      <span style={{ color: c.amount < 0 ? "#4ade80" : "#e2e8f0", fontFamily: "'JetBrains Mono', monospace" }}>
+                      <span style={{ color: COLORS.textMuted }}>{c.label}</span>
+                      <span style={{ color: c.amount < 0 ? COLORS.green : COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
                         {c.amount >= 0 ? "+" : ""}{fmtFull(c.amount)}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, paddingTop: 3, borderTop: "1px dashed #334155" }}>
-                <span style={{ color: "#f87171", fontWeight: 600 }}>Total expenses</span>
-                <span style={{ color: "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.expenses)}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, paddingTop: 3, borderTop: `1px dashed ${COLORS.border}` }}>
+                <span style={{ color: COLORS.red, fontWeight: 600 }}>Total expenses</span>
+                <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(incomeTooltip.expenses)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
-                <span style={{ color: incomeTooltip.net >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
+                <span style={{ color: incomeTooltip.net >= 0 ? COLORS.green : COLORS.red, fontWeight: 700 }}>
                   {incomeTooltip.net >= 0 ? "Surplus" : "Deficit"}
                 </span>
-                <span style={{ color: incomeTooltip.net >= 0 ? "#4ade80" : "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+                <span style={{ color: incomeTooltip.net >= 0 ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
                   {incomeTooltip.net >= 0 ? "+" : ""}{fmtFull(incomeTooltip.net)}
                 </span>
               </div>
@@ -454,7 +461,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
               borderTop: item.line ? `2px ${item.dash ? 'dashed' : 'solid'} ${item.color}` : undefined,
               opacity: item.line ? 1 : 0.7,
             }} />
-            <span style={{ fontSize: 11, color: "#94a3b8" }}>{item.label}</span>
+            <span style={{ fontSize: 11, color: COLORS.textMuted }}>{item.label}</span>
           </div>
         ))}
       </div>

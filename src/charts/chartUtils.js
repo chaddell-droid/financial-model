@@ -54,7 +54,9 @@ export const COLORS = {
 
   // Text
   textPrimary: "#f8fafc",
+  textBright: "#f1f5f9",   // slate-100 — neutral expense-line anchor
   textSecondary: "#e2e8f0",
+  textSoft: "#cbd5e1",     // slate-300 — soft body copy on dark cards
   textMuted: "#94a3b8",
   textDim: "#64748b",
 
@@ -67,13 +69,20 @@ export const COLORS = {
   green: "#4ade80",
   greenDark: "#22c55e",
 
+  // Accent — emerald / teal
+  emerald: "#34d399",      // intentional accent: SS income / net lines
+  teal: "#14b8a6",         // teal-500 — Chad job / 401k match family
+
   // Accent — red / warning
   red: "#f87171",
   redDark: "#ef4444",
+  redDeep: "#dc2626",      // red-600 — gradient depth for warning bars
 
-  // Accent — amber / yellow
+  // Accent — amber / yellow / orange
   amber: "#f59e0b",
+  amberLight: "#fcd34d",   // amber-300 — highlight outline on amber bars
   yellow: "#fbbf24",
+  orange: "#f97316",       // intentional accent: 10th-percentile plan path
 
   // Accent — purple
   purple: "#c084fc",
@@ -82,23 +91,13 @@ export const COLORS = {
   // Accent — cyan
   cyan: "#22d3ee",
 
+  // Background — deepest ink (tooltips over bgDeep surfaces)
+  bgInk: "#020617",
+
   // Chart-specific
   positive: "#4ade80",
   negative: "#f87171",
 };
-
-/**
- * Compute responsive padding that scales with container width.
- */
-export function responsivePadding(containerW) {
-  const scale = Math.min(1, containerW / 800);
-  return {
-    padL: Math.round(60 * scale),
-    padR: Math.round(20 * scale),
-    padT: 20,
-    padB: 30,
-  };
-}
 
 // Income source definitions — used by Income Composition chart and Dad Mode.
 // Palette designed around THREE SEMANTIC FAMILIES (not ad-hoc hue selection):

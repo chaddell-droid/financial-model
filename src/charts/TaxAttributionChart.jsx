@@ -3,7 +3,7 @@ import useContainerWidth from '../hooks/useContainerWidth.js';
 import { createScales, generateYTicks, autoTickStep, COLORS } from './chartUtils.js';
 import ChartYAxis from './ChartYAxis.jsx';
 import SurfaceCard from '../components/ui/SurfaceCard.jsx';
-import { fmt, fmtFull } from '../model/formatters.js';
+import { fmtFull } from '../model/formatters.js';
 
 const fmtPct = (v) => (v * 100).toFixed(1) + '%';
 

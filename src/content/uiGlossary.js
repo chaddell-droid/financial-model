@@ -8,15 +8,6 @@ export const TIMEFRAME_LABELS = {
   sixYearHorizon: '6-year outlook',
 };
 
-export const METRIC_LABELS = {
-  currentMonthlyGap: 'Current Monthly Gap',
-  cashFlowBreakeven: 'Cash Flow Breakeven',
-  savingsRunway: 'Savings Runway',
-  advanceNeeded: 'Advance Ask',
-  monteCarloSolvency: 'Monte Carlo Solvency',
-  totalSwing: 'Total swing',
-};
-
 export const RETIREMENT_LABELS = {
   historicalMode: 'Historical Safe',
   adaptiveMode: 'Adaptive PWA',

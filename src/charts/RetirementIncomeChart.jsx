@@ -11,6 +11,7 @@ import { HELP } from '../content/help/registry.js';
 import { useRetirementSimulation } from '../hooks/useRetirementSimulation.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { COLORS } from './chartUtils.js';
+import ChartYAxis from './ChartYAxis.jsx';
 
 const PWA_STRATEGY_OPTIONS = [
   { value: 'fixed_percentile', label: 'Fixed Percentile' },
@@ -40,7 +41,7 @@ function HelpChip({ label, help, accent = COLORS.blue }) {
   return (
     <div
       style={{
-        background: '#02061766',
+        background: `${COLORS.bgInk}66`,
         border: `1px solid ${accent}33`,
         borderRadius: 8,
         padding: '8px 10px',
@@ -92,12 +93,12 @@ function ModeIdentityBanner({
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(240px, 1fr)', gap: 12, alignItems: 'start', marginTop: 8 }}>
             <div>
-              <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 13, color: COLORS.textSoft, lineHeight: 1.5 }}>
                 {summary}
               </div>
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ background: '#02061766', border: `1px solid ${COLORS.bgCard}`, borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ background: `${COLORS.bgInk}66`, border: `1px solid ${COLORS.bgCard}`, borderRadius: 10, padding: '10px 12px' }}>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4, fontWeight: 700 }}>
                   {primaryLabel}
                 </div>
@@ -105,7 +106,7 @@ function ModeIdentityBanner({
                   {primaryValue}
                 </div>
               </div>
-              <div style={{ background: '#02061766', border: `1px solid ${COLORS.bgCard}`, borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ background: `${COLORS.bgInk}66`, border: `1px solid ${COLORS.bgCard}`, borderRadius: 10, padding: '10px 12px' }}>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4, fontWeight: 700 }}>
                   {secondaryLabel}
                 </div>
@@ -117,7 +118,7 @@ function ModeIdentityBanner({
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>
             {bullets.map((bullet) => (
-              <div key={bullet} style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.45 }}>
+              <div key={bullet} style={{ fontSize: 12, color: COLORS.textSoft, lineHeight: 1.45 }}>
                 {bullet}
               </div>
             ))}
@@ -251,7 +252,7 @@ function RetirementIncomeChart({
   const pwaConfidencePct = Math.round((pwaCurrentSelection.probabilityNoCut || 0) * 100);
   const pwaReferenceBequestMet = (pwaReferenceSimulation?.finalPool || 0) >= bequestTarget;
   const retirementTextStrong = COLORS.textSecondary;
-  const retirementTextBody = '#cbd5e1';
+  const retirementTextBody = COLORS.textSoft;
   const retirementTextMuted = COLORS.textMuted;
   const sectionOverviewHelp = isPwaMode ? HELP.retirement_overview_pwa : HELP.retirement_overview_historical;
   const modeIdentity = isPwaMode
@@ -702,17 +703,8 @@ function RetirementIncomeChart({
             return { idx: closestIdx, pctX, pctY, ...d, p10: histBands[0], p25: histBands[1], p50: histBands[2], p75: histBands[3], p90: histBands[4] };
           });
         }}>
-        {/* Grid */}
-        {yTicks.map((v, i) => (
-          <g key={i}>
-            <line x1={padL} x2={svgW - padR} y1={yPool(v)} y2={yPool(v)}
-              stroke={v === 0 ? COLORS.borderLight : COLORS.bgCard} strokeWidth={v === 0 ? 1 : 0.5} />
-            <text x={padL - 8} y={yPool(v) + 4} textAnchor="end"
-              fill={COLORS.textMuted} fontSize="12" fontFamily="'JetBrains Mono', monospace">
-              {fmtPool(v)}
-            </text>
-          </g>
-        ))}
+        {/* Y-axis grid + labels (shared component, sqrt scale via yPool) */}
+        <ChartYAxis ticks={yTicks} yOf={yPool} svgW={svgW} padL={padL} padR={padR} formatter={fmtPool} />
 
         {/* Survivor phase background */}
         {survivorStartIdx >= 0 && (
@@ -735,7 +727,7 @@ function RetirementIncomeChart({
         {/* SWR plan line (10th percentile — worst surviving case, primary) */}
         {(() => {
           const swrPts = bandResult.bands[0].series.map((v, i) => `${xScale(i)},${yPool(v)}`);
-          return <path d={`M ${swrPts.join(' L ')}`} fill="none" stroke="#f97316" strokeWidth="2.5"
+          return <path d={`M ${swrPts.join(' L ')}`} fill="none" stroke={COLORS.orange} strokeWidth="2.5"
             strokeLinejoin="round" strokeLinecap="round" />;
         })()}
 
@@ -784,9 +776,9 @@ function RetirementIncomeChart({
           const endY = yPool(p10End);
           return (
             <g>
-              <circle cx={endX} cy={endY} r="3" fill="#f97316" opacity="0.8" />
+              <circle cx={endX} cy={endY} r="3" fill={COLORS.orange} opacity="0.8" />
               <text x={endX - 4} y={endY - 8} textAnchor="end"
-                fill="#f97316" fontSize="10" fontWeight="600" opacity="0.95"
+                fill={COLORS.orange} fontSize="10" fontWeight="600" opacity="0.95"
                 fontFamily="'JetBrains Mono', monospace">
                 Plan: {fmtPool(p10End)}
               </text>
@@ -797,18 +789,20 @@ function RetirementIncomeChart({
         {/* Hover dot */}
         {tooltip && (
           <circle cx={xScale(tooltip.age - 67)} cy={yPool(tooltip.p10)} r="5"
-            fill="#f97316" stroke={COLORS.textPrimary} strokeWidth="2" />
+            fill={COLORS.orange} stroke={COLORS.textPrimary} strokeWidth="2" />
         )}
 
-        {/* X-axis labels */}
+        {/* X-axis labels — manual two-row Chad/Sarah age ladder (the shared
+            single-row ChartXAxis can't express this), aligned to the shared
+            convention: 10px JetBrains Mono, COLORS.textDim primary row. */}
         {yearlyData.filter((_, i) => i % 5 === 0).map((d, i) => (
           <g key={i}>
-            <text x={xScale(d.age - 67)} y={svgH - 20} textAnchor="middle"
-              fill={COLORS.textMuted} fontSize="11" fontFamily="'JetBrains Mono', monospace">
+            <text x={xScale(d.age - 67)} y={svgH - 18} textAnchor="middle"
+              fill={COLORS.textDim} fontSize="10" fontFamily="'JetBrains Mono', monospace">
               C:{d.age}
             </text>
-            <text x={xScale(d.age - 67)} y={svgH - 8} textAnchor="middle"
-              fill={COLORS.amber} fontSize="11" fontFamily="'JetBrains Mono', monospace" opacity="0.7">
+            <text x={xScale(d.age - 67)} y={svgH - 6} textAnchor="middle"
+              fill={COLORS.amber} fontSize="10" fontFamily="'JetBrains Mono', monospace" opacity="0.7">
               S:{d.sarahAge}
             </text>
           </g>
@@ -834,7 +828,7 @@ function RetirementIncomeChart({
           <div style={{ fontSize: 12, color: retirementTextBody, marginBottom: 4 }}>
             Chad {tooltip.age} / Sarah {tooltip.sarahAge} {tooltip.phase === 'survivor' ? '(survivor)' : tooltip.phase === 'postInheritance' ? '(post-inheritance)' : ''}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#f97316', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.orange, fontFamily: "'JetBrains Mono', monospace" }}>
             Plan pool: {fmtFull(tooltip.p10)}
           </div>
           <div style={{ fontSize: 11, color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -843,7 +837,7 @@ function RetirementIncomeChart({
           <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 4, paddingTop: 4 }}>
             {tooltip.p10 <= poolFloor ? (
               <>
-                <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>
+                <div style={{ fontSize: 11, color: COLORS.orange, fontWeight: 600 }}>
                   Plan income after reserve hit: {fmtFull(tooltip.guaranteedIncome)}/mo
                 </div>
                 <div style={{ fontSize: 11, color: COLORS.blue }}>
@@ -871,7 +865,7 @@ function RetirementIncomeChart({
       {/* Legend */}
       <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
         {[
-          { label: '10th pct pool path', color: '#f97316', solid: true },
+          { label: '10th pct pool path', color: COLORS.orange, solid: true },
           { label: 'Average-return path', color: COLORS.blue, dashed: true },
           { label: '25-75th pct band', color: COLORS.blue, band: true, opacity: 0.12 },
           { label: '10-90th pct band', color: COLORS.blue, band: true, opacity: 0.08 },

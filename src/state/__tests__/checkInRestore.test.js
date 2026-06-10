@@ -140,12 +140,19 @@ test('dedicated check-in restore over non-default state preserves every model fi
   assert.deepStrictEqual(next.checkInHistory, [SAMPLE_CHECK_IN]);
 });
 
-test('FinancialModel.jsx no longer routes check-ins through RESTORE_STATE (source guard)', () => {
-  const source = fs.readFileSync(new URL('../../FinancialModel.jsx', import.meta.url), 'utf8');
-  assert.ok(!/RESTORE_STATE',\s*state:\s*\{\s*checkInHistory/.test(source),
-    'fin-check-ins restore must not dispatch RESTORE_STATE with a partial payload');
-  assert.ok(source.includes('sanitizeCheckInHistory'),
+test('persistence layer no longer routes check-ins through RESTORE_STATE (source guard)', () => {
+  // The storage effects were extracted from FinancialModel.jsx into
+  // usePersistence.js (Phase 7 file-size split) — guard BOTH files.
+  const appSource = fs.readFileSync(new URL('../../FinancialModel.jsx', import.meta.url), 'utf8');
+  const persistenceSource = fs.readFileSync(new URL('../usePersistence.js', import.meta.url), 'utf8');
+  for (const source of [appSource, persistenceSource]) {
+    assert.ok(!/RESTORE_STATE',\s*state:\s*\{\s*checkInHistory/.test(source),
+      'fin-check-ins restore must not dispatch RESTORE_STATE with a partial payload');
+  }
+  assert.ok(persistenceSource.includes('sanitizeCheckInHistory'),
     'fin-check-ins restore must sanitize the parsed array via sanitizeCheckInHistory');
+  assert.ok(appSource.includes('usePersistence'),
+    'FinancialModel.jsx must wire its storage effects through usePersistence');
 });
 
 // ════════════════════════════════════════════════════════════════════════

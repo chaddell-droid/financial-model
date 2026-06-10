@@ -28,6 +28,7 @@ export function useChartPropBundles({
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
     postJobBenefit,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     chadCurrentAge, chadAge65VestOverride,
@@ -121,6 +122,7 @@ export function useChartPropBundles({
     ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
     ssClaimAge, ssPIA,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge, // A7 (2026-06-10): spousal claim-age slider
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
@@ -141,6 +143,7 @@ export function useChartPropBundles({
     ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
     ssClaimAge, ssPIA,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,

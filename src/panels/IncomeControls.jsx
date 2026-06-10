@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
-import { SGA_LIMIT, ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, familyMaxForPIA } from '../model/constants.js';
+import { SGA_LIMIT, ssAdjustmentFactor, ssSpousalAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, familyMaxForPIA } from '../model/constants.js';
 import { SS_INTERIM_TAX_HAIRCUT } from '../model/projection.js';
 import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
@@ -20,6 +20,7 @@ const IncomeControls = ({
   ssdiApprovalMonth, ssdiBackPayMonths, ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
   ssClaimAge, ssPIA,
   ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
+  sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
   chadConsulting,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
@@ -709,6 +710,52 @@ const IncomeControls = ({
                 </div>
                 )}
               </div>
+              );
+            })()}
+
+            {(() => {
+              // A7 (remediation 2026-06-10, item 1.5): Sarah's spousal claim age —
+              // SPOUSAL reduction schedule (25/36%/mo first 36, 5/12%/mo beyond,
+              // clamped at 100% from FRA: spousal earns NO delayed credits).
+              const spEnabled = sarahSpousalEnabled !== false;
+              const spAge = sarahSpousalClaimAge || 67;
+              const spFactor = ssSpousalAdjustmentFactor(spAge);
+              const spAmount = Math.round((ssPIA || 4214) * 0.5 * spFactor);
+              const spStartMonth = Math.max(0, (spAge - (sarahCurrentAge ?? 59)) * 12);
+              return (
+            <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+              <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sarah Spousal SS</h4>
+              <Toggle label="Model Sarah's spousal benefit" checked={spEnabled} onChange={set('sarahSpousalEnabled')} color={COLORS.green} testId="income-sarah-spousal" />
+              {spEnabled && (
+                <>
+                  <Slider
+                    label="Sarah claims spousal at age"
+                    value={spAge}
+                    onChange={set('sarahSpousalClaimAge')}
+                    commitStrategy={commitStrategy}
+                    min={62} max={70} step={1}
+                    color={COLORS.green}
+                    format={(v) => v === SS_FRA ? `${v} (FRA)` : `${v}`}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6 }}>
+                    <span style={{ color: COLORS.textDim }}>Spousal benefit (50% of PIA × {(spFactor * 100).toFixed(1)}%):</span>
+                    <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(spAmount)}/mo</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                    <span style={{ color: COLORS.textDim }}>Starts at month (age {spAge}, once Chad has claimed):</span>
+                    <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{spStartMonth}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 6, fontStyle: "italic" }}>
+                    {spAge > SS_FRA
+                      ? "No delayed credits on spousal — waiting past 67 (FRA) does not increase it."
+                      : spAge < SS_FRA
+                        ? `Claiming ${SS_FRA - spAge}yr before her FRA — permanently reduced, and her practice earnings trigger the earnings test until 67 (withheld months are re-credited at FRA).`
+                        : "At her FRA: full 50% ceiling, no earnings test."}
+                    {" "}Suppressed while the twins' benefits consume the family maximum.
+                  </div>
+                </>
+              )}
+            </div>
               );
             })()}
 

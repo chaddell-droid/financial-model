@@ -11,6 +11,7 @@ import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import { getVestEvents, getTotalRemainingVesting } from '../vesting.js';
 import { buildRetirementContext } from '../retirementIncome.js';
 import { runMonteCarlo } from '../monteCarlo.js';
+import { buildTaxSchedule, estimateAnnualSSBenefits } from '../taxProjection.js';
 import { DAYS_PER_MONTH } from '../constants.js';
 
 let passed = 0;
@@ -544,6 +545,161 @@ test('C45: Comparison with chadJob=true has chadJobIncome > 0 while base does no
   const projJob = computeProjection(stateJob);
   assert.strictEqual(projBase.monthlyData[0].chadJobIncome, 0, 'Base should have no job income');
   assert.ok(projJob.monthlyData[0].chadJobIncome > 0, 'Job scenario should have job income');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// 12. Tax charts (C46–C52) — TaxRatesOverTime / TaxComposition /
+//     TaxWaterfall / TaxAttribution / DeductionImpact all consume the rows
+//     of buildTaxSchedule (one row per projection year, index = year).
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Tax chart contracts (buildTaxSchedule) ===');
+
+const taxSchedule = buildTaxSchedule(baseState);
+// W-2 household variant so chadW2 > 0 paths are covered too.
+const taxJobState = gatherStateWithOverrides({
+  chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+  chadJobBonusPct: 15, chadJobBonusMonth: 8, chadJobBonusProrateFirst: true,
+  chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 0, chadJobHireStockY1: 50000,
+  chadWorkMonths: 60,
+});
+const taxJobSchedule = buildTaxSchedule(taxJobState);
+
+test('C46: schedule has one row per projection year, monotonically covering the full horizon', () => {
+  const months = baseState.totalProjectionMonths;
+  const expectedYears = Math.ceil((months + 1) / 12);
+  assert.strictEqual(taxSchedule.length, expectedYears,
+    `schedule.length ${taxSchedule.length} !== ceil((months+1)/12) = ${expectedYears}`);
+  // Year y covers months [y*12 .. min(y*12+11, months)] — strictly increasing,
+  // gap-free windows: the last year must still start inside the projection.
+  assert.ok((taxSchedule.length - 1) * 12 <= months, 'last year starts within the horizon');
+  assert.ok(taxSchedule.length * 12 >= months + 1, 'no projection month falls outside the schedule');
+  // SS benefit pre-estimate is aligned year-for-year with the schedule.
+  assert.strictEqual(estimateAnnualSSBenefits(baseState).length, taxSchedule.length,
+    'estimateAnnualSSBenefits years must match the schedule years');
+});
+
+test('C47: every row exposes the fields the tax charts read, all finite', () => {
+  const numericFields = [
+    'sarahMonthlyTax', 'chadMonthlyTax', 'chadMonthlyNet',
+    'effectiveTaxRate', 'marginalRate', 'sarahEffectiveOnGross', 'chadEffectiveRate',
+    'annualTotalTax', 'annualSarahTax', 'annualChadTax',
+    'annualSarahGross', 'schCNet', 'chadW2', 'chadW2Gross',
+  ];
+  const fullTaxFields = [
+    'totalIncome', 'ssTaxableIncome', 'agi', 'deductionUsed', 'itemized',
+    'qbi', 'taxableBeforeQbi', 'taxableIncome', 'fedTax', 'totalCredits',
+    'seTax', 'halfSeTax', 'addlMedicare', 'w2FicaTax', 'totalTax',
+    'effectiveRate', 'marginalRate', 'solo401kContribution',
+    'saltDeductible', 'medicalDeductible',
+  ];
+  for (const [label, schedule] of [['default', taxSchedule], ['w2', taxJobSchedule]]) {
+    for (let y = 0; y < schedule.length; y++) {
+      const row = schedule[y];
+      for (const f of numericFields) {
+        assert.ok(f in row, `${label} year ${y} missing '${f}'`);
+        assert.ok(Number.isFinite(row[f]), `${label} year ${y} '${f}' not finite: ${row[f]}`);
+      }
+      assert.ok(row.fullTax && typeof row.fullTax === 'object', `${label} year ${y} missing fullTax`);
+      for (const f of fullTaxFields) {
+        assert.ok(f in row.fullTax, `${label} year ${y} fullTax missing '${f}'`);
+        assert.ok(Number.isFinite(row.fullTax[f]), `${label} year ${y} fullTax.${f} not finite: ${row.fullTax[f]}`);
+      }
+      assert.ok(typeof row.fullTax.usingItemized === 'boolean', `${label} year ${y} usingItemized must be boolean`);
+    }
+  }
+});
+
+test('C48: tax components and rates are non-negative (rates bounded below 100%)', () => {
+  for (const [label, schedule] of [['default', taxSchedule], ['w2', taxJobSchedule]]) {
+    for (let y = 0; y < schedule.length; y++) {
+      const row = schedule[y];
+      const ft = row.fullTax;
+      for (const [name, v] of [
+        ['annualTotalTax', row.annualTotalTax], ['annualSarahTax', row.annualSarahTax],
+        ['annualChadTax', row.annualChadTax], ['sarahMonthlyTax', row.sarahMonthlyTax],
+        ['chadMonthlyTax', row.chadMonthlyTax], ['schCNet', row.schCNet], ['chadW2', row.chadW2],
+        ['fedTax', ft.fedTax], ['seTax', ft.seTax], ['addlMedicare', ft.addlMedicare],
+        ['w2FicaTax', ft.w2FicaTax], ['totalCredits', ft.totalCredits],
+        ['deductionUsed', ft.deductionUsed], ['qbi', ft.qbi],
+        ['taxableIncome', ft.taxableIncome], ['totalTax', ft.totalTax],
+      ]) {
+        assert.ok(v >= 0, `${label} year ${y} ${name} is negative: ${v}`);
+      }
+      for (const [name, r] of [
+        ['effectiveTaxRate', row.effectiveTaxRate], ['marginalRate', row.marginalRate],
+        ['sarahEffectiveOnGross', row.sarahEffectiveOnGross], ['chadEffectiveRate', row.chadEffectiveRate],
+      ]) {
+        assert.ok(r >= 0 && r < 1, `${label} year ${y} ${name} out of [0,1): ${r}`);
+      }
+    }
+  }
+});
+
+test('C49: waterfall tax components sum to TOTAL TAX for every year', () => {
+  // TaxWaterfallChart renders fedTax, -credits, seTax, addlMedicare and the
+  // engine adds W-2 employee FICA: totalTax = max(0, fed - credits) + se + addlMed + w2Fica.
+  for (const [label, schedule] of [['default', taxSchedule], ['w2', taxJobSchedule]]) {
+    for (let y = 0; y < schedule.length; y++) {
+      const ft = schedule[y].fullTax;
+      const sum = Math.max(0, ft.fedTax - ft.totalCredits) + ft.seTax + ft.addlMedicare + ft.w2FicaTax;
+      near(sum, ft.totalTax, 0.01, `${label} year ${y} waterfall tax sum`);
+      // The default household has no W-2 wages, so the four rendered waterfall
+      // rows alone must reconcile to the TOTAL TAX row.
+      if (label === 'default') {
+        assert.strictEqual(ft.w2FicaTax, 0, `default year ${y} should have no W-2 FICA`);
+      }
+    }
+  }
+});
+
+test('C50: waterfall income -> AGI -> taxable-income steps reconcile', () => {
+  for (const [label, schedule] of [['default', taxSchedule], ['w2', taxJobSchedule]]) {
+    for (let y = 0; y < schedule.length; y++) {
+      const row = schedule[y];
+      const ft = row.fullTax;
+      // AGI = total income − half SE tax − solo 401(k) (above-the-line steps)
+      near(ft.totalIncome - ft.halfSeTax - ft.solo401kContribution, ft.agi, 0.01,
+        `${label} year ${y} AGI step`);
+      // Taxable income = max(0, AGI − deduction) − QBI, floored at 0
+      near(Math.max(0, ft.agi - ft.deductionUsed), ft.taxableBeforeQbi, 0.01,
+        `${label} year ${y} deduction step`);
+      near(Math.max(0, ft.taxableBeforeQbi - ft.qbi), ft.taxableIncome, 0.01,
+        `${label} year ${y} QBI step`);
+      // Income composition: W-2 + Sch C + capital adj + taxable SS = total income
+      const capAdj = Math.max(baseState.taxCapGainLoss ?? -3000, -3000);
+      near(row.chadW2 + row.schCNet + capAdj + ft.ssTaxableIncome, ft.totalIncome, 0.01,
+        `${label} year ${y} income composition`);
+    }
+  }
+});
+
+test('C51: attribution chart contract — Sarah + Chad attribution reconciles to the household total', () => {
+  for (const [label, schedule] of [['default', taxSchedule], ['w2', taxJobSchedule]]) {
+    for (let y = 0; y < schedule.length; y++) {
+      const row = schedule[y];
+      near(row.annualSarahTax + row.annualChadTax, row.annualTotalTax, 0.01,
+        `${label} year ${y} attribution sum`);
+    }
+  }
+  // Default household: no W-2, so the whole burden is attributed to Sarah.
+  for (let y = 0; y < taxSchedule.length; y++) {
+    assert.strictEqual(taxSchedule[y].annualChadTax, 0, `default year ${y} Chad tax should be 0`);
+    assert.strictEqual(taxSchedule[y].chadW2, 0, `default year ${y} chadW2 should be 0`);
+  }
+});
+
+test('C52: W-2 household exposes positive chadW2 while employed and a consistent monthly net', () => {
+  assert.ok(taxJobSchedule[0].chadW2 > 0, 'year 0 should carry W-2 wages');
+  for (let y = 0; y < taxJobSchedule.length; y++) {
+    const row = taxJobSchedule[y];
+    if (row.chadW2 > 0) {
+      near(row.chadMonthlyNet, (row.chadW2 - row.annualChadTax) / 12, 1,
+        `w2 year ${y} chadMonthlyNet identity`);
+    } else {
+      assert.strictEqual(row.chadMonthlyTax, 0, `w2 year ${y} no wages -> no monthly tax`);
+      assert.strictEqual(row.chadMonthlyNet, 0, `w2 year ${y} no wages -> no monthly net`);
+    }
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════

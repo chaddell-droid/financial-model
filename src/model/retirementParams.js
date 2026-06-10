@@ -9,6 +9,7 @@
  * state fields the rest of the app uses.
  */
 import { ssRecalculatedBenefit } from './constants.js';
+import { getNumCohorts, getCohortLabel } from './historicalReturns.js';
 
 // Sarah's planning horizon: simulate until she reaches this age.
 export const SARAH_TARGET_AGE = 90;
@@ -97,4 +98,75 @@ export function buildTwoPhaseSchedule(horizonMonths, inheritanceMonth, preRate, 
  */
 export function shouldAutoSyncWithdrawalRate({ isPwaMode, dirty, optimalRate }) {
   return !isPwaMode && !dirty && optimalRate > 0;
+}
+
+/** Empty-state fallback: every field numeric so the UI never renders NaN. */
+export const EMPTY_OPTIMAL_RATES = Object.freeze({
+  optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
+  numCohorts: 0, worstCohort: Object.freeze({ year: 0 }), cohortRange: '',
+  optimalConsumption: 0, sliderMax: 30,
+});
+
+/**
+ * Optimal withdrawal rates — closed-form percentile extraction from the
+ * per-cohort SWRs (no binary search). Extracted from useRetirementSimulation
+ * (remediation Phase 9) so node tests can verify the math and the empty-pool
+ * fallback directly instead of grepping the hook's source text.
+ *
+ * The 10th-percentile cohort consumption = the total monthly consumption that
+ * 90% of historical cohorts could sustain; subtracting guaranteed income
+ * (startingCoupleIncome) converts it to a pool draw and an annualized rate.
+ */
+export function computeOptimalRates({
+  cohortSWRs, cohortPreSwrs, totalPool, horizonMonths, startingCoupleIncome,
+}) {
+  const empty = { ...EMPTY_OPTIMAL_RATES, worstCohort: { year: 0 } };
+  if (!(totalPool > 0)) return empty;
+
+  const numCohorts = getNumCohorts(horizonMonths);
+  if (numCohorts <= 0 || !cohortSWRs || cohortSWRs.length === 0) return empty;
+
+  const initialIncome = startingCoupleIncome;
+
+  // Sort cohort SWRs; 10th percentile = consumption at 90% survival
+  const sorted = Float64Array.from(cohortSWRs).sort();
+  const p10idx = Math.floor(numCohorts * 0.10);
+  const optimalConsumption = Math.max(0, sorted[p10idx]);
+
+  // Convert total consumption → pool withdrawal rate
+  const optimalPoolDraw = Math.max(0, optimalConsumption - initialIncome);
+  const optimalRate = totalPool > 0
+    ? Math.round(optimalPoolDraw * 12 / totalPool * 1000) / 10 : 0;
+  const optimalMonthly = Math.round(optimalPoolDraw);
+
+  // Pre-inheritance rate via closed-form (if applicable)
+  let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
+  if (cohortPreSwrs && cohortPreSwrs.length > 0) {
+    const sortedPre = Float64Array.from(cohortPreSwrs).sort();
+    const preConsumption = Math.max(0, sortedPre[p10idx]);
+    const prePoolDraw = Math.max(0, preConsumption - initialIncome);
+    optimalPreRate = totalPool > 0
+      ? Math.round(prePoolDraw * 12 / totalPool * 1000) / 10 : 0;
+    optimalPreMonthly = Math.round(prePoolDraw);
+  }
+
+  // Worst historical cohort (lowest formula SWR)
+  let worstIdx = 0;
+  let worstSWR = Infinity;
+  for (let c = 0; c < numCohorts; c++) {
+    if (cohortSWRs[c] < worstSWR) { worstSWR = cohortSWRs[c]; worstIdx = c; }
+  }
+  const worstLabel = getCohortLabel(worstIdx);
+
+  const firstLabel = getCohortLabel(0);
+  const lastLabel = getCohortLabel(numCohorts - 1);
+  const cohortRange = `${firstLabel.year}–${lastLabel.year}`;
+
+  const sliderMax = Math.max(30, Math.ceil(optimalRate / 5) * 5 + 5);
+
+  return {
+    optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
+    numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
+    optimalConsumption, sliderMax,
+  };
 }

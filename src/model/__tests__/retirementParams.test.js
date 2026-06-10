@@ -13,12 +13,14 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import {
   deriveRetirementParams,
+  computeOptimalRates,
   withdrawalScaleFactor,
   buildTwoPhaseSchedule,
   shouldAutoSyncWithdrawalRate,
   SARAH_TARGET_AGE,
   SURVIVOR_SPEND_RATIO,
 } from '../retirementParams.js';
+import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
 import { ssRecalculatedBenefit } from '../constants.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
@@ -213,7 +215,114 @@ test('E4: zero/empty optimal rate never auto-syncs (empty-pool fallback)', () =>
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// Section 6: wiring guards — the hook and prop chain actually use all of this
+// Section 6: computeOptimalRates — the hook's optimal-rate math, extracted
+// (Phase 9). These replace the deleted source-text pseudo-test in
+// __snapshots__.test.js that merely grepped the hook for 'optimalRate: 0'.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== computeOptimalRates (pure extraction of the hook memo) ===');
+
+// Shared synthetic fixture: real cohort count for a 300-month horizon, with
+// SWR(c) = 5000 + c so the sorted order, percentile index, and worst cohort
+// are all known exactly.
+const HORIZON = 300;
+const N_COHORTS = getNumCohorts(HORIZON);
+const SYNTH_SWRS = Float64Array.from({ length: N_COHORTS }, (_, c) => 5000 + c);
+const P10_IDX = Math.floor(N_COHORTS * 0.10);
+const POOL = 1_000_000;
+
+test('F1: empty-pool fallback keeps every optimal-rate field numeric (replaces the source-grep test)', () => {
+  for (const totalPool of [0, -1, NaN]) {
+    const r = computeOptimalRates({
+      cohortSWRs: SYNTH_SWRS, cohortPreSwrs: null, totalPool,
+      horizonMonths: HORIZON, startingCoupleIncome: 4214,
+    });
+    for (const field of ['optimalRate', 'optimalMonthly', 'optimalPreRate', 'optimalPreMonthly', 'numCohorts', 'optimalConsumption', 'sliderMax']) {
+      assert.ok(Number.isFinite(r[field]), `pool=${totalPool}: ${field} must be a finite number, got ${r[field]}`);
+    }
+    eq(r.optimalRate, 0); eq(r.optimalMonthly, 0);
+    eq(r.optimalPreRate, 0); eq(r.optimalPreMonthly, 0);
+    eq(r.numCohorts, 0); eq(r.sliderMax, 30);
+    eq(r.worstCohort.year, 0); eq(r.cohortRange, '');
+  }
+});
+
+test('F2: no cohorts (horizon beyond data) or empty SWR array -> same numeric fallback', () => {
+  const tooLong = computeOptimalRates({
+    cohortSWRs: SYNTH_SWRS, cohortPreSwrs: null, totalPool: POOL,
+    horizonMonths: 10_000_000, startingCoupleIncome: 0,
+  });
+  eq(tooLong.numCohorts, 0); eq(tooLong.optimalRate, 0); eq(tooLong.sliderMax, 30);
+
+  const noSwrs = computeOptimalRates({
+    cohortSWRs: new Float64Array(0), cohortPreSwrs: null, totalPool: POOL,
+    horizonMonths: HORIZON, startingCoupleIncome: 0,
+  });
+  eq(noSwrs.numCohorts, 0); eq(noSwrs.optimalMonthly, 0);
+});
+
+test('F3: 10th-percentile extraction, rate conversion, worst cohort, slider max', () => {
+  const income = 3000;
+  const r = computeOptimalRates({
+    cohortSWRs: SYNTH_SWRS, cohortPreSwrs: null, totalPool: POOL,
+    horizonMonths: HORIZON, startingCoupleIncome: income,
+  });
+  eq(r.numCohorts, N_COHORTS);
+  // SWRs are already sorted ascending by construction
+  const expectedConsumption = 5000 + P10_IDX;
+  eq(r.optimalConsumption, expectedConsumption, '10th percentile of sorted SWRs');
+  const expectedDraw = expectedConsumption - income;
+  eq(r.optimalMonthly, Math.round(expectedDraw));
+  eq(r.optimalRate, Math.round(expectedDraw * 12 / POOL * 1000) / 10, 'annualized % of pool');
+  // Worst cohort is index 0 (lowest SWR = 5000)
+  eq(r.worstCohort.year, getCohortLabel(0).year);
+  eq(r.cohortRange, `${getCohortLabel(0).year}–${getCohortLabel(N_COHORTS - 1).year}`);
+  eq(r.sliderMax, Math.max(30, Math.ceil(r.optimalRate / 5) * 5 + 5));
+  // No pre-inheritance schedule -> pre fields mirror the base fields
+  eq(r.optimalPreRate, r.optimalRate);
+  eq(r.optimalPreMonthly, r.optimalMonthly);
+});
+
+test('F4: guaranteed income above the percentile consumption clamps the draw at 0', () => {
+  const r = computeOptimalRates({
+    cohortSWRs: SYNTH_SWRS, cohortPreSwrs: null, totalPool: POOL,
+    horizonMonths: HORIZON, startingCoupleIncome: 1_000_000,
+  });
+  eq(r.optimalRate, 0); eq(r.optimalMonthly, 0);
+  eq(r.sliderMax, 30, 'slider max floors at 30');
+});
+
+test('F5: pre-inheritance SWRs produce their own (higher) pre-phase rate', () => {
+  const preSwrs = Float64Array.from(SYNTH_SWRS, (v) => v * 1.2);
+  const r = computeOptimalRates({
+    cohortSWRs: SYNTH_SWRS, cohortPreSwrs: preSwrs, totalPool: POOL,
+    horizonMonths: HORIZON, startingCoupleIncome: 0,
+  });
+  const expectedPreDraw = (5000 + P10_IDX) * 1.2;
+  eq(r.optimalPreMonthly, Math.round(expectedPreDraw));
+  eq(r.optimalPreRate, Math.round(expectedPreDraw * 12 / POOL * 1000) / 10);
+  assert.ok(r.optimalPreMonthly > r.optimalMonthly, 'pre-inheritance phase can spend more');
+});
+
+test('F6: SS configuration — pool draw backfills the gap left by the smaller early-claim benefit', () => {
+  // Same household, same pool, same cohort SWRs — only the benefit type differs.
+  const ssdi = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214 });
+  const ss = deriveRetirementParams({ ssType: 'ss', ssPIA: 4214, ssClaimAge: 62, ssMonthsWithheld: 0 });
+  assert.ok(ss.startingCoupleIncome < ssdi.startingCoupleIncome,
+    'early SS claim pays less than SSDI (which converts at full PIA)');
+
+  const args = { cohortSWRs: SYNTH_SWRS, cohortPreSwrs: null, totalPool: POOL, horizonMonths: HORIZON };
+  const rSsdi = computeOptimalRates({ ...args, startingCoupleIncome: ssdi.startingCoupleIncome });
+  const rSs = computeOptimalRates({ ...args, startingCoupleIncome: ss.startingCoupleIncome });
+
+  eq(rSs.optimalConsumption, rSsdi.optimalConsumption, 'sustainable consumption is benefit-independent');
+  eq(rSs.optimalMonthly - rSsdi.optimalMonthly,
+    ssdi.startingCoupleIncome - ss.startingCoupleIncome,
+    'the pool draw differs by exactly the income gap');
+  assert.ok(rSs.optimalRate > rSsdi.optimalRate, 'smaller benefit -> larger pool-draw rate');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section 7: wiring guards — the hook and prop chain actually use all of this
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== Wiring guards (hook + prop chain) ===');
 

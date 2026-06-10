@@ -1,6 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_RAIL_CONFIG } from './railDefaults.js';
-import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, saveSavedRailConfig, buildPersistedRailConfig } from './railConfigStorage.js';
+import { loadRailConfig, saveRailConfig, loadSavedRailConfig, saveSavedRailConfig, buildPersistedRailConfig } from './railConfigStorage.js';
+import {
+  mergeLoadedRailConfig,
+  getTabChartsFromConfig,
+  setTabChartsOp,
+  addChartOp,
+  removeChartOp,
+  moveChartOp,
+  resetTabOp,
+  isTabModifiedOp,
+} from './railConfigOps.js';
 
 /**
  * Hook for managing per-tab rail chart configuration.
@@ -8,6 +18,10 @@ import { loadRailConfig, saveRailConfig, clearRailConfig, loadSavedRailConfig, s
  * Uses functional state updates (prev => next) to avoid stale closure bugs.
  * All mutators use setConfig(prev => ...) so they always operate on the
  * latest state, regardless of React batching or memoization.
+ *
+ * The config-transform logic lives in railConfigOps.js as pure functions
+ * (remediation Phase 9) so node tests can exercise every mutator directly;
+ * this hook only wires them into React state + persistence.
  */
 export function useRailConfig() {
   const [config, setConfig] = useState(DEFAULT_RAIL_CONFIG);
@@ -30,19 +44,11 @@ export function useRailConfig() {
   useEffect(() => {
     Promise.all([loadRailConfig(), loadSavedRailConfig()]).then(([live, saved]) => {
       if (live) {
-        const merged = { ...DEFAULT_RAIL_CONFIG };
-        for (const tab of Object.keys(live)) {
-          if (Array.isArray(live[tab])) merged[tab] = live[tab];
-        }
-        setConfig(merged);
+        setConfig(mergeLoadedRailConfig(live));
         if (typeof live.railWidth === 'number') setRailWidthState(live.railWidth);
       }
       if (saved) {
-        const merged = { ...DEFAULT_RAIL_CONFIG };
-        for (const tab of Object.keys(saved)) {
-          if (Array.isArray(saved[tab])) merged[tab] = saved[tab];
-        }
-        setSavedConfig(merged);
+        setSavedConfig(mergeLoadedRailConfig(saved));
       }
       setLoaded(true);
       loadedRef.current = true;
@@ -63,34 +69,23 @@ export function useRailConfig() {
   }, []);
 
   const getTabCharts = useCallback((tab) => {
-    return config[tab] || DEFAULT_RAIL_CONFIG[tab] || [];
+    return getTabChartsFromConfig(config, tab);
   }, [config]);
 
   const setTabCharts = useCallback((tab, chartIds) => {
-    updateConfig(prev => ({ ...prev, [tab]: chartIds }));
+    updateConfig(prev => setTabChartsOp(prev, tab, chartIds));
   }, [updateConfig]);
 
   const addChart = useCallback((tab, chartId) => {
-    updateConfig(prev => {
-      const current = prev[tab] || [];
-      if (current.includes(chartId)) return prev;
-      return { ...prev, [tab]: [...current, chartId] };
-    });
+    updateConfig(prev => addChartOp(prev, tab, chartId));
   }, [updateConfig]);
 
   const removeChart = useCallback((tab, chartId) => {
-    updateConfig(prev => ({ ...prev, [tab]: (prev[tab] || []).filter(id => id !== chartId) }));
+    updateConfig(prev => removeChartOp(prev, tab, chartId));
   }, [updateConfig]);
 
   const moveChart = useCallback((tab, fromIndex, toIndex) => {
-    updateConfig(prev => {
-      const current = [...(prev[tab] || [])];
-      if (fromIndex < 0 || fromIndex >= current.length) return prev;
-      if (toIndex < 0 || toIndex >= current.length) return prev;
-      const [moved] = current.splice(fromIndex, 1);
-      current.splice(toIndex, 0, moved);
-      return { ...prev, [tab]: current };
-    });
+    updateConfig(prev => moveChartOp(prev, tab, fromIndex, toIndex));
   }, [updateConfig]);
 
   const saveLayout = useCallback(() => {
@@ -99,10 +94,7 @@ export function useRailConfig() {
   }, []);
 
   const resetTab = useCallback((tab) => {
-    updateConfig(prev => {
-      const savedCharts = savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || [];
-      return { ...prev, [tab]: savedCharts };
-    });
+    updateConfig(prev => resetTabOp(prev, savedConfig, tab));
   }, [updateConfig, savedConfig]);
 
   const resetAll = useCallback(() => {
@@ -113,9 +105,7 @@ export function useRailConfig() {
   }, [savedConfig]);
 
   const isTabModified = useCallback((tab) => {
-    const current = JSON.stringify(config[tab] || []);
-    const saved = JSON.stringify(savedConfig[tab] || DEFAULT_RAIL_CONFIG[tab] || []);
-    return current !== saved;
+    return isTabModifiedOp(config, savedConfig, tab);
   }, [config, savedConfig]);
 
   const setRailWidthLive = useCallback((w) => {

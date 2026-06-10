@@ -25,6 +25,7 @@ import {
   sliceRetirementContext,
 } from './retirementIncome.js';
 import { runMonteCarlo } from './monteCarlo.js';
+import { buildTaxSchedule } from './taxProjection.js';
 import { fmt } from './formatters.js';
 import { exportModelData } from './exportData.js';
 import { PRIMARY_LEVERS_BCS_STATUS_QUO, buildPrimaryLeversModel } from './scenarioLevers.js';
@@ -117,6 +118,12 @@ async function asyncTest(name, fn) {
 
 function eq(actual, expected, label = '') {
   assert.strictEqual(actual, expected, `${label}: expected ${expected}, got ${actual}`);
+}
+
+function near(actual, expected, tolerance, label = '') {
+  const diff = Math.abs(actual - expected);
+  assert.ok(diff <= tolerance,
+    `${label}: expected ~${expected} (+/-${tolerance}), got ${actual} (diff ${diff})`);
 }
 
 // --- Snapshot Tests ---
@@ -1443,6 +1450,58 @@ test('index.html points favicon requests at the existing SVG asset', () => {
   assert.ok(htmlSource.includes('href="/favicon.svg"'), 'index.html should link the SVG favicon');
 });
 
+console.log('\n=== Tax Schedule Snapshot (default household) ===');
+
+// Regression locks for buildTaxSchedule on the default household (Phase 9).
+// These pin the engine's current verified output; an intentional tax-rule
+// change must re-baseline them deliberately.
+const taxSnapSchedule = buildTaxSchedule(base);
+
+test('default household: 72-month projection yields 7 tax years', () => {
+  eq(taxSnapSchedule.length, 7);
+});
+
+test('tax year 0 locks (income, deductions, components)', () => {
+  const y = taxSnapSchedule[0];
+  eq(y.annualSarahGross, 206888, 'Sarah gross');
+  eq(y.schCNet, 155166, 'Sch C net at 25% expense ratio');
+  eq(y.chadW2, 0, 'no W-2 in the default household');
+  eq(y.sarahMonthlyTax, 4171, 'Sarah monthly tax');
+  eq(y.chadMonthlyTax, 0);
+  eq(Math.round(y.annualTotalTax), 50050, 'household total tax');
+  eq(Math.round(y.annualSarahTax), 50050, 'all attributed to Sarah (no W-2)');
+  eq(y.annualChadTax, 0);
+  eq(Math.round(y.fullTax.totalIncome), 267922);
+  eq(Math.round(y.fullTax.ssTaxableIncome), 115756, 'SSDI + back-pay year-0 taxable amount');
+  eq(Math.round(y.fullTax.agi), 256960);
+  eq(Math.round(y.fullTax.taxableIncome), 195919);
+  eq(Math.round(y.fullTax.fedTax), 32526);
+  eq(Math.round(y.fullTax.seTax), 21924);
+  eq(Math.round(y.fullTax.qbi), 28841);
+  eq(y.fullTax.totalCredits, 4400, 'CTC for 2 kids');
+  eq(y.marginalRate, 0.22);
+  near(y.effectiveTaxRate, 0.1948, 0.0005, 'effective rate on AGI');
+});
+
+test('CTC steps down when the twins age out (years 0-1 credit, year 2+ none)', () => {
+  eq(taxSnapSchedule[0].ctcChildrenForYear, 2);
+  eq(taxSnapSchedule[1].ctcChildrenForYear, 2);
+  eq(taxSnapSchedule[1].fullTax.totalCredits, 4400);
+  eq(taxSnapSchedule[2].ctcChildrenForYear, 0);
+  eq(taxSnapSchedule[2].fullTax.totalCredits, 0);
+});
+
+test('final tax year locks (year 6, partial-year annualization)', () => {
+  const y = taxSnapSchedule[6];
+  eq(y.annualSarahGross, 290256, 'capped Sarah gross, annualized');
+  eq(y.schCNet, 217692);
+  eq(y.sarahMonthlyTax, 4030);
+  eq(Math.round(y.annualTotalTax), 48355);
+  eq(Math.round(y.fullTax.ssTaxableIncome), 3582, 'single trailing SSDI month');
+  eq(Math.round(y.fullTax.seTax), 28708);
+  eq(y.marginalRate, 0.22);
+});
+
 console.log('\n=== Monte Carlo Guards ===');
 
 const seededMcParams = {
@@ -1543,10 +1602,9 @@ test('retirement and Monte Carlo surfaces expose test handles for Wave 0', () =>
   assert.ok(sarahPracticeSource.includes('sarah-practice-summary'), 'Sarah practice chart should expose derived summary selectors');
   assert.ok(sequenceSource.includes('sequence-returns-narrative'), 'sequence-of-returns chart should expose its narrative selector');
 });
-test('retirement empty-state fallback keeps optimal-rate fields numeric', () => {
-  const retirementSource = fs.readFileSync(new URL('../hooks/useRetirementSimulation.js', import.meta.url), 'utf8');
-  assert.ok(retirementSource.includes('optimalRate: 0, optimalMonthly: 0'), 'retirement empty fallback should define optimalRate and optimalMonthly');
-});
+// (The former 'retirement empty-state fallback' source-text test was replaced
+// by real unit tests of computeOptimalRates in retirementParams.test.js —
+// remediation Phase 9.)
 test('reset all uses an explicit confirmation before resetting state', () => {
   const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
   assert.ok(appSource.includes("window.confirm('Reset all assumptions back to the baseline model?')"), 'reset all should confirm before dispatching RESET_ALL');

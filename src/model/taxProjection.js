@@ -25,7 +25,7 @@ function nextStockVestMonthAfter(month) {
   return month + 3;
 }
 import { BRACKETS_MFJ_2026, LTCG_BRACKETS_MFJ_2026, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
-import { calculateTax, computeAdditionalMedicare } from './taxEngine.js';
+import { calculateTax, computeAdditionalMedicare, computeSSTaxableAmount } from './taxEngine.js';
 import { getVestingGrossMonthly } from './vesting.js';
 
 /**
@@ -101,8 +101,18 @@ export function estimateAnnualSSBenefits(s) {
  * Returns { adultBenefits, backPay }:
  *   adultBenefits — per projection year, adult-only regular benefits.
  *   backPay — null, or the adult share of the SSDI back-pay lump for the
- *     receipt year (approval + 2): { receiptYearIdx, adultTaxable }.
- *     The kids' auxiliary back pay never appears here.
+ *     receipt year (approval + 2). The kids' auxiliary back pay never
+ *     appears here. C3 (remediation 2026-06-10): the taxable amount is the
+ *     GROSS adult share — SSA-1099 box 5 reports benefits BEFORE the
+ *     withheld attorney fee, and the fee is a nondeductible misc itemized
+ *     expense post-TCJA. Fields:
+ *       receiptYearIdx     — projection year containing approval + 2
+ *       adultGross         — backPayMonths × ssdiPersonal (gross of fee)
+ *       currentYearAlloc   — portion attributable to receipt-year months
+ *       priorAllocations   — [{ yearIdx, amount }] for earlier years; yearIdx
+ *                            may be NEGATIVE (months before the projection),
+ *                            which buildTaxSchedule proxies with current-year
+ *                            income (see the §86(e) block there)
  */
 export function estimateAnnualTaxableSSBenefits(s) {
   const core = estimateAnnualSSBenefitsCore(s);
@@ -194,11 +204,27 @@ function estimateAnnualSSBenefitsCore(s) {
     if (receiptYearIdx >= 0 && receiptYearIdx < years) {
       familyBenefits[receiptYearIdx] += backPayActual;
       // C6: the parents' return sees the ADULT share only (the kids' aux back
-      // pay is the kids' income). Fee treatment matches the cashflow estimate
-      // (net of the withheld attorney fee) — C3 revisits this.
+      // pay is the kids' income). C3: GROSS of the withheld attorney fee.
+      // b-10: allocate the covered months (the backPayMonths immediately
+      // preceding approval) to projection years for the §86(e) election —
+      // flat ssdiPersonal per month, matching how the lump itself is built.
+      const allocByYear = new Map();
+      let currentYearAlloc = 0;
+      for (let mm = ssdiApproval - totalBackPayMonths; mm < ssdiApproval; mm++) {
+        const allocYear = Math.floor(mm / 12);
+        if (allocYear === receiptYearIdx) {
+          currentYearAlloc += ssdiPersonal;
+        } else {
+          allocByYear.set(allocYear, (allocByYear.get(allocYear) || 0) + ssdiPersonal);
+        }
+      }
       backPay = {
         receiptYearIdx,
-        adultTaxable: adultBackPayGross - backPayFee,
+        adultGross: adultBackPayGross,
+        currentYearAlloc,
+        priorAllocations: [...allocByYear.entries()]
+          .map(([yearIdx, amount]) => ({ yearIdx, amount }))
+          .sort((a, b) => a.yearIdx - b.yearIdx),
       };
     }
   }
@@ -274,10 +300,55 @@ export function buildTaxSchedule(s) {
   // are the kids' income, never the parents'). The family-total view remains
   // available via estimateAnnualSSBenefits for cashflow parity.
   const ssTaxable = estimateAnnualTaxableSSBenefits(s);
+  // C3: the receipt year carries the GROSS adult back pay (SSA-1099 box 5).
   const ssAnnualBenefits = ssTaxable.adultBenefits.map((adult, y) =>
     adult + (ssTaxable.backPay && ssTaxable.backPay.receiptYearIdx === y
-      ? ssTaxable.backPay.adultTaxable
+      ? ssTaxable.backPay.adultGross
       : 0));
+
+  // b-10 (remediation 2026-06-10): IRC §86(e) lump-sum election. In the
+  // back-pay receipt year the taxpayer may compute the taxable amount of the
+  // portion attributable to EARLIER years using those years' provisional
+  // income, and include only the resulting increments this year. We compute
+  // both treatments and tax the minimum (the election can never raise tax —
+  // if it would, it simply isn't elected). Earlier years that precede the
+  // projection window (negative yearIdx) have no modeled income history, so
+  // they are proxied with the receipt year's other-AGI — a conservative
+  // stand-in (this household's pre-projection MSFT W-2 income was at least
+  // as high), which makes the election win only on genuinely-modeled
+  // low-income prior years.
+  const applyLumpSumElection = (baseInputs, y, otherAGIHistory) => {
+    const standard = calculateTax(baseInputs);
+    const bp = ssTaxable.backPay;
+    if (!bp || bp.receiptYearIdx !== y) return { result: standard, lumpSum: null };
+    const regularAdult = ssTaxable.adultBenefits[y] || 0;
+    const otherAGI = standard.agi - standard.ssTaxableIncome;
+    const taxableStandard = standard.ssTaxableIncome;
+    // Current-year piece: regular benefits + back pay attributable to THIS year.
+    let taxableElection = computeSSTaxableAmount(regularAdult + bp.currentYearAlloc, otherAGI);
+    // Prior-year increments, each against that year's own income.
+    for (const { yearIdx, amount } of bp.priorAllocations) {
+      const priorBenefit = yearIdx >= 0 ? (ssTaxable.adultBenefits[yearIdx] || 0) : 0;
+      const priorOtherAGI = (yearIdx >= 0 && otherAGIHistory[yearIdx] !== undefined)
+        ? otherAGIHistory[yearIdx]
+        : otherAGI; // pre-projection proxy (see note above)
+      taxableElection += computeSSTaxableAmount(priorBenefit + amount, priorOtherAGI)
+        - computeSSTaxableAmount(priorBenefit, priorOtherAGI);
+    }
+    const lumpSum = {
+      backPayGross: bp.adultGross,
+      taxableStandard,
+      taxableElection,
+      electionApplied: taxableElection < taxableStandard,
+    };
+    if (!lumpSum.electionApplied) return { result: standard, lumpSum };
+    const elected = calculateTax({ ...baseInputs, ssTaxableOverride: taxableElection });
+    return { result: elected, lumpSum };
+  };
+  // Per-year other-AGI histories (one per attribution path) feed the
+  // election's prior-year computations.
+  const fullOtherAGIHistory = [];
+  const w2OnlyOtherAGIHistory = [];
   const schedule = [];
 
   for (let y = 0; y < years; y++) {
@@ -463,8 +534,9 @@ export function buildTaxSchedule(s) {
     // single source of truth and the spec's worked example.)
     const ctcChildrenForYear = (endMonth < TWINS_AGE_OUT_MONTH) ? taxInputs.ctcChildren : 0;
 
-    // Full household tax (Sarah + Chad)
-    const fullTax = calculateTax({
+    // Full household tax (Sarah + Chad) — b-10: §86(e)-aware in the
+    // back-pay receipt year.
+    const fullRun = applyLumpSumElection({
       w2Wages: chadW2,
       w2FicaBase: chadW2FicaBase, // BUG #2: full gross for FICA, reduced w2Wages for income tax
       w2Withholding: taxInputs.w2Withholding,
@@ -485,10 +557,13 @@ export function buildTaxSchedule(s) {
       brackets: inflatedBrackets,
       ltcgBrackets: inflatedLtcgBrackets, // C4
       noFICA: chadJobNoFICA, // FIX #1
-    });
+    }, y, fullOtherAGIHistory);
+    const fullTax = fullRun.result;
 
-    // W-2 only tax (for marginal attribution — what would tax be without Sarah?)
-    const w2OnlyTax = calculateTax({
+    // W-2 only tax (for marginal attribution — what would tax be without
+    // Sarah?). b-10: the counterfactual elects independently on its own
+    // income history so the attribution split stays internally consistent.
+    const w2Run = applyLumpSumElection({
       w2Wages: chadW2,
       w2FicaBase: chadW2FicaBase, // BUG #2: full gross for FICA, reduced w2Wages for income tax
       w2Withholding: taxInputs.w2Withholding,
@@ -509,7 +584,12 @@ export function buildTaxSchedule(s) {
       brackets: inflatedBrackets,
       ltcgBrackets: inflatedLtcgBrackets, // C4
       noFICA: chadJobNoFICA, // FIX #1
-    });
+    }, y, w2OnlyOtherAGIHistory);
+    const w2OnlyTax = w2Run.result;
+
+    // b-10: record this year's non-SS AGI for later receipt years.
+    fullOtherAGIHistory.push(fullTax.agi - fullTax.ssTaxableIncome);
+    w2OnlyOtherAGIHistory.push(w2OnlyTax.agi - w2OnlyTax.ssTaxableIncome);
 
     // Marginal attribution
     const sarahAnnualTax = Math.max(0, fullTax.totalTax - w2OnlyTax.totalTax);
@@ -563,6 +643,12 @@ export function buildTaxSchedule(s) {
       chad401kDeferralDollar, // 401(k): pre-tax deferral dollars this year (already prorated)
       ctcChildrenForYear, // FIX #M3: CTC kids actually used this year
       noFICA: chadJobNoFICA, // FIX #1
+
+      // C3/b-10: §86(e) lump-sum election detail for the back-pay receipt
+      // year (null elsewhere): { backPayGross, taxableStandard,
+      // taxableElection, electionApplied } — fullTax already reflects the
+      // winning (minimum) treatment.
+      ssLumpSum: fullRun.lumpSum,
 
       // Full engine results for detailed display
       fullTax,

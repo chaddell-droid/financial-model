@@ -215,6 +215,11 @@ export function calculateTax(inputs) {
 
     // SS benefit taxation
     ssBenefitAnnual = 0,
+    // b-10 (remediation 2026-06-10): pre-computed taxable SS amount, used by
+    // buildTaxSchedule when the IRC §86(e) lump-sum election beats the
+    // standard treatment. When non-null it replaces computeSSTaxableAmount
+    // (ssBenefitAnnual should still be passed for context/display).
+    ssTaxableOverride = null,
 
     // Overrides for simplified/projection modes
     preComputedItemized = null,
@@ -296,7 +301,11 @@ export function calculateTax(inputs) {
   // which is NET of above-the-line deductions (half SE tax + solo 401k).
   // Remediation 2026-06-09 Phase 4: previously fed the gross w2+schC+capAdj.
   const otherAGI = w2Wages + schCNet + capAdj - se.halfSeTax - effective401k;
-  const ssTaxableIncome = computeSSTaxableAmount(ssBenefitAnnual, otherAGI);
+  // b-10: a caller-supplied §86(e) elected amount can replace the standard
+  // computation (never raising it above the statutory 85% ceiling).
+  const ssTaxableIncome = ssTaxableOverride !== null
+    ? Math.min(Math.round(ssTaxableOverride), Math.round(ssBenefitAnnual * SS_TAXABLE_TIER_2))
+    : computeSSTaxableAmount(ssBenefitAnnual, otherAGI);
   const totalIncome = w2Wages + schCNet + capAdj + ssTaxableIncome;
   const agi = totalIncome - se.halfSeTax - effective401k;
 

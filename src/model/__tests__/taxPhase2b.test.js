@@ -240,9 +240,85 @@ test('C6-5. back pay on the parents’ return excludes the kids’ auxiliary sha
   assert.ok(taxable.backPay, 'back-pay info must be present');
   assert.strictEqual(taxable.backPay.receiptYearIdx, 0, 'receipt at approval+2 → year 0');
   // Adult share only: at most 18 × $4,214 — never including the aux 18 × $2,107.
-  assert.ok(taxable.backPay.adultTaxable <= 18 * 4214,
-    `taxable back pay must exclude the kids' aux share, got ${taxable.backPay.adultTaxable}`);
-  assert.ok(taxable.backPay.adultTaxable > 0, 'adult back pay present');
+  assert.ok(taxable.backPay.adultGross <= 18 * 4214,
+    `taxable back pay must exclude the kids' aux share, got ${taxable.backPay.adultGross}`);
+  assert.ok(taxable.backPay.adultGross > 0, 'adult back pay present');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// C3 — back pay taxable GROSS of the withheld attorney fee (SSA-1099 box 5;
+//       the fee is nondeductible post-TCJA)
+// b-10 — §86(e) lump-sum election: tax min(standard, election), expose which
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== C3 + b-10: back-pay gross + §86(e) lump-sum election ===');
+
+const C3_STATE = {
+  ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7,
+  ssdiPersonal: 4214, ssdiFamilyTotal: 6321, ssdiBackPayMonths: 18,
+  kidsAgeOutMonths: 24, chadJob: false, expenseInflation: false,
+};
+
+test('C3-1. taxable back pay is the GROSS adult share (18 × $4,214 = $75,852)', () => {
+  const taxable = estimateAnnualTaxableSSBenefits(gatherStateWithOverrides(C3_STATE));
+  assert.strictEqual(taxable.backPay.adultGross, 18 * 4214,
+    `SSA-1099 box 5 is gross of the withheld fee, got ${taxable.backPay.adultGross}`);
+});
+
+test('C3-2. cashflow estimate stays fee-net (fee reduces cash, not taxability)', () => {
+  const s = gatherStateWithOverrides(C3_STATE);
+  const cashflow = estimateAnnualSSBenefits(s);
+  const sNoBP = gatherStateWithOverrides({ ...C3_STATE, ssdiBackPayMonths: 0 });
+  const cashflowNoBP = estimateAnnualSSBenefits(sNoBP);
+  // adult 75,852 + aux 18×2,107 − fee min(25%×75,852, $9,200) = 113,578.
+  assert.strictEqual(cashflow[0] - cashflowNoBP[0], 75852 + 18 * 2107 - 9200,
+    'cashflow back pay = family gross − attorney fee');
+});
+
+test('b10-1. schedule exposes the §86(e) comparison and taxes the minimum', () => {
+  const s = gatherStateWithOverrides(C3_STATE);
+  const row = buildTaxSchedule(s)[0];
+  assert.ok(row.ssLumpSum, 'receipt-year row must expose ssLumpSum');
+  const { taxableStandard, taxableElection, electionApplied, backPayGross } = row.ssLumpSum;
+  assert.strictEqual(backPayGross, 75852);
+  assert.ok(Number.isFinite(taxableStandard) && Number.isFinite(taxableElection));
+  near(row.fullTax.ssTaxableIncome, Math.min(taxableStandard, taxableElection), 1,
+    'engine must tax the lesser treatment');
+  assert.strictEqual(electionApplied, taxableElection < taxableStandard);
+});
+
+test('b10-2. low-income prior years: the election WINS', () => {
+  // No Sarah income, no MSFT vests → prior-year provisional income is tiny,
+  // so attributing back pay to those years escapes the 85% tier entirely.
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 20,
+    ssdiPersonal: 4214, ssdiFamilyTotal: 4214, ssdiBackPayMonths: 18,
+    kidsAgeOutMonths: 0, chadJob: false, expenseInflation: false,
+    sarahCurrentClients: 0, sarahMaxClients: 0, msftPrice: 0,
+  });
+  const receiptYear = Math.floor((20 + 2) / 12); // year 1
+  const row = buildTaxSchedule(s)[receiptYear];
+  assert.ok(row.ssLumpSum, 'ssLumpSum present in the receipt year');
+  assert.strictEqual(row.ssLumpSum.electionApplied, true,
+    `election should win with low prior-year income (std ${row.ssLumpSum.taxableStandard} vs elec ${row.ssLumpSum.taxableElection})`);
+  assert.ok(row.ssLumpSum.taxableElection < row.ssLumpSum.taxableStandard);
+  near(row.fullTax.ssTaxableIncome, row.ssLumpSum.taxableElection, 1,
+    'elected taxable amount drives the return');
+});
+
+test('b10-3. high steady income: both treatments hit 85% — standard ties, no election', () => {
+  const s = gatherStateWithOverrides(C3_STATE); // Sarah income + legacy vests → high AGI everywhere
+  const row = buildTaxSchedule(s)[0];
+  // Either the election loses or it ties — it must never INCREASE tax.
+  assert.ok(row.fullTax.ssTaxableIncome <= row.ssLumpSum.taxableStandard + 1,
+    'taxed amount never exceeds the standard treatment');
+});
+
+test('b10-4. non-receipt years expose no ssLumpSum', () => {
+  const s = gatherStateWithOverrides(C3_STATE);
+  const sched = buildTaxSchedule(s);
+  for (let y = 1; y < sched.length; y++) {
+    assert.strictEqual(sched[y].ssLumpSum, null, `year ${y} must not carry ssLumpSum`);
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════

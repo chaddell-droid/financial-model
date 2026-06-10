@@ -1476,29 +1476,36 @@ test('tax year 0 locks (income, deductions, components)', () => {
   // base is NOT eroded by the vest FICA wages.
   // C6 (2026-06-10, item 2.8): kids' SSDI auxiliary benefits AND kids' aux
   // back pay are the KIDS' income (Pub 915) — off the parents' return.
-  // Year-0 taxable SS drops 116258 -> 74899, totalTax 103903 -> 92827
+  // Year-0 taxable SS dropped 116258 -> 74899, totalTax 103903 -> 92827
   // (-$11.1k of phantom tax). MAGI falls back under $400K so the CTC
-  // un-phases (3250 -> 4400); Sarah/Chad attribution shifts with it
-  // (sarahMonthlyTax 4274 -> 4168, chadMonthlyTax 4384 -> 3568).
+  // un-phases (3250 -> 4400).
+  // C3 (2026-06-10, item 2.5): the adult back pay is taxable GROSS of the
+  // $9,200 withheld attorney fee (SSA-1099 box 5; fee nondeductible
+  // post-TCJA): taxable SS 74899 -> 82719 (+85% x 9200), totalTax
+  // 92827 -> 94704 (+$1,877). The §86(e) election ties at 85% for this
+  // high-income year, so the standard treatment stands (ssLumpSum below).
   const y = taxSnapSchedule[0];
   eq(y.annualSarahGross, 206888, 'Sarah gross');
   eq(y.schCNet, 155166, 'Sch C net at 25% expense ratio');
   eq(y.chadW2, 165444, 'legacy MSFT vest gross (A4); no job W-2 in default household');
-  eq(y.sarahMonthlyTax, 4168, 'Sarah monthly tax');
-  eq(y.chadMonthlyTax, 3568, 'vest W-2 tax attributed to Chad (A4)');
-  eq(Math.round(y.annualTotalTax), 92827, 'household total tax (C6: adult-only SS)');
-  eq(Math.round(y.annualSarahTax), 50015, 'Sarah marginal attribution');
-  eq(Math.round(y.annualChadTax), 42812, 'Chad vest-only counterfactual (A4)');
-  eq(Math.round(y.fullTax.totalIncome), 392509);
-  eq(Math.round(y.fullTax.ssTaxableIncome), 74899, 'ADULT SSDI + adult back-pay taxable amount (C6, with COLA)');
-  eq(Math.round(y.fullTax.agi), 381547);
-  eq(Math.round(y.fullTax.taxableIncome), 320506);
-  eq(Math.round(y.fullTax.fedTax), 62117);
+  eq(y.sarahMonthlyTax, 4178, 'Sarah monthly tax');
+  eq(y.chadMonthlyTax, 3714, 'vest W-2 tax attributed to Chad (A4)');
+  eq(Math.round(y.annualTotalTax), 94704, 'household total tax (C6 adult-only SS, C3 gross back pay)');
+  eq(Math.round(y.annualSarahTax), 50140, 'Sarah marginal attribution');
+  eq(Math.round(y.annualChadTax), 44564, 'Chad vest-only counterfactual (A4)');
+  eq(Math.round(y.fullTax.totalIncome), 400329);
+  eq(Math.round(y.fullTax.ssTaxableIncome), 82719, 'ADULT SSDI + adult GROSS back pay (C6+C3, with COLA)');
+  eq(Math.round(y.fullTax.agi), 389367);
+  eq(Math.round(y.fullTax.taxableIncome), 328326);
+  eq(Math.round(y.fullTax.fedTax), 63994);
   eq(Math.round(y.fullTax.seTax), 21924, 'unchanged — A3 keeps SE per-individual');
   eq(Math.round(y.fullTax.qbi), 28841);
   eq(y.fullTax.totalCredits, 4400, 'CTC for 2 kids — MAGI back under $400K once kids\' SS leaves (C6)');
   eq(y.marginalRate, 0.24);
-  near(y.effectiveTaxRate, 0.2433, 0.0005, 'effective rate on AGI');
+  near(y.effectiveTaxRate, 0.2432, 0.0005, 'effective rate on AGI');
+  // b-10: the §86(e) comparison is exposed; this year it ties (both 85%).
+  eq(y.ssLumpSum.backPayGross, 75852, 'gross adult back pay (C3)');
+  eq(y.ssLumpSum.electionApplied, false, '§86(e) election ties at the 85% ceiling here');
 });
 
 test('CTC steps down when the twins age out (years 0-1 credit, year 2+ none)', () => {

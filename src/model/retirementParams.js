@@ -85,19 +85,36 @@ export function deriveRetirementParams({
  *
  * Note: distinct from `deficit401kTaxRate` (25%), which governs PRE-retirement
  * deficit withdrawals while household income is higher.
+ *
+ * Real-vs-nominal seam (B8 — remediation 2026-06-10 item 3.2): the
+ * accumulation projection is NOMINAL (expenses inflate at expenseInflationRate,
+ * returns are nominal) while the retirement engine is deliberately REAL
+ * (Shiller real returns, flat 2026-dollar flows). Feeding the nominal pool
+ * into the real engine overstated it by ~(1+i)^years (~19% at 3%/6yr). Per
+ * the model's documented today's-dollar convention, every balance is deflated
+ * by (1 + expenseInflationRate)^(months/12) at this seam — but ONLY while
+ * `expenseInflation` is on (when it's off, the accumulation side is already
+ * flat and the frames agree). Defaults mirror INITIAL_STATE (on, 3%).
  */
 export function computeRetirementPool({
   endSavings = 0, end401k = 0, homeEquity = 0, retirement401kTaxRate,
+  expenseInflation, expenseInflationRate, monthsToRetirement = 0,
 } = {}) {
+  const inflOn = expenseInflation ?? true;
+  const months = Math.max(0, monthsToRetirement || 0);
+  const annualInfl = Math.max(0, (expenseInflationRate ?? 3) / 100);
+  const deflator = (inflOn && annualInfl > 0 && months > 0)
+    ? Math.pow(1 + annualInfl, months / 12)
+    : 1;
   const taxRate = Math.min(Math.max((retirement401kTaxRate ?? 13) / 100, 0), 1);
-  const savings = Math.round(endSavings);
-  const gross401k = Math.round(end401k);
+  const savings = Math.round(endSavings / deflator);
+  const gross401k = Math.round(end401k / deflator);
   // floor (not round): any positive pre-tax balance with a positive rate loses
   // at least the tax dollar — never rounds the haircut away (A5 regression).
   const end401kAfterTax = Math.floor(gross401k * (1 - taxRate));
-  const homeSaleNet = Math.round(homeEquity * 0.94);
+  const homeSaleNet = Math.round((homeEquity / deflator) * 0.94);
   const totalPool = Math.max(0, savings + end401kAfterTax + homeSaleNet);
-  return { endSavings: savings, end401k: gross401k, end401kAfterTax, homeSaleNet, totalPool };
+  return { endSavings: savings, end401k: gross401k, end401kAfterTax, homeSaleNet, totalPool, deflator };
 }
 
 /**

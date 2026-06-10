@@ -440,6 +440,55 @@ test('P6: wiring — FinancialModel and the chart forward retirement401kTaxRate'
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Section 9: real-vs-nominal seam (B8 — remediation 2026-06-10 item 3.2)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== computeRetirementPool — deflate nominal pool to today\'s dollars (B8) ===');
+
+const B8_BALANCES = { endSavings: 500_000, end401k: 1_000_000, homeEquity: 700_000 };
+
+test('Q1: 3% inflation over 72 months deflates the pool by (1.03)^6', () => {
+  const nominal = computeRetirementPool({ ...B8_BALANCES, expenseInflation: false });
+  const real = computeRetirementPool({
+    ...B8_BALANCES, expenseInflation: true, expenseInflationRate: 3, monthsToRetirement: 72,
+  });
+  const expectedDeflator = Math.pow(1.03, 6);
+  assert.ok(Math.abs(real.deflator - expectedDeflator) < 1e-12, `deflator ${real.deflator} vs ${expectedDeflator}`);
+  assert.ok(real.totalPool < nominal.totalPool, 'today\'s-dollar pool must be smaller than the nominal pool');
+  // Each leg deflates by the same factor (within $1 rounding), so the ratio holds.
+  const ratio = nominal.totalPool / real.totalPool;
+  assert.ok(Math.abs(ratio - expectedDeflator) < 0.001, `pool ratio ${ratio} should track deflator ${expectedDeflator}`);
+});
+
+test('Q2: deflation OFF when expenseInflation is off, months=0, or rate=0', () => {
+  const nominal = computeRetirementPool({ ...B8_BALANCES, expenseInflation: false, expenseInflationRate: 3, monthsToRetirement: 72 });
+  const m0 = computeRetirementPool({ ...B8_BALANCES, expenseInflation: true, expenseInflationRate: 3, monthsToRetirement: 0 });
+  const r0 = computeRetirementPool({ ...B8_BALANCES, expenseInflation: true, expenseInflationRate: 0, monthsToRetirement: 72 });
+  for (const r of [nominal, m0, r0]) {
+    eq(r.deflator, 1, 'deflator must be 1');
+    eq(r.totalPool, nominal.totalPool, 'pool unchanged');
+  }
+});
+
+test('Q3: defaults mirror initialState (expenseInflation on, 3%/yr) when fields omitted', () => {
+  const r = computeRetirementPool({ ...B8_BALANCES, monthsToRetirement: 72 });
+  assert.ok(Math.abs(r.deflator - Math.pow(1.03, 6)) < 1e-12,
+    'omitted toggle/rate behave like INITIAL_STATE (expenseInflation: true, expenseInflationRate: 3)');
+  eq(INITIAL_STATE.expenseInflation, true, 'initialState default toggle');
+  eq(INITIAL_STATE.expenseInflationRate, 3, 'initialState default rate');
+});
+
+test('Q4: wiring — hook passes the inflation fields + monthsToRetirement; rail props forward them', () => {
+  assert.ok(hookSource.includes('expenseInflation'), 'hook should receive expenseInflation');
+  assert.ok(hookSource.includes('expenseInflationRate'), 'hook should receive expenseInflationRate');
+  assert.ok(hookSource.includes('monthsToRetirement'), 'hook should pass monthsToRetirement to the pool seam');
+  assert.ok(new RegExp('retirementRailProps[\\s\\S]{0,1200}expenseInflation').test(appSource),
+    'retirementRailProps should include expenseInflation');
+  const callMatch = chartSource.match(/useRetirementSimulation\(\{[\s\S]*?\}\)/);
+  assert.ok(callMatch && callMatch[0].includes('expenseInflation'), 'hook call should pass expenseInflation');
+  assert.ok(callMatch && callMatch[0].includes('expenseInflationRate'), 'hook call should pass expenseInflationRate');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

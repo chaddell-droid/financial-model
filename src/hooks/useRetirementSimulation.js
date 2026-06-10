@@ -31,6 +31,7 @@ export function useRetirementSimulation({
   chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
   sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
   retirement401kTaxRate,
+  expenseInflation, expenseInflationRate,
 }) {
   // ── State ────────────────────────────────────────────────────────────
   const [retirementMode, setRetirementMode] = useState('historical_safe');
@@ -83,13 +84,19 @@ export function useRetirementSimulation({
 
   // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths).
   // The 401(k) leg is pre-tax — computeRetirementPool haircuts it by
-  // retirement401kTaxRate before pooling (A5 — remediation 2026-06-10 item 3.1).
+  // retirement401kTaxRate before pooling (A5 — remediation 2026-06-10 item 3.1)
+  // — and the whole nominal pool is deflated to today's dollars at this
+  // accumulation→retirement seam when expense inflation is on (B8, item 3.2):
+  // the retirement engine below runs on REAL (Shiller) returns + flat
+  // 2026-dollar flows, so it must start from a today's-dollar pool.
   const endIdx = savingsData.length - 1;
   const { endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool } = computeRetirementPool({
     endSavings: savingsData[endIdx]?.balance || 0,
     end401k: wealthData[endIdx]?.balance401k || 0,
     homeEquity: wealthData[endIdx]?.homeEquity || 0,
     retirement401kTaxRate,
+    expenseInflation, expenseInflationRate,
+    monthsToRetirement: Math.max(0, endIdx),
   });
 
   const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);

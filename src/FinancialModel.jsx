@@ -668,8 +668,10 @@ export default function FinancialModel() {
     sarahSpousalClaimAge, // A7 (2026-06-10): retirement sim gates + reduces her spousal by claim age
     sarahOwnSS,
     retirement401kTaxRate, // A5 (2026-06-10): pool haircuts the pre-tax 401(k) leg by this rate
+    expenseInflation, // B8 (2026-06-10): nominal pool deflated to today's dollars at the seam
+    expenseInflationRate,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS, retirement401kTaxRate]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

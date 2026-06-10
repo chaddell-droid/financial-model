@@ -1437,9 +1437,11 @@ test('Retirement surface wires inline help primitives into the section', () => {
 test('Retirement help layout uses the shared shell rail and responsive retirement grids', () => {
   const shellSource = fs.readFileSync(new URL('../components/layout/AppShell.jsx', import.meta.url), 'utf8');
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
+  // Summary cards moved to RetirementSummaryCards.jsx (Phase 7 file split).
+  const summaryCardsSource = fs.readFileSync(new URL('../charts/RetirementSummaryCards.jsx', import.meta.url), 'utf8');
   assert.ok(shellSource.includes("railWidth") && shellSource.includes("px"), 'shared shell should use dynamic rail width');
   assert.ok(retirementSource.includes("repeat(auto-fit, minmax(220px, 1fr))"), 'retirement controls should use responsive auto-fit grids');
-  assert.ok(retirementSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
+  assert.ok(summaryCardsSource.includes("repeat(auto-fit, minmax(200px, 1fr))"), 'retirement summary cards should use responsive auto-fit grids');
 });
 test('Help drawer does not clip inline help popovers', () => {
   const source = fs.readFileSync(new URL('../components/help/HelpDrawer.jsx', import.meta.url), 'utf8');
@@ -1977,7 +1979,9 @@ console.log('\n=== Wave 3 UI Contract Guards ===');
 
 test('Retirement surface distinguishes planning modes with identity and control sections', () => {
   const source = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');
-  assert.ok(source.includes('function ModeIdentityBanner'), 'retirement surface should define a mode identity banner');
+  // ModeIdentityBanner moved to the shared primitives sibling (Phase 7 file split).
+  const primitivesSource = fs.readFileSync(new URL('../charts/RetirementChartPrimitives.jsx', import.meta.url), 'utf8');
+  assert.ok(primitivesSource.includes('function ModeIdentityBanner'), 'retirement primitives should define a mode identity banner');
   assert.ok(source.includes('testId="retirement-mode-identity"') || source.includes("testId='retirement-mode-identity'"), 'retirement surface should expose the mode identity banner');
   assert.ok(source.includes('Primary decisions'), 'retirement surface should group controls under primary decisions');
   assert.ok(source.includes('Advanced assumptions'), 'retirement surface should group controls under advanced assumptions');

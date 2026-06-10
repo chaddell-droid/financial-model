@@ -5,147 +5,19 @@ import Slider from '../components/Slider.jsx';
 import HelpDrawer from '../components/help/HelpDrawer.jsx';
 import HelpTip from '../components/help/HelpTip.jsx';
 import ActionButton from '../components/ui/ActionButton.jsx';
-import SurfaceCard from '../components/ui/SurfaceCard.jsx';
 import PwaDistributionChart from './PwaDistributionChart.jsx';
 import { HELP } from '../content/help/registry.js';
 import { useRetirementSimulation } from '../hooks/useRetirementSimulation.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { COLORS } from './chartUtils.js';
 import ChartYAxis from './ChartYAxis.jsx';
-
-const PWA_STRATEGY_OPTIONS = [
-  { value: 'fixed_percentile', label: 'Fixed Percentile' },
-  { value: 'sticky_median', label: 'Sticky Median' },
-  { value: 'sticky_quartile_nudge', label: 'Sticky Quartile Nudge' },
-];
-
-function getPwaStrategyLabel(strategy) {
-  return PWA_STRATEGY_OPTIONS.find(option => option.value === strategy)?.label || 'Adaptive PWA';
-}
-
-function formatCohortLabel({ year, month }) {
-  if (!year || !month) return 'n/a';
-  return `${year}-${String(month).padStart(2, '0')}`;
-}
-
-function LabelWithHelp({ label, help, accent = COLORS.blue, align = 'left' }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <span>{label}</span>
-      <HelpTip help={help} accent={accent} align={align} />
-    </span>
-  );
-}
-
-function HelpChip({ label, help, accent = COLORS.blue }) {
-  return (
-    <div
-      style={{
-        background: `${COLORS.bgInk}66`,
-        border: `1px solid ${accent}33`,
-        borderRadius: 8,
-        padding: '8px 10px',
-      }}
-    >
-      <div style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: 600, lineHeight: 1.35 }}>
-        <LabelWithHelp label={label} help={help} accent={accent} />
-      </div>
-      <div style={{ fontSize: 10, color: COLORS.textMuted, lineHeight: 1.45, marginTop: 4 }}>
-        {help.short}
-      </div>
-    </div>
-  );
-}
-
-function ModeIdentityBanner({
-  testId,
-  accent,
-  title,
-  summary,
-  primaryLabel,
-  primaryValue,
-  secondaryLabel,
-  secondaryValue,
-  bullets,
-}) {
-  const [collapsed, setCollapsed] = useState(true);
-  return (
-    <SurfaceCard
-      data-testid={testId}
-      tone="featured"
-      padding="sm"
-      style={{
-        background: COLORS.bgDeep,
-        borderColor: `${accent}55`,
-        marginBottom: 16,
-      }}
-    >
-      <div
-        onClick={() => setCollapsed(!collapsed)}
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
-      >
-        <div style={{ fontSize: 11, color: accent, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          Mode identity — {title}
-        </div>
-        <span style={{ fontSize: 10, color: COLORS.textDim }}>{collapsed ? '▶' : '▼'}</span>
-      </div>
-      {!collapsed && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(240px, 1fr)', gap: 12, alignItems: 'start', marginTop: 8 }}>
-            <div>
-              <div style={{ fontSize: 13, color: COLORS.textSoft, lineHeight: 1.5 }}>
-                {summary}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ background: `${COLORS.bgInk}66`, border: `1px solid ${COLORS.bgCard}`, borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4, fontWeight: 700 }}>
-                  {primaryLabel}
-                </div>
-                <div style={{ fontSize: 15, color: accent, fontWeight: 700, lineHeight: 1.35 }}>
-                  {primaryValue}
-                </div>
-              </div>
-              <div style={{ background: `${COLORS.bgInk}66`, border: `1px solid ${COLORS.bgCard}`, borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4, fontWeight: 700 }}>
-                  {secondaryLabel}
-                </div>
-                <div style={{ fontSize: 13, color: COLORS.textSecondary, fontWeight: 600, lineHeight: 1.45 }}>
-                  {secondaryValue}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>
-            {bullets.map((bullet) => (
-              <div key={bullet} style={{ fontSize: 12, color: COLORS.textSoft, lineHeight: 1.45 }}>
-                {bullet}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </SurfaceCard>
-  );
-}
-
-function ControlSection({ title, subtitle, children, testId }) {
-  return (
-    <div data-testid={testId}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13, color: COLORS.textSecondary, fontWeight: 700 }}>
-          {title}
-        </div>
-        {subtitle ? (
-          <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.4 }}>
-            {subtitle}
-          </div>
-        ) : null}
-      </div>
-      {children}
-    </div>
-  );
-}
+// Shared retirement-surface primitives + extracted sections (Phase 7 file split).
+import {
+  PWA_STRATEGY_OPTIONS, getPwaStrategyLabel, formatRange, fmtPool,
+  LabelWithHelp, HelpChip, ModeIdentityBanner, ControlSection,
+} from './RetirementChartPrimitives.jsx';
+import RetirementSummaryCards from './RetirementSummaryCards.jsx';
+import RetirementDecisionPreview from './RetirementDecisionPreview.jsx';
 
 function RetirementIncomeChart({
   savingsData, wealthData,
@@ -201,10 +73,6 @@ function RetirementIncomeChart({
   }, [onSpendingTargets, coupleSummary, postInheritanceSummary, inhDuringCouple, inheritanceChadAge]);
 
   const [tooltip, setTooltip] = useState(null);
-  function formatRange(startValue, endValue, suffix = '') {
-    if (startValue === endValue) return `${fmtFull(startValue)}${suffix}`;
-    return `${fmtFull(startValue)} -> ${fmtFull(endValue)}${suffix}`;
-  }
 
   // Chart dimensions
   const svgW = 800, svgH = 340;
@@ -240,8 +108,6 @@ function RetirementIncomeChart({
     { lo: bandResult.bands[0], hi: bandResult.bands[4], color: COLORS.blue, opacity: 0.08 },
     { lo: bandResult.bands[1], hi: bandResult.bands[3], color: COLORS.blue, opacity: 0.12 },
   ];
-
-  const fmtPool = (v) => v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}`;
 
   // Shorthand for cohort results
   const endAboveReserveRate = bandResult.finishAboveReserveRate;
@@ -439,143 +305,20 @@ function RetirementIncomeChart({
         </div>
       )}
 
-      {/* Income phase summary */}
-      {isPwaMode ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
-          <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.bgCard}` }}>
-            <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(totalPool)}
-            </div>
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
-            </div>
-            {pwaReferenceSimulation && (
-              <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-                Reference realized cohort: {formatCohortLabel(pwaReferenceSimulation.referenceSample)}
-              </div>
-            )}
-          </div>
-
-          <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.green}33` }}>
-            <div style={{ fontSize: 10, color: COLORS.green, marginBottom: 4, fontWeight: 600 }}>
-              <LabelWithHelp label="Current PWA Spending Target" help={HELP.spending_target} accent={COLORS.green} />
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(Math.round(pwaCurrentView.totalSpendingTarget))}/mo
-            </div>
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {fmtFull(Math.round(pwaCurrentView.currentPortfolioDraw))}/mo + SS {fmtFull(Math.round(pwaStartContext.currentSSIncome))}/mo + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
-            </div>
-            {pwaCurrentView.outsideIncomeReinvested > 0 && (
-              <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-                Outside income reinvested: {fmtFull(Math.round(pwaCurrentView.outsideIncomeReinvested))}/mo
-              </div>
-            )}
-          </div>
-
-          <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.blue}33` }}>
-            <div style={{ fontSize: 10, color: COLORS.blue, marginBottom: 4, fontWeight: 600 }}>
-              <LabelWithHelp label="Adaptive Confidence" help={HELP.probability_no_cut} accent={COLORS.blue} />
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace" }}>
-              {pwaConfidencePct}%
-            </div>
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Chance this starting target won't need to cut later while still ending at {fmtFull(bequestTarget)}
-            </div>
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Tolerance band {fmtFull(Math.round(pwaCurrentSelection.lowerToleranceWithdrawal || 0))} – {fmtFull(Math.round(pwaCurrentSelection.upperToleranceWithdrawal || 0))}/mo
-            </div>
-          </div>
-        </div>
-      ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
-        {/* Pool card */}
-        <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.bgCard}` }}>
-          <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(totalPool)}
-          </div>
-          <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            Savings {fmtFull(endSavings)} + 401k {fmtFull(end401k)} + Home {fmtFull(homeSaleNet)}
-          </div>
-          {chadPassesAge > 70 && bandResult.bands[0].series.length > (chadPassesAge - 67) && (
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              At {chadPassesAge}: {fmtPool(bandResult.bands[0].series[chadPassesAge - 67])} (worst) \u2013 {fmtPool(deterministicPools[chadPassesAge - 67])} (expected)
-            </div>
-          )}
-        </div>
-
-        {/* Pre-inheritance couple (or full couple if no inheritance during couple phase) */}
-          <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.blue}33` }}>
-          <div style={{ fontSize: 10, color: COLORS.blue, marginBottom: 4, fontWeight: 600 }}>
-            <LabelWithHelp
-              label={inhDuringCouple ? `Pre-Inheritance Spending Target (67-${inheritanceChadAge})` : `Couple Spending Target (67-${chadPassesAge})`}
-              help={HELP.spending_target}
-              accent={COLORS.blue}
-            />
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.blue, fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(coupleSummary.totalTarget)}/mo
-          </div>
-          <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool draw {formatRange(coupleSummary.start.poolDraw, coupleSummary.end.poolDraw, '/mo')} + SS {formatRange(coupleSummary.start.ssIncome, coupleSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
-          </div>
-          {(coupleSummary.start.savedToPool > 0 || coupleSummary.end.savedToPool > 0) && (
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Outside income reinvested: {formatRange(coupleSummary.start.savedToPool, coupleSummary.end.savedToPool, '/mo')}
-            </div>
-          )}
-        </div>
-
-        {/* Post-inheritance couple (only when inheritance during couple phase) */}
-        {inhDuringCouple && (
-          <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.green}33` }}>
-            <div style={{ fontSize: 10, color: COLORS.green, marginBottom: 4, fontWeight: 600 }}>
-              <LabelWithHelp
-                label={`Post-Inheritance Spending Target (${inheritanceChadAge}-${chadPassesAge})`}
-                help={HELP.spending_target}
-                accent={COLORS.green}
-              />
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
-              {fmtFull(postInheritanceSummary.totalTarget)}/mo
-            </div>
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {formatRange(postInheritanceSummary.start.poolDraw, postInheritanceSummary.end.poolDraw, '/mo')} + SS {formatRange(postInheritanceSummary.start.ssIncome, postInheritanceSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
-            </div>
-            {(postInheritanceSummary.start.savedToPool > 0 || postInheritanceSummary.end.savedToPool > 0) && (
-              <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-                Outside income reinvested: {formatRange(postInheritanceSummary.start.savedToPool, postInheritanceSummary.end.savedToPool, '/mo')}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Survivor */}
-        <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.amber}33` }}>
-          <div style={{ fontSize: 10, color: COLORS.amber, marginBottom: 4, fontWeight: 600 }}>
-            <LabelWithHelp
-              label={`Sarah Survivor Spending Target (after ${chadPassesAge})`}
-              help={HELP.spending_target}
-              accent={COLORS.amber}
-            />
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.amber, fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmtFull(survivorSummary.totalTarget)}/mo
-          </div>
-          <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
-          </div>
-          {(survivorSummary.start.savedToPool > 0 || survivorSummary.end.savedToPool > 0) && (
-            <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Outside income reinvested: {formatRange(survivorSummary.start.savedToPool, survivorSummary.end.savedToPool, '/mo')}
-            </div>
-          )}
-        </div>
-      </div>
-      )}
+      {/* Income phase summary (extracted to RetirementSummaryCards.jsx) */}
+      <RetirementSummaryCards
+        isPwaMode={isPwaMode}
+        totalPool={totalPool} endSavings={endSavings} end401k={end401k} homeSaleNet={homeSaleNet}
+        pwaReferenceSimulation={pwaReferenceSimulation}
+        pwaCurrentView={pwaCurrentView} pwaStartContext={pwaStartContext} pwaCurrentSelection={pwaCurrentSelection}
+        pwaConfidencePct={pwaConfidencePct}
+        bequestTarget={bequestTarget}
+        trustMonthly={trustMonthly} pensionMonthly={pensionMonthly}
+        chadPassesAge={chadPassesAge}
+        bandResult={bandResult} deterministicPools={deterministicPools}
+        inhDuringCouple={inhDuringCouple} inheritanceChadAge={inheritanceChadAge}
+        coupleSummary={coupleSummary} postInheritanceSummary={postInheritanceSummary} survivorSummary={survivorSummary}
+      />
 
       <RetirementCompositionChart
         yearlyData={yearlyData}
@@ -597,84 +340,14 @@ function RetirementIncomeChart({
             testIdPrefix="retirement-pwa-distribution"
           />
 
-          <div data-testid="retirement-decision-preview" style={{
-            background: COLORS.bgDeep,
-            borderRadius: 8,
-            padding: '12px 14px',
-            border: `1px solid ${COLORS.border}`,
-            marginBottom: 12,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-              <div>
-                <div data-testid="retirement-decision-preview-title" style={{ fontSize: 11, color: retirementTextStrong, fontWeight: 700 }}>
-                  <LabelWithHelp label="Adaptive decision preview" help={HELP.annual_decision_preview} accent={COLORS.blue} />
-                </div>
-                <div style={{ fontSize: 10, color: retirementTextMuted, marginTop: 2, lineHeight: 1.45 }}>
-                  One realized historical path, re-solving the full PWA distribution each year from the updated balance.
-                </div>
-              </div>
-              {pwaReferenceSimulation && (
-                <div style={{ fontSize: 10, color: retirementTextBody, lineHeight: 1.45, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace" }}>
-                  Reference cohort {formatCohortLabel(pwaReferenceSimulation.referenceSample)} · final pool {fmtFull(pwaReferenceSimulation.finalPool)} {pwaReferenceBequestMet ? '>= ' : '< '}{fmtFull(bequestTarget)}
-                </div>
-              )}
-            </div>
-
-            {pwaReferenceSimulation ? (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                  <thead>
-                    <tr>
-                      {['Year', 'Ages', 'Start Pool', 'Spend Target', 'Pool Draw', 'Reason'].map(header => (
-                        <th key={header} style={{
-                          textAlign: header === 'Reason' ? 'left' : 'right',
-                          color: retirementTextMuted,
-                          fontWeight: 700,
-                          padding: '0 0 6px',
-                          borderBottom: `1px solid ${COLORS.border}`,
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}>
-                          {header}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pwaReferenceSimulation.decisionPreview.map((decision, idx) => {
-                      const chadAge = 67 + idx;
-                      const sarahAge = chadAge - ageDiff;
-                      return (
-                        <tr key={decision.decisionMonth}>
-                          <td style={{ padding: '7px 0', color: retirementTextBody, borderBottom: `1px solid ${COLORS.bgCard}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                            Y{idx}
-                          </td>
-                          <td style={{ padding: '7px 0', textAlign: 'right', color: retirementTextBody, borderBottom: `1px solid ${COLORS.bgCard}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {chadAge}/{sarahAge}
-                          </td>
-                          <td style={{ padding: '7px 0', textAlign: 'right', color: retirementTextStrong, borderBottom: `1px solid ${COLORS.bgCard}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {fmtFull(decision.beginningBalance)}
-                          </td>
-                          <td style={{ padding: '7px 0', textAlign: 'right', color: COLORS.green, borderBottom: `1px solid ${COLORS.bgCard}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {fmtFull(Math.round(decision.selectedTotalSpendingTarget))}
-                          </td>
-                          <td style={{ padding: '7px 0', textAlign: 'right', color: COLORS.blue, borderBottom: `1px solid ${COLORS.bgCard}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {fmtFull(Math.round(decision.currentPortfolioDraw))}
-                          </td>
-                          <td style={{ padding: '7px 0', color: decision.cutOccurred ? COLORS.amber : retirementTextBody, borderBottom: `1px solid ${COLORS.bgCard}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {decision.reason.replaceAll('_', ' ')}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={{ fontSize: 11, color: retirementTextMuted, lineHeight: 1.45 }}>
-                No adaptive preview available until the retirement pool is positive.
-              </div>
-            )}
-          </div>
+          {/* Extracted to RetirementDecisionPreview.jsx */}
+          <RetirementDecisionPreview
+            testId="retirement-decision-preview"
+            pwaReferenceSimulation={pwaReferenceSimulation}
+            pwaReferenceBequestMet={pwaReferenceBequestMet}
+            bequestTarget={bequestTarget}
+            ageDiff={ageDiff}
+          />
         </>
       )}
 

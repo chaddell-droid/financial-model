@@ -17,6 +17,21 @@ function createRandomSource(seed) {
   return Number.isFinite(seed) ? createMulberry32(Math.trunc(seed)) : Math.random;
 }
 
+// ── Correlated market factor (A6 + B11 — remediation 2026-06-10 item 4.1,
+// decision D7). One common normal deviate Z per sim drives every
+// market-exposed assumption:
+//   savings return  — loading 1.0 (sigma = mcInvestVol)
+//   401(k) return   — loading 1.0 (same equity exposure, same sigma)
+//   MSFT growth     — rho 0.7 (single stock: mostly market, some idiosyncratic)
+//   home appreciation — rho 0.3 with its OWN smaller sigma (residential
+//     real-estate vol is a fraction of equity vol; sigma = mcInvestVol/3,
+//     ≈4%/yr at the 12% default)
+// Previously the 401(k) and home compounded deterministically in every sim
+// (bands401k p10=p50=p90) and MSFT was drawn independent of market returns.
+export const MSFT_MARKET_RHO = 0.7;
+export const HOME_MARKET_RHO = 0.3;
+export const HOME_SIGMA_FRACTION = 1 / 3;
+
 /**
  * Compute percentile bands at each month index for an array of per-sim series.
  *
@@ -102,12 +117,22 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
 
   for (let sim = 0; sim < N; sim++) {
     const useSS = base.ssType === 'ss';
+    // Common market factor Z + idiosyncratic deviates (A6 + B11, D7).
+    // Correlated draws use z = rho*Z + sqrt(1-rho^2)*eps so each stays N(0,1).
+    const Z = randNorm(0, 1);
+    const zMsft = MSFT_MARKET_RHO * Z
+      + Math.sqrt(1 - MSFT_MARKET_RHO * MSFT_MARKET_RHO) * randNorm(0, 1);
+    const zHome = HOME_MARKET_RHO * Z
+      + Math.sqrt(1 - HOME_MARKET_RHO * HOME_MARKET_RHO) * randNorm(0, 1);
+    const homeVol = mcInvestVol * HOME_SIGMA_FRACTION;
     const simParams = {
       ...base,
-      investmentReturn: clampGrowth(randNorm(base.investmentReturn, mcInvestVol)),
+      investmentReturn: clampGrowth(base.investmentReturn + mcInvestVol * Z),
+      return401k: clampGrowth((base.return401k ?? 8) + mcInvestVol * Z),
+      homeAppreciation: clampGrowth((base.homeAppreciation ?? 4) + homeVol * zHome),
       sarahClientGrowth: clampGrowth(randNorm(base.sarahClientGrowth, mcBizGrowthVol)),
       sarahRateGrowth: clampGrowth(randNorm(base.sarahRateGrowth, mcBizGrowthVol * 0.5)),
-      msftGrowth: clampGrowth(randNorm(base.msftGrowth, mcMsftVol)),
+      msftGrowth: clampGrowth(base.msftGrowth + mcMsftVol * zMsft),
       // SS retirement is guaranteed at age 62 — no delay or denial risk
       ssdiApprovalMonth: useSS ? base.ssdiApprovalMonth : base.ssdiApprovalMonth + drawDelayMonths(mcSsdiDelay),
       cutsDiscipline: Math.min(1, Math.max(0, randNorm(1, mcCutsDiscipline / 100))),

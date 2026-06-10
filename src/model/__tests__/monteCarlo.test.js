@@ -417,6 +417,94 @@ test('17. 401k bands grow from starting401k under positive return when no drawdo
     `Drawdown should not have fired in this no-deficit scenario; got ${result.drawdownFiredCount}/${result.numSims}`);
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// A6 + B11 (remediation 2026-06-10, item 4.1, gate D7): one common market
+// factor Z drives savings return, 401(k) return (rho=1), MSFT price
+// (rho 0.7), and home appreciation (rho 0.3, smaller sigma). Before this
+// fix the 401(k) compounded at a deterministic return401k and the home at a
+// deterministic homeAppreciation in EVERY sim (bands401k p10=p50=p90 in
+// solvent runs), understating downside risk.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Monte Carlo — correlated market factor (A6 + B11) ===');
+
+// Solvent scenario (no drawdown noise): the only way 401(k)/home bands can
+// spread is if their growth rates are actually randomized.
+function solventBase() {
+  return gatherStateWithOverrides({
+    ssType: 'ss',
+    chadJob: true, chadJobSalary: 200000,
+    starting401k: 478000,
+    return401k: 8,
+    startingSavings: 1000000,
+  });
+}
+
+test('22. A6: bands401k spread p10 < p50 < p90 under investment volatility alone', () => {
+  const mc = mcParams({
+    mcNumSims: 200,
+    mcInvestVol: 12, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(solventBase(), mc, [], { seed: 42 });
+  const p10 = result.bands401k.find(b => b.pct === 10);
+  const p50 = result.bands401k.find(b => b.pct === 50);
+  const p90 = result.bands401k.find(b => b.pct === 90);
+  const last = p10.series.length - 1;
+  assert.ok(p10.series[last] < p50.series[last],
+    `401k p10 final (${p10.series[last]}) should be < p50 (${p50.series[last]}) — 401(k) return must be randomized`);
+  assert.ok(p50.series[last] < p90.series[last],
+    `401k p50 final (${p50.series[last]}) should be < p90 (${p90.series[last]})`);
+});
+
+test('23. A6: home-equity bands spread under investment volatility alone (rho 0.3 + own sigma)', () => {
+  const mc = mcParams({
+    mcNumSims: 200,
+    mcInvestVol: 12, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(solventBase(), mc, [], { seed: 42 });
+  const p10 = result.bandsHomeEquity.find(b => b.pct === 10);
+  const p90 = result.bandsHomeEquity.find(b => b.pct === 90);
+  const last = p10.series.length - 1;
+  assert.ok(p10.series[last] < p90.series[last],
+    `home equity p10 final (${p10.series[last]}) should be < p90 (${p90.series[last]}) — home appreciation must be randomized`);
+});
+
+test('24. A6: home spread is narrower than 401k spread (smaller sigma, rho 0.3)', () => {
+  const mc = mcParams({
+    mcNumSims: 200,
+    mcInvestVol: 12, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(solventBase(), mc, [], { seed: 42 });
+  const rel = (bands) => {
+    const p10 = bands.find(b => b.pct === 10).series;
+    const p50 = bands.find(b => b.pct === 50).series;
+    const p90 = bands.find(b => b.pct === 90).series;
+    const last = p10.length - 1;
+    return (p90[last] - p10[last]) / Math.max(1, Math.abs(p50[last]));
+  };
+  assert.ok(rel(result.bandsHomeEquity) < rel(result.bands401k),
+    'relative home-equity spread should be narrower than the 401k spread');
+});
+
+test('25. A6: zero investment vol -> 401k and home bands stay degenerate even with MSFT vol on', () => {
+  const mc = mcParams({
+    mcNumSims: 100,
+    mcInvestVol: 0, mcBizGrowthVol: 0, mcMsftVol: 20,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(solventBase(), mc, [], { seed: 42 });
+  for (const key of ['bands401k', 'bandsHomeEquity']) {
+    const p10 = result[key].find(b => b.pct === 10);
+    const p90 = result[key].find(b => b.pct === 90);
+    for (let m = 0; m < p10.series.length; m++) {
+      assert.strictEqual(p10.series[m], p90.series[m],
+        `${key} month ${m}: MSFT-only volatility must not leak into 401k/home growth`);
+    }
+  }
+});
+
 console.log('\n=== Monte Carlo — solvency tiers + withdrawals ===');
 
 test('18. savingsOnlySolvencyRate is between 0 and 1, and ≤ solvencyRate', () => {

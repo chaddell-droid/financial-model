@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
-import { SGA_LIMIT, ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from '../model/constants.js';
+import { SGA_LIMIT, ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, familyMaxForPIA } from '../model/constants.js';
 import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
@@ -586,7 +586,11 @@ const IncomeControls = ({
               const computedStartMonth = (age - 62) * 12 + SS_START_OFFSET;
               const computedKidsMonths = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - computedStartMonth); // B4 student rule
               const childBenefitEach = Math.round(pia * 0.5);
-              const computedFamily = computedKidsMonths > 0 ? computedPersonal + 2 * childBenefitEach : computedPersonal;
+              // B5 (2026-06-10): mirror gatherState's bend-point family maximum —
+              // aux pool = FMAX − PIA, on top of the reduced worker benefit.
+              const computedFamily = computedKidsMonths > 0
+                ? computedPersonal + Math.round(Math.min(2 * childBenefitEach, Math.max(0, familyMaxForPIA(pia) - pia)))
+                : computedPersonal;
               const projMonths = (chadWorkMonths || 72);
               const beyondHorizon = computedStartMonth > projMonths;
               const ageLabel = age === SS_FRA ? `${age} (FRA)` : `${age}`;

@@ -1,5 +1,5 @@
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
-import { ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_START_OFFSET } from '../model/constants.js';
+import { ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_START_OFFSET, familyMaxForPIA } from '../model/constants.js';
 import { composePreviewState } from './previewState.js';
 import { computeEffectiveLeverConstraints } from '../model/leverClassification.js';
 import { computeChadPensionMonthly } from '../model/chadLevels.js';
@@ -101,15 +101,18 @@ export function gatherState(state) {
     // (student rule) — anchored to SS_CHILD_BENEFIT_END_MONTH (=40), not the
     // 18th birthday (TWINS_AGE_OUT_MONTH=34, kept for the CTC).
     s.ssKidsAgeOutMonths = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - s.ssStartMonth);
+    // B5 (remediation 2026-06-10): retirement family maximum via the statutory
+    // bend-point formula (familyMaxForPIA, 150/272/134/175% — fixes the old flat
+    // 1.5×PIA cap). Auxiliary pool = FMAX − PIA (POMS RS 00615.756): auxiliaries
+    // split the family max minus the worker's PIA — NOT minus his reduced
+    // benefit — and the pool rides on top of the (possibly early-claim-reduced)
+    // worker benefit. Each child's unreduced benefit is 50% of PIA, so with two
+    // children the pool binds whenever 2 × 0.5·PIA > FMAX − PIA.
+    // At PIA=4214 claim-62: 2950 + min(4214, 7373.8−4214) = 2950 + 3160 = 6110
+    // (the flat cap paid 6321 — a $211/mo overstatement).
     s.ssFamilyTotal = s.ssKidsAgeOutMonths > 0
-      ? s.ssPersonal + 2 * Math.round(pia * 0.5)
+      ? s.ssPersonal + Math.round(Math.min(2 * Math.round(pia * 0.5), Math.max(0, familyMaxForPIA(pia) - pia)))
       : s.ssPersonal;
-    // SSA family-max cap — actual formula is tiered 150-188% of PIA, but 150%
-    // is a safe conservative lower-bound that prevents the family-window
-    // window from over-paying when 2+ kids would otherwise push total past
-    // the realistic ceiling. Caps the per-month payout (ssPersonal stays uncapped).
-    const familyMaxCap = Math.round(pia * 1.5);
-    s.ssFamilyTotal = Math.min(s.ssFamilyTotal, familyMaxCap);
   }
 
   // Sarah's spousal SS — derived from Chad's PIA + her current age + her claim age.

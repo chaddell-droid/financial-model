@@ -2247,12 +2247,14 @@ test('R2: month-0 chadJobIncome with job', () => {
 });
 
 // R3 — SS at 62 first eligible month (month 19 = 7 months after start + offset)
-// SSA family-max cap (1.5 × PIA) binds at PIA=4214: round(4214 × 1.5) = 6321.
-// Pre-cap value would have been personal(2950) + 2 × child(2107) = 7164.
+// B5 (2026-06-10): bend-point family maximum (familyMaxForPIA). FMAX(4214) = 7373.8;
+// aux pool = FMAX − PIA = 3159.8 (binds vs 2 × 2107 = 4214) → family =
+// reduced worker 2950 + 3160 = 6110 (was 6321 under the flat 1.5×PIA cap — SSA
+// adds the aux pool to the REDUCED worker benefit, POMS RS 00615.756).
 test('R3: SS at 62 benefit at month 19', () => {
   const s = gatherState({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[19].ssBenefit, 6321);
+  assert.strictEqual(monthlyData[19].ssBenefit, 6110);
 });
 
 // R4 — SS at FRA (67) first month, extended horizon

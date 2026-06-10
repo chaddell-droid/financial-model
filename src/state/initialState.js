@@ -36,9 +36,11 @@ export const INITIAL_STATE = {
   // Only consulted when chadJob=true. The pre-job ssType field still controls
   // the SSDI/SS branch when chadJob=false.
   postJobBenefit: 'ssRetirement',
-  // Family-max cap = 1.5 × PIA (SSA's lower-bound family max; real formula tiered 150-188%).
-  // Default 6321 = 4214 × 1.5 — matches the cap applied in gatherState so default state is self-consistent.
-  ssFamilyTotal: 6321,       // Computed in gatherState from PIA + claim age, capped at 1.5 × PIA
+  // B5 (2026-06-10): gatherState computes the SS family total via the statutory
+  // bend-point family maximum (familyMaxForPIA) — aux pool = FMAX − PIA on top of
+  // the reduced worker benefit. This default is only a placeholder (recomputed
+  // whenever ssType === 'ss').
+  ssFamilyTotal: 6321,       // Computed in gatherState from PIA + claim age (bend-point family max)
   ssPersonal: 2933,          // Computed in gatherState from PIA + claim age
   ssStartMonth: 18,          // Computed in gatherState from claim age
   ssKidsAgeOutMonths: 18,    // Computed in gatherState from claim age

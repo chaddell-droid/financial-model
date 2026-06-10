@@ -5,7 +5,7 @@
 import assert from 'node:assert';
 import { runMonthlySimulation, findOperationalBreakevenIndex, computeProjection } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH } from '../constants.js';
+import { DAYS_PER_MONTH, SGA_LIMIT, ssAdjustmentFactor, ssRecalculatedBenefit, SS_FRA_MONTH, SS_START_OFFSET, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, familyMaxForPIA } from '../constants.js';
 
 let passed = 0;
 let failed = 0;
@@ -159,13 +159,14 @@ test('12. SS retirement path (ssType ss): income starts at computed ssStartMonth
   assert.strictEqual(s.ssPersonal, 2950, 'ssPersonal = round(4214 * 0.70)');
   // B4 (2026-06-10): student rule extends child benefits to m=39 → window = 40 − 19 = 21.
   assert.strictEqual(s.ssKidsAgeOutMonths, 21, 'kids eligible 21 months (month 19-39, student rule)');
-  // ssFamilyTotal is the lesser of (personal + 2 × child) and the SSA family-max cap (1.5 × PIA).
-  // Uncapped: 2950 + 2 × round(4214 × 0.5) = 2950 + 4214 = 7164.
-  // Cap: round(4214 × 1.5) = 6321 → cap binds, so ssFamilyTotal = 6321.
-  const uncapped = 2950 + 2 * Math.round(4214 * 0.5);
-  const familyCap = Math.round(4214 * 1.5);
-  assert.strictEqual(s.ssFamilyTotal, Math.min(uncapped, familyCap), 'ssFamilyTotal = min(personal + 2 × child, 1.5 × PIA)');
-  assert.strictEqual(s.ssFamilyTotal, 6321, 'family-max cap binds at PIA=4214');
+  // B5 (2026-06-10): retirement family maximum via bend points.
+  // FMAX(4214) = 1.5×1643 + 2.72×(2371−1643) + 1.34×(3093−2371) + 1.75×(4214−3093) = 7373.8.
+  // Aux pool = FMAX − PIA = 3159.8 — binds vs 2 children × round(4214 × 0.5) = 4214.
+  // Family = reduced worker (2950) + round(3159.8) = 6110 (was 6321 under flat 1.5×PIA).
+  const auxPool = familyMaxForPIA(4214) - 4214;
+  assert.strictEqual(s.ssFamilyTotal, 2950 + Math.round(Math.min(2 * Math.round(4214 * 0.5), auxPool)),
+    'ssFamilyTotal = ssPersonal + min(2 × 0.5 PIA, FMAX − PIA)');
+  assert.strictEqual(s.ssFamilyTotal, 6110, 'bend-point family max binds at PIA=4214');
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[18].ssBenefit, 0, 'no SS before start month');
   assert.strictEqual(monthlyData[19].ssBenefit, s.ssFamilyTotal, 'ssFamilyTotal at SS start month');
@@ -1419,19 +1420,32 @@ test('Projection: SS at 62 — earnings test does not apply after FRA month', ()
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== SS Family-Max Cap + Sarah Spousal Benefit ===');
 
-test('P21. ssFamilyTotal capped at 1.5 × ssPIA (SSA family-max lower bound)', () => {
-  // PIA=4214, age 62 → personal 2950, kids window active (15 months).
-  // Uncapped family = 2950 + 2 × round(4214 × 0.5) = 7164.
-  // Cap = round(4214 × 1.5) = 6321 → cap binds.
+test('P21. ssFamilyTotal uses the bend-point family maximum (B5, 2026-06-10)', () => {
+  // PIA=4214, age 62 → personal 2950, kids window active (21 months, B4).
+  // FMAX(4214) = 7373.8 → aux pool = 3159.8, binds vs 2 × 2107 = 4214.
+  // Family = 2950 + 3160 = 6110. The old flat 1.5×PIA cap (6321) overpaid by
+  // $211/mo at claim-62 because it ignored that SSA pays the aux pool on top
+  // of the REDUCED worker benefit while the pool itself is FMAX − PIA.
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssPIA: 4214, ssClaimAge: 62,
   });
-  const familyCap = Math.round(4214 * 1.5);
+  const auxPool = familyMaxForPIA(4214) - 4214;
   assert.ok(
-    s.ssFamilyTotal <= familyCap + 1, // +1 tolerance for rounding
-    `P21 ssFamilyTotal should be capped at ~${familyCap}, got ${s.ssFamilyTotal}`,
+    s.ssFamilyTotal <= s.ssPersonal + auxPool + 1, // +1 tolerance for rounding
+    `P21 ssFamilyTotal should respect the bend-point aux pool, got ${s.ssFamilyTotal}`,
   );
-  assert.strictEqual(s.ssFamilyTotal, 6321, 'P21 cap exactly = round(4214 × 1.5) = 6321');
+  assert.strictEqual(s.ssFamilyTotal, 6110, 'P21 family = 2950 + round(min(4214, 3159.8)) = 6110');
+});
+
+test('P21c. Aux pool does NOT bind at low PIA — children get the full 50% each (B5)', () => {
+  // PIA=1200, age 62 → personal = round(1200 × 0.7) = 840.
+  // FMAX(1200) = 1.5 × 1200 = 1800 → aux pool = 600, binds vs 2 × 600 = 1200 → pool wins (600).
+  // Use higher PIA where pool exceeds kids' sum: PIA 2000 → FMAX = 1.5×1643 + 2.72×357 = 3435.5
+  // (floored to dime: 3435.5) → pool = 1435.5 binds vs 2 × 1000 = 2000 → 1436.
+  const s = gatherStateWithOverrides({ ssType: 'ss', ssPIA: 2000, ssClaimAge: 62 });
+  const expectedAux = Math.round(Math.min(2 * Math.round(2000 * 0.5), familyMaxForPIA(2000) - 2000));
+  assert.strictEqual(s.ssFamilyTotal, s.ssPersonal + expectedAux,
+    'family = personal + min(2 × 0.5 PIA, FMAX − PIA) at PIA=2000');
 });
 
 test('P21b. Cap does NOT bind at low PIA (uncapped family < 1.5 × PIA)', () => {

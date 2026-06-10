@@ -11,7 +11,8 @@ import { runMonthlySimulation, computeProjection, SS_INTERIM_TAX_HAIRCUT } from 
 import { gatherStateWithOverrides, gatherState } from '../../state/gatherState.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
 import { DAYS_PER_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
-import { computeW2Diagnostic } from '../w2Diagnostic.js';
+import { computeW2Diagnostic, estimateEarningsTestImpact } from '../w2Diagnostic.js';
+import { SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from '../constants.js';
 import { projectedPostRetirementVests } from '../chadLevels.js';
 import { getEffectiveCuts } from '../scenarioLevers.js';
 import { computeW2EmployeeFica, computeAdditionalMedicare } from '../taxEngine.js';
@@ -1575,6 +1576,91 @@ test('BP-2: IncomeControls Gross row label includes the kids auxiliary component
     'IncomeControls.jsx must compute the auxiliary back-pay share for the Gross row label');
   assert.ok(!/Gross \(\{ssdiBackPayMonths\} × \{fmtFull\(ssdiPersonal\)\}\):/.test(source),
     'the Gross label must no longer claim it is only months × personal when aux back pay is included');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section: SS earnings-test panel parity (C10, remediation 2026-06-10 item 5.1)
+// The IncomeControls earnings-test panel previously used SALARY ONLY as the
+// wage basis and only the standard $1/$2 tier. The engine tests TOTAL earned
+// income (salary + bonus + RSU vests) and applies the $1/$3 FRA-calendar-year
+// tier. The shared helper estimateEarningsTestImpact must use the engine's
+// steady-state wage basis (computeW2Diagnostic totalGrossYr) + both tiers.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Section: SS Earnings-Test Panel Parity (C10) ===');
+
+test('ET-1: wage basis includes bonus + RSU (not salary-only) and matches totalGrossYr', () => {
+  const overrides = {
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 10,
+    chadJobStockRefresh: 40000, msftGrowth: 0,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobSignOnCash: 0,
+  };
+  const s = gatherStateWithOverrides(overrides);
+  const et = estimateEarningsTestImpact(s);
+  // 180,000 salary + 18,000 bonus + 40,000 refresh (g=0 → mult 1) = 238,000
+  assert.strictEqual(et.annualEarned, 238000,
+    `wage basis must be salary+bonus+RSU = 238,000, got ${et.annualEarned}`);
+  assert.strictEqual(et.annualEarned, computeW2Diagnostic(s).totalGrossYr,
+    'wage basis must be the SAME totalGrossYr the W-2 diagnostic uses (single source of truth)');
+  // Standard tier: $1 withheld per $2 over the annual exempt amount, ÷ 12.
+  const expectedStd = Math.round(Math.max(0, 238000 - SS_EARNINGS_LIMIT_ANNUAL) / 2 / 12);
+  assert.strictEqual(et.monthlyReductionStandard, expectedStd,
+    `standard-tier reduction expected ${expectedStd}/mo, got ${et.monthlyReductionStandard}`);
+});
+
+test('ET-2: FRA-calendar-year tier uses the higher exempt amount and $1/$3', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 0,
+    chadJobStockRefresh: 0, msftGrowth: 0,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+  });
+  const et = estimateEarningsTestImpact(s);
+  assert.strictEqual(et.annualEarned, 180000, 'salary-only basis');
+  const expectedFra = Math.round(Math.max(0, 180000 - SS_EARNINGS_LIMIT_FRA_YEAR) / 3 / 12);
+  const expectedStd = Math.round(Math.max(0, 180000 - SS_EARNINGS_LIMIT_ANNUAL) / 2 / 12);
+  assert.strictEqual(et.monthlyReductionFraYear, expectedFra,
+    `FRA-year tier expected ${expectedFra}/mo ($1/$3 over ${SS_EARNINGS_LIMIT_FRA_YEAR}), got ${et.monthlyReductionFraYear}`);
+  assert.strictEqual(et.monthlyReductionStandard, expectedStd);
+  assert.ok(et.monthlyReductionFraYear < et.monthlyReductionStandard,
+    'FRA-year tier must withhold less than the standard tier at the same wages');
+  // Limits surfaced for display come from the statutory table (no hardcoding).
+  assert.strictEqual(et.limitStandard, SS_EARNINGS_LIMIT_ANNUAL);
+  assert.strictEqual(et.limitFraYear, SS_EARNINGS_LIMIT_FRA_YEAR);
+});
+
+test('ET-3: wages between the two exempt amounts → FRA-year reduction is 0, standard is not', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 48000, chadJobTaxRate: 25, chadJobBonusPct: 0,
+    chadJobStockRefresh: 0, msftGrowth: 0,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+  });
+  const et = estimateEarningsTestImpact(s);
+  assert.ok(et.annualEarned > SS_EARNINGS_LIMIT_ANNUAL && et.annualEarned < SS_EARNINGS_LIMIT_FRA_YEAR,
+    `fixture must sit between the limits (${et.annualEarned})`);
+  assert.strictEqual(et.monthlyReductionFraYear, 0, 'below the FRA-year exempt amount → no withholding');
+  assert.ok(et.monthlyReductionStandard > 0, 'above the standard exempt amount → withholding');
+});
+
+test('ET-4: wages below both exempt amounts → both reductions are 0', () => {
+  const s = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 20000, chadJobTaxRate: 25, chadJobBonusPct: 0,
+    chadJobStockRefresh: 0, msftGrowth: 0,
+    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+  });
+  const et = estimateEarningsTestImpact(s);
+  assert.strictEqual(et.monthlyReductionStandard, 0);
+  assert.strictEqual(et.monthlyReductionFraYear, 0);
+});
+
+test('ET-5: IncomeControls panel uses the shared helper, not a salary-only local', () => {
+  const source = fs.readFileSync(new URL('../../panels/IncomeControls.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('estimateEarningsTestImpact'),
+    'IncomeControls.jsx must consume estimateEarningsTestImpact for the earnings-test panel');
+  assert.ok(!/const excess = Math\.max\(0, salary - SS_EARNINGS_LIMIT_ANNUAL\)/.test(source),
+    'the salary-only inline earnings-test computation must be gone');
+  // C10 dead locals (ssEarningsLimit / ssExcess / ssMonthlyReduction) deleted.
+  assert.ok(!source.includes('ssMonthlyReduction'),
+    'dead local ssMonthlyReduction must be deleted');
 });
 
 // ════════════════════════════════════════════════════════════════════════

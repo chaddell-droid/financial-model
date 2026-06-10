@@ -8,7 +8,7 @@ import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import { computeChadPensionMonthly } from '../model/chadLevels.js';
-import { computeW2Diagnostic } from '../model/w2Diagnostic.js';
+import { computeW2Diagnostic, estimateEarningsTestImpact } from '../model/w2Diagnostic.js';
 import Age65VestBlock from './blocks/Age65VestBlock.jsx';
 import VestScheduleMatrix from './blocks/VestScheduleMatrix.jsx';
 import W2NetDiagnostic from './blocks/W2NetDiagnostic.jsx';
@@ -45,22 +45,25 @@ const IncomeControls = ({
   const set = onFieldChange;
   const commitStrategy = 'release';
   const sgaLimit = SGA_LIMIT;
-  const effectiveSalary = chadJobSalary || 80000;
+  // C10 (item 5.1): dead locals deleted — all W-2 math lives in w2Diagnostic.js.
   const effectiveTaxRate = chadJobTaxRate ?? 25;
-  // Match projection.js formula: tax rate is all-in, FICA adds 6.2% back, pension is deducted
-  const ficaSavings = chadJobNoFICA ? 0.062 : 0;
-  const pensionContribPct = (chadJobPensionContrib || 0) / 100;
   // === W-2 component calculations — used by BOTH the W-2 diagnostic AND the SSDI comparison.
   // Single source of truth: src/model/w2Diagnostic.js (also consumed by advisor
   // `getStockCompProjection` tool). Mirrors src/model/projection.js exactly. Any
   // drift here is a display-parity bug (per CLAUDE.md). Edit w2Diagnostic.js, not here.
-  const _w2 = computeW2Diagnostic({
+  const _w2Inputs = {
     chadJob, chadJobSalary, chadJobTaxRate, chadJobHealthSavings, chadJobNoFICA,
     chadJobBonusPct, chadJobStockRefresh, chadJobRefreshStartMonth,
     chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
     chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth,
     chadJobPensionContrib, chadJobSignOnCash, msftGrowth,
-  });
+  };
+  const _w2 = computeW2Diagnostic(_w2Inputs);
+  // C10 (remediation 2026-06-10, item 5.1): the earnings-test panel shares the
+  // engine's wage basis — full steady-state W-2 gross (salary + bonus + RSU),
+  // not salary-only — and surfaces both statutory tiers ($1/$2 standard,
+  // $1/$3 in the FRA calendar year). Single source: w2Diagnostic.js.
+  const earningsTest = estimateEarningsTestImpact(_w2Inputs);
   // Only the values consumed directly by this component are aliased here;
   // the full diagnostic display lives in blocks/W2NetDiagnostic.jsx and
   // receives the whole _w2 object (Phase 7 file-size split).
@@ -68,10 +71,6 @@ const IncomeControls = ({
   // chadJobMonthlyNet preserved for legacy display callers.
   const chadJobMonthlyNet = _w2.salaryNetMo;
   const monthlyHealthSavings = _w2.monthlyHealthSavings;
-  // B3 (remediation 2026-06-10): statutory limit imported from the SSA limits table — no hardcoded duplicate.
-  const ssEarningsLimit = SS_EARNINGS_LIMIT_ANNUAL;
-  const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
-  const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
 
   return (
           <div data-testid="income-controls" style={{
@@ -673,13 +672,13 @@ const IncomeControls = ({
                 </div>
 
                 {chadJob && !atOrAfterFRA && (() => {
-                  const salary = chadJobSalary || 80000;
-                  const excess = Math.max(0, salary - SS_EARNINGS_LIMIT_ANNUAL);
-                  const monthlyReduction = Math.round(excess / 2 / 12);
+                  // C10: engine-parity wage basis (salary + bonus + RSU) +
+                  // both statutory tiers via the shared helper above.
+                  const monthlyReduction = earningsTest.monthlyReductionStandard;
                   const netSS = Math.max(0, computedPersonal - monthlyReduction);
                   return (
                   <div style={{ marginTop: 12, padding: "8px 10px", background: `${COLORS.amber}10`, borderRadius: 6, border: `1px solid ${COLORS.amber}33` }}>
-                    <div style={{ fontSize: 11, color: COLORS.amber, fontWeight: 600, marginBottom: 4 }}>Earnings Test Impact (salary ${fmtFull(salary)}/yr)</div>
+                    <div style={{ fontSize: 11, color: COLORS.amber, fontWeight: 600, marginBottom: 4 }}>Earnings Test Impact (est. W-2 wages {fmtFull(earningsTest.annualEarned)}/yr)</div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                       <span style={{ color: COLORS.textDim }}>Gross SS benefit:</span>
                       <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(computedPersonal)}/mo</span>
@@ -687,6 +686,10 @@ const IncomeControls = ({
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
                       <span style={{ color: COLORS.textDim }}>Earnings test reduction:</span>
                       <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(monthlyReduction)}/mo</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                      <span style={{ color: COLORS.textDim }}>FRA calendar year ($1/$3 over ${earningsTest.limitFraYear.toLocaleString()}):</span>
+                      <span style={{ color: COLORS.amber, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(earningsTest.monthlyReductionFraYear)}/mo</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
                       <span style={{ color: netSS > 0 ? COLORS.green : COLORS.red }}>Net SS after test:</span>

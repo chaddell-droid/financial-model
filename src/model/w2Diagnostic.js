@@ -24,6 +24,7 @@
  *     (engine: projection.js:253 via msftMultIssueToVest).
  */
 import { computeW2EmployeeFica, computeAdditionalMedicare } from './taxEngine.js';
+import { SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from './constants.js';
 
 /**
  * Compute the W-2 steady-state diagnostic from gathered state.
@@ -220,6 +221,46 @@ export function computeW2Diagnostic(state) {
 
     // Health
     monthlyHealthSavings,
+  };
+}
+
+/**
+ * SS earnings-test impact estimate — shared helper for the IncomeControls
+ * panel (C10, remediation 2026-06-10 item 5.1).
+ *
+ * The engine (projection.js) tests TOTAL earned income — salary × (1+bonus%)
+ * + projected annual RSU vests (+ sign-on in employment years 0–1) — and
+ * applies two statutory tiers: $1 withheld per $2 over the standard exempt
+ * amount in pre-FRA calendar years, $1 per $3 over the higher exempt amount
+ * inside the FRA calendar year (exempt from the attainment month onward).
+ * The panel previously used SALARY ONLY with the standard tier — a
+ * display-parity bug.
+ *
+ * Wage basis here is the STEADY-STATE annual gross W-2 — the same
+ * totalGrossYr the W-2 diagnostic shows (salary + bonus + refresh×steadyMult
+ * + hire stock averaged ÷ 4; one-time sign-on excluded). The engine's basis
+ * is per-year (ramping RSUs, sign-on halves in years 0–1, whole-check
+ * withholding order), so this is the representative steady-state estimate
+ * for display, not a month-exact reconciliation.
+ *
+ * @param {object} state - gathered household state (same fields as computeW2Diagnostic).
+ * @returns {{annualEarned:number, monthlyReductionStandard:number,
+ *            monthlyReductionFraYear:number, limitStandard:number, limitFraYear:number}}
+ */
+export function estimateEarningsTestImpact(state) {
+  const { totalGrossYr } = computeW2Diagnostic(state);
+  const annualEarned = totalGrossYr;
+  // Statutory limits flow from the Phase-0 SSA table (never hardcoded here).
+  const monthlyReductionStandard =
+    Math.round(Math.max(0, annualEarned - SS_EARNINGS_LIMIT_ANNUAL) / 2 / 12);
+  const monthlyReductionFraYear =
+    Math.round(Math.max(0, annualEarned - SS_EARNINGS_LIMIT_FRA_YEAR) / 3 / 12);
+  return {
+    annualEarned,
+    monthlyReductionStandard,
+    monthlyReductionFraYear,
+    limitStandard: SS_EARNINGS_LIMIT_ANNUAL,
+    limitFraYear: SS_EARNINGS_LIMIT_FRA_YEAR,
   };
 }
 

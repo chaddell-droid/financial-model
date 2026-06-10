@@ -45,7 +45,6 @@ const IncomeControls = ({
   const sgaLimit = SGA_LIMIT;
   const effectiveSalary = chadJobSalary || 80000;
   const effectiveTaxRate = chadJobTaxRate ?? 25;
-  const effectiveHealthSavings = chadJobHealthSavings ?? 4200;
   // Match projection.js formula: tax rate is all-in, FICA adds 6.2% back, pension is deducted
   const ficaSavings = chadJobNoFICA ? 0.062 : 0;
   const pensionContribPct = (chadJobPensionContrib || 0) / 100;
@@ -421,8 +420,8 @@ const IncomeControls = ({
                     const lostBackPayMonthly = !isSSPath && !ssdiDenied ? Math.round((ssdiBackPayActual || 0) / 72) : 0;
                     // Net impact uses total W-2 monthly net (salary + bonus + RSU + hire stock,
                     // all averaged with MSFT growth applied) plus the MONTHLY health benefit.
-                    // Previously used salary-only `chadJobMonthlyNet` and annual `effectiveHealthSavings`
-                    // as if it were monthly — both bugs systematically distorted the comparison.
+                    // chadJobHealthSavings is $/month (the family's real $4,200/mo private
+                    // premium — confirmed 2026-06-10), matching the engine's monthly subtraction.
                     const netImpactSteady = Math.round(w2TotalAvgMo + monthlyHealthSavings - personalRate);
                     const netColorSteady = netImpactSteady >= 0 ? COLORS.greenDark : COLORS.amber;
                     const netImpactFamily = Math.round(w2TotalAvgMo + monthlyHealthSavings - familyRate);
@@ -459,7 +458,7 @@ const IncomeControls = ({
                         <span style={{ color: COLORS.textDim }}>Health insurance saved:</span>
                         <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
                           +{fmtFull(Math.round(monthlyHealthSavings))}/mo
-                          <span style={{ color: COLORS.textDim, fontSize: 10, marginLeft: 4 }}>(+{fmtFull(effectiveHealthSavings)}/yr)</span>
+                          <span style={{ color: COLORS.textDim, fontSize: 10, marginLeft: 4 }}>(+{fmtFull(Math.round(monthlyHealthSavings * 12))}/yr)</span>
                         </span>
                       </div>
                       {familyMonths > 0 && (

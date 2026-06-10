@@ -129,8 +129,13 @@ export function computeW2Diagnostic(state) {
   const ficaAllInTotal = ficaTotal + ficaAddlMedicare;
   const ficaEffectivePct = ficaBaseAnnual > 0 ? ficaAllInTotal / ficaBaseAnnual : 0;
 
-  // ─── Monthly health benefit equivalent (used by SSDI comparison) ─────────
-  const monthlyHealthSavings = effectiveHealthSavings / 12;
+  // ─── Monthly health benefit (used by SSDI comparison) ────────────────────
+  // chadJobHealthSavings is $/MONTH — the family's actual private-insurance
+  // premium that employer coverage replaces ($4,200/mo, user-confirmed
+  // 2026-06-10). The engine subtracts it from monthly expenses as-is
+  // (projection.js). The 2026-05-16 audit mis-read it as annual and divided
+  // by 12 here, understating the benefit 12× vs the projection.
+  const monthlyHealthSavings = effectiveHealthSavings;
 
   return {
     // Inputs (for transparency in advisor output)

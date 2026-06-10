@@ -60,7 +60,7 @@ export const INITIAL_STATE = {
   chadJobSalary: 80000,       // Gross annual
   chadJobTaxRate: 25,          // Effective tax rate %
   chadJobStartMonth: 0,        // Months from now (0 = immediate)
-  chadJobHealthSavings: 4200,  // Monthly health insurance savings from employer coverage
+  chadJobHealthSavings: 4200,  // $/MONTH: employer coverage replaces the family's $4,200/mo private premium (engine subtracts from monthly expenses)
   chadJobNoFICA: false,         // No 6.2% SS tax (non-SS-covered employer)
   chadJobPensionRate: 0,        // Annual pension accrual rate (0=none, 2=PERS Plan 2)
   chadJobPensionContrib: 0,     // Employee pension contribution % deducted from gross

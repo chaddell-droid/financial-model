@@ -999,7 +999,10 @@ function computeUiW2Diagnostic(s) {
   return {
     salaryNetMo, annualSalaryNet, bonusNetYr, refreshNetYr, hireNetAvgYr,
     totalAvgMo, refreshSteadyMult, pensionCashflowMult, pensionCashflowMo,
-    monthlyHealthSavings: effectiveHealthSavings / 12,
+    // chadJobHealthSavings is $/MONTH (user confirmed 2026-06-10: the family
+    // pays $4,200/mo for private coverage). The engine subtracts it from
+    // monthly expenses (projection.js); the 2026-05-16 audit's ÷12 was wrong.
+    monthlyHealthSavings: effectiveHealthSavings,
   };
 }
 
@@ -1075,16 +1078,18 @@ test('W2-5: refresh steady-state mult averages 5 grants × 5yr vest with MSFT gr
   assert.strictEqual(flat.refreshNetYr, 30000, `g=0 refresh net = $30,000/yr`);
 });
 
-test('W2-6: monthlyHealthSavings divides annual by 12', () => {
+test('W2-6: monthlyHealthSavings passes the monthly field through (NO ÷12)', () => {
+  // chadJobHealthSavings is $/month — same unit the engine subtracts from
+  // monthly expenses. A ÷12 here understates the benefit 12× vs the projection.
   const ui = computeUiW2Diagnostic({ chadJobHealthSavings: 4200 });
-  assert.strictEqual(ui.monthlyHealthSavings, 350, `$4,200/yr ÷ 12 = $350/mo, got ${ui.monthlyHealthSavings}`);
+  assert.strictEqual(ui.monthlyHealthSavings, 4200, `$4,200/mo field must display as $4,200/mo, got ${ui.monthlyHealthSavings}`);
   const ui2 = computeUiW2Diagnostic({ chadJobHealthSavings: 6000 });
-  assert.strictEqual(ui2.monthlyHealthSavings, 500, `$6,000/yr ÷ 12 = $500/mo, got ${ui2.monthlyHealthSavings}`);
+  assert.strictEqual(ui2.monthlyHealthSavings, 6000, `$6,000/mo field must display as $6,000/mo, got ${ui2.monthlyHealthSavings}`);
 });
 
-test('W2-7: SSDI net impact uses W-2 total monthly + monthly health (not salary-only + annual)', () => {
+test('W2-7: SSDI net impact uses W-2 total monthly + monthly health (not salary-only)', () => {
   // Bug 4 regression. Inputs from the audit screenshot:
-  // 180K, 25% tax, 20% bonus, $40K refresh, $40K×4 hire stock, MSFT growth 0, default health $4,200/yr, family $6,321, personal $4,214
+  // 180K, 25% tax, 20% bonus, $40K refresh, $40K×4 hire stock, MSFT growth 0, default health $4,200/MO, family $6,321, personal $4,214
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
@@ -1099,8 +1104,8 @@ test('W2-7: SSDI net impact uses W-2 total monthly + monthly health (not salary-
   // Correct SSDI net impact: W-2 total + monthly health − rate
   const netFamily = Math.round(ui.totalAvgMo + ui.monthlyHealthSavings - 6321);
   const netSteady = Math.round(ui.totalAvgMo + ui.monthlyHealthSavings - 4214);
-  assert.strictEqual(netFamily, 10060, `Family net should be 10060, got ${netFamily}`);
-  assert.strictEqual(netSteady, 12167, `Steady net should be 12167, got ${netSteady}`);
+  assert.strictEqual(netFamily, 13910, `Family net = 16031 + 4200 - 6321 = 13910, got ${netFamily}`);
+  assert.strictEqual(netSteady, 16017, `Steady net = 16031 + 4200 - 4214 = 16017, got ${netSteady}`);
 });
 
 test('W2-8: totalAvgMo includes salary + bonus + refresh + hire stock (with MSFT growth)', () => {
@@ -1217,8 +1222,8 @@ test('W2-REAL (§2c#1): EXPORTED computeW2Diagnostic field-by-field for the W2-7
   assert.strictEqual(Math.round(d.hireNetAvgYr), 30000, `hireNetAvgYr expected 30000, got ${Math.round(d.hireNetAvgYr)}`);
   // Pension cashflow: 0 (no pension contrib).
   assert.strictEqual(Math.round(d.pensionCashflowMo), 0, `pensionCashflowMo expected 0, got ${d.pensionCashflowMo}`);
-  // Monthly health: 4200/12 = 350.
-  assert.strictEqual(d.monthlyHealthSavings, 350, `monthlyHealthSavings expected 350, got ${d.monthlyHealthSavings}`);
+  // Monthly health: the field is $/month — passes through, no ÷12.
+  assert.strictEqual(d.monthlyHealthSavings, 4200, `monthlyHealthSavings expected 4200 (field is $/mo), got ${d.monthlyHealthSavings}`);
   // Total avg: (105372 + 27000 + 30000 + 30000) / 12 = 16031.
   assert.strictEqual(d.totalAvgMo, 16031, `totalAvgMo expected 16031, got ${d.totalAvgMo}`);
 

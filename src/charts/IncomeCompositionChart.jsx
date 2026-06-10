@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildIncomeSources } from '../charts/chartUtils.js';
@@ -13,7 +13,7 @@ import { getSsBenefitLabelForMonth } from './ssBenefitLabel.js';
  * Annotations: dashed vertical lines through chart with labels ABOVE the chart area,
  * matching the SavingsDrawdownChart visual pattern.
  */
-export default function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings, compareProjections, compareColors }) {
+function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings, compareProjections, compareColors }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   // Map monthly field names: chart sources use 'msftVesting' key but monthly data has 'msftSmoothed'
@@ -461,3 +461,8 @@ export default function IncomeCompositionChart({ monthlyDetail, investmentReturn
     </div>
   );
 }
+
+// React.memo (remediation 6.3): props arrive via FinancialModel's memoized
+// incomeChartProps bundle (rail + PlanTab) or IncomeTab's projection-derived
+// values, so unrelated parent re-renders bail out before this 400+ line tree.
+export default memo(IncomeCompositionChart);

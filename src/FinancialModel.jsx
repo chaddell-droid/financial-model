@@ -12,7 +12,7 @@ import { withProvenanceAll, DEFAULT_PROVENANCE, buildRecommendationProvenance } 
 import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState, deriveCapitalItemsFromLegacy, prepareComparisonState, computeOneTimeTotal } from './state/gatherState.js';
 import { buildTaxSchedule } from './model/taxProjection.js';
-import { saveModelState, loadModelState } from './state/autoSave.js';
+import { saveModelState, loadModelState, extractProjectionInputs, projectionInputsEqual } from './state/autoSave.js';
 import { safeWrite, createHydrationGate, mergeScenarioLists } from './state/safeStorage.js';
 import { sanitizeCheckInHistory } from './state/schemaValidation.js';
 import Header from './components/Header.jsx';
@@ -66,6 +66,21 @@ function LazyRetirementChart(props) {
 function getInitialShellWidthBucket() {
   if (typeof window === 'undefined') return 'desktop';
   return getShellWidthBucket(window.innerWidth);
+}
+
+// Remediation 2026-06-09 phase 6.1: stable extraction of the projection-input
+// subset (MODEL_KEYS + schemaVersion + previewMoves). Returns the PREVIOUS
+// object whenever nothing the projection pipeline reads has changed, so memos
+// keyed on the result survive UI-only state changes (tab switches,
+// scenario-name keystrokes, storage-status timers, mcRunning/mcResults flips).
+function useStableProjectionInputs(state) {
+  const ref = useRef(null);
+  return useMemo(() => {
+    const next = extractProjectionInputs(state);
+    if (ref.current && projectionInputsEqual(ref.current, next)) return ref.current;
+    ref.current = next;
+    return next;
+  }, [state]);
 }
 
 export default function FinancialModel() {
@@ -208,6 +223,10 @@ export default function FinancialModel() {
     leverConstraintsOverride,
   } = state;
   leverConstraintsOverrideRef.current = leverConstraintsOverride;
+  // Latest full state for click-time reads (Monte Carlo run) so the callback
+  // can stay referentially stable without going stale (remediation 6.3).
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Backward-compatible computed totals from individual cuts
   const lifestyleCuts = cutOliver + cutVacation + cutGym;
@@ -266,12 +285,27 @@ export default function FinancialModel() {
   // Projections — use deferred state so computation doesn't block slider interaction.
   // React will skip intermediate computations during rapid drag and only compute when idle.
   const deferredState = useDeferredValue(state);
+  // Remediation 6.1: the projection pipeline is keyed on the extracted
+  // model-input subset, NOT the whole state object, so UI-only fields
+  // (activeTab, scenarioName keystrokes, storageStatus timer, mcRunning)
+  // can never invalidate it. Live extraction feeds the stable gatherState
+  // callback below; deferred extraction feeds the projection memos.
+  const modelInputs = useStableProjectionInputs(state);
+  const deferredModelInputs = useStableProjectionInputs(deferredState);
+  // Single gathered model state shared by the projection, the W-2 tax
+  // breakdown (6.2), and the MonteCarloPanel tornado (6.3) — none of them
+  // mutate it. buildReforecast DOES mutate its gather, so it gets a fresh
+  // one further down.
+  const gatheredModelState = useMemo(
+    () => _gatherState(deferredModelInputs),
+    [deferredModelInputs],
+  );
   const projection = useMemo(
     () => {
       noteCompute('projection');
-      return computeProjection(gatherState(deferredState));
+      return computeProjection(gatheredModelState);
     },
-    [deferredState],
+    [gatheredModelState],
   );
   const data = projection.data;
   const savingsData = projection.savingsData;
@@ -306,8 +340,11 @@ export default function FinancialModel() {
   const reforecastProjection = useMemo(() => {
     if (!checkInHistory || checkInHistory.length === 0) return null;
     const latest = checkInHistory[checkInHistory.length - 1];
-    return buildReforecast(gatherState, latest);
-  }, [checkInHistory, deferredState]);
+    // buildReforecast overwrites startingSavings/starting401k on the gathered
+    // object — hand it a FRESH gather, never the shared gatheredModelState.
+    // Keyed on the model-input subset (6.1): UI-only changes don't re-run it.
+    return buildReforecast(() => _gatherState(deferredModelInputs), latest);
+  }, [checkInHistory, deferredModelInputs]);
 
   // Multi-comparison: compute projections for up to 3 comparisons.
   // Compared states are SAVED scenario payloads — route them through the same
@@ -584,22 +621,29 @@ export default function FinancialModel() {
     }
   };
 
-  // Monte Carlo — dynamic import keeps monteCarlo.js out of the main bundle
-  const handleRunMonteCarlo = () => {
+  // Monte Carlo — dynamic import keeps monteCarlo.js out of the main bundle.
+  // Stable callback (remediation 6.3): reads the LATEST state via stateRef at
+  // click time, so memo'd prop bundles holding onRun never go stale.
+  const handleRunMonteCarlo = useCallback(() => {
     set('mcRunning')(true);
     import('./model/monteCarlo.js').then(({ runMonteCarlo }) => {
       setTimeout(() => {
-        const base = gatherState();
-        const mcParams = { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline };
+        const st = stateRef.current;
+        const base = _gatherState(st);
+        const mcParams = {
+          mcNumSims: st.mcNumSims, mcInvestVol: st.mcInvestVol, mcBizGrowthVol: st.mcBizGrowthVol,
+          mcMsftVol: st.mcMsftVol, mcSsdiDelay: st.mcSsdiDelay, mcSsdiDenialPct: st.mcSsdiDenialPct,
+          mcCutsDiscipline: st.mcCutsDiscipline,
+        };
         const mcSeed = typeof window !== 'undefined' && window.__FIN_MODEL_TEST__ && typeof window.__FIN_MODEL_TEST__.getMonteCarloSeed === 'function'
           ? window.__FIN_MODEL_TEST__.getMonteCarloSeed()
           : null;
-        const results = runMonteCarlo(base, mcParams, goals, { seed: mcSeed });
+        const results = runMonteCarlo(base, mcParams, st.goals, { seed: mcSeed });
         set('mcResults')(results);
         set('mcRunning')(false);
       }, 50);
     });
-  };
+  }, [set]);
 
   // Savings zero-crossing
   const savingsZeroMonth = savingsData.find(d => d.balance <= 0);
@@ -724,10 +768,12 @@ export default function FinancialModel() {
   // Real federal/FICA breakdown for the W-2 Net Diagnostic, from the same engine as
   // the Tax tab. FICA is exact; federal is the household return for the first working
   // year (representative). Falls back to null (pane then shows FICA-only) on any error.
+  // Keyed on the gathered model inputs (remediation 6.2) — never the whole
+  // state object, so UI-only changes don't re-run the full tax engine.
   const chadTaxBreakdown = useMemo(() => {
-    if (!chadJob) return null;
+    if (!gatheredModelState.chadJob) return null;
     try {
-      const sched = buildTaxSchedule(gatherState());
+      const sched = buildTaxSchedule(gatheredModelState);
       if (!sched || sched.length === 0) return null;
       const idx = sched.findIndex((e) => e.chadW2Gross > 0);
       const yr = idx >= 0 ? sched[idx] : sched[0];
@@ -749,7 +795,7 @@ export default function FinancialModel() {
     } catch {
       return null;
     }
-  }, [state]);
+  }, [gatheredModelState]);
 
   const incomeControlsProps = useMemo(() => ({
     ssType, ssdiDenied,
@@ -821,7 +867,11 @@ export default function FinancialModel() {
     monthlyDetail,
   ]);
 
-  const stableGatherState = useCallback(() => gatherState(), [state]);
+  // Stable across UI-only state changes (remediation 6.1/6.3): identity
+  // changes only when the model-input subset does. Gathers FRESH on every
+  // call — consumers (RecommendationCascade, TaxSettingsPanel, AdvisorPane,
+  // TopMovesPanel) key memos on this identity and may mutate the result.
+  const stableGatherState = useCallback(() => _gatherState(modelInputs), [modelInputs]);
 
   // Save-from-preview helper — builds recommendation provenance from the
   // current preview stack + active scenario name, then calls saveScenario.
@@ -880,13 +930,16 @@ export default function FinancialModel() {
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     onParamChange: set, onRun: handleRunMonteCarlo,
     savingsData, presentMode,
-    gatherState: stableGatherState,
+    // Remediation 6.3: the tornado depends on DATA (the gathered model state
+    // shared with the main projection), not a gatherState callback whose
+    // identity changed on every state update.
+    gatheredState: gatheredModelState,
     mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline },
   }), [
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
-    savingsData, presentMode, stableGatherState,
+    savingsData, presentMode, gatheredModelState, set, handleRunMonteCarlo,
   ]);
 
   const seqReturnsProps = useMemo(() => ({
@@ -949,6 +1002,23 @@ export default function FinancialModel() {
     chadRetirementMonth: chadWorkMonths || 72,
     chadJob401kEnabled,
   }), [monthlyDetail, starting401k, return401k, chadJob, chadWorkMonths, chadJob401kEnabled]);
+
+  // Income-composition chart props — single memo shared by the rail's
+  // 'income' entry and PlanTab (remediation 6.3: the inline object literals
+  // re-rendered the memo'd IncomeCompositionChart on every parent render).
+  const incomeChartProps = useMemo(() => ({
+    monthlyDetail, investmentReturn, ssType,
+    ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
+    vanSold, vanSaleMonth, vanMonthlySavings,
+    bcsYearsLeft, milestones,
+    compareProjections, compareColors: COMPARE_COLORS,
+  }), [
+    monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
+    vanSold, vanSaleMonth, vanMonthlySavings,
+    bcsYearsLeft, milestones, compareProjections,
+  ]);
 
   // Tax tab prop bundle. The panels read the individual tax* fields for their
   // controls and call gatherState() (the FULL gathered state — never a
@@ -1176,22 +1246,12 @@ export default function FinancialModel() {
     networth: { ...netWorthProps, instanceId: effectiveTab === 'risk' ? 'right-rail' : 'shared-rail' },
     retirement: deferredRetirementRailProps,
     bridge: bridgeProps,
-    income: {
-      monthlyDetail, investmentReturn, ssType,
-      ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
-      chadJob, chadJobStartMonth, chadJobHealthSavings,
-      vanSold, vanSaleMonth, vanMonthlySavings,
-      bcsYearsLeft, milestones,
-      compareProjections, compareColors: COMPARE_COLORS,
-    },
+    income: incomeChartProps,
     montecarlo: monteCarloProps,
     sequence: seqReturnsProps,
     chad401k: chad401kChartProps,
   }), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, bridgeProps,
-    monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
-    compareProjections, monteCarloProps, seqReturnsProps, chad401kChartProps, effectiveTab]);
+    incomeChartProps, monteCarloProps, seqReturnsProps, chad401kChartProps, effectiveTab]);
 
   const plannerWorkspace = useMemo(() => (
     <>
@@ -1222,14 +1282,7 @@ export default function FinancialModel() {
           scenarioStripProps={scenarioStripProps}
           savingsChartProps={{ ...savingsDrawdownProps, instanceId: 'plan-savings' }}
           netWorthChartProps={{ ...netWorthProps, instanceId: 'plan-networth' }}
-          incomeChartProps={{
-            monthlyDetail, investmentReturn, ssType,
-            ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
-            chadJob, chadJobStartMonth, chadJobHealthSavings,
-            vanSold, vanSaleMonth, vanMonthlySavings,
-            bcsYearsLeft, milestones,
-            compareProjections, compareColors: COMPARE_COLORS,
-          }}
+          incomeChartProps={incomeChartProps}
           capitalItems={effectiveCapitalItems}
           capitalFundingSource={capitalFundingSource}
           customLevers={customLevers}
@@ -1324,6 +1377,7 @@ export default function FinancialModel() {
     deferredPlanBridgeProps,
     incomeControlsProps,
     expenseControlsProps,
+    incomeChartProps,
     scenarioStripProps,
     deferredGoalPanelProps,
     shellWidthBucket,

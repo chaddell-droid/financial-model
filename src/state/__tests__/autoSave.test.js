@@ -3,9 +3,13 @@
  * Run with: node src/state/__tests__/autoSave.test.js
  */
 import assert from 'node:assert';
-import { extractModelState, saveModelState, loadModelState, STORAGE_KEY } from '../autoSave.js';
+import {
+  extractModelState, extractProjectionInputs, projectionInputsEqual,
+  saveModelState, loadModelState, STORAGE_KEY,
+} from '../autoSave.js';
 import { INITIAL_STATE, MODEL_KEYS } from '../initialState.js';
 import { reducer } from '../reducer.js';
+import { gatherState } from '../gatherState.js';
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -59,6 +63,123 @@ test('extractModelState preserves complex fields (goals, milestones)', () => {
   assert.strictEqual(extracted.goals[0].id, 'g1');
   assert.strictEqual(extracted.milestones.length, 1);
   assert.strictEqual(extracted.milestones[0].name, 'College');
+});
+
+console.log('\n=== extractProjectionInputs / projectionInputsEqual (remediation 6.1) ===');
+
+test('extractProjectionInputs includes MODEL_KEYS, schemaVersion, and previewMoves', () => {
+  const moves = [{ id: 'mv-1', label: 'Raise rate', mutation: { sarahRate: 240 } }];
+  const state = { ...INITIAL_STATE, previewMoves: moves };
+  const extracted = extractProjectionInputs(state);
+  for (const key of MODEL_KEYS) {
+    assert.ok(key in extracted, `extracted should contain MODEL_KEY "${key}"`);
+  }
+  assert.strictEqual(extracted.schemaVersion, INITIAL_STATE.schemaVersion, 'should carry schemaVersion');
+  assert.strictEqual(extracted.previewMoves, moves, 'should carry previewMoves by reference');
+});
+
+test('extractProjectionInputs omits UI-only fields', () => {
+  const state = {
+    ...INITIAL_STATE,
+    activeTab: 'risk',
+    scenarioName: 'typing…',
+    storageStatus: 'saved',
+    mcRunning: true,
+    mcResults: { bands: [] },
+    checkInHistory: [{ month: 3 }],
+    monthlyActuals: { '2026-05': { transactions: [] } },
+    savedScenarios: [{ name: 'x' }],
+  };
+  const extracted = extractProjectionInputs(state);
+  for (const key of ['activeTab', 'scenarioName', 'storageStatus', 'mcRunning', 'mcResults',
+    'checkInHistory', 'monthlyActuals', 'savedScenarios']) {
+    assert.ok(!(key in extracted), `extracted should NOT contain UI field "${key}"`);
+  }
+});
+
+test('projectionInputsEqual is stable across UI-only reducer changes (default behavior)', () => {
+  let state = { ...INITIAL_STATE };
+  const before = extractProjectionInputs(state);
+  // Simulate the exact UI-only dispatches that used to invalidate the projection:
+  // tab switch, scenario-name keystrokes, storage-status timer, MC running flag.
+  state = reducer(state, { type: 'SET_FIELD', field: 'activeTab', value: 'risk' });
+  state = reducer(state, { type: 'SET_FIELD', field: 'scenarioName', value: 'My plan v2' });
+  state = reducer(state, { type: 'SET_FIELD', field: 'storageStatus', value: 'saved' });
+  state = reducer(state, { type: 'SET_FIELD', field: 'mcRunning', value: true });
+  state = reducer(state, { type: 'SET_FIELD', field: 'mcResults', value: { bands: [] } });
+  const after = extractProjectionInputs(state);
+  assert.strictEqual(projectionInputsEqual(before, after), true,
+    'UI-only changes must not change the projection-input subset');
+});
+
+test('projectionInputsEqual detects model-field changes (override behavior)', () => {
+  const base = extractProjectionInputs(INITIAL_STATE);
+  // Scalar model field
+  const s1 = reducer(INITIAL_STATE, { type: 'SET_FIELD', field: 'sarahRate', value: 240 });
+  assert.strictEqual(projectionInputsEqual(base, extractProjectionInputs(s1)), false,
+    'scalar model-field change must be detected');
+  // Array model field (new reference)
+  const s2 = reducer(INITIAL_STATE, {
+    type: 'SET_FIELD', field: 'milestones',
+    value: [{ name: 'Twins to college', month: 36, savings: 3000 }],
+  });
+  assert.strictEqual(projectionInputsEqual(base, extractProjectionInputs(s2)), false,
+    'array model-field identity change must be detected');
+  // MC tunable params ARE model keys (they persist) — must be detected too
+  const s3 = reducer(INITIAL_STATE, { type: 'SET_FIELD', field: 'mcInvestVol', value: 20 });
+  assert.strictEqual(projectionInputsEqual(base, extractProjectionInputs(s3)), false,
+    'mc parameter change must be detected');
+});
+
+test('projectionInputsEqual detects previewMoves changes (edge: composed by gatherState)', () => {
+  const base = extractProjectionInputs(INITIAL_STATE);
+  const s1 = reducer(INITIAL_STATE, {
+    type: 'APPLY_PREVIEW_MOVE',
+    move: { id: 'mv-1', label: 'Raise rate', mutation: { sarahRate: 240 } },
+  });
+  assert.strictEqual(projectionInputsEqual(base, extractProjectionInputs(s1)), false,
+    'applying a preview move must invalidate the projection inputs');
+  const s2 = reducer(s1, { type: 'CLEAR_PREVIEW' });
+  assert.strictEqual(
+    projectionInputsEqual(extractProjectionInputs(s1), extractProjectionInputs(s2)),
+    false,
+    'clearing the preview must invalidate the projection inputs');
+});
+
+test('projectionInputsEqual handles null/identical references (edge)', () => {
+  const a = extractProjectionInputs(INITIAL_STATE);
+  assert.strictEqual(projectionInputsEqual(a, a), true, 'same reference is equal');
+  assert.strictEqual(projectionInputsEqual(a, null), false, 'null right is unequal');
+  assert.strictEqual(projectionInputsEqual(null, a), false, 'null left is unequal');
+});
+
+test('gatherState parity: gathering the extracted subset equals gathering the full state', () => {
+  // A full state with modified model fields, staged preview moves, AND noisy
+  // UI fields. The projection pipeline keyed on extractProjectionInputs must
+  // produce EXACTLY the same gathered (projection-ready) state as the full
+  // state object did — this locks the contract that gatherState reads only
+  // MODEL_KEYS + schemaVersion + previewMoves.
+  const full = {
+    ...INITIAL_STATE,
+    sarahRate: 225,
+    totalMonthlySpend: 38000,
+    retireDebt: true,
+    chadJob: true,
+    chadJobSalary: 180000,
+    ssType: 'ss',
+    capitalItems: [{ id: 'c1', name: 'Roof', description: '', cost: 30000, include: true, likelihood: 50 }],
+    previewMoves: [{ id: 'mv-1', label: 'Cuts', mutation: { lifestyleCutsApplied: true, cutsOverride: 1500 } }],
+    // UI noise that must not matter:
+    activeTab: 'risk',
+    scenarioName: 'noise',
+    storageStatus: 'saved',
+    mcRunning: true,
+    presentMode: true,
+  };
+  const fromSubset = gatherState(extractProjectionInputs(full));
+  const fromFull = gatherState(full);
+  assert.deepStrictEqual(fromSubset, fromFull,
+    'gatherState(extractProjectionInputs(state)) must equal gatherState(state)');
 });
 
 console.log('\n=== saveModelState ===');

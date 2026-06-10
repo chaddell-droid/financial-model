@@ -7,7 +7,7 @@ import { COLORS } from './chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
-export default function MonteCarloPanel({
+function MonteCarloPanel({
   mcResults,
   mcRunning,
   mcNumSims,
@@ -21,7 +21,7 @@ export default function MonteCarloPanel({
   onRun,
   savingsData,
   presentMode,
-  gatherState,
+  gatheredState,
   mcParams,
 }) {
   useRenderMetric('MonteCarloPanel');
@@ -35,12 +35,20 @@ export default function MonteCarloPanel({
 
   if (presentMode) return null;
 
-  // Compute sensitivity tornado when results exist
+  // Compute sensitivity tornado when results exist. Keyed on DATA — the
+  // gathered model state shared with the main projection plus its savings
+  // series — not a gatherState callback whose identity changed on every
+  // parent state update (remediation 6.3: that re-ran up to 15 full
+  // projections per keystroke while results were on screen).
   const tornado = useMemo(() => {
-    if (!mcResults || !gatherState) return null;
-    const base = gatherState();
-    const baseProj = computeProjection(base);
-    const baseFinalBal = baseProj.savingsData[baseProj.savingsData.length - 1]?.balance || 0;
+    if (!mcResults || !gatheredState) return null;
+    const base = gatheredState;
+    // Base final balance comes from the deterministic projection already
+    // computed upstream from the SAME gathered state (savingsData prop) —
+    // one fewer full computeProjection here.
+    const baseFinalBal = (savingsData && savingsData.length > 0)
+      ? (savingsData[savingsData.length - 1]?.balance || 0)
+      : 0;
     const disciplineSigma = (mcCutsDiscipline || 0) / 100;
     const baseDiscipline = base.cutsDiscipline ?? 1;
 
@@ -72,7 +80,7 @@ export default function MonteCarloPanel({
         spread: Math.abs(upFinal - downFinal),
       };
     }).sort((a, b) => b.spread - a.spread);
-  }, [mcResults, gatherState, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcCutsDiscipline]);
+  }, [mcResults, gatheredState, savingsData, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcCutsDiscipline]);
 
   return (
         <div ref={containerRef} data-testid="monte-carlo-panel" style={{
@@ -476,3 +484,8 @@ export default function MonteCarloPanel({
         </div>
   );
 }
+
+// React.memo (remediation 6.3): every prop arrives via FinancialModel's
+// memoized monteCarloProps bundle, so unrelated parent re-renders (tab
+// switches, UI-only state changes) bail out before touching this tree.
+export default React.memo(MonteCarloPanel);

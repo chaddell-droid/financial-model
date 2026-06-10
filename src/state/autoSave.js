@@ -24,6 +24,46 @@ export function extractModelState(state) {
   return model;
 }
 
+/**
+ * Projection-input subset of the full UI state (remediation 2026-06-09
+ * phase 6.1): MODEL_KEYS + schemaVersion (via extractModelState) plus
+ * previewMoves, which gatherState composes onto the model before extracting.
+ * These are the ONLY fields the projection pipeline (gatherState →
+ * computeProjection / buildTaxSchedule / buildReforecast) reads, so memos
+ * keyed on this subset ignore UI-only fields (activeTab, scenario-name
+ * keystrokes, storageStatus timers, mcRunning/mcResults, ...).
+ *
+ * If gatherState ever grows a read of another non-model field, add it here
+ * AND to projectionInputsEqual — the gatherState-parity test in
+ * autoSave.test.js locks the contract.
+ */
+export function extractProjectionInputs(state) {
+  const model = extractModelState(state);
+  if (state.previewMoves !== undefined) model.previewMoves = state.previewMoves;
+  return model;
+}
+
+// Non-MODEL_KEYS fields carried by extractProjectionInputs.
+const PROJECTION_EXTRA_KEYS = ['schemaVersion', 'previewMoves'];
+
+/**
+ * Shallow equality over the projection-input subset (Object.is per key).
+ * Object/array fields (milestones, goals, capitalItems, previewMoves, ...)
+ * compare by REFERENCE — the reducer replaces their identity whenever they
+ * change, so reference equality is exact for reducer-produced states.
+ */
+export function projectionInputsEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  for (const key of MODEL_KEYS) {
+    if (!Object.is(a[key], b[key])) return false;
+  }
+  for (const key of PROJECTION_EXTRA_KEYS) {
+    if (!Object.is(a[key], b[key])) return false;
+  }
+  return true;
+}
+
 // Lazily computed JSON of the factory-default model payload. Because
 // extractModelState iterates MODEL_KEYS in a fixed order, an
 // INITIAL_STATE-equivalent save serializes to exactly this string.

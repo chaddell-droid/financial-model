@@ -17,6 +17,12 @@ import { migrate, validateAndSanitize } from './schemaValidation.js';
  * state does NOT contain `previewMoves` (it's not in MODEL_KEYS), so callers
  * who re-pass the result into gatherState won't double-apply.
  *
+ * NOTE (remediation 6.1): this function reads ONLY MODEL_KEYS + schemaVersion
+ * + previewMoves from the input. extractProjectionInputs/projectionInputsEqual
+ * (autoSave.js) mirror that exact set so the UI can key projection memos on
+ * the subset — if you add a read of another non-model field here, update both
+ * helpers (the gatherState-parity test in autoSave.test.js locks this).
+ *
  * @param {object} state — full UI state (or a partial override merged onto INITIAL_STATE)
  * @returns {object} — projection-ready state
  */

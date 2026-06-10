@@ -2946,7 +2946,7 @@ test('RA-3. SSDI back-pay = 0 when SSDI is denied/SS-active/job-active', () => {
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== 401(k) contributions ===');
 
-test('K1. Pre-tax deferral reduces take-home by deferral × (1-tax)', () => {
+test('K1. Pre-tax deferral reduces take-home by deferral × (1-tax) PLUS FICA on the deferral (B6)', () => {
   const baseS = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadWorkMonths: 24,
@@ -2959,12 +2959,34 @@ test('K1. Pre-tax deferral reduces take-home by deferral × (1-tax)', () => {
     chadWorkMonths: 24,
   });
   const { monthlyData: k401Data } = runMonthlySimulation(k401S);
-  // Pre-tax deferral: net cashflow drops by deferral_monthly × (1 - tax + ficaSavings).
-  // = $2000 × 0.75 = $1500 (with default ficaSavings=0).
+  // B6 (remediation 2026-06-10, item 3.5): IRC §3121(v)(1)(A) — 401(k) elective
+  // deferrals are FICA wages. The deferral saves income tax but NOT the 7.65%
+  // FICA, so net cashflow drops by deferral × (1 - tax + ficaSavings) PLUS
+  // deferral × ficaRateOnPension (the same pattern the pension uses):
+  // = $2000 × 0.75 + $2000 × 0.0765 = $1500 + $153 = $1653.
   const delta = baseData[0].chadJobSalaryNet - k401Data[0].chadJobSalaryNet;
-  assert.strictEqual(delta, 1500, `take-home should drop by $1,500/mo (pre-tax), got ${delta}`);
+  assert.strictEqual(delta, 1653, `take-home should drop by $1,653/mo (pre-tax + FICA add-back), got ${delta}`);
   // chadJob401kContribGross row field exposes the gross monthly contribution.
   assert.strictEqual(k401Data[0].chadJob401kContribGross, 2000, '$2K/mo contribution exposed on row');
+});
+
+test('K1c. B6 noFICA employer: deferral FICA add-back is Medicare-only (1.45%)', () => {
+  // noFICA employer: ficaSavings=0.062 on the netMult, but the deferral still
+  // owes Medicare 1.45% (ficaRateOnPension). Drop = $2000 × (1 − 0.25 + 0.062)
+  // + $2000 × 0.0145 = $1624 + $29 = $1653.
+  const baseS = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobNoFICA: true, chadWorkMonths: 24,
+  });
+  const { monthlyData: baseData } = runMonthlySimulation(baseS);
+  const k401S = gatherStateWithOverrides({
+    chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
+    chadJobNoFICA: true, chadJob401kEnabled: true, chadJob401kDeferral: 24000,
+    chadWorkMonths: 24,
+  });
+  const { monthlyData: k401Data } = runMonthlySimulation(k401S);
+  const delta = baseData[0].chadJobSalaryNet - k401Data[0].chadJobSalaryNet;
+  assert.strictEqual(delta, 1653, `noFICA take-home should drop by $1,653/mo, got ${delta}`);
 });
 
 test('K1b. Pre-tax deferral grows 401k when no drawdown is happening', () => {

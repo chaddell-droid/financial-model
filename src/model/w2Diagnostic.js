@@ -66,7 +66,11 @@ export function computeW2Diagnostic(state) {
   const afterTaxMo = taxableMo * salaryMult;
   const pensionDeductionMo = monthlyGross * pensionContribPct;
   const pensionCashflowMo = pensionDeductionMo * pensionCashflowMult;
-  const salaryNetMo = Math.round(afterTaxMo - pensionCashflowMo - chadJob401kCatchupRoth / 12);
+  // B6 (remediation 2026-06-10, item 3.5): pre-tax deferrals are still FICA
+  // wages (IRC §3121(v)(1)(A)) — add FICA back on the deferral at the same
+  // rate the pension uses. Mirrors projection.js exactly.
+  const deferralFicaMo = (chadJob401kDeferral / 12) * ficaRateOnPension;
+  const salaryNetMo = Math.round(afterTaxMo - pensionCashflowMo - deferralFicaMo - chadJob401kCatchupRoth / 12);
   const annualSalaryNet = salaryNetMo * 12;
 
   // ─── Bonus (annual lump) ──────────────────────────────────────────────────

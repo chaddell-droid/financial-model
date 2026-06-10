@@ -276,9 +276,15 @@ export function runMonthlySimulation(s) {
       // Apply the salary netMult to the full taxable gross, then subtract the pension dollar
       // weighted by its own cashflow mult (saves income tax, still pays FICA).
       const pensionDeduction = monthlySalaryGross * pensionContrib;
+      // B6 (remediation 2026-06-10, item 3.5): IRC §3121(v)(1)(A) — 401(k)
+      // elective deferrals are STILL FICA wages. Subtracting the deferral
+      // before the all-in netMult wrongly "saved" the 7.65% FICA too; add it
+      // back at the same rate the pension uses (Medicare-only 1.45% when the
+      // employer is non-SS-covered). Mirrored in w2Diagnostic.js.
       chadJobSalaryNet = Math.round(
         taxableSalaryGross * chadJobSalaryNetMult
         - pensionDeduction * pensionCashflowMult
+        - chadJob401kDeferralMonthly * ficaRateOnPension
         - chadJob401kCatchupRothMonthly
       );
       chadJob401kContribGross = Math.round(chadJob401kDeferralMonthly + chadJob401kCatchupRothMonthly);

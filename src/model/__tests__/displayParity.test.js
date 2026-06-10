@@ -981,7 +981,10 @@ function computeUiW2Diagnostic(s) {
   const afterTaxMo = taxableMo * salaryMult;
   const pensionDeductionMo = monthlyGross * pensionContribPct;
   const pensionCashflowMo = pensionDeductionMo * pensionCashflowMult;
-  const salaryNetMo = Math.round(afterTaxMo - pensionCashflowMo - catchup / 12);
+  // B6 (remediation 2026-06-10, item 3.5): the pre-tax deferral still owes FICA
+  // (IRC §3121(v)(1)(A)) — add it back at the same rate the pension uses.
+  const deferralFicaMo = (deferral / 12) * ficaRateOnPension;
+  const salaryNetMo = Math.round(afterTaxMo - pensionCashflowMo - deferralFicaMo - catchup / 12);
   const annualSalaryNet = salaryNetMo * 12;
   const bonusGrossYr = effectiveSalary * (s.chadJobBonusPct || 0) / 100;
   const bonusNetYr = bonusGrossYr * bonusMult;
@@ -1010,13 +1013,16 @@ function computeUiW2Diagnostic(s) {
 }
 
 test('W2-1: salary walk with 401k deferral + Roth catch-up matches engine', () => {
-  // 180K salary, 25% tax, $24.5K deferral, $11.25K Roth → walk: 15000 − 2042 = 12958 × 0.75 − 938 = 8781
+  // B6 (remediation 2026-06-10, item 3.5): 180K salary, 25% tax, $24.5K deferral,
+  // $11.25K Roth → walk: (15000 − 2041.67) × 0.75 = 9718.75, minus FICA on the
+  // deferral 2041.67 × 0.0765 = 156.19, minus Roth 937.50 → 8625 (was 8781 when
+  // the deferral wrongly escaped FICA).
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
   };
   const ui = computeUiW2Diagnostic(overrides);
-  assert.strictEqual(ui.salaryNetMo, 8781, `Expected $8,781/mo, got ${ui.salaryNetMo}`);
+  assert.strictEqual(ui.salaryNetMo, 8625, `Expected $8,625/mo, got ${ui.salaryNetMo}`);
   const s = gatherStateWithOverrides(overrides);
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].chadJobSalaryNet, ui.salaryNetMo,
@@ -1102,13 +1108,15 @@ test('W2-7: SSDI net impact uses W-2 total monthly + monthly health (not salary-
     ssType: 'ssdi', ssdiFamilyTotal: 6321, ssdiPersonal: 4214,
   };
   const ui = computeUiW2Diagnostic(overrides);
-  // totalAvgMo should be ≈ ($105,372 + $27,000 + $30,000 + $30,000) / 12 = $16,031
-  assert.strictEqual(ui.totalAvgMo, 16031, `Expected total avg $16,031/mo, got ${ui.totalAvgMo}`);
+  // B6 (item 3.5): salary walk now pays FICA on the $24.5K deferral
+  // (−$156/mo → salaryNetMo 8625), so totalAvgMo = ($103,500 + $27,000 +
+  // $30,000 + $30,000) / 12 = $15,875 (was $16,031).
+  assert.strictEqual(ui.totalAvgMo, 15875, `Expected total avg $15,875/mo, got ${ui.totalAvgMo}`);
   // Correct SSDI net impact: W-2 total + monthly health − rate
   const netFamily = Math.round(ui.totalAvgMo + ui.monthlyHealthSavings - 6321);
   const netSteady = Math.round(ui.totalAvgMo + ui.monthlyHealthSavings - 4214);
-  assert.strictEqual(netFamily, 13910, `Family net = 16031 + 4200 - 6321 = 13910, got ${netFamily}`);
-  assert.strictEqual(netSteady, 16017, `Steady net = 16031 + 4200 - 4214 = 16017, got ${netSteady}`);
+  assert.strictEqual(netFamily, 13754, `Family net = 15875 + 4200 - 6321 = 13754, got ${netFamily}`);
+  assert.strictEqual(netSteady, 15861, `Steady net = 15875 + 4200 - 4214 = 15861, got ${netSteady}`);
 });
 
 test('W2-8: totalAvgMo includes salary + bonus + refresh + hire stock (with MSFT growth)', () => {
@@ -1211,10 +1219,12 @@ test('W2-REAL (§2c#1): EXPORTED computeW2Diagnostic field-by-field for the W2-7
   const s = gatherStateWithOverrides(overrides);
   const d = computeW2Diagnostic(s);
 
-  // Salary walk: 180000/12 = 15000; − 24500/12 = 2041.67 → taxable 12958.33;
-  // × 0.75 = 9718.75; − 11250/12 = 937.5 → 8781.25 → round 8781.
-  assert.strictEqual(d.salaryNetMo, 8781, `salaryNetMo expected 8781, got ${d.salaryNetMo}`);
-  assert.strictEqual(d.annualSalaryNet, 8781 * 12, `annualSalaryNet expected ${8781 * 12}, got ${d.annualSalaryNet}`);
+  // Salary walk (B6, item 3.5): 180000/12 = 15000; − 24500/12 = 2041.67 →
+  // taxable 12958.33; × 0.75 = 9718.75; − FICA on deferral 2041.67 × 0.0765 =
+  // 156.19; − 11250/12 = 937.5 → 8625.06 → round 8625 (was 8781 when the
+  // deferral wrongly escaped FICA).
+  assert.strictEqual(d.salaryNetMo, 8625, `salaryNetMo expected 8625, got ${d.salaryNetMo}`);
+  assert.strictEqual(d.annualSalaryNet, 8625 * 12, `annualSalaryNet expected ${8625 * 12}, got ${d.annualSalaryNet}`);
   // Bonus: 180000 × 0.20 = 36000 gross × 0.75 = 27000.
   assert.strictEqual(Math.round(d.bonusGrossYr), 36000, `bonusGrossYr expected 36000, got ${d.bonusGrossYr}`);
   assert.strictEqual(Math.round(d.bonusNetYr), 27000, `bonusNetYr expected 27000, got ${Math.round(d.bonusNetYr)}`);
@@ -1227,8 +1237,8 @@ test('W2-REAL (§2c#1): EXPORTED computeW2Diagnostic field-by-field for the W2-7
   assert.strictEqual(Math.round(d.pensionCashflowMo), 0, `pensionCashflowMo expected 0, got ${d.pensionCashflowMo}`);
   // Monthly health: the field is $/month — passes through, no ÷12.
   assert.strictEqual(d.monthlyHealthSavings, 4200, `monthlyHealthSavings expected 4200 (field is $/mo), got ${d.monthlyHealthSavings}`);
-  // Total avg: (105372 + 27000 + 30000 + 30000) / 12 = 16031.
-  assert.strictEqual(d.totalAvgMo, 16031, `totalAvgMo expected 16031, got ${d.totalAvgMo}`);
+  // Total avg (B6): (103500 + 27000 + 30000 + 30000) / 12 = 15875 (was 16031).
+  assert.strictEqual(d.totalAvgMo, 15875, `totalAvgMo expected 15875, got ${d.totalAvgMo}`);
 
   // Engine parity: month-0 salary net must equal the exported diagnostic salaryNetMo.
   const { monthlyData } = runMonthlySimulation(s);

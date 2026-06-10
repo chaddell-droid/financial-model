@@ -92,12 +92,35 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
     }
   }
 
-  const markers = expenseEvents.filter(ev => ev.savings > 0).map(ev => {
+  // --- P8 (improvement b-1): TWP/EPE phase-boundary annotations ---
+  // The engine emits twpPhase per month ('twp'|'grace'|'suspended'|'epe'|
+  // 'reinstated'|null); annotate the FIRST month of each phase. Same dashed
+  // vertical-line + label-above pattern as the expense events (blue, no $).
+  const TWP_PHASE_LABELS = {
+    twp: 'TWP starts (full SSDI + pay)',
+    grace: 'TWP done — 3-mo grace',
+    suspended: 'SSDI suspended (over SGA)',
+    epe: 'SSDI resumes (EPE)',
+    reinstated: 'SSDI reinstated (EXR)',
+  };
+  const twpEvents = [];
+  {
+    const seenPhases = new Set();
+    for (const d of data) {
+      const ph = d.twpPhase || null;
+      if (ph && !seenPhases.has(ph)) {
+        seenPhases.add(ph);
+        twpEvents.push({ month: d.month, label: TWP_PHASE_LABELS[ph] || ph, savings: null, color: COLORS.blue });
+      }
+    }
+  }
+
+  const markers = [...expenseEvents.filter(ev => ev.savings > 0), ...twpEvents].map(ev => {
     const idx = data.findIndex(d => d.month >= ev.month);
     if (idx < 0) return null;
     const pctX = ((idx + 0.5) / n) * 100;
     return { ...ev, idx, pctX };
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => a.pctX - b.pctX);
 
   // Stagger annotation rows to prevent horizontal overlap
   const usedSlots = [];
@@ -151,11 +174,11 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                 fontSize: 9,
                 fontWeight: 600,
                 fontFamily: "'JetBrains Mono', monospace",
-                color: COLORS.green,
+                color: m.color || COLORS.green,
                 whiteSpace: 'nowrap',
                 pointerEvents: 'none',
               }}>
-                {m.label} -{fmtFull(m.savings)}
+                {m.savings != null ? `${m.label} -${fmtFull(m.savings)}` : m.label}
               </div>
             ))}
           </div>
@@ -361,7 +384,7 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
               top: 0,
               width: 0,
               height: stackH,
-              borderLeft: `1px dashed ${COLORS.green}`,
+              borderLeft: `1px dashed ${m.color || COLORS.green}`,
               opacity: 0.4,
               pointerEvents: 'none',
               zIndex: 2,

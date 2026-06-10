@@ -30,6 +30,7 @@ export function useChartPropBundles({
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
     postJobBenefit,
+    twpEnabled, // P8 (2026-06-10, b-1): TWP/EPE module toggle
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     chadCurrentAge, chadAge65VestOverride,
     chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
@@ -137,6 +138,7 @@ export function useChartPropBundles({
     msftPrice, msftGrowth,
     chadWorkMonths,
     postJobBenefit,
+    twpEnabled, // P8 (2026-06-10, b-1)
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     chadTaxBreakdown,
@@ -158,6 +160,7 @@ export function useChartPropBundles({
     msftPrice, msftGrowth,
     chadWorkMonths,
     postJobBenefit,
+    twpEnabled, // P8 (2026-06-10, b-1)
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     chadTaxBreakdown, set,

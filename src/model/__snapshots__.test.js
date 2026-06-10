@@ -2273,7 +2273,10 @@ console.log('\n=== Integration Regression Snapshots ===');
 test('R1: job scenario balance at month 71', () => {
   const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -558521); // was -209379 pre-D7; 6.2 college -$189.7k (33 mo x $5,666 by m=71); 6.4 +$29.4k (employer coverage zeroes the trended premium — pre-6.4 the flat -$4,200 offset lagged the inflating base)
+  // P8 (b-1, 2026-06-10): +$221.1k vs the pre-TWP lock (-558521) — the W-2 job
+  // no longer forfeits SSDI: $90.4k back pay (m=9) + 12 months of family-total
+  // benefit through the TWP (m=7..15) + grace (m=16..18), plus compounding.
+  assert.strictEqual(monthlyData[71].balance, -337444); // was -558521 pre-P8; -209379 pre-D7; 6.2 college -$189.7k; 6.4 +$29.4k
 });
 
 // R2 — Month-0 job income

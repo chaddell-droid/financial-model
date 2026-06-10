@@ -82,6 +82,8 @@ const NON_DEFAULT_VALUES = {
   ssKidsAgeOutMonths: 24,
   // Post-job benefit selector (flipped from default 'ssRetirement')
   postJobBenefit: 'ssdi',
+  // P8 (2026-06-10): TWP/EPE module toggle (flipped from default true)
+  twpEnabled: false,
   // Sarah's spousal + own-record benefit
   sarahSpousalEnabled: false,      // flipped
   sarahCurrentAge: 60,

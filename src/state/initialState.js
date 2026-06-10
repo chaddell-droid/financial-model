@@ -42,6 +42,13 @@ export const INITIAL_STATE = {
   // Only consulted when chadJob=true. The pre-job ssType field still controls
   // the SSDI/SS branch when chadJob=false.
   postJobBenefit: 'ssRetirement',
+  // P8 (remediation 2026-06-10, improvement b-1, gate D8): Trial Work Period /
+  // EPE module. When ssType='ssdi' AND chadJob is on, model SSA's real work
+  // incentives instead of instant forfeiture: 9 TWP service months (full SSDI
+  // + paycheck), 3-month grace, suspension in over-SGA months during the
+  // 36-month EPE, then EPE resume / expedited reinstatement when work stops.
+  // Back pay is received (the claim was approved). false = legacy forfeiture.
+  twpEnabled: true,
   // B5 (2026-06-10): gatherState computes the SS family total via the statutory
   // bend-point family maximum (familyMaxForPIA) — aux pool = FMAX − PIA on top of
   // the reduced worker benefit. This default is only a placeholder (recomputed
@@ -387,7 +394,7 @@ export const MODEL_KEYS = [
   'msftPrice', 'msftGrowth',
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting', 'ssColaRate',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
-  'postJobBenefit',
+  'postJobBenefit', 'twpEnabled',
   'sarahSpousalEnabled', 'sarahCurrentAge', 'sarahSpousalClaimAge', 'sarahOwnSS',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',

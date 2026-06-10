@@ -39,6 +39,10 @@ export const SSA_LIMITS = {
     earningsTestAnnual: 24480,        // lower exempt amount, $1 withheld per $2 over (pre-FRA years)
     earningsTestFraYearAnnual: 65160, // FRA-calendar-year exempt amount, $1 per $3 over
     sgaMonthly: 1690,                 // SGA, non-blind
+    // P8 (improvement b-1): TWP service-month threshold — a month counts toward
+    // the 9-month Trial Work Period when gross earnings reach this amount.
+    // 2026 value verified against ssa.gov/oact/cola/twp.html (2026-06-10).
+    twpServiceMonthly: 1210,
     attorneyFeeCap: 9200,             // SSA fee-agreement cap — statutory, raised ad hoc (Nov 2024), NOT auto-indexed
   },
 };
@@ -58,6 +62,7 @@ export function getSsaLimitsForYear(year) {
     earningsTestAnnual: Math.round(base.earningsTestAnnual * factor / 120) * 120,
     earningsTestFraYearAnnual: Math.round(base.earningsTestFraYearAnnual * factor / 120) * 120,
     sgaMonthly: Math.round(base.sgaMonthly * factor / 10) * 10, // SGA rounds to $10
+    twpServiceMonthly: Math.round(base.twpServiceMonthly * factor / 10) * 10, // TWP rounds to $10 (wage-indexed like SGA)
     attorneyFeeCap: base.attorneyFeeCap, // pinned until SSA raises it by rule
   };
   ssaLimitsCache.set(y, projected);

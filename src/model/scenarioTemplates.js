@@ -38,7 +38,10 @@ export const SCENARIO_TEMPLATES = [
   {
     id: 'chad-w2-job',
     name: 'Chad Gets W-2 Job',
-    description: 'Chad employed with salary + health benefits (no SSDI)',
+    // P8 (2026-06-10): with twpEnabled (default true) the job no longer
+    // forfeits SSDI — full benefit rides through the 9 TWP service months +
+    // 3-month grace, then suspends while over SGA during the EPE.
+    description: 'Chad employed with salary + health benefits (SSDI rides through TWP, then suspends)',
     overrides: {
       chadJob: true, chadJobSalary: 120000, chadJobStartMonth: 3, chadConsulting: 0,
       chadJobNoFICA: false, chadJobPensionRate: 0, chadJobPensionContrib: 0,

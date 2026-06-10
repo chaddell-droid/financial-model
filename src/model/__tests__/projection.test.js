@@ -1801,10 +1801,14 @@ test('Job + SS at 62: full SS after job ends at chadRetirementMonth', () => {
   assert.strictEqual(monthlyData[73].ssBenefitGross, s.ssPersonal, 'full SS personal (gross) after job ends'); // A1
 });
 
-test('Job + SSDI: SSDI still zeroed (SGA rules)', () => {
+test('Job + SSDI: SSDI still zeroed (SGA rules) — legacy mode (twpEnabled=false)', () => {
+  // P8 (2026-06-10): with twpEnabled (default true) a job no longer forfeits
+  // SSDI — the TWP/EPE schedule applies (locked in twp.test.js). This test
+  // locks the LEGACY instant-forfeiture path behind the toggle.
   const s = gatherStateWithOverrides({
     ssType: 'ssdi', ssdiApprovalMonth: 0,
     chadJob: true, chadJobSalary: 80000,
+    twpEnabled: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].ssBenefit, 0, 'SSDI zeroed with job');
@@ -1900,9 +1904,11 @@ test('61. Verify monthly income and expense difference between chadJob=true and 
 
 // ---- Test 62: Verify SSDI is zeroed when chadJob=true ----
 test('62. SSDI is zeroed for all months when chadJob=true', () => {
+  // P8 (2026-06-10): legacy forfeiture now requires twpEnabled=false — the
+  // default models SSA's TWP/EPE work incentives (locked in twp.test.js).
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
-    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200, twpEnabled: false,
     ssType: 'ssdi', ssdiApprovalMonth: 0, ssdiDenied: false,
     ssdiFamilyTotal: 6500, ssdiPersonal: 4166, kidsAgeOutMonths: 36,
   });
@@ -1988,9 +1994,11 @@ test('66. Savings trajectory diverges: balance at month 72 differs between chadJ
 
 // ---- Test 67: Verify back pay is zeroed when chadJob=true ----
 test('67. Back pay is zeroed when chadJob=true', () => {
+  // P8 (2026-06-10): legacy mode only — with twpEnabled (default) the claim
+  // is approved and back pay flows (locked in twp.test.js TWP-7).
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000,
-    chadJobTaxRate: 25, chadJobHealthSavings: 4200,
+    chadJobTaxRate: 25, chadJobHealthSavings: 4200, twpEnabled: false,
     ssType: 'ssdi', ssdiApprovalMonth: 7, ssdiDenied: false,
     ssdiBackPayMonths: 18, ssdiPersonal: 4166,
   });
@@ -3047,7 +3055,10 @@ test('RA-3. SSDI back-pay = 0 when SSDI is denied/SS-active/job-active', () => {
   const ssRetirement = gatherStateWithOverrides({ ssType: 'ss' });
   assert.strictEqual(runMonthlySimulation(ssRetirement).backPayActual, 0);
 
-  const jobActive = gatherStateWithOverrides({ chadJob: true });
+  // P8 (2026-06-10): the job-active case zeroes back pay only in legacy mode
+  // (twpEnabled=false). With the TWP module (default) back pay is received —
+  // locked in twp.test.js TWP-7.
+  const jobActive = gatherStateWithOverrides({ chadJob: true, twpEnabled: false });
   assert.strictEqual(runMonthlySimulation(jobActive).backPayActual, 0);
 });
 
@@ -3447,6 +3458,10 @@ test('P15. Extended horizon scenario does not crash savings (post-ret SS fallbac
     chadCurrentAge: 61, chadAge65VestOverride: 'auto',
     startingSavings: 200000, starting401k: 1000000,
     ssPersonal: 2933,
+    // P8 (2026-06-10): this test exercises the post-retirement SS FALLBACK
+    // machinery, which the TWP module supersedes on the default SSDI path —
+    // disable TWP so the fallback path stays under test.
+    twpEnabled: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   // Horizon extends to chadRetirementMonth + 60 when age-65 applies + grants.

@@ -59,6 +59,7 @@ export function applyInterimSsTax(totalBenefit, personalBenefit, rate = SS_INTER
   return kidShare + Math.round(adultShare * (1 - rate));
 }
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
+import { isTwpActive, buildTwpSchedule } from './twp.js';
 import { computeOneTimeTotal } from '../state/gatherState.js';
 
 export function findOperationalBreakevenIndex(rows) {
@@ -82,8 +83,16 @@ export function runMonthlySimulation(s) {
   const cutsDiscipline = s.cutsDiscipline ?? 1.0;
   const useSS = s.ssType === 'ss';
   const chadJob = s.chadJob || false;
-  // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
-  const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
+  // P8 (remediation 2026-06-10, improvement b-1, gate D8): TWP/EPE module.
+  // When active (ssdi + chadJob + twpEnabled, default true), a job no longer
+  // instantly forfeits SSDI — the per-month schedule below pays the full
+  // benefit through 9 TWP service months + the 3-month grace, suspends it in
+  // over-SGA EPE months, and reinstates it (EPE resume / EXR) when work
+  // stops. twpEnabled=false keeps the legacy instant-forfeiture behavior.
+  const twpActive = isTwpActive(s);
+  // If SS retirement, SSDI denied, or Chad has a job WITHOUT the TWP module:
+  // no SSDI, no back pay.
+  const effectiveSsdiApproval = (useSS || (chadJob && !twpActive)) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
   // ── P7 (remediation 2026-06-10, improvement a-1): taxMode='engine' ──
   // Per-year effective rates from buildTaxSchedule drive the tax treatment of
   // every income stream, replacing the flat multipliers (sarahTaxRate,
@@ -99,7 +108,8 @@ export function runMonthlySimulation(s) {
   // Bound auxiliary months by kidsAgeOutMonths as a forward-looking proxy: if kids are
   // eligible at/after approval they were eligible during the (past) back-pay window too.
   // Attorney fee applies only to the worker's share, not auxiliary benefits.
-  const totalBackPayMonths = (useSS || chadJob || s.ssdiDenied) ? 0 : (s.ssdiBackPayMonths || 0);
+  // P8: with the TWP module active the claim IS approved — back pay flows.
+  const totalBackPayMonths = (useSS || (chadJob && !twpActive) || s.ssdiDenied) ? 0 : (s.ssdiBackPayMonths || 0);
   const auxBackPayMonths = Math.min(totalBackPayMonths, s.kidsAgeOutMonths || 0);
   const adultBackPayGross = totalBackPayMonths * (s.ssdiPersonal || 4214);
   const auxBackPayGross = auxBackPayMonths * Math.max(0, (s.ssdiFamilyTotal || 6321) - (s.ssdiPersonal || 4214));
@@ -293,6 +303,9 @@ export function runMonthlySimulation(s) {
   const capitalOutlayAtStart = capitalFromSavings
     ? computeOneTimeTotal(s.capitalItems) + (s.retireDebt ? debtPayoffTotal : 0)
     : 0;
+
+  // P8: per-month TWP/EPE schedule (single source shared with taxProjection.js).
+  const twpSchedule = twpActive ? buildTwpSchedule(s, months) : null;
 
   const monthlyData = [];
   let balance = s.startingSavings || 0;
@@ -585,6 +598,7 @@ export function runMonthlySimulation(s) {
     // chart tooltip correctly attributes the kids portion only when kids are active.
     let ssBenefit = 0;
     let ssBenefitPersonal = 0;
+    let twpPhaseThisMonth = null; // P8: 'twp'|'grace'|'suspended'|'epe'|'reinstated'|null
     if (useSS) {
       if (m >= ssStartMonth) {
         // B2 (remediation 2026-06-10, item 1.7): apply the SSA recredit (ARF)
@@ -604,15 +618,21 @@ export function runMonthlySimulation(s) {
         ssBenefit = (m < ssStartMonth + ssKidsAgeOutMonths) ? ssFamilyTotal : personalNow;
         ssBenefitPersonal = personalNow;
       }
-    } else if (!chadJob && m >= effectiveSsdiApproval) {
+    } else if ((!chadJob || twpActive) && m >= effectiveSsdiApproval) {
       // FIX #8: Kids age-out is CALENDAR-ANCHORED, not relative to approval month.
       // B4 (remediation 2026-06-10): anchored to SS_CHILD_BENEFIT_END_MONTH (=40,
       // student rule — benefits run through HS graduation June 2029), not the 18th
       // birthday (TWINS_AGE_OUT_MONTH=34, kept for the CTC).
       // The legacy `kidsAgeOutMonths` state field (default 36) is preserved for back-compat
       // (still used to bound auxiliary back-pay months above), but ignored on this path.
-      ssBenefit = m < SS_CHILD_BENEFIT_END_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
-      ssBenefitPersonal = s.ssdiPersonal || 0;
+      // P8: with the TWP module active, the schedule gates payability — full
+      // benefit through TWP + grace, $0 in suspended/terminated months, and
+      // payable again on EPE resume / EXR reinstatement.
+      if (!twpActive || twpSchedule[m].payable) {
+        ssBenefit = m < SS_CHILD_BENEFIT_END_MONTH ? s.ssdiFamilyTotal : s.ssdiPersonal;
+        ssBenefitPersonal = s.ssdiPersonal || 0;
+      }
+      if (twpActive) twpPhaseThisMonth = twpSchedule[m].phase;
     }
     // Post-employment benefit: when Chad finishes his W-2 job and no SS income
     // is currently flowing (the pre-job ssType branch was suppressed by chadJob),
@@ -627,7 +647,10 @@ export function runMonthlySimulation(s) {
     // field existed get the conservative age-gated behavior, NOT the prior bug
     // (which paid the FRA amount immediately regardless of Chad's actual age).
     let postJobBenefitTypeThisMonth = null;
-    if (ssBenefit === 0 && chadJob && m > chadRetirementMonth) {
+    // P8: when the TWP module is active it OWNS the post-job benefit path
+    // (EPE resume / EXR reinstatement above) — the postJobBenefit fallback
+    // would double-model a second benefit stream on top of it.
+    if (ssBenefit === 0 && chadJob && !twpActive && m > chadRetirementMonth) {
       const postJobMode = s.postJobBenefit || 'ssRetirement';
       if (postJobMode === 'ssRetirement') {
         const claimAge = s.ssClaimAge || 67;
@@ -1157,6 +1180,10 @@ export function runMonthlySimulation(s) {
       mortgageBalance: Math.round(mortgageBalance),
       mortgagePrincipal: Math.round(mortgagePrincipal),
       expensesClamped, // C12: true when the floor-at-zero clamp bound this month
+      // P8 (improvement b-1): TWP/EPE phase this month (null when the module
+      // is inactive or the month is an ordinary SSDI month). Drives the
+      // IncomeCompositionChart phase-boundary annotations.
+      twpPhase: twpPhaseThisMonth,
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,
       netMonthly: cashIncome + investReturn - expenses,

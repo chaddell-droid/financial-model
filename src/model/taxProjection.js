@@ -14,6 +14,7 @@
 
 import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, SSDI_ATTORNEY_FEE_CAP, SS_START_OFFSET, ssAdjustmentFactor } from './constants.js';
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
+import { isTwpActive, buildTwpSchedule } from './twp.js';
 
 // Mirror the projection's quarterly stock-vest helpers (kept in sync).
 function isStockVestMonth(m) {
@@ -132,8 +133,13 @@ function estimateAnnualSSBenefitsCore(s) {
   const ssKidsOut = s.ssKidsAgeOutMonths ?? 18;
   const kidsOut = s.kidsAgeOutMonths || 0;
   const chadRetirementMonth = s.chadRetirementMonth || 72;
-  // Same gate as projection.js: SS retirement, denial, or active job → no SSDI.
-  const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
+  // P8 (improvement b-1): same TWP/EPE gating as projection.js — single
+  // source via buildTwpSchedule so engine-mode SS amounts match the engine.
+  const twpActive = isTwpActive(s);
+  const twpSchedule = twpActive ? buildTwpSchedule(s, months) : null;
+  // Same gate as projection.js: SS retirement, denial, or active job
+  // WITHOUT the TWP module → no SSDI.
+  const effectiveSsdiApproval = (useSS || (chadJob && !twpActive)) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
   const ssFamilyTotal = s.ssFamilyTotal || 7099;
   const ssPersonal = s.ssPersonal || 2933;
   const ssdiApproval = s.ssdiApprovalMonth ?? 7;
@@ -146,14 +152,18 @@ function estimateAnnualSSBenefitsCore(s) {
         benefit = (m < ssStart + ssKidsOut) ? ssFamilyTotal : ssPersonal;
         adultBenefit = ssPersonal;
       }
-    } else if (!chadJob && m >= effectiveSsdiApproval) {
+    } else if ((!chadJob || twpActive) && m >= effectiveSsdiApproval) {
       // Calendar-anchored kids age-out, matching projection.js FIX #8.
       // B4 (2026-06-10): student-rule end month, mirroring projection.js.
-      benefit = (m < SS_CHILD_BENEFIT_END_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
-      adultBenefit = s.ssdiPersonal || 0;
+      // P8: the TWP schedule gates payability exactly as in projection.js.
+      if (!twpActive || twpSchedule[m].payable) {
+        benefit = (m < SS_CHILD_BENEFIT_END_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+        adultBenefit = s.ssdiPersonal || 0;
+      }
     }
-    // Post-job benefit fallback — mirrors projection.js's postJobBenefit branch.
-    if (benefit === 0 && chadJob && m > chadRetirementMonth) {
+    // Post-job benefit fallback — mirrors projection.js's postJobBenefit branch
+    // (P8: suppressed while the TWP module owns the path).
+    if (benefit === 0 && chadJob && !twpActive && m > chadRetirementMonth) {
       const postJobMode = s.postJobBenefit || 'ssRetirement';
       if (postJobMode === 'ssRetirement') {
         const claimAge = s.ssClaimAge || 67;
@@ -191,7 +201,7 @@ function estimateAnnualSSBenefitsCore(s) {
   // Re-derive backPayActual the same way projection.js does (in case the caller
   // hasn't already attached it to state).
   let backPay = null;
-  if (!useSS && !chadJob && !s.ssdiDenied && (s.ssdiBackPayMonths || 0) > 0) {
+  if (!useSS && (!chadJob || twpActive) && !s.ssdiDenied && (s.ssdiBackPayMonths || 0) > 0) {
     const totalBackPayMonths = s.ssdiBackPayMonths || 0;
     const auxBackPayMonths = Math.min(totalBackPayMonths, kidsOut);
     const ssdiPersonal = s.ssdiPersonal || 4214;

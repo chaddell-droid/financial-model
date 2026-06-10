@@ -33,6 +33,10 @@ function buildState(overrides) {
     ssdiPersonal: 4214,
     ssdiFamilyTotal: 6321,
     ssType: 'ssdi',                     // Default state path that triggered the original bug
+    // P8 (2026-06-10): the TWP/EPE module (twpEnabled default true) supersedes
+    // the postJobBenefit fallback on the ssdi+job path — disable it here so the
+    // fallback machinery itself stays under test (TWP is locked in twp.test.js).
+    twpEnabled: false,
     ...overrides,
   });
 }
@@ -171,6 +175,7 @@ test('PJB-8 (2.4): pre-job and post-job paths start SS benefits in the SAME mont
       ssClaimAge: claimAge, ssPIA: 4214,
       sarahWorkMonths: 132,
       expenseInflation: false, // A2: isolate the start-month parity from SS COLA
+      twpEnabled: false, // P8: keep the fallback path under test (TWP locked in twp.test.js)
     });
     const postData = runMonthlySimulation(post).monthlyData;
     const postFirst = postData.findIndex(d => d.ssBenefit > 0);
@@ -202,6 +207,7 @@ test('PJB-9 (2.4): post-job gate does NOT depend on chadCurrentAge (calendar anc
       ssType: 'ssdi', postJobBenefit: 'ssRetirement',
       ssClaimAge: 62, ssPIA: 4214, chadCurrentAge: age,
       sarahWorkMonths: 96,
+      twpEnabled: false, // P8: keep the fallback path under test (TWP locked in twp.test.js)
     });
     const { monthlyData } = runMonthlySimulation(s);
     const first = monthlyData.findIndex(d => d.ssBenefit > 0);

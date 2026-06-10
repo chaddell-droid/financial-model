@@ -210,12 +210,23 @@ test('ssdi-max-consulting has non-zero consulting after SSDI approval', () => {
     `consulting should be positive at approval month ${approvalMonth}`);
 });
 
-test('chad-w2-job has zero ssBenefit for all months', () => {
+test('chad-w2-job: SSDI rides through TWP + grace, then suspends (P8, b-1)', () => {
+  // P8 (2026-06-10): twpEnabled defaults true — the W-2 job no longer
+  // instantly forfeits SSDI. Approval m=7 (job starts m=3, $120K >> SGA):
+  // TWP service months 7..15, grace 16..18, suspended from 19 while working.
   const template = SCENARIO_TEMPLATES.find(t => t.id === 'chad-w2-job');
   const { sim } = runScenario(template.overrides);
-  for (let m = 0; m < sim.monthlyData.length; m++) {
+  for (let m = 0; m < 7; m++) {
     assert.strictEqual(sim.monthlyData[m].ssBenefit, 0,
-      `month ${m}: ssBenefit should be 0 with job, got ${sim.monthlyData[m].ssBenefit}`);
+      `month ${m}: no SSDI before approval, got ${sim.monthlyData[m].ssBenefit}`);
+  }
+  for (let m = 7; m <= 18; m++) {
+    assert.ok(sim.monthlyData[m].ssBenefit > 0,
+      `month ${m}: full SSDI during TWP/grace, got ${sim.monthlyData[m].ssBenefit}`);
+  }
+  for (let m = 19; m <= 72; m++) {
+    assert.strictEqual(sim.monthlyData[m].ssBenefit, 0,
+      `month ${m}: suspended while over SGA, got ${sim.monthlyData[m].ssBenefit}`);
   }
 });
 

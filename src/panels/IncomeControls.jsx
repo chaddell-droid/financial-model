@@ -33,6 +33,7 @@ const IncomeControls = ({
   msftPrice, msftGrowth,
   chadWorkMonths,
   postJobBenefit,
+  twpEnabled,
   trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
   vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
   hideVan = false,
@@ -45,6 +46,9 @@ const IncomeControls = ({
   const set = onFieldChange;
   const commitStrategy = 'release';
   const sgaLimit = SGA_LIMIT;
+  // P8 (improvement b-1): TWP module is ON for the ssdi+job combo unless
+  // explicitly toggled off (mirrors isTwpActive in src/model/twp.js).
+  const twpOn = ssType === 'ssdi' && !ssdiDenied && twpEnabled !== false;
   // C10 (item 5.1): dead locals deleted — all W-2 math lives in w2Diagnostic.js.
   const effectiveTaxRate = chadJobTaxRate ?? 25;
   // === W-2 component calculations — used by BOTH the W-2 diagnostic AND the SSDI comparison.
@@ -88,7 +92,10 @@ const IncomeControls = ({
                   { value: 'ssdi', label: 'SSDI (Disability)' },
                   { value: 'ss', label: 'SS Retirement' },
                 ].map(opt => {
-                  const disabled = chadJob && opt.value === 'ssdi';
+                  // P8: SSDI is selectable alongside a job — the TWP/EPE module
+                  // models SSA's work incentives. Only the legacy (TWP off)
+                  // mode keeps the hard exclusion.
+                  const disabled = chadJob && opt.value === 'ssdi' && twpEnabled === false;
                   return (
                   <button
                     key={opt.value}
@@ -111,7 +118,9 @@ const IncomeControls = ({
               </div>
               <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 6, fontStyle: "italic" }}>
                 {chadJob
-                  ? "SSDI not available while employed (SGA rules). SS retirement can coexist with a job — earnings test applies."
+                  ? (twpOn
+                      ? "SSDI + job: SSA's Trial Work Period applies — full SSDI for 9 TWP months + 3-month grace, then suspended while over SGA (EPE). SS retirement uses the earnings test instead."
+                      : "SSDI not available while employed (SGA rules — TWP modeling is off). SS retirement can coexist with a job — earnings test applies.")
                   : "SSDI and SS retirement cannot be received at the same time."
                 }
               </div>
@@ -155,6 +164,24 @@ const IncomeControls = ({
                   <Slider label="Start month" value={chadJobStartMonth} onChange={set('chadJobStartMonth')} commitStrategy={commitStrategy} min={0} max={24} color={COLORS.greenDark} format={(v) => v === 0 ? "Now" : v + " mo"} />
                   <Slider label="Chad works for" value={chadWorkMonths} onChange={set('chadWorkMonths')} commitStrategy={commitStrategy} min={12} max={144} step={3} color={COLORS.greenDark} format={(v) => { const y = Math.floor(v / 12); const m = v % 12; return m === 0 ? `${y} yr` : `${y}y ${m}m`; }} />
 
+                  {/* P8 (improvement b-1): Trial Work Period / EPE module toggle.
+                      Only meaningful on the SSDI path — SS retirement uses the
+                      earnings test instead. */}
+                  {ssType === 'ssdi' && (
+                    <div data-testid="twp-block" style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+                      <Toggle
+                        label="Trial Work Period / EPE (SSA reality)"
+                        description={twpEnabled !== false
+                          ? "9 TWP months keep full SSDI + paycheck, then a 3-month grace; suspended while over SGA during the 36-month EPE; expedited reinstatement when work stops. Back pay is received."
+                          : "OFF — legacy worst case: taking the job forfeits SSDI and back pay entirely."}
+                        checked={twpEnabled !== false}
+                        onChange={set('twpEnabled')}
+                        color={COLORS.blue}
+                        testId="income-twp-enabled"
+                      />
+                    </div>
+                  )}
+
                   {/* After Chad's job ends — selects post-employment benefit source.
                       Defaults to SS Retirement (age-gated by ssClaimAge). Previously
                       the engine paid the FRA amount immediately regardless of age. */}
@@ -168,6 +195,10 @@ const IncomeControls = ({
                     const gapYears = effectivePostJobBenefit === 'ssRetirement'
                       ? Math.max(0, ssAnchorStartMonth - (chadWorkMonths || 0)) / 12
                       : 0;
+                    // P8: while the TWP module owns the SSDI+job path, the
+                    // engine's EPE-resume / EXR logic decides the post-job
+                    // benefit — this selector is inert until TWP is off.
+                    const twpSupersedes = twpOn;
                     const helperText = effectivePostJobBenefit === 'ssRetirement'
                       ? (gapYears > 0
                           ? `Pays once Chad reaches age ${claimAge} (${gapYears.toFixed(1)} yr gap after job ends).`
@@ -201,7 +232,9 @@ const IncomeControls = ({
                           ))}
                         </div>
                         <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 6, fontStyle: "italic", lineHeight: 1.4 }}>
-                          {helperText}
+                          {twpSupersedes
+                            ? "Superseded while TWP/EPE is on: SSDI resumes automatically when work stops (EPE resume or expedited reinstatement). Turn TWP off to use this selector."
+                            : helperText}
                         </div>
                       </div>
                     );
@@ -427,7 +460,9 @@ const IncomeControls = ({
                     const familyMonths = isSSPath
                       ? (ssKidsAgeOutMonths ?? 18)
                       : Math.max(0, SS_CHILD_BENEFIT_END_MONTH - (ssdiApprovalMonth ?? 7));
-                    const lostBackPayMonthly = !isSSPath && !ssdiDenied ? Math.round((ssdiBackPayActual || 0) / 72) : 0;
+                    // P8: with TWP on the claim is approved and back pay IS
+                    // received — nothing is "lost". Only legacy mode shows it.
+                    const lostBackPayMonthly = !isSSPath && !ssdiDenied && !twpOn ? Math.round((ssdiBackPayActual || 0) / 72) : 0;
                     // Net impact uses total W-2 monthly net (salary + bonus + RSU + hire stock,
                     // all averaged with MSFT growth applied) plus the MONTHLY health benefit.
                     // chadJobHealthSavings is $/month (the family's real $4,200/mo private
@@ -503,7 +538,9 @@ const IncomeControls = ({
                   <div style={{ marginTop: 8, fontSize: 10, color: COLORS.textDim, fontStyle: "italic", lineHeight: 1.5 }}>
                     {ssType === 'ss'
                       ? "SS retirement income can coexist with employment — earnings test reduces benefits based on salary. Consulting disabled while employed."
-                      : "SSDI income and consulting are excluded while employed. Switch to SS Retirement to model claiming while working."
+                      : twpOn
+                        ? "TWP/EPE on: full SSDI rides through 9 trial-work months + 3-month grace, then suspends while over SGA. The 'Lost SSDI' rows above reflect the post-grace steady state. Consulting disabled while employed."
+                        : "SSDI income and consulting are excluded while employed (TWP modeling off). Switch to SS Retirement to model claiming while working."
                     }
                   </div>
                 </>

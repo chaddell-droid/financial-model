@@ -33,7 +33,9 @@ export const SE_FACTOR = 0.9235;
 // FIX #3: 2026 standard deduction MFJ = $32,200 per Rev. Proc. 2025-32 (post-OBBBA).
 // (Task asked for 31,500; the official IRS-published number is 32,200 — using official.)
 export const STD_DED = 32200;
-export const SALT_CAP = 40000;
+// 2026 SALT cap (OBBBA schedule: $40,000 in 2025, +1%/yr through 2029).
+// Default used when callers don't pass a year-specific cap.
+export const SALT_CAP = 40400;
 export const SALT_CAP_FLOOR = 10000;
 export const SALT_MAGI_THRESHOLD = 500000;
 export const SALT_PHASEOUT_RATE = 0.30;
@@ -64,13 +66,18 @@ export const QBI_PHASE_OUT_RANGE = 150000;
 export const QBI_PHASE_OUT_WARNING = 373500;
 
 // Credits
-export const CTC_AMOUNT = 2000;
+// 2026 Child Tax Credit = $2,200/child (OBBBA, indexed). Phases out at
+// $50 per $1,000 (or fraction thereof) of MAGI over $400K MFJ — i.e. 5%.
+export const CTC_AMOUNT = 2200;
 export const ODC_AMOUNT = 500;
+export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000;
+export const CTC_PHASEOUT_RATE = 0.05;
 
-// Solo 401(k) — 2025 limits (out of scope for the 2026 fix; left as-is)
-export const SOLO_401K_EMPLOYEE_LIMIT = 23500;
+// Solo 401(k) — 2026 limits (IRS Notice 2025-67: 402(g) deferral $24,500;
+// 415(c) total DC limit $72,000). Remediation 2026-06-09 Phase 4.
+export const SOLO_401K_EMPLOYEE_LIMIT = 24500;
 export const SOLO_401K_EMPLOYER_RATE = 0.25;
-export const SOLO_401K_TOTAL_LIMIT = 70000;
+export const SOLO_401K_TOTAL_LIMIT = 72000;
 
 // SS benefit taxation thresholds (Married Filing Jointly)
 export const SS_PROVISIONAL_THRESHOLD_1 = 32000;

@@ -27,7 +27,9 @@ function TaxCompositionChart({ schedule }) {
       fedNet: Math.max(0, ft.fedTax - ft.totalCredits),
       ss: ft.ssTax,
       med: ft.medTax,
-      addlMed: ft.addlMedicareOwed,
+      // Full additional-Medicare liability — the amount actually inside totalTax
+      // (withheld 0.9% is a prepayment, not a reduction of liability).
+      addlMed: ft.addlMedicare ?? ft.addlMedicareOwed,
       total: yr.annualTotalTax,
       effectiveRate: yr.effectiveTaxRate,
     };

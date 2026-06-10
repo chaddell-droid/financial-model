@@ -40,7 +40,10 @@ function buildSteps(yr) {
   steps.push({ label: 'Federal Income Tax', value: ft.fedTax, type: 'tax', section: 'tax' });
   if (ft.totalCredits > 0) steps.push({ label: 'Tax Credits', value: -ft.totalCredits, type: 'credit', section: 'tax' });
   steps.push({ label: 'SE Tax (SS + Medicare)', value: ft.seTax, type: 'tax', section: 'tax' });
-  if (ft.addlMedicareOwed > 0) steps.push({ label: 'Additional Medicare', value: ft.addlMedicareOwed, type: 'tax', section: 'tax' });
+  // Full additional-Medicare liability — the amount actually inside totalTax
+  // (withheld 0.9% is a prepayment, not a reduction of liability).
+  const addlMedLiability = ft.addlMedicare ?? ft.addlMedicareOwed;
+  if (addlMedLiability > 0) steps.push({ label: 'Additional Medicare', value: addlMedLiability, type: 'tax', section: 'tax' });
   steps.push({ label: 'TOTAL TAX', value: ft.totalTax, type: 'result', section: 'tax' });
 
   return steps;

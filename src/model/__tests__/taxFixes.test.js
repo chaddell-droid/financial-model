@@ -257,9 +257,9 @@ test('TX5. CTC drops in the year containing TWINS_AGE_OUT_MONTH', () => {
 
   const taxAgeOut = schedule[ageOutYear].annualTotalTax;
   const taxPrior = schedule[priorYear].annualTotalTax;
-  // Each child's CTC = $2,000. With 2 kids aging out, age-out year tax should be
-  // ~$4,000 higher than prior year (after dropping CTC). Allow tolerance for
-  // raises/inflation moving income across the years.
+  // Each child's CTC = $2,200 (Phase 4, 2026 OBBBA). With 2 kids aging out,
+  // age-out year tax should be ~$4,400 higher than prior year (after dropping
+  // CTC). Allow tolerance for raises/inflation moving income across the years.
   const delta = taxAgeOut - taxPrior;
   assert.ok(
     delta > 1500,

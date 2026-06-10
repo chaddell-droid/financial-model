@@ -287,8 +287,9 @@ describe('buildTaxSchedule', () => {
     const sCredits = makeState({ taxCtcChildren: 2 });
     const noCredits = buildTaxSchedule(sNoCredits);
     const credits = buildTaxSchedule(sCredits);
-    // 2 children x $2000 = $4000 credit
-    expect(noCredits[0].annualTotalTax - credits[0].annualTotalTax).toBeGreaterThanOrEqual(3999);
+    // Phase 4 (2026-06-09): 2 children × $2,200 = $4,400 credit (no phase-out
+    // at this income level).
+    expect(noCredits[0].annualTotalTax - credits[0].annualTotalTax).toBeGreaterThanOrEqual(4399);
   });
 
   it('Solo 401k reduces total tax', () => {

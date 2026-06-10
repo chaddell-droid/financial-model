@@ -6,7 +6,7 @@
  * monthly tax amounts instead of applying a flat rate.
  */
 
-import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP } from './constants.js';
+import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP, SS_START_OFFSET, ssAdjustmentFactor } from './constants.js';
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
 
 // Mirror the projection's quarterly stock-vest helpers (kept in sync).
@@ -58,31 +58,71 @@ export function getTaxInputs(s, yearIndex) {
 
 /**
  * Pre-estimate annual SS/SSDI benefits for each projection year.
- * Mirrors the SS income logic from projection.js so the tax schedule
- * can incorporate SS benefit taxation before the monthly loop runs.
+ * Mirrors the SS income logic from projection.js (runMonthlySimulation) so the
+ * tax schedule can incorporate SS benefit taxation before the monthly loop runs.
+ *
+ * Remediation 2026-06-09 Phase 4 — re-mirrored against projection.js:
+ *   - SSDI kids step-down is CALENDAR-ANCHORED at TWINS_AGE_OUT_MONTH (was
+ *     `ssdiApproval + kidsAgeOutMonths`, which drifted with approval month).
+ *   - Models the postJobBenefit branch ('ssRetirement' age-gated at
+ *     (claimAge − 62) × 12 + SS_START_OFFSET, 'ssdi', or 'none').
+ *   - Defaults align with projection.js (ssFamilyTotal 7099, ssPersonal 2933).
+ *   - Horizon is Math.ceil((months + 1) / 12) and the loop runs m = 0..months
+ *     inclusive, matching both runMonthlySimulation and buildTaxSchedule
+ *     (previously the final projection month fell outside the estimate).
+ * Known limitation (pre-existing): the SS earnings test is NOT mirrored here,
+ * so years where Chad works while drawing SS can overstate benefits slightly.
  *
  * FIX #4: Includes SSDI back-pay lump (paid at effectiveSsdiApproval + 2)
  * in the year that contains the back-pay receipt month, so up-to-85%
  * taxability of that lump is captured. Gating mirrors projection.js:
  *   - only when ssType==='ssdi' (i.e. !useSS) AND !ssdiDenied AND !chadJob.
+ *
+ * Exported for the parity test (taxPhase4.test.js) that sums projection.js's
+ * monthly ssBenefit per year against this estimate.
  */
-function estimateAnnualSSBenefits(s) {
+export function estimateAnnualSSBenefits(s) {
   const useSS = s.ssType === 'ss';
   const chadJob = s.chadJob || false;
   const months = s.totalProjectionMonths || 72;
-  const years = Math.ceil(months / 12);
+  const years = Math.ceil((months + 1) / 12);
   const annualBenefits = new Array(years).fill(0);
   const ssStart = s.ssStartMonth ?? 18;
   const ssKidsOut = s.ssKidsAgeOutMonths ?? 18;
-  const ssdiApproval = s.ssdiApprovalMonth ?? 7;
   const kidsOut = s.kidsAgeOutMonths || 0;
+  const chadRetirementMonth = s.chadRetirementMonth || 72;
+  // Same gate as projection.js: SS retirement, denial, or active job → no SSDI.
+  const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
+  const ssFamilyTotal = s.ssFamilyTotal || 7099;
+  const ssPersonal = s.ssPersonal || 2933;
+  const ssdiApproval = s.ssdiApprovalMonth ?? 7;
 
-  for (let m = 0; m < months; m++) {
+  for (let m = 0; m <= months; m++) {
     let benefit = 0;
-    if (useSS && m >= ssStart) {
-      benefit = (m < ssStart + ssKidsOut) ? (s.ssFamilyTotal || 0) : (s.ssPersonal || 0);
-    } else if (!useSS && !chadJob && !s.ssdiDenied && m >= ssdiApproval) {
-      benefit = (m < ssdiApproval + kidsOut) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+    if (useSS) {
+      if (m >= ssStart) {
+        benefit = (m < ssStart + ssKidsOut) ? ssFamilyTotal : ssPersonal;
+      }
+    } else if (!chadJob && m >= effectiveSsdiApproval) {
+      // Calendar-anchored kids age-out, matching projection.js FIX #8.
+      benefit = (m < TWINS_AGE_OUT_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+    }
+    // Post-job benefit fallback — mirrors projection.js's postJobBenefit branch.
+    if (benefit === 0 && chadJob && m > chadRetirementMonth) {
+      const postJobMode = s.postJobBenefit || 'ssRetirement';
+      if (postJobMode === 'ssRetirement') {
+        const claimAge = s.ssClaimAge || 67;
+        const ssAnchorStartMonth = (claimAge - 62) * 12 + SS_START_OFFSET;
+        if (m >= ssAnchorStartMonth) {
+          const piaForFallback = s.ssPIA || 0;
+          benefit = piaForFallback > 0
+            ? Math.round(piaForFallback * ssAdjustmentFactor(claimAge))
+            : ssPersonal;
+        }
+      } else if (postJobMode === 'ssdi') {
+        benefit = (m < TWINS_AGE_OUT_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+      }
+      // 'none' — benefit stays 0
     }
     annualBenefits[Math.floor(m / 12)] += benefit;
   }
@@ -120,9 +160,20 @@ function estimateAnnualSSBenefits(s) {
  *
  * Returns an array indexed by year, each with monthly tax amounts.
  *
- * Note: inflation adjustment applies to brackets and SALT cap (parameterizable)
- * and to user-entered deduction amounts. SS wage base, standard deduction,
- * QBI thresholds, and Medicare thresholds are NOT inflated in this version.
+ * PROJECTION-YEAR vs CALENDAR-TAX-YEAR WINDOW: projection month 0 is March
+ * 2026 (PROJECTION_START_MONTH), so "year y" here spans projection months
+ * [y*12 .. y*12+11] = March (2026+y) through February (2027+y). Each window
+ * is approximated as the calendar tax year 2026+y when selecting brackets
+ * and the SALT cap (`calendarYear = 2026 + y` below). The two months of
+ * Jan–Feb skew are accepted: incomes/deductions change smoothly enough that
+ * a 10-of-12-month overlap keeps the annual tax estimate within tolerance,
+ * and the projection loop only consumes per-month averages.
+ *
+ * Note: inflation adjustment applies to brackets and to user-entered
+ * deduction amounts. The SALT cap follows the OBBBA statutory schedule only
+ * (getSaltCapForYear — NOT additionally inflated). SS wage base, standard
+ * deduction, QBI thresholds, and Medicare thresholds are NOT inflated in
+ * this version.
  */
 export function buildTaxSchedule(s) {
   const months = s.totalProjectionMonths || 72;
@@ -309,7 +360,11 @@ export function buildTaxSchedule(s) {
       : 1;
     // Calendar year ≈ 2026 + yearIndex (projection starts ~2026)
     const calendarYear = 2026 + y;
-    const saltCap = Math.round(getSaltCapForYear(calendarYear) * inflationFactor);
+    // SALT cap: the OBBBA statutory schedule ALREADY steps the cap year-by-year
+    // (+1%/yr through 2029, reversion after), so it must NOT be multiplied by the
+    // user's inflation factor — that double-counted inflation when
+    // taxInflationAdjust was on (remediation 2026-06-09 Phase 4).
+    const saltCap = getSaltCapForYear(calendarYear);
     // Inflate bracket thresholds so income doesn't creep into higher brackets
     const inflatedBrackets = inflationFactor > 1
       ? inflateBrackets(BRACKETS_MFJ_2026, inflationFactor)

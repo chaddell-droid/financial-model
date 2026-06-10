@@ -177,7 +177,8 @@ describe("computeItemizedDeductions", () => {
     expect(r.usingItemized).toBe(true);
   });
 
-  it("caps SALT at $40K even with high SALT total", () => {
+  it("caps SALT at the 2026 default cap ($40,400) even with high SALT total", () => {
+    // Phase 4 (2026-06-09): default SALT_CAP is the 2026 OBBBA value 40400.
     const r = computeItemizedDeductions({
       agi: 400000,
       propertyTax: 25000,
@@ -188,11 +189,12 @@ describe("computeItemizedDeductions", () => {
       totalMedicalInput: 0,
     });
     expect(r.saltTotal).toBe(50000);
-    expect(r.saltDeductible).toBe(40000); // capped at $40K
+    expect(r.saltDeductible).toBe(40400); // capped at 2026 cap
   });
 
   it("phases down SALT cap when AGI exceeds $500K", () => {
-    // AGI $600K → $100K over threshold → cap reduced by $100K * 0.30 = $30K → cap = $10K
+    // AGI $600K → $100K over threshold → cap reduced by $100K * 0.30 = $30K
+    // → effective cap = 40400 − 30000 = 10400 (2026 base cap, Phase 4).
     const r = computeItemizedDeductions({
       agi: 600000,
       propertyTax: 20000,
@@ -202,7 +204,7 @@ describe("computeItemizedDeductions", () => {
       charitable: 0,
       totalMedicalInput: 0,
     });
-    expect(r.saltDeductible).toBe(10000); // phased down to floor
+    expect(r.saltDeductible).toBe(10400); // phased down toward floor
   });
 
   it("SALT cap floors at $10K for very high income", () => {
@@ -345,14 +347,17 @@ describe("calculateTax — full mode (Dellinger defaults)", () => {
 
   it("computes total tax as sum of components", () => {
     // FIX #1: totalTax now includes employee-side W-2 FICA (w2FicaTax).
+    // Phase 4 (2026-06-09): totalTax carries the FULL additional-Medicare
+    // liability (addlMedicare), not the net-of-withholding addlMedicareOwed.
     const r = calculateTax(defaultInputs);
-    const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicareOwed + r.w2FicaTax;
+    const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
     approx(r.totalTax, expected);
   });
 
-  it("computes balance as withholding minus tax", () => {
+  it("computes balance as withholding plus addl-Medicare prepayment minus tax", () => {
+    // Phase 4 (2026-06-09): the withheld 0.9% is a PREPAYMENT in balance.
     const r = calculateTax(defaultInputs);
-    approx(r.balance, 60872 - r.totalTax);
+    approx(r.balance, 60872 + r.addlMedicareWithheld - r.totalTax);
   });
 });
 
@@ -366,7 +371,9 @@ describe("calculateTax — simplified mode (TaxBurdenShift)", () => {
     expect(r.deductionUsed).toBe(121700);
     expect(r.totalCredits).toBe(4000);
     expect(r.addlMedicareOwed).toBe(0);
-    expect(r.qbi).toBe(102000 * 0.20);
+    // Phase 4 (2026-06-09): QBI base nets out the deductible half of SE tax
+    // (IRC §199A(c)(4)) — previously locked the raw schCNet × 20% value.
+    expect(r.qbi).toBeCloseTo((102000 - r.halfSeTax) * 0.20, 6);
     expect(r.ssTax).toBe(0); // W-2 exceeds wage base
   });
 });
@@ -412,8 +419,9 @@ describe("calculateTax — integration: forensic audit cases", () => {
     });
     // Combined Medicare wages = 276679 + (101816 * 0.9235) ≈ 370,706 > $250K threshold
     expect(r.addlMedicareOwed).toBeGreaterThan(0);
-    // FIX #1: totalTax now includes w2FicaTax. Verify the full sum.
-    const expectedTotal = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicareOwed + r.w2FicaTax;
+    // FIX #1: totalTax now includes w2FicaTax. Phase 4: full addl-Medicare
+    // liability in totalTax. Verify the full sum.
+    const expectedTotal = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
     expect(Math.abs(r.totalTax - expectedTotal)).toBeLessThanOrEqual(1);
   });
 
@@ -525,8 +533,10 @@ describe("RECONCILIATION: identical inputs → identical outputs", () => {
     expect(a.balance).toBe(b.balance);
   });
 
-  it("flatCredits=4000 matches ctcChildren=2 with odcDependents=0", () => {
-    const withFlat = calculateTax(sharedInputs);
+  it("flatCredits=4400 matches ctcChildren=2 with odcDependents=0", () => {
+    // Phase 4 (2026-06-09): CTC is $2,200/child → 2 kids = $4,400. AGI here
+    // (~$377K) is under the $400K phase-out threshold, so no reduction.
+    const withFlat = calculateTax({ ...sharedInputs, flatCredits: 4400 });
     const withCounts = calculateTax({
       ...sharedInputs, flatCredits: null, ctcChildren: 2, odcDependents: 0,
     });
@@ -615,13 +625,15 @@ describe("INVARIANTS: mathematical properties across input ranges", () => {
 
       it("totalTax = max(0, fedTax - credits) + seTax + addlMedicare + w2Fica (exact)", () => {
         // FIX #1: totalTax now includes employee W-2 FICA.
-        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicareOwed + r.w2FicaTax;
+        // Phase 4: full addl-Medicare LIABILITY (r.addlMedicare) in totalTax.
+        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
         expect(r.totalTax).toBeCloseTo(expected, 10);
       });
 
-      it("balance = withholding - totalTax (exact)", () => {
+      it("balance = withholding + addl-Medicare prepayment - totalTax (exact)", () => {
+        // Phase 4: withheld 0.9% is a prepayment credited in balance.
         const w2Withholding = inputs.w2Withholding ?? 0;
-        expect(r.balance).toBeCloseTo(w2Withholding - r.totalTax, 10);
+        expect(r.balance).toBeCloseTo(w2Withholding + r.addlMedicareWithheld - r.totalTax, 10);
       });
     });
   });
@@ -679,8 +691,8 @@ describe("YEAR VERIFICATION: TaxBurdenShift default years (2024-2028)", () => {
       });
 
       it("totalTax formula holds exactly", () => {
-        // FIX #1: includes w2FicaTax.
-        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicareOwed + r.w2FicaTax;
+        // FIX #1: includes w2FicaTax. Phase 4: full addl-Medicare liability.
+        const expected = Math.max(0, r.fedTax - r.totalCredits) + r.seTax + r.addlMedicare + r.w2FicaTax;
         expect(r.totalTax).toBeCloseTo(expected, 10);
       });
     });
@@ -732,28 +744,29 @@ describe("GUARD RAILS: bad/negative inputs produce safe results", () => {
 // ============================================================
 
 describe("computeMax401k", () => {
+  // Phase 4 (2026-06-09): 2026 limits — employee $24,500, total DC $72,000.
   it("computes max for typical Sch C net", () => {
     // schCNet=101816, halfSeTax≈1363
     const max = computeMax401k(101816, 1363);
-    expect(max.employeeMax).toBe(23500);
+    expect(max.employeeMax).toBe(24500);
     // employerMax = (101816 - 1363) × 0.25 ≈ 25113
     expect(max.employerMax).toBeGreaterThan(25000);
     expect(max.employerMax).toBeLessThan(26000);
     expect(max.totalMax).toBe(max.employeeMax + max.employerMax);
-    expect(max.totalMax).toBeLessThan(70000); // under total cap
+    expect(max.totalMax).toBeLessThan(72000); // under total cap
   });
 
   it("caps at total limit for high net income", () => {
     const max = computeMax401k(500000, 5000);
     // employerMax = (500000 - 5000) × 0.25 = 123750
-    // total = 23500 + 123750 = 147250, capped at 70000
-    expect(max.totalMax).toBe(70000);
+    // total = 24500 + 123750 = 148250, capped at 72000
+    expect(max.totalMax).toBe(72000);
   });
 
   it("handles zero net income", () => {
     const max = computeMax401k(0, 0);
     expect(max.employerMax).toBe(0);
-    expect(max.totalMax).toBe(23500); // employee only
+    expect(max.totalMax).toBe(24500); // employee only
   });
 });
 
@@ -793,14 +806,14 @@ describe("Solo 401(k) tax impact", () => {
   it("contribution capped at max even if higher value passed", () => {
     const r = calculateTax({ ...DELLINGER, solo401kContribution: 999999 });
     expect(r.solo401kContribution).toBe(r.max401k.totalMax);
-    expect(r.solo401kContribution).toBeLessThanOrEqual(70000);
+    expect(r.solo401kContribution).toBeLessThanOrEqual(72000); // Phase 4: 2026 cap
   });
 
   it("401k contribution is returned in result", () => {
     const r = calculateTax({ ...DELLINGER, solo401kContribution: 10000 });
     expect(r.solo401kContribution).toBe(10000);
     expect(r.max401k).toBeDefined();
-    expect(r.max401k.employeeMax).toBe(23500);
+    expect(r.max401k.employeeMax).toBe(24500); // Phase 4: 2026 limit
   });
 });
 

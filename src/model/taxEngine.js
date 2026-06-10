@@ -5,7 +5,7 @@ import {
   SOLO_401K_EMPLOYEE_LIMIT, SOLO_401K_EMPLOYER_RATE, SOLO_401K_TOTAL_LIMIT,
   QBI_RATE, QBI_PHASE_OUT, QBI_PHASE_OUT_RANGE, ADDL_MEDICARE_RATE,
   ADDL_MEDICARE_THRESHOLD, ADDL_MEDICARE_W2_THRESHOLD,
-  CTC_AMOUNT, ODC_AMOUNT,
+  CTC_AMOUNT, ODC_AMOUNT, CTC_PHASEOUT_THRESHOLD_MFJ, CTC_PHASEOUT_RATE,
   SS_PROVISIONAL_THRESHOLD_1, SS_PROVISIONAL_THRESHOLD_2, SS_TAXABLE_TIER_1, SS_TAXABLE_TIER_2,
 } from './taxConstants.js';
 
@@ -217,10 +217,14 @@ export function calculateTax(inputs) {
 
   // --- Standard mode: full or simplified ---
   const capAdj = Math.max(capGainLoss, CAP_LOSS_LIMIT);
-  const ssTaxableIncome = computeSSTaxableAmount(ssBenefitAnnual, w2Wages + schCNet + capAdj);
-  const totalIncome = w2Wages + schCNet + capAdj + ssTaxableIncome;
   const max401k = computeMax401k(schCNet, se.halfSeTax);
   const effective401k = Math.min(solo401kContribution, max401k.totalMax);
+  // Provisional income (IRS Pub 915) uses "other AGI" — AGI excluding SS —
+  // which is NET of above-the-line deductions (half SE tax + solo 401k).
+  // Remediation 2026-06-09 Phase 4: previously fed the gross w2+schC+capAdj.
+  const otherAGI = w2Wages + schCNet + capAdj - se.halfSeTax - effective401k;
+  const ssTaxableIncome = computeSSTaxableAmount(ssBenefitAnnual, otherAGI);
+  const totalIncome = w2Wages + schCNet + capAdj + ssTaxableIncome;
   const agi = totalIncome - se.halfSeTax - effective401k;
 
   // Deductions
@@ -242,9 +246,12 @@ export function calculateTax(inputs) {
     });
   }
 
-  // QBI
+  // QBI — base is Sch C net REDUCED by the deductible half of SE tax and the
+  // self-employed retirement deduction (IRC §199A(c)(4) / Form 8995 line 1).
+  // Remediation 2026-06-09 Phase 4: previously used raw schCNet.
   const taxableBeforeQbi = Math.max(0, agi - deductions.deductionUsed);
-  const qbi = computeQBI({ schCNet, taxableBeforeQbi, skipPhaseOut: skipQbiPhaseOut });
+  const qbiBase = Math.max(0, schCNet - se.halfSeTax - effective401k);
+  const qbi = computeQBI({ schCNet: qbiBase, taxableBeforeQbi, skipPhaseOut: skipQbiPhaseOut });
   const taxableIncome = Math.max(0, taxableBeforeQbi - qbi);
 
   // Federal income tax (use inflated brackets if provided)
@@ -252,17 +259,34 @@ export function calculateTax(inputs) {
     ? computeFederalTax(taxableIncome, brackets)
     : computeFederalTax(taxableIncome);
 
-  // Credits
-  const totalCredits = flatCredits !== null
-    ? flatCredits
-    : (ctcChildren * CTC_AMOUNT + odcDependents * ODC_AMOUNT);
+  // Credits — CTC $2,200/child + $500/ODC dependent, phased out $50 per
+  // $1,000 (or fraction) of MAGI over $400K MFJ (5%). MAGI ≈ AGI here (no
+  // foreign-income add-backs modeled). flatCredits (simplified mode) bypasses
+  // the count-based path AND the phase-out by contract.
+  let totalCredits;
+  if (flatCredits !== null) {
+    totalCredits = flatCredits;
+  } else {
+    const grossCredits = ctcChildren * CTC_AMOUNT + odcDependents * ODC_AMOUNT;
+    const excessMagi = Math.max(0, agi - CTC_PHASEOUT_THRESHOLD_MFJ);
+    const phaseOutReduction = Math.ceil(excessMagi / 1000) * 1000 * CTC_PHASEOUT_RATE;
+    totalCredits = Math.max(0, grossCredits - phaseOutReduction);
+  }
 
   // Additional Medicare — applies to MEDICARE wages (full gross including pre-tax
   // 401(k) and pension), not Box 1 income. Use the FICA base, same as the regular
   // Medicare 1.45% in computeW2EmployeeFica.
+  // Remediation 2026-06-09 Phase 4: the FULL liability (addlMedicare) belongs in
+  // totalTax; the employer-withheld 0.9% (addlMedicareWithheld) is a PREPAYMENT
+  // credited when computing `balance`, not a reduction of the liability. This
+  // mirrors taxProjection.js's chadAddlMedicarePaid treatment.
+  let addlMedicare = 0;
+  let addlMedicareWithheld = 0;
   let addlMedicareOwed = 0;
   if (!skipAdditionalMedicare) {
     const aml = computeAdditionalMedicare({ w2Wages: effectiveW2FicaBase, seBase: se.seBase });
+    addlMedicare = aml.addlMedicare;
+    addlMedicareWithheld = aml.addlWithheld;
     addlMedicareOwed = aml.addlMedicareOwed;
   }
 
@@ -271,9 +295,10 @@ export function calculateTax(inputs) {
   // rather than the post-deduction w2Wages used for income tax.
   const w2Fica = computeW2EmployeeFica(effectiveW2FicaBase, noFICA);
 
-  // Total tax
-  const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicareOwed + w2Fica.ficaTax;
-  const balance = w2Withholding - totalTax;
+  // Total tax — includes the FULL additional-Medicare liability. The withheld
+  // 0.9% is credited as a prepayment alongside w2Withholding in `balance`.
+  const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicare + w2Fica.ficaTax;
+  const balance = w2Withholding + addlMedicareWithheld - totalTax;
   const effectiveRate = agi > 0 ? totalTax / agi : 0;
 
   return {
@@ -297,7 +322,10 @@ export function calculateTax(inputs) {
     marginalRate,
     // Credits
     totalCredits,
-    // Additional Medicare
+    // Additional Medicare: full liability (in totalTax), withheld prepayment
+    // (credited in balance), and the net due at filing (display only).
+    addlMedicare,
+    addlMedicareWithheld,
     addlMedicareOwed,
     // FIX #1: W-2 employee FICA (SS portion suppressed when noFICA=true)
     w2FicaTax: w2Fica.ficaTax,

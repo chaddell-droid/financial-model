@@ -2141,9 +2141,12 @@ test('TabBar includes Track and Actuals tabs', () => {
   const source = fs.readFileSync(new URL('../components/TabBar.jsx', import.meta.url), 'utf8');
   assert.ok(source.includes("id: 'track'"), 'TabBar should have a track tab');
   assert.ok(source.includes("id: 'actuals'"), 'TabBar should have an actuals tab');
-  // Advisor tab was added when the CFP advisor pane shipped — 8th tab.
+  // Advisor tab was added when the CFP advisor pane shipped.
   assert.ok(source.includes("id: 'advisor'"), 'TabBar should have an advisor tab');
-  assert.ok(source.includes('repeat(8'), 'TabBar grid should have 8 columns');
+  // Tax tab wired in remediation 2026-06-09 D1 — 9th tab.
+  assert.ok(source.includes("id: 'tax'"), 'TabBar should have a tax tab');
+  // Grid sizes from TABS.length so a new tab can never overflow a hardcoded column count.
+  assert.ok(source.includes('repeat(${TABS.length}'), 'TabBar grid should size columns from TABS.length');
 });
 
 // === Integration Regression Snapshots ===

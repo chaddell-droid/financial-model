@@ -28,6 +28,7 @@ const RetirementIncomeChart = lazy(() => import('./charts/RetirementIncomeChart.
 import OverviewTab from './panels/tabs/OverviewTab.jsx';
 import PlanTab from './panels/tabs/PlanTab.jsx';
 import IncomeTab from './panels/tabs/IncomeTab.jsx';
+import TaxTab from './panels/tabs/TaxTab.jsx';
 import RiskTab from './panels/tabs/RiskTab.jsx';
 import DetailsTab from './panels/tabs/DetailsTab.jsx';
 import TrackTab from './panels/tabs/TrackTab.jsx';
@@ -193,6 +194,10 @@ export default function FinancialModel() {
     starting401k, return401k, homeEquity, homeAppreciation,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     seqBadY1, seqBadY2,
+    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
+    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
+    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
+    taxOdcDependents, taxCapGainLoss, taxSolo401k,
     goals,
     storageStatus,
     activeTab,
@@ -987,6 +992,25 @@ export default function FinancialModel() {
     chadJob401kEnabled,
   }), [monthlyDetail, starting401k, return401k, chadJob, chadWorkMonths, chadJob401kEnabled]);
 
+  // Tax tab prop bundle. The panels read the individual tax* fields for their
+  // controls and call gatherState() (the FULL gathered state — never a
+  // hand-built subset) to feed buildTaxSchedule (remediation 2026-06-09 D1).
+  const taxTabProps = useMemo(() => ({
+    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
+    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
+    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
+    taxOdcDependents, taxCapGainLoss, taxSolo401k,
+    chadJob,
+    gatherState: stableGatherState,
+    onFieldChange: set,
+  }), [
+    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
+    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
+    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
+    taxOdcDependents, taxCapGainLoss, taxSolo401k,
+    chadJob, stableGatherState, set,
+  ]);
+
   // Stable risk-tab variants with instanceId baked in (avoids inline spread that defeats memo)
   const riskSavingsDrawdownProps = useMemo(
     () => ({ ...savingsDrawdownProps, instanceId: 'risk-tab' }),
@@ -1043,7 +1067,8 @@ export default function FinancialModel() {
   const showTabs = !presentMode;
   // Plan tab has its own in-workspace chart stack (Savings + NetWorth) via
   // WorkspaceSplit, so hide the AppShell rail on Plan.
-  const noRailTabs = new Set(['actuals', 'details', 'plan']);
+  // Tax tab renders its own full-width settings + chart stack, so no rail.
+  const noRailTabs = new Set(['actuals', 'details', 'plan', 'tax']);
   const showRail = !presentMode && !noRailTabs.has(effectiveTab);
   const railPlacement = !showRail
     ? 'hidden'
@@ -1293,6 +1318,10 @@ export default function FinancialModel() {
         />
       )}
 
+      {effectiveTab === 'tax' && (
+        <TaxTab {...taxTabProps} />
+      )}
+
       {effectiveTab === 'risk' && (
         <RiskTab
           monteCarloProps={monteCarloProps}
@@ -1357,6 +1386,7 @@ export default function FinancialModel() {
     milestones,
     monteCarloProps,
     seqReturnsProps,
+    taxTabProps,
     savingsDrawdownProps,
     netWorthProps,
     showRail,

@@ -230,6 +230,27 @@ export const INITIAL_STATE = {
   seqBadY1: -10,
   seqBadY2: -5,
 
+  // Tax engine (Tax tab — remediation 2026-06-09 D1). Defaults MUST match the
+  // engine's own `??` fallbacks in taxProjection.js (getTaxInputs/buildTaxSchedule)
+  // so adding these fields to gathered state changes no locked tax number.
+  // The engine is DISPLAY-ONLY for now: the monthly projection loop still uses
+  // the flat-rate fields (sarahTaxRate, chadJobTaxRate).
+  taxMode: 'flat',            // 'flat' (legacy flat-rate) or 'engine' (full federal engine display)
+  taxInflationAdjust: false,  // Inflate bracket thresholds + deduction inputs annually
+  taxInflationRate: 2,        // Annual inflation % applied when taxInflationAdjust is on
+  taxSchCExpenseRatio: 25,    // Sarah's Sch C business expense ratio (% of gross)
+  taxPropertyTax: 0,          // Itemized: annual property tax $
+  taxSalesTax: 0,             // Itemized: annual sales tax $
+  taxPersonalPropTax: 0,      // Itemized: annual personal property tax $
+  taxMortgageInt: 0,          // Itemized: annual mortgage interest $
+  taxCharitable: 0,           // Itemized: annual charitable contributions $
+  taxMedical: 0,              // Itemized: total annual medical expenses $ (7.5% AGI floor applied in engine)
+  taxW2Withholding: 0,        // Annual W-2 federal withholding $ (prepayment vs balance)
+  taxCtcChildren: 2,          // Children qualifying for the Child Tax Credit
+  taxOdcDependents: 0,        // Other dependents (ODC $500 credit)
+  taxCapGainLoss: -3000,      // Annual capital gain/loss $ (default: $3K loss carryforward)
+  taxSolo401k: 0,             // Sarah's annual Solo 401(k) contribution $
+
   // UI
   activeTab: "overview",
 
@@ -286,6 +307,11 @@ export const MODEL_KEYS = [
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation',
   'seqBadY1', 'seqBadY2',
+  // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
+  'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',
+  'taxPropertyTax', 'taxSalesTax', 'taxPersonalPropTax', 'taxMortgageInt',
+  'taxCharitable', 'taxMedical', 'taxW2Withholding', 'taxCtcChildren',
+  'taxOdcDependents', 'taxCapGainLoss', 'taxSolo401k',
   // Monte Carlo settings (remediation phase 5). mcResults/mcRunning stay
   // UI-only — only the user-tunable parameters persist.
   'mcNumSims', 'mcInvestVol', 'mcBizGrowthVol', 'mcMsftVol', 'mcSsdiDelay', 'mcSsdiDenialPct', 'mcCutsDiscipline',

@@ -1,9 +1,14 @@
 /**
- * Bridge between the tax engine and the financial model's projection loop.
+ * Bridge between the tax engine and the financial model.
  *
  * buildTaxSchedule(s) pre-computes per-year tax results for the full
- * projection horizon. The projection loop looks up the current year's
- * monthly tax amounts instead of applying a flat rate.
+ * projection horizon. DISPLAY-ONLY for now (remediation 2026-06-09 D1): it is
+ * consumed by the Tax tab (TaxSettingsPanel + TaxVisualization), the W-2 Net
+ * Diagnostic breakdown (chadTaxBreakdown in FinancialModel), and the
+ * advisor's taxBreakdown tool. The monthly projection loop in projection.js
+ * does NOT consume it — cashflow still uses the flat-rate fields
+ * (sarahTaxRate, chadJobTaxRate). A follow-on (D1-A2) may wire the engine
+ * into the simulation behind taxMode === 'engine'.
  */
 
 import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SSDI_ATTORNEY_FEE_CAP, SS_START_OFFSET, ssAdjustmentFactor } from './constants.js';

@@ -131,6 +131,21 @@ const RANGE = {
   cutSmallItems: { min: 0 },
   seqBadY1: { min: -50, max: 50 },
   seqBadY2: { min: -50, max: 50 },
+  // Tax engine controls (Tax tab — remediation 2026-06-09 D1).
+  // Bounds match the TaxSettingsPanel sliders.
+  taxInflationRate: { min: 0, max: 10 },
+  taxSchCExpenseRatio: { min: 0, max: 80 },
+  taxPropertyTax: { min: 0, max: 50000 },
+  taxSalesTax: { min: 0, max: 50000 },
+  taxPersonalPropTax: { min: 0, max: 10000 },
+  taxMortgageInt: { min: 0, max: 100000 },
+  taxCharitable: { min: 0, max: 100000 },
+  taxMedical: { min: 0, max: 200000 },
+  taxW2Withholding: { min: 0, max: 100000 },
+  taxCtcChildren: { min: 0, max: 10 },
+  taxOdcDependents: { min: 0, max: 10 },
+  taxCapGainLoss: { min: -100000, max: 100000 },
+  taxSolo401k: { min: 0, max: 70000 },
   msftGrowth: { min: -50, max: 50 },
   // FIX M-Cuts: bound cutsOverride at 10x typical baseExpenses (~$10K/mo).
   // Generous ceiling but prevents pathological scenarios from corrupting the projection.
@@ -143,6 +158,7 @@ const ENUMS = {
   ssType: ['ssdi', 'ss'],
   chadAge65VestOverride: ['auto', 'on', 'off'],
   postJobBenefit: ['ssRetirement', 'ssdi', 'none'],
+  taxMode: ['flat', 'engine'],
 };
 
 // Must cover every type GoalPanel.jsx offers (GOAL_TYPES) — a missing entry

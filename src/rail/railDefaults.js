@@ -7,6 +7,8 @@ export const DEFAULT_RAIL_CONFIG = {
   // Plan tab renders its own in-workspace chart stack; rail is hidden via noRailTabs.
   plan: [],
   income: ['savings', 'networth'],
+  // Tax tab renders its own full-width chart stack; rail is hidden via noRailTabs.
+  tax: [],
   risk: ['savings', 'networth'],
   track: ['savings', 'networth'],
   actuals: [],

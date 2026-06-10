@@ -29,41 +29,21 @@ function YearPill({ year, selected, onClick }) {
 }
 
 function TaxVisualization({
-  taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-  taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-  taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-  taxOdcDependents, taxCapGainLoss, taxSolo401k,
-  sarahRate, sarahMaxRate, sarahRateGrowth,
-  sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-  sarahWorkMonths,
-  chadJob, chadJobSalary, chadJobStartMonth,
+  // Full gathered state factory (stableGatherState from FinancialModel).
+  // The schedule feeds buildTaxSchedule the COMPLETE model state — a
+  // hand-built subset here previously omitted all of Chad's stock/bonus/
+  // pension/401k comp and hardcoded chadRetirementMonth=72 (remediation
+  // 2026-06-09 D1 partial-state bug).
+  gatherState,
 }) {
   const [selectedYear, setSelectedYear] = useState(0);
 
+  // gatherState identity changes whenever model state changes, so it is the
+  // only data dependency needed here.
   const schedule = useMemo(() => {
-    const s = {
-      sarahRate, sarahMaxRate, sarahRateGrowth,
-      sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-      sarahWorkMonths,
-      totalProjectionMonths: sarahWorkMonths || 72,
-      chadRetirementMonth: 72, // tax viz doesn't track Chad's work duration independently yet
-      chadJob, chadJobSalary: chadJobSalary || 0, chadJobStartMonth: chadJobStartMonth ?? 3,
-      taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-      taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-      taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-      taxOdcDependents, taxCapGainLoss, taxSolo401k,
-    };
-    try { return buildTaxSchedule(s); }
+    try { return buildTaxSchedule(gatherState()); }
     catch { return []; }
-  }, [
-    sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahWorkMonths,
-    chadJob, chadJobSalary, chadJobStartMonth,
-    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-    taxOdcDependents, taxCapGainLoss, taxSolo401k,
-  ]);
+  }, [gatherState]);
 
   if (!schedule.length) return null;
 

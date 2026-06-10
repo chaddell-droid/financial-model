@@ -180,6 +180,22 @@ const NON_DEFAULT_VALUES = {
   // Sequence of returns
   seqBadY1: -15,
   seqBadY2: -8,
+  // Tax engine controls (remediation 2026-06-09 D1 — Tax tab wiring)
+  taxMode: 'engine',               // flipped from 'flat'
+  taxInflationAdjust: true,        // flipped
+  taxInflationRate: 3,
+  taxSchCExpenseRatio: 30,
+  taxPropertyTax: 9000,
+  taxSalesTax: 3500,
+  taxPersonalPropTax: 1200,
+  taxMortgageInt: 18000,
+  taxCharitable: 6000,
+  taxMedical: 8000,
+  taxW2Withholding: 25000,
+  taxCtcChildren: 1,
+  taxOdcDependents: 1,
+  taxCapGainLoss: 5000,
+  taxSolo401k: 12000,
   // Monte Carlo settings (remediation phase 5 — now MODEL_KEYS so they persist)
   mcNumSims: 1000,
   mcInvestVol: 18,

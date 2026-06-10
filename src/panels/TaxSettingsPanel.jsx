@@ -28,47 +28,30 @@ export default function TaxSettingsPanel({
   taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
   taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
   taxOdcDependents, taxCapGainLoss, taxSolo401k,
-  // Income context for the tax summary
-  sarahRate, sarahMaxRate, sarahRateGrowth,
-  sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-  sarahWorkMonths,
-  chadJob, chadJobSalary, chadJobStartMonth,
+  chadJob,
+  // Full gathered state factory (stableGatherState from FinancialModel).
+  // The summary feeds buildTaxSchedule the COMPLETE model state — a hand-built
+  // subset here previously omitted all of Chad's stock/bonus/pension/401k comp
+  // (remediation 2026-06-09 D1 partial-state bug).
+  gatherState,
   onFieldChange,
 }) {
   const set = onFieldChange;
   const commitStrategy = 'release';
   const isEngine = taxMode === 'engine';
 
-  // Compute current-year tax summary (year 0 of the schedule)
+  // Compute current-year tax summary (year 0 of the schedule).
+  // gatherState identity changes whenever model state changes, so it is the
+  // only data dependency needed here.
   const taxSummary = useMemo(() => {
     if (!isEngine) return null;
-    const s = {
-      sarahRate, sarahMaxRate, sarahRateGrowth,
-      sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-      sarahWorkMonths,
-      totalProjectionMonths: sarahWorkMonths || 72,
-      chadRetirementMonth: 72,
-      chadJob, chadJobSalary: chadJobSalary || 0, chadJobStartMonth: chadJobStartMonth ?? 3,
-      taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-      taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-      taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-      taxOdcDependents, taxCapGainLoss, taxSolo401k,
-    };
     try {
-      const schedule = buildTaxSchedule(s);
+      const schedule = buildTaxSchedule(gatherState());
       return schedule[0] || null;
     } catch {
       return null;
     }
-  }, [
-    isEngine, sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth, sarahWorkMonths,
-    chadJob, chadJobSalary, chadJobStartMonth,
-    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-    taxOdcDependents, taxCapGainLoss, taxSolo401k,
-  ]);
+  }, [isEngine, gatherState]);
 
   const fmtPct = (rate) => (rate * 100).toFixed(1) + '%';
 

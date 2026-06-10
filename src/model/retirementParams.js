@@ -118,6 +118,56 @@ export function computeRetirementPool({
 }
 
 /**
+ * Geometric monthly mean of a return series (B10 — remediation 2026-06-10
+ * item 3.4, decision D10: fix, not relabel). The deterministic "expected"
+ * line and the "avg real return" label used the ARITHMETIC mean, ignoring
+ * volatility drag — at 60/40 that compounds ~0.4pp/yr high, ending ~10.7%
+ * above what the average cohort actually compounds to. The geometric mean
+ * is the rate the average cohort really achieves: exp(mean(ln(1+r))) − 1.
+ */
+export function geometricMeanMonthly(returns) {
+  const n = returns ? returns.length : 0;
+  if (n === 0) return 0;
+  let logSum = 0;
+  for (let i = 0; i < n; i++) {
+    const g = 1 + returns[i];
+    if (g <= 0) return -1; // a total-loss month dominates any compounding
+    logSum += Math.log(g);
+  }
+  return Math.expm1(logSum / n);
+}
+
+/**
+ * Deterministic pool trajectory at a constant monthly return — the dashed
+ * "expected" line on the retirement chart. Extracted from
+ * useRetirementSimulation (B9 — remediation 2026-06-10 item 3.3) with
+ * simulatePath's EXACT floor semantics: supplementalFlows (the single
+ * cash-event carrier) are credited every month and the floor is a hard clamp
+ * only — never an income cutoff. The hook's old inline loop pinned the pool
+ * at the floor and credited only inheritance "rescue" flows there, so the
+ * dashed line flatlined while the cohort bands recovered (the same bug fixed
+ * in simulatePath by finding 2026-06-09 2.2). Parity with simulatePath on a
+ * constant-return cohort is test-locked.
+ */
+export function deterministicTrajectory({
+  avgMonthly, totalPool, years, baseMonthlyConsumption,
+  scaling, supplementalFlows, poolFloor = 0,
+}) {
+  let pool = totalPool;
+  const pools = [];
+  for (let y = 0; y <= years; y++) {
+    pools.push(Math.round(pool));
+    if (y >= years) break;
+    for (let m = 0; m < 12; m++) {
+      const t = y * 12 + m;
+      pool = (pool - baseMonthlyConsumption * scaling[t] + supplementalFlows[t]) * (1 + avgMonthly);
+      if (pool < poolFloor) pool = poolFloor;
+    }
+  }
+  return pools;
+}
+
+/**
  * Scale factor mapping the user's pool-draw slider onto the per-cohort
  * closed-form consumption schedules (finding 2026-06-09 2.5a). The two-phase
  * band path claimed to scale "to user's slider" but ran every cohort at its

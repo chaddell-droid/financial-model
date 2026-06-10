@@ -18,10 +18,13 @@ import {
   buildTwoPhaseSchedule,
   shouldAutoSyncWithdrawalRate,
   computeRetirementPool,
+  deterministicTrajectory,
+  geometricMeanMonthly,
   SARAH_TARGET_AGE,
   SURVIVOR_SPEND_RATIO,
 } from '../retirementParams.js';
 import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
+import { simulatePath } from '../ernWithdrawal.js';
 import { ssRecalculatedBenefit } from '../constants.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
@@ -486,6 +489,65 @@ test('Q4: wiring — hook passes the inflation fields + monthsToRetirement; rail
   const callMatch = chartSource.match(/useRetirementSimulation\(\{[\s\S]*?\}\)/);
   assert.ok(callMatch && callMatch[0].includes('expenseInflation'), 'hook call should pass expenseInflation');
   assert.ok(callMatch && callMatch[0].includes('expenseInflationRate'), 'hook call should pass expenseInflationRate');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Section 10: deterministic line floor semantics + geometric mean
+// (B9 + B10 — remediation 2026-06-10 items 3.3/3.4)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== deterministicTrajectory (B9) + geometricMeanMonthly (B10) ===');
+
+test('R1: PARITY — deterministicTrajectory matches simulatePath on a constant-return cohort', () => {
+  const T = 120; // 10 years
+  const r = 0.004;
+  const blended = new Float64Array(T).fill(r);
+  const scaling = new Float64Array(T).fill(1);
+  for (let t = 60; t < T; t++) scaling[t] = 0.6; // survivor phase
+  const flows = new Float64Array(T).fill(3000); // guaranteed income every month
+  flows[36] += 250_000; // lump-sum inheritance via the single carrier
+  const pool = 400_000;
+  const floor = 100_000;
+  const w = 9_000; // heavy draw — pool hits the floor before the lump sum
+  const expected = simulatePath(blended, 0, T, w, flows, scaling, pool, floor).yearlyPools;
+  const actual = deterministicTrajectory({
+    avgMonthly: r, totalPool: pool, years: 10, baseMonthlyConsumption: w,
+    scaling, supplementalFlows: flows, poolFloor: floor,
+  });
+  assert.deepStrictEqual(actual, expected, 'yearly pools must be identical to simulatePath semantics');
+});
+
+test('R2: at the floor, guaranteed income keeps crediting — no pinning, no rescue special case', () => {
+  const T = 48;
+  const scaling = new Float64Array(T).fill(1);
+  const flows = new Float64Array(T).fill(0);
+  for (let t = 24; t < T; t++) flows[t] = 5_000; // income starts in year 3 (> spend)
+  const pools = deterministicTrajectory({
+    avgMonthly: 0, totalPool: 50_000, years: 4, baseMonthlyConsumption: 4_000,
+    scaling, supplementalFlows: flows, poolFloor: 0,
+  });
+  eq(pools[1], 2_000, 'year 1: 50k - 48k drawn');
+  eq(pools[2], 0, 'year 2: clamped at the floor');
+  assert.ok(pools[3] > pools[2], 'year 3: income > spend lifts the pool OFF the floor');
+  eq(pools[3], 12_000, 'floor is a clamp only: 12 x (5k - 4k) credited');
+});
+
+test('R3: geometricMeanMonthly compounds below the arithmetic mean (volatility drag)', () => {
+  const volatile = new Float64Array(240);
+  for (let i = 0; i < volatile.length; i++) volatile[i] = (i % 2 === 0) ? 0.10 : -0.10;
+  const g = geometricMeanMonthly(volatile);
+  const expected = Math.sqrt(1.10 * 0.90) - 1;
+  assert.ok(Math.abs(g - expected) < 1e-12, `alternating +/-10%: ${g} vs ${expected}`);
+  assert.ok(g < 0, 'geometric mean is negative while the arithmetic mean is exactly 0');
+
+  const constant = new Float64Array(100).fill(0.005);
+  assert.ok(Math.abs(geometricMeanMonthly(constant) - 0.005) < 1e-12, 'constant series: geometric == arithmetic');
+  eq(geometricMeanMonthly(new Float64Array(0)), 0, 'empty series -> 0');
+});
+
+test('R4: wiring — hook uses the geometric mean + shared trajectory; rescueFlows special case is gone', () => {
+  assert.ok(hookSource.includes('geometricMeanMonthly'), 'hook should derive avgMonthly geometrically');
+  assert.ok(hookSource.includes('deterministicTrajectory'), 'hook should use the extracted trajectory');
+  assert.ok(!hookSource.includes('rescueFlows'), 'the rescueFlows special case must be deleted from the hook');
 });
 
 // ════════════════════════════════════════════════════════════════════════

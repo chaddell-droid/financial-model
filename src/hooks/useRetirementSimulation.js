@@ -13,6 +13,8 @@ import {
   withdrawalScaleFactor,
   buildTwoPhaseSchedule,
   shouldAutoSyncWithdrawalRate,
+  deterministicTrajectory,
+  geometricMeanMonthly,
 } from '../model/retirementParams.js';
 import {
   buildRetirementContext,
@@ -140,7 +142,10 @@ export function useRetirementSimulation({
     });
   }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly]);
 
-  const { rescueFlows, scaling } = useMemo(() => {
+  // Only `scaling` is consumed here: the inheritance "rescue" carrier is
+  // legacy — every cash event flows through simulationSupplementalFlows
+  // (single carrier, finding 2026-06-09 2.1; hook parity B9, item 3.3).
+  const { scaling } = useMemo(() => {
     return buildScalingAndRescueFlows({
       horizonMonths,
       chadPassesAge: dChadPassesAge,
@@ -346,33 +351,19 @@ export function useRetirementSimulation({
     return { finishAboveReserveRate: survivedCount / numCohorts, bands };
   }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, cohortSWRs, cohortPreSwrs, inheritanceMonth, optimalRates.optimalConsumption]);
 
-  // Deterministic trajectory using average historical return.
+  // Deterministic trajectory at the GEOMETRIC mean historical return (B10,
+  // item 3.4 — the arithmetic mean ignored volatility drag and ran ~0.4pp/yr
+  // hot at 60/40). Floor semantics match simulatePath exactly (B9, item 3.3):
+  // supplementalFlows credit every month; the floor is a clamp only.
   const { deterministicPools, avgAnnualReal } = useMemo(() => {
-    let sum = 0;
-    for (let i = 0; i < blendedReturns.length; i++) sum += blendedReturns[i];
-    const avgMonthly = sum / blendedReturns.length;
+    const avgMonthly = geometricMeanMonthly(blendedReturns);
     const avgAnnualReal = Math.round((Math.pow(1 + avgMonthly, 12) - 1) * 1000) / 10;
-
-    let pool = totalPool;
-    const pools = [];
-
-    for (let y = 0; y <= years; y++) {
-      pools.push(Math.round(pool));
-      if (y >= years) break;
-
-      for (let m = 0; m < 12; m++) {
-        const t = y * 12 + m;
-        if (pool > dPoolFloor) {
-          pool = (pool - baseMonthlyConsumption * scaling[t] + simulationSupplementalFlows[t]) * (1 + avgMonthly);
-          if (pool < dPoolFloor) pool = dPoolFloor;
-        } else if (rescueFlows[t] > 0) {
-          pool += rescueFlows[t];
-        }
-      }
-    }
-
+    const pools = deterministicTrajectory({
+      avgMonthly, totalPool, years, baseMonthlyConsumption,
+      scaling, supplementalFlows: simulationSupplementalFlows, poolFloor: dPoolFloor,
+    });
     return { deterministicPools: pools, avgAnnualReal };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, scaling, simulationSupplementalFlows, rescueFlows, years]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, scaling, simulationSupplementalFlows, years]);
 
   // ── Derived display data ─────────────────────────────────────────────
 

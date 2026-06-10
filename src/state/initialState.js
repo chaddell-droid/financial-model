@@ -49,6 +49,11 @@ export const INITIAL_STATE = {
   sarahSpousalEnabled: true,        // Master toggle to model Sarah's spousal benefit
   sarahCurrentAge: 59,              // Sarah's current age (drives months-until-claim derivation)
   sarahSpousalClaimAge: 67,         // Age at which Sarah claims spousal (62–70)
+  // Sarah's own-record SS retirement benefit (monthly $). Used by the
+  // retirement simulation: caps her spousal top-up while Chad is alive and
+  // floors her survivor benefit after he passes. Was hardcoded (1900) in
+  // useRetirementSimulation — finding 2026-06-09 2.3.
+  sarahOwnSS: 1900,
 
   // Chad Gets a Job
   chadJob: false,
@@ -255,7 +260,7 @@ export const MODEL_KEYS = [
   'ssType', 'ssdiApprovalMonth', 'ssdiDenied', 'ssdiPersonal', 'ssdiFamilyTotal', 'kidsAgeOutMonths', 'chadConsulting',
   'ssClaimAge', 'ssPIA', 'ssFamilyTotal', 'ssPersonal', 'ssStartMonth', 'ssKidsAgeOutMonths',
   'postJobBenefit',
-  'sarahSpousalEnabled', 'sarahCurrentAge', 'sarahSpousalClaimAge',
+  'sarahSpousalEnabled', 'sarahCurrentAge', 'sarahSpousalClaimAge', 'sarahOwnSS',
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
   'chadJobRaisePct', 'chadJobBonusPct', 'chadJobBonusMonth', 'chadJobBonusProrateFirst',

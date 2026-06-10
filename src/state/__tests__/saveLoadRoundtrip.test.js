@@ -80,10 +80,11 @@ const NON_DEFAULT_VALUES = {
   ssKidsAgeOutMonths: 24,
   // Post-job benefit selector (flipped from default 'ssRetirement')
   postJobBenefit: 'ssdi',
-  // Sarah's spousal
+  // Sarah's spousal + own-record benefit
   sarahSpousalEnabled: false,      // flipped
   sarahCurrentAge: 60,
   sarahSpousalClaimAge: 70,
+  sarahOwnSS: 2400,
   // Chad's job — basics
   chadJob: true,                   // flipped
   chadJobSalary: 195000,
@@ -306,6 +307,17 @@ test('chadAge65VestOverride enum survives all three values; invalid resets to de
 test('ssType enum round-trips both values', () => {
   assert.strictEqual(roundTrip({ ssType: 'ssdi' }).ssType, 'ssdi');
   assert.strictEqual(roundTrip({ ssType: 'ss' }).ssType, 'ss');
+});
+
+test('sarahOwnSS: default, override, and explicit-zero round-trip (finding 2026-06-09 2.3)', () => {
+  assert.strictEqual(roundTrip({}).sarahOwnSS, 1900, 'default from INITIAL_STATE');
+  assert.strictEqual(roundTrip({ sarahOwnSS: 2400 }).sarahOwnSS, 2400, 'override survives');
+  assert.strictEqual(roundTrip({ sarahOwnSS: 0 }).sarahOwnSS, 0, 'explicit 0 (no own benefit) survives');
+});
+
+test('Schema RANGE clamping: sarahOwnSS clamps to [0, 10000]', () => {
+  assert.strictEqual(roundTrip({ sarahOwnSS: -50 }).sarahOwnSS, 0);
+  assert.strictEqual(roundTrip({ sarahOwnSS: 25000 }).sarahOwnSS, 10000);
 });
 
 test('Schema RANGE clamping: chadL64Month=200 clamps to 120 (matches UI slider)', () => {

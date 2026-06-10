@@ -153,6 +153,9 @@ function RetirementIncomeChart({
   trustIncomeFuture,
   ssMonthsWithheld,
   chadJobPensionMonthly,
+  chadCurrentAge,
+  sarahCurrentAge,
+  sarahOwnSS,
   onSpendingTargets,
 }) {
   useRenderMetric('RetirementIncomeChart');
@@ -182,7 +185,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahOwnSS });
 
   // Report spending targets to parent
   useEffect(() => {

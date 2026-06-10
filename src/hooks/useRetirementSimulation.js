@@ -3,10 +3,15 @@
  * values, and memoised computation from RetirementIncomeChart so the component
  * is purely presentational and the orchestration logic is independently testable.
  */
-import { useState, useMemo, useEffect, useDeferredValue } from 'react';
+import { useState, useMemo, useEffect, useCallback, useDeferredValue } from 'react';
 import { getBlendedReturns, getNumCohorts, getCohortLabel } from '../model/historicalReturns.js';
 import { simulatePath, computeSWR, computePreInhSWR } from '../model/ernWithdrawal.js';
-import { ssRecalculatedBenefit } from '../model/constants.js';
+import {
+  deriveRetirementParams,
+  withdrawalScaleFactor,
+  buildTwoPhaseSchedule,
+  shouldAutoSyncWithdrawalRate,
+} from '../model/retirementParams.js';
 import {
   buildRetirementContext,
   buildScalingAndRescueFlows,
@@ -21,6 +26,7 @@ import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from '../model/pwaSt
 
 export function useRetirementSimulation({
   savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly,
+  chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
 }) {
   // ── State ────────────────────────────────────────────────────────────
   const [retirementMode, setRetirementMode] = useState('historical_safe');
@@ -31,6 +37,9 @@ export function useRetirementSimulation({
   const [bequestTarget, setBequestTarget] = useState(0);
   const [equityAllocation, setEquityAllocation] = useState(60);
   const [withdrawalRate, setWithdrawalRate] = useState(4);
+  // Dirty flag: true once the user manually moves the pool-draw slider, which
+  // disarms the optimal-rate auto-sync effect (finding 2026-06-09 2.5b).
+  const [withdrawalRateDirty, setWithdrawalRateDirty] = useState(false);
   const [poolFloor, setPoolFloor] = useState(0);
   const [chadPassesAge, setChadPassesAge] = useState(82);
   const [inheritanceAmount, setInheritanceAmount] = useState(1000000);
@@ -54,14 +63,18 @@ export function useRetirementSimulation({
   const dPwaToleranceLow = useDeferredValue(pwaToleranceLow);
   const dPwaToleranceHigh = useDeferredValue(pwaToleranceHigh);
 
-  // ── Constants ────────────────────────────────────────────────────────
-  // Chad is 60, Sarah is 46 (14 years younger)
-  const ageDiff = 14;
-  const sarahTargetAge = 90;
-  const endAge = sarahTargetAge + ageDiff; // 104
-  const years = endAge - 67; // 37
-  const horizonMonths = years * 12; // 444
-  const survivorSpendRatio = 0.6;
+  // ── Derived simulation parameters (state-backed — finding 2026-06-09 2.3) ──
+  // ageDiff, horizon, and SS amounts all derive from the same state fields the
+  // rest of the app uses (chadCurrentAge/sarahCurrentAge/sarahOwnSS/ssPIA/...),
+  // via a pure function so node tests can verify parity with gatherState.
+  const {
+    ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
+    ssFRA, chadSS, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, startingCoupleIncome,
+  } = deriveRetirementParams({
+    chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
+    ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
+    trustIncomeFuture, chadJobPensionMonthly,
+  });
 
   // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths)
   const endIdx = savingsData.length - 1;
@@ -72,24 +85,6 @@ export function useRetirementSimulation({
   const totalPool = Math.max(0, endSavings + end401k + homeSaleNet);
 
   const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
-
-  // Chad's SS — PIA from state replaces hardcoded value
-  // When SS retirement path: use recalculated benefit (credits months withheld by earnings test)
-  const ssFRA = ssPIA || 4214;
-  const chadSS = (ssType === 'ss')
-    ? ssRecalculatedBenefit(ssFRA, ssClaimAge || 62, ssMonthsWithheld || 0)
-    : ssFRA;
-  const sarahOwnSS = 1900;
-  // Survivor benefit: if Chad claimed before FRA, Sarah gets max(his benefit, 82.5% PIA)
-  // If Chad claimed at/after FRA (or SSDI which converts at FRA), Sarah gets his full benefit
-  const claimAge = ssClaimAge || 67;
-  const claimedEarly = ssType === 'ss' && claimAge < 67;
-  const survivorSS = claimedEarly
-    ? Math.max(chadSS, Math.round(ssFRA * 0.825))
-    : chadSS;
-  const trustMonthly = trustIncomeFuture || 0;
-  const pensionMonthly = chadJobPensionMonthly || 0;
-  const startingCoupleIncome = chadSS + trustMonthly + pensionMonthly;
   const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
   const normalizedPwaToleranceLow = Math.min(dPwaToleranceLow, dPwaToleranceHigh);
   const normalizedPwaToleranceHigh = Math.max(dPwaToleranceLow, dPwaToleranceHigh);
@@ -99,7 +94,12 @@ export function useRetirementSimulation({
   const inheritanceYear = inheritanceChadAge - 67;
   const inheritanceMonth = inheritanceYear * 12;
   const hasInheritance = dInheritanceAmount > 0;
-  const inhDuringCouple = hasInheritance && inheritanceChadAge < dChadPassesAge;
+  // The lump sum only participates when it lands inside the simulated horizon.
+  // ageDiff is state-derived now, so an inheritance age BEFORE retirement
+  // (negative inheritanceMonth) is possible; the flow builders already ignore
+  // out-of-bounds months, and phase labels/summaries must agree with them.
+  const inhWithinHorizon = hasInheritance && inheritanceMonth >= 0 && inheritanceMonth < horizonMonths;
+  const inhDuringCouple = inhWithinHorizon && inheritanceChadAge < dChadPassesAge;
 
   // ── Memoised computations ────────────────────────────────────────────
 
@@ -355,20 +355,20 @@ export function useRetirementSimulation({
       if (cohortSWRs.length > c && cohortSWRs[c] >= userConsumption) survivedCount++;
     }
 
-    // Simulation for chart band rendering — per-cohort two-phase withdrawal when inheritance active
+    // Simulation for chart band rendering — per-cohort two-phase withdrawal when
+    // inheritance active. Each cohort's closed-form schedule is scaled by the
+    // USER's slider (factor = userConsumption / optimalConsumption) so the bands
+    // actually respond to the pool-draw slider (finding 2026-06-09 2.5a) —
+    // previously every cohort ran at its own full SWR regardless of the slider.
+    // Inheritance arrives via simulationSupplementalFlows ONLY (single carrier,
+    // finding 2026-06-09 2.1) — simulatePath no longer takes a rescue array.
+    const sliderFactor = withdrawalScaleFactor(userConsumption, optimalRates.optimalConsumption);
     for (let c = 0; c < numCohorts; c++) {
       let withdrawal = userConsumption;
       if (useTwoPhase) {
-        // Build per-cohort schedule: pre-inh rate scaled to user's slider, post-inh at cohort's full SWR
-        const schedule = new Float64Array(horizonMonths);
-        const cohortPreRate = cohortPreSwrs[c];
-        const cohortPostRate = cohortSWRs[c];
-        for (let t = 0; t < horizonMonths; t++) {
-          schedule[t] = t < inheritanceMonth ? cohortPreRate : cohortPostRate;
-        }
-        withdrawal = schedule;
+        withdrawal = buildTwoPhaseSchedule(horizonMonths, inheritanceMonth, cohortPreSwrs[c], cohortSWRs[c], sliderFactor);
       }
-      const sim = simulatePath(blendedReturns, c, horizonMonths, withdrawal, simulationSupplementalFlows, scaling, totalPool, pf, rescueFlows);
+      const sim = simulatePath(blendedReturns, c, horizonMonths, withdrawal, simulationSupplementalFlows, scaling, totalPool, pf);
       allYearlyPools[c] = sim.yearlyPools;
     }
 
@@ -387,7 +387,7 @@ export function useRetirementSimulation({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { finishAboveReserveRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, rescueFlows, cohortSWRs, cohortPreSwrs, inheritanceMonth]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, cohortSWRs, cohortPreSwrs, inheritanceMonth, optimalRates.optimalConsumption]);
 
   // Deterministic trajectory using average historical return.
   const { deterministicPools, avgAnnualReal } = useMemo(() => {
@@ -435,8 +435,8 @@ export function useRetirementSimulation({
   const yearlyData = deterministicPools.map((pool, y) => {
     const chadAge = 67 + y;
     const incomePlan = getRetirementIncomePlan(chadAge, pool > dPoolFloor, incomePlanConfig);
-    const isPostInh = hasInheritance && y >= inheritanceYear;
-    const isInheritanceYear = hasInheritance && y === inheritanceYear;
+    const isPostInh = inhWithinHorizon && y >= inheritanceYear;
+    const isInheritanceYear = inhWithinHorizon && y === inheritanceYear;
     const phase = !incomePlan.chadAlive ? 'survivor' : (isPostInh ? 'postInheritance' : 'chad');
     return {
       age: chadAge,
@@ -452,12 +452,21 @@ export function useRetirementSimulation({
 
   // ── Effects ──────────────────────────────────────────────────────────
 
-  // Sync withdrawal slider to optimal rate (90% survival) — chart default
+  // Sync withdrawal slider to optimal rate (90% survival) — chart default.
+  // Only while the slider is PRISTINE: once the user drags it, the manual
+  // value sticks instead of being clobbered on every optimal-rate change
+  // (finding 2026-06-09 2.5b).
   useEffect(() => {
-    if (!isPwaMode && optimalRates.optimalRate > 0) {
+    if (shouldAutoSyncWithdrawalRate({ isPwaMode, dirty: withdrawalRateDirty, optimalRate: optimalRates.optimalRate })) {
       setWithdrawalRate(optimalRates.optimalRate);
     }
-  }, [isPwaMode, optimalRates.optimalRate]);
+  }, [isPwaMode, withdrawalRateDirty, optimalRates.optimalRate]);
+
+  // Manual slider setter — marks the slider dirty so auto-sync stops clobbering it.
+  const setWithdrawalRateManual = useCallback((value) => {
+    setWithdrawalRateDirty(true);
+    setWithdrawalRate(value);
+  }, []);
 
   useEffect(() => {
     if (!isPwaMode) return;
@@ -490,7 +499,9 @@ export function useRetirementSimulation({
     pwaToleranceHigh, setPwaToleranceHigh,
     bequestTarget, setBequestTarget,
     equityAllocation, setEquityAllocation,
-    withdrawalRate, setWithdrawalRate,
+    // The exposed setter is the dirty-marking one — only user interactions
+    // (the slider) call it; the auto-sync effect uses the raw setter internally.
+    withdrawalRate, setWithdrawalRate: setWithdrawalRateManual,
     poolFloor, setPoolFloor,
     chadPassesAge, setChadPassesAge,
     inheritanceAmount, setInheritanceAmount,

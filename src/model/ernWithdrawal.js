@@ -81,8 +81,18 @@ export function computePreInhSWR(blended, start, T, supplementalFlows, scaling, 
 /**
  * Simulate pool trajectory at a given withdrawal rate for one cohort.
  * Returns yearly pool snapshots (start-of-year values).
+ *
+ * Single-carrier contract (finding 2026-06-09 2.1): ALL cash events —
+ * guaranteed income AND lump sums like an inheritance — arrive via
+ * `supplementalFlows`, which is credited every month (the floor is a hard
+ * clamp, never an income cutoff — finding 2.2). There is deliberately no
+ * separate "rescue" parameter: the previous signature accepted `rescueFlows`
+ * and credited it ON TOP of supplementalFlows, double-counting any event
+ * present in both arrays (the inheritance was, doubling it in the bands).
+ * This also keeps simulatePath consistent with computeSWR, which has no
+ * rescue concept and credits supplementalFlows exactly once.
  */
-export function simulatePath(blended, start, T, monthlyW, supplementalFlows, scaling, initialPool, floor, rescueFlows) {
+export function simulatePath(blended, start, T, monthlyW, supplementalFlows, scaling, initialPool, floor) {
   let pool = initialPool;
   const numYears = Math.floor(T / 12);
   const yearlyPools = [];
@@ -98,14 +108,14 @@ export function simulatePath(blended, start, T, monthlyW, supplementalFlows, sca
     for (let m = 0; m < 12; m++) {
       const t = y * 12 + m;
       const scheduledWithdrawal = hasWithdrawalSchedule ? monthlyW[t] : monthlyW;
-      // Apply guaranteed income (supplementalFlows) + any rescue flow + growth EVERY
-      // month — the floor is only a hard clamp, never an income cutoff. This matches
-      // the closed-form computeSWR (which always credits supplementalFlows) and
-      // pwaStrategies.js. Previously, once the pool touched the floor it was pinned
-      // forever and SS/pension/trust stopped accruing (finding 2.2), which made
+      // Apply guaranteed income (supplementalFlows, the single cash-event
+      // carrier) + growth EVERY month — the floor is only a hard clamp, never
+      // an income cutoff. This matches the closed-form computeSWR (which
+      // always credits supplementalFlows) and pwaStrategies.js. Previously,
+      // once the pool touched the floor it was pinned forever and
+      // SS/pension/trust stopped accruing (finding 2.2), which made
       // survivor-phase cohorts flatline even when scaled spend < guaranteed income.
-      const rescue = (rescueFlows && rescueFlows[t] > 0) ? rescueFlows[t] : 0;
-      pool = (pool - scheduledWithdrawal * scaling[t] + supplementalFlows[t] + rescue) * (1 + blended[start + t]);
+      pool = (pool - scheduledWithdrawal * scaling[t] + supplementalFlows[t]) * (1 + blended[start + t]);
       if (pool < floor) pool = floor;
       if (pool <= floor) {
         everDepleted = true;

@@ -431,44 +431,43 @@ test('simulatePath flags intra-year depletion even if inheritance rescues later'
   const scaling = new Float64Array(12);
   scaling.fill(1);
   supplementalFlows[2] = 8000;
-  rescueFlows[2] = 8000;
+  rescueFlows[2] = 8000; // legacy duplicate carrier — must be ignored (finding 2026-06-09 2.1)
   const sim = simulatePath(blended, 0, 12, 600, supplementalFlows, scaling, 1000, 0, rescueFlows);
   eq(sim.everDepleted, true);
   // Trajectory (floor 0, r=0, withdraw 600/mo):
   //   m0: 1000-600 = 400; m1: 400-600 -> clamp 0 (depleted);
-  //   m2: 0 - 600 + 8000 (guaranteed income) + 8000 (rescue) = 15400;
-  //   m3..m11 (9 mo): 15400 - 9*600 = 10000.
-  // Finding 2.2 fix: guaranteed income (supplementalFlows[2]=8000) is now credited
-  // at the floor month too — previously ONLY the rescue flow was applied while at the
-  // floor, dropping the $8000 of guaranteed income, which under-stated the final pool
-  // (old value 2600 = the rescue-only path). everDepleted still flags the m1 dip.
-  eq(sim.finalPool, 10000);
+  //   m2: 0 - 600 + 8000 (the cash event, credited EXACTLY once) = 7400;
+  //   m3..m11 (9 mo): 7400 - 9*600 = 2000.
+  // Finding 2026-06-09 2.1: supplementalFlows is the SINGLE cash-event carrier.
+  // The previous snapshot locked 15400 — the same $8000 event credited twice
+  // (once from supplementalFlows, once from rescueFlows), inflating the pool by
+  // the full event amount. Finding 2.2 semantics are preserved: the income is
+  // still credited at the floor month. everDepleted still flags the m1 dip.
+  eq(sim.finalPool, 2000);
 });
 test('simulatePath supports scheduled monthly withdrawals', () => {
   const blended = new Float64Array(12);
   const supplementalFlows = new Float64Array(12);
-  const rescueFlows = new Float64Array(12);
   const scaling = new Float64Array(12);
   const monthlySchedule = new Float64Array(12);
   scaling.fill(1);
   monthlySchedule[0] = 200;
   monthlySchedule[1] = 100;
-  const sim = simulatePath(blended, 0, 12, monthlySchedule, supplementalFlows, scaling, 1000, 0, rescueFlows);
+  const sim = simulatePath(blended, 0, 12, monthlySchedule, supplementalFlows, scaling, 1000, 0);
   eq(sim.finalPool, 700);
   eq(sim.everDepleted, false);
 });
 test('reserve boundary treats touching the floor as depleted', () => {
   const blended = new Float64Array(12);
   const supplementalFlows = new Float64Array(12);
-  const rescueFlows = new Float64Array(12);
   const scaling = new Float64Array(12);
   scaling.fill(1);
 
-  const safeSim = simulatePath(blended, 0, 12, 0, supplementalFlows, scaling, 12000, 11999, rescueFlows);
+  const safeSim = simulatePath(blended, 0, 12, 0, supplementalFlows, scaling, 12000, 11999);
   eq(safeSim.everDepleted, false);
   eq(safeSim.finalPool, 12000);
 
-  const touchSim = simulatePath(blended, 0, 12, 1, supplementalFlows, scaling, 12000, 11999, rescueFlows);
+  const touchSim = simulatePath(blended, 0, 12, 1, supplementalFlows, scaling, 12000, 11999);
   eq(touchSim.everDepleted, true);
   eq(touchSim.finalPool, 11999);
 });

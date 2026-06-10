@@ -41,6 +41,7 @@ const RANGE = {
   // Sarah's spousal SS — current age + claim age (62–70 per SSA rules)
   sarahCurrentAge: { min: 18, max: 100 },
   sarahSpousalClaimAge: { min: 62, max: 70 },
+  sarahOwnSS: { min: 0, max: 10000 },                 // Her own-record monthly benefit (retirement sim)
   // Month offsets
   ssdiApprovalMonth: { min: 0, max: 120 },
   kidsAgeOutMonths: { min: 0, max: 120 },

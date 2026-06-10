@@ -2,6 +2,7 @@ import { computeProjection, findOperationalBreakevenIndex } from './projection.j
 import { gatherState } from '../state/gatherState.js';
 import { evaluateAllGoals } from './goalEvaluation.js';
 import { getEndingResourceValue } from './projectionMetrics.js';
+import { SOLO_401K_EMPLOYEE_LIMIT, K401_SUPER_CATCHUP_LIMIT } from './taxConstants.js';
 
 /**
  * "Your Top 3 Moves" / Sensitivity analysis.
@@ -168,8 +169,11 @@ export function buildLeverCandidates(state) {
       chadL65BonusPct: orDefault(state.chadL65BonusPct, 20),
       // 401(k) max-out + employer match (super catch-up for ages 60-63)
       chadJob401kEnabled: true,
-      chadJob401kDeferral: orDefault(state.chadJob401kDeferral, 24500),
-      chadJob401kCatchupRoth: orDefault(state.chadJob401kCatchupRoth, 11250),
+      // C7 (item 3.6): statutory limits flow from the Phase-0 table — never
+      // literals. The engine itself age-gates the super catch-up per calendar
+      // year (regular limit from the year Chad attains 64).
+      chadJob401kDeferral: orDefault(state.chadJob401kDeferral, SOLO_401K_EMPLOYEE_LIMIT),
+      chadJob401kCatchupRoth: orDefault(state.chadJob401kCatchupRoth, K401_SUPER_CATCHUP_LIMIT),
       chadJob401kMatch: orDefault(state.chadJob401kMatch, 12250),
       // Force age-65 vest continuation ON since Chad will retire at 65+ under
       // the typical 6-yr horizon — locks in post-retirement RSU windfall.

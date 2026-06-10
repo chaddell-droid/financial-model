@@ -201,6 +201,11 @@ export const SOLO_401K_EMPLOYER_RATE = 0.25;
 // computeMax401k (Sarah's Sch C) must use this, never the raw 25%.
 export const SOLO_401K_EMPLOYER_RATE_SE = SOLO_401K_EMPLOYER_RATE / (1 + SOLO_401K_EMPLOYER_RATE);
 export const SOLO_401K_TOTAL_LIMIT = BASE.solo401kTotalLimit;
+// C7 (remediation 2026-06-10, item 3.6): age-50+ catch-up and the SECURE 2.0
+// §109 super catch-up (years attaining 60–63 ONLY). Base-year values; the
+// projection engine clamps per calendar year via getTaxParamsForYear.
+export const K401_CATCHUP_LIMIT = BASE.k401CatchupLimit;
+export const K401_SUPER_CATCHUP_LIMIT = BASE.k401SuperCatchupLimit;
 
 // SS benefit taxation thresholds (Married Filing Jointly) — legally frozen.
 export const SS_PROVISIONAL_THRESHOLD_1 = BASE.ssProvisionalThreshold1;

@@ -3019,13 +3019,16 @@ test('K2. Roth catch-up reduces take-home but NOT taxable wages', () => {
   const rothS = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJob401kEnabled: true,
-    chadJob401kCatchupRoth: 12000, // $1K/mo Roth
+    // C7 (item 3.6): the engine now clamps the catch-up to the statutory limit
+    // ($11,250 super in years attaining 60-63), so the fixture uses a lawful
+    // $9,000/yr = $750/mo (the old $12,000 exceeded the cap and was clamped).
+    chadJob401kCatchupRoth: 9000, // $750/mo Roth
     chadWorkMonths: 12,
   });
   const { monthlyData: rothData } = runMonthlySimulation(rothS);
-  // Net should drop by FULL $1K (post-tax money leaves bank).
+  // Net should drop by the FULL post-tax amount (post-tax money leaves bank).
   const delta = baseData[0].chadJobSalaryNet - rothData[0].chadJobSalaryNet;
-  assert.strictEqual(delta, 1000, `Roth catch-up should reduce net by full $1,000/mo, got ${delta}`);
+  assert.strictEqual(delta, 750, `Roth catch-up should reduce net by full $750/mo, got ${delta}`);
 });
 
 test('K3. Employer match adds to 401k without affecting cashflow', () => {

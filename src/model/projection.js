@@ -16,6 +16,7 @@ function nextStockVestMonthAfter(month) {
   return month + 3; // fallback (shouldn't hit — vest months are every 3 months)
 }
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
+import { getTaxParamsForYear, TAX_PARAMS_BASE_YEAR } from './taxConstants.js';
 
 // ── A1 INTERIM SS taxability haircut (remediation 2026-06-10, plan 1.2) ──
 // SS/SSDI benefits previously flowed into cash flow completely untaxed. With
@@ -131,8 +132,25 @@ export function runMonthlySimulation(s) {
   // Master toggle chadJob401kEnabled gates all three; when false, slider values are ignored.
   const chadJob401kEnabled = !!s.chadJob401kEnabled;
   const chadJob401kDeferralMonthly = chadJob401kEnabled ? (s.chadJob401kDeferral || 0) / 12 : 0;
-  const chadJob401kCatchupRothMonthly = chadJob401kEnabled ? (s.chadJob401kCatchupRoth || 0) / 12 : 0;
+  const chadJob401kCatchupAnnual = chadJob401kEnabled ? (s.chadJob401kCatchupRoth || 0) : 0;
   const chadJob401kMatchMonthly = chadJob401kEnabled ? (s.chadJob401kMatch || 0) / 12 : 0;
+  // C7 (remediation 2026-06-10, item 3.6): SECURE 2.0 §109 — the $11,250
+  // super catch-up applies ONLY in calendar years ATTAINING age 60–63; from
+  // the year attaining 64 the regular age-50+ limit applies. Attained age in
+  // a given calendar year derives from the household FRA anchor (Chad attains
+  // SS_FRA in the calendar year of SS_FRA_MONTH − 1). Limits flow from the
+  // Phase-0 statutory table (indexed for future years) — never hardcoded.
+  const k401FraCalYearIdx = Math.floor((SS_FRA_MONTH - 1 + PROJECTION_START_MONTH) / 12);
+  const k401CatchupMonthlyAt = (m) => {
+    if (chadJob401kCatchupAnnual <= 0) return 0;
+    const calYearIdx = Math.floor((m + PROJECTION_START_MONTH) / 12);
+    const attainedAge = SS_FRA - (k401FraCalYearIdx - calYearIdx);
+    const params = getTaxParamsForYear(TAX_PARAMS_BASE_YEAR + calYearIdx);
+    const cap = (attainedAge >= 60 && attainedAge <= 63)
+      ? params.k401SuperCatchupLimit
+      : params.k401CatchupLimit;
+    return Math.min(chadJob401kCatchupAnnual, cap) / 12;
+  };
   const chadJobTaxRate = (s.chadJobTaxRate ?? 25) / 100;
   // Pension is deducted from salary only (not bonuses or RSUs, per typical employer rules).
   // FICA correctness: pre-tax pension reduces federal income tax base (Box 1) but FICA
@@ -261,6 +279,8 @@ export function runMonthlySimulation(s) {
     const inWorkWindow = chadJob && m >= chadJobStartMonth && m <= chadRetirementMonth;
     const inVestContinuation = chadJob && m > chadRetirementMonth && age65Vest.applies;
     if (inWorkWindow) {
+      // C7: catch-up resolved per calendar year (super vs regular limit).
+      const chadJob401kCatchupRothMonthly = k401CatchupMonthlyAt(m);
       const monthsWorked = m - chadJobStartMonth;
       const lvl = levelAtMonthsWorked(monthsWorked, s);
       // Raises compound on anniversary of the current level (or hire if pre-promotion).

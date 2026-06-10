@@ -1504,13 +1504,11 @@ test('chart automation hooks disambiguate duplicate surfaces and hover targets',
   const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
   const savingsSource = fs.readFileSync(new URL('../charts/SavingsDrawdownChart.jsx', import.meta.url), 'utf8');
   const netWorthSource = fs.readFileSync(new URL('../charts/NetWorthChart.jsx', import.meta.url), 'utf8');
-  const cashFlowSource = fs.readFileSync(new URL('../charts/MonthlyCashFlowChart.jsx', import.meta.url), 'utf8');
   const incomeCompSource = fs.readFileSync(new URL('../charts/IncomeCompositionChart.jsx', import.meta.url), 'utf8');
   assert.ok(appSource.includes("instanceId: 'risk-tab'"), 'FinancialModel should assign a risk-tab instance id to duplicate charts');
   assert.ok(appSource.includes("'right-rail'") && appSource.includes("'shared-rail'"), 'FinancialModel should assign right-rail and shared-rail instance ids');
   assert.ok(savingsSource.includes('savings-drawdown-hover-surface'), 'savings chart should expose a stable hover surface');
   assert.ok(netWorthSource.includes('net-worth-hover-surface'), 'net worth chart should expose a stable hover surface');
-  assert.ok(cashFlowSource.includes('monthly-cash-flow-hover-surface'), 'cash flow chart should expose a stable hover surface');
   assert.ok(incomeCompSource.includes('income-composition-hover-surface'), 'income composition chart should expose a stable hover surface');
 });
 test('retirement and Monte Carlo surfaces expose test handles for Wave 0', () => {
@@ -1832,13 +1830,11 @@ test('SaveLoadPanel routes scenario actions through shared action buttons', () =
 
 test('Monthly and rail charts adopt the shared chart contract helpers', () => {
   const bridgeSource = fs.readFileSync(new URL('../charts/BridgeChart.jsx', import.meta.url), 'utf8');
-  const cashFlowSource = fs.readFileSync(new URL('../charts/MonthlyCashFlowChart.jsx', import.meta.url), 'utf8');
   const incomeSource = fs.readFileSync(new URL('../charts/IncomeCompositionChart.jsx', import.meta.url), 'utf8');
   const savingsSource = fs.readFileSync(new URL('../charts/SavingsDrawdownChart.jsx', import.meta.url), 'utf8');
   const netWorthSource = fs.readFileSync(new URL('../charts/NetWorthChart.jsx', import.meta.url), 'utf8');
   const pwaSource = fs.readFileSync(new URL('../charts/PwaDistributionChart.jsx', import.meta.url), 'utf8');
   assert.ok(bridgeSource.includes('formatModelTimeLabel'), 'bridge chart should use shared model-time labels');
-  assert.ok(cashFlowSource.includes('buildLegendItems'), 'monthly cash flow chart should use shared legend helpers');
   assert.ok(incomeSource.includes('buildLegendItems'), 'income composition chart should use shared legend helpers');
   assert.ok(savingsSource.includes('formatModelTimeLabel'), 'savings drawdown chart should use shared model-time labels');
   assert.ok(netWorthSource.includes('formatModelTimeLabel'), 'net worth chart should use shared model-time labels');
@@ -2287,6 +2283,87 @@ test('R18: chadJobHealthSavings $4200 reduces month-0 expenses', () => {
   const s = gatherState({ chadJob: true, chadJobStartMonth: 0, chadJobSalary: 80000, chadJobTaxRate: 25, chadJobHealthSavings: 4200 });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[0].expenses, 50182);
+});
+
+// === Remediation 2026-06-09 D2/D5 — GoalPanel placement, Chad401k rail wiring, dead-chart purge ===
+
+console.log('\n=== Remediation D2/D5 Guards ===');
+
+test('GoalPanel renders on the tab the GoalStatusStrip copy points to (risk)', () => {
+  const stripSource = fs.readFileSync(new URL('../panels/GoalStatusStrip.jsx', import.meta.url), 'utf8');
+  const riskSource = fs.readFileSync(new URL('../panels/tabs/RiskTab.jsx', import.meta.url), 'utf8');
+  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  // The Overview strip directs users to the Risk tab for goal management…
+  assert.ok(stripSource.includes("onTabChange('risk')"), 'GoalStatusStrip should direct goal management to the risk tab');
+  assert.ok(stripSource.includes('Set goals on the Risk tab'), 'GoalStatusStrip empty-state copy should name the Risk tab');
+  // …so the goal editor must actually be reachable there (it was prop-plumbed but unrendered).
+  assert.ok(riskSource.includes("import GoalPanel from '../GoalPanel.jsx'"), 'RiskTab should import the GoalPanel goal editor');
+  assert.ok(riskSource.includes('<GoalPanel'), 'RiskTab should render the GoalPanel goal editor');
+  assert.ok(riskSource.includes('risk-goals-section'), 'RiskTab should expose a stable goals section selector');
+  assert.ok(appSource.includes('goalPanelProps={deferredGoalPanelProps}'), 'FinancialModel should pass the deferred goal panel props into RiskTab');
+});
+
+test('Chad401kChart follows the standard responsive chart pattern', () => {
+  const source = fs.readFileSync(new URL('../charts/Chad401kChart.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('useContainerWidth'), 'Chad401kChart should size via useContainerWidth');
+  assert.ok(!source.includes('preserveAspectRatio'), 'Chad401kChart must not stretch labels via preserveAspectRatio="none" (documented distortion trap)');
+  assert.ok(source.includes('ChartYAxis'), 'Chad401kChart should render its Y axis via the shared ChartYAxis');
+  assert.ok(source.includes('ChartXAxis'), 'Chad401kChart should render its X axis via the shared ChartXAxis');
+  assert.ok(!/COLORS\.text[^A-Za-z]/.test(source), 'Chad401kChart must not reference the nonexistent COLORS.text key (invisible crosshair)');
+});
+
+test('Chad401kChart is registered as a rail chart with wired component and props', () => {
+  const registrySource = fs.readFileSync(new URL('../rail/chartRegistry.js', import.meta.url), 'utf8');
+  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(registrySource.includes("id: 'chad401k'"), 'chart registry should include the chad401k rail entry');
+  assert.ok(appSource.includes('chad401k: Chad401kChart'), 'FinancialModel should map chad401k to its component in RAIL_COMPONENTS');
+  assert.ok(appSource.includes('chad401k: chad401kChartProps'), 'FinancialModel should map chad401k to its prop bundle in railPropsMap');
+});
+
+test('every COLORS key referenced by chartUtils consumers exists in the palette', () => {
+  // chartUtils has no `text` key (textPrimary/textSecondary/textMuted/textDim) —
+  // a typo silently renders invisible strokes/text. Scan every src file that
+  // imports COLORS from chartUtils and verify each COLORS.<key> reference exists.
+  const utilsSource = fs.readFileSync(new URL('../charts/chartUtils.js', import.meta.url), 'utf8');
+  const paletteBlock = utilsSource.match(/export const COLORS = \{([\s\S]*?)\n\};/);
+  assert.ok(paletteBlock, 'chartUtils should export the COLORS palette');
+  const validKeys = new Set([...paletteBlock[1].matchAll(/^\s*([A-Za-z0-9_]+):/gm)].map((m) => m[1]));
+  const importsChartUtilsColors = /import\s*\{[^}]*\bCOLORS\b[^}]*\}\s*from\s*['"][^'"]*chartUtils\.js['"]/;
+  const srcRoot = new URL('..', import.meta.url);
+  const walk = (dirUrl, out = []) => {
+    for (const entry of fs.readdirSync(dirUrl, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name === '__tests__' || entry.name === 'node_modules') continue;
+        walk(new URL(`${entry.name}/`, dirUrl), out);
+      } else if (/\.(js|jsx)$/.test(entry.name) && !entry.name.endsWith('.test.js')) {
+        out.push(new URL(entry.name, dirUrl));
+      }
+    }
+    return out;
+  };
+  let scanned = 0;
+  for (const fileUrl of walk(srcRoot)) {
+    const source = fs.readFileSync(fileUrl, 'utf8');
+    if (!importsChartUtilsColors.test(source)) continue;
+    scanned++;
+    for (const match of source.matchAll(/\bCOLORS\.([A-Za-z0-9_]+)/g)) {
+      assert.ok(validKeys.has(match[1]), `${fileUrl.pathname.split('/').pop()} references COLORS.${match[1]}, which does not exist in chartUtils COLORS`);
+    }
+  }
+  assert.ok(scanned >= 5, `expected at least 5 chartUtils COLORS consumers, scanned ${scanned}`);
+});
+
+test('dead charts TimelineChart and MonthlyCashFlowChart are fully purged', () => {
+  assert.ok(!fs.existsSync(new URL('../charts/TimelineChart.jsx', import.meta.url)), 'TimelineChart.jsx should be deleted (never rendered)');
+  assert.ok(!fs.existsSync(new URL('../charts/MonthlyCashFlowChart.jsx', import.meta.url)), 'MonthlyCashFlowChart.jsx should be deleted (never rendered)');
+  const appSource = fs.readFileSync(new URL('../FinancialModel.jsx', import.meta.url), 'utf8');
+  assert.ok(!appSource.includes('timelineProps'), 'FinancialModel should not keep the dead timelineProps bundle');
+  assert.ok(!appSource.includes('cashFlowProps'), 'FinancialModel should not keep the dead cashFlowProps/deferredCashFlowProps bundles');
+  const manifestSource = fs.readFileSync(new URL('../../tests/ui/coverage-manifest.json', import.meta.url), 'utf8');
+  const runnerSource = fs.readFileSync(new URL('../../tests/ui/run-swarm.js', import.meta.url), 'utf8');
+  assert.ok(!manifestSource.includes('MonthlyCashFlowChart'), 'UI swarm manifest should not reference the deleted MonthlyCashFlowChart');
+  assert.ok(!manifestSource.includes('monthly_cash_flow'), 'UI swarm manifest should drop the monthly_cash_flow entry');
+  assert.ok(!runnerSource.includes('monthly_cash_flow'), 'UI swarm runner should drop the monthly_cash_flow entry');
 });
 
 // --- Summary ---

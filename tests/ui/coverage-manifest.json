@@ -132,7 +132,7 @@
       "status": "ready",
       "surface": "goals",
       "paths": ["src/panels/GoalPanel.jsx"],
-      "preconditions": ["presentMode=false", "active tab = plan"],
+      "preconditions": ["presentMode=false", "active tab = risk"],
         "elements": [
           { "selector": "[data-testid=\"goal-panel-toggle\"]", "expect": "collapses and expands the panel" },
           { "selector": "[data-testid=\"goal-panel-add-toggle\"]", "expect": "opens the add-goal form" },
@@ -239,17 +239,6 @@
         { "selector": "[data-testid=\"plan-goals-section\"]", "expect": "renders goals after the first planning chart" }
       ],
       "checks": ["render", "layout", "ordering", "workflow"]
-    },
-    {
-      "id": "plan.monthly_cash_flow.hover",
-      "worker": "worker-2",
-      "status": "ready",
-      "surface": "plan",
-      "paths": ["src/charts/MonthlyCashFlowChart.jsx"],
-      "elements": [
-        { "selector": "[data-testid=\"monthly-cash-flow-hover-surface\"]", "expect": "hover shows month-specific tooltip values" }
-      ],
-      "checks": ["render", "visual", "derived", "integrity"]
     },
     {
       "id": "plan.income_controls.core",

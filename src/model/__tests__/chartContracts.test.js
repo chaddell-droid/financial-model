@@ -174,9 +174,12 @@ test("C11: monthlyData rows have all fields needed by detectSignificantChanges: 
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// 3. MonthlyCashFlowChart (C12–C16)
+// 3. Quarterly schedule contract (C12–C16)
+// (Originally written for MonthlyCashFlowChart, deleted as dead code in the
+//  2026-06-09 remediation. The quarterly rows are still consumed by the
+//  DataTable, BridgeChart, and KeyMetrics, so the contract stays locked.)
 // ════════════════════════════════════════════════════════════════════════
-console.log('\n=== MonthlyCashFlowChart ===');
+console.log('\n=== Quarterly schedule contract ===');
 
 test('C12: Every quarterly row has finite netMonthly', () => {
   for (let i = 0; i < baseData.length; i++) {

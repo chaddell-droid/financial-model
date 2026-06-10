@@ -42,6 +42,7 @@ import { noteCompute } from './testing/perfMetrics.js';
 import { useRailConfig } from './rail/useRailConfig.js';
 import RailRenderer from './rail/RailRenderer.jsx';
 import BridgeChart from './charts/BridgeChart.jsx';
+import Chad401kChart from './charts/Chad401kChart.jsx';
 import IncomeCompositionChart from './charts/IncomeCompositionChart.jsx';
 import MonteCarloPanel from './charts/MonteCarloPanel.jsx';
 import SequenceOfReturnsChart from './charts/SequenceOfReturnsChart.jsx';
@@ -653,21 +654,14 @@ export default function FinancialModel() {
 
   // Chart helpers (memoized — only recompute when projection data changes)
   const chartHelpers = useMemo(() => {
-    const minNet = Math.min(...data.map(d => d.netMonthly));
-    const maxNet = Math.max(...data.map(d => d.netMonthly));
-    const maxVesting = Math.max(...data.map(d => d.msftVesting));
-    const chartH = 380;
-    const netRange = Math.max(Math.abs(minNet), Math.abs(maxNet)) || 1;
     const breakevenIdx = findOperationalBreakevenIndex(data);
     const bestIdx = data.reduce((bestI, d, i) => d.netMonthly > data[bestI].netMonthly ? i : bestI, 0);
     const bestProjectedGap = data[bestIdx]?.netMonthly ?? data[0]?.netMonthly ?? rawMonthlyGap;
     const bestProjectedLabel = data[bestIdx]?.label ?? '';
-    const highlightIdx = breakevenIdx >= 0 ? breakevenIdx : bestIdx;
-    const highlightLabel = breakevenIdx >= 0 ? "BREAKEVEN" : "BEST";
     const breakevenLabel = breakevenIdx >= 0 ? data[breakevenIdx].label : `Best: ${fmt(data[bestIdx].netMonthly)} at ${data[bestIdx].label}`;
-    return { minNet, maxNet, maxVesting, chartH, netRange, breakevenIdx, bestIdx, bestProjectedGap, bestProjectedLabel, highlightIdx, highlightLabel, breakevenLabel };
+    return { breakevenIdx, bestProjectedGap, bestProjectedLabel, breakevenLabel };
   }, [data, rawMonthlyGap]);
-  const { minNet, maxNet, maxVesting, chartH, netRange, breakevenIdx, bestIdx, bestProjectedGap, bestProjectedLabel, highlightIdx, highlightLabel, breakevenLabel } = chartHelpers;
+  const { breakevenIdx, bestProjectedGap, bestProjectedLabel, breakevenLabel } = chartHelpers;
 
   // === PROP BUNDLES for tab components ===
   const bridgeProps = useMemo(() => ({
@@ -698,30 +692,6 @@ export default function FinancialModel() {
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   ]);
 
-  const timelineProps = useMemo(() => ({
-    retireDebt, debtService,
-    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
-    ssdiPersonal, ssdiBackPayActual,
-    ssClaimAge, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadConsulting, milestones,
-    bcsYearsLeft, bcsFamilyMonthly,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings,
-    kidsAgeOutMonths, msftGrowth,
-    currentMsftVesting: data[0].msftVesting,
-    sarahWorkMonths,
-  }), [
-    retireDebt, debtService,
-    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
-    ssdiPersonal, ssdiBackPayActual,
-    ssClaimAge, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadConsulting, milestones,
-    bcsYearsLeft, bcsFamilyMonthly,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings,
-    kidsAgeOutMonths, msftGrowth, data, sarahWorkMonths,
-  ]);
-
   const scenarioStripProps = useMemo(() => ({
     retireDebt, lifestyleCutsApplied, cutsOverride,
     lifestyleCuts, cutInHalf, extraCuts,
@@ -749,20 +719,6 @@ export default function FinancialModel() {
     roofCost, roofInclude,
     otherProjects, otherInclude,
     advanceNeeded, shellWidthBucket,
-  ]);
-
-  const cashFlowProps = useMemo(() => ({
-    data, chartH, netRange,
-    minNet, maxNet, maxVesting,
-    highlightIdx, highlightLabel,
-    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
-    msftGrowth,
-  }), [
-    data, chartH, netRange,
-    minNet, maxNet, maxVesting,
-    highlightIdx, highlightLabel,
-    ssType, ssdiApprovalMonth, ssdiFamilyTotal,
-    msftGrowth,
   ]);
 
   // Real federal/FICA breakdown for the W-2 Net Diagnostic, from the same engine as
@@ -982,7 +938,7 @@ export default function FinancialModel() {
   ]);
 
   // 401(k) detail chart props — exposes monthly contribution/match/balance breakdown
-  // for the Plan tab's Chad401kChart panel.
+  // for the Chad401kChart rail chart (registered as 'chad401k' in chartRegistry).
   const chad401kChartProps = useMemo(() => ({
     monthlyDetail,
     starting401k,
@@ -1091,7 +1047,6 @@ export default function FinancialModel() {
   }), [goals, goalResults, mcGoalResults, mcRunning, presentMode]);
 
   const deferredPlanBridgeProps = useDeferredValue(bridgeProps);
-  const deferredCashFlowProps = useDeferredValue(cashFlowProps);
   // savingsDrawdownProps and netWorthProps are NOT deferred — they contain sliders
   // whose values must update immediately. The projection data inside them is already
   // deferred via deferredState (layer 1), so no second defer is needed.
@@ -1211,6 +1166,7 @@ export default function FinancialModel() {
     income: IncomeCompositionChart,
     montecarlo: MonteCarloPanel,
     sequence: SequenceOfReturnsChart,
+    chad401k: Chad401kChart,
   }), []);
 
   const railPropsMap = useMemo(() => ({
@@ -1228,11 +1184,12 @@ export default function FinancialModel() {
     },
     montecarlo: monteCarloProps,
     sequence: seqReturnsProps,
+    chad401k: chad401kChartProps,
   }), [savingsDrawdownProps, netWorthProps, deferredRetirementRailProps, bridgeProps,
     monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
     chadJob, chadJobStartMonth, chadJobHealthSavings,
     vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
-    compareProjections, monteCarloProps, seqReturnsProps, effectiveTab]);
+    compareProjections, monteCarloProps, seqReturnsProps, chad401kChartProps, effectiveTab]);
 
   const plannerWorkspace = useMemo(() => (
     <>
@@ -1330,6 +1287,7 @@ export default function FinancialModel() {
           netWorthProps={riskNetWorthProps}
           sarahWorkMonths={sarahWorkMonths}
           showEmbeddedBalanceCharts={!showRail}
+          goalPanelProps={deferredGoalPanelProps}
         />
       )}
 
@@ -1361,7 +1319,6 @@ export default function FinancialModel() {
     effectiveTab,
     bridgeProps,
     deferredPlanBridgeProps,
-    deferredCashFlowProps,
     incomeControlsProps,
     expenseControlsProps,
     scenarioStripProps,

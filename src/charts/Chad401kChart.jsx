@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { fmt, fmtFull } from '../model/formatters.js';
-import { COLORS } from './chartUtils.js';
+import React, { useRef, useState } from 'react';
+import { fmtFull } from '../model/formatters.js';
+import { COLORS, createScales, generateYTicks, autoTickStep } from './chartUtils.js';
+import { formatModelTimeLabel } from './chartContract.js';
+import ChartYAxis from './ChartYAxis.jsx';
+import ChartXAxis from './ChartXAxis.jsx';
+import useContainerWidth from '../hooks/useContainerWidth.js';
 
 /**
  * Chad401kChart — detailed view of 401(k) balance growth over the projection horizon.
@@ -25,6 +29,8 @@ export default function Chad401kChart({
   chadRetirementMonth = 72,
   chadJob401kEnabled = false,
 }) {
+  const containerRef = useRef(null);
+  const svgW = useContainerWidth(containerRef);
   const [tooltip, setTooltip] = useState(null);
   const data = Array.isArray(monthlyDetail) ? monthlyDetail : [];
   const n = data.length;
@@ -65,23 +71,20 @@ export default function Chad401kChart({
   const totalGrowth = final.balance - starting401k - totalContrib - totalMatch + final.withdrawal;
   const totalWithdrawn = final.withdrawal;
 
-  // Chart geometry
-  const chartH = 280;
-  const chartW = 600; // viewBox width
-  const padL = 50;
-  const padR = 20;
-  const padT = 10;
-  const padB = 28;
-  const innerW = chartW - padL - padR;
-  const innerH = chartH - padT - padB;
+  // Chart geometry — responsive width via useContainerWidth. The SVG scales
+  // uniformly (no aspect-ratio stretching) so text labels never distort.
+  const svgH = 280;
+  const padL = 60, padR = 20, padT = 20, padB = 30;
   const maxVal = Math.max(...series.map(s => s.starting + s.contributions + s.match + s.growth), 1);
-  const x = (i) => padL + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2);
-  const y = (v) => padT + innerH * (1 - v / maxVal);
+  const yMax = maxVal * 1.05;
+  const maxMonth = series[series.length - 1].month || 1;
+  const { xOf, yOf } = createScales(padL, padR, padT, padB, svgW, svgH, [0, maxMonth], [0, yMax]);
+  const yTicks = generateYTicks(0, yMax, autoTickStep(yMax));
 
   // Build stacked polygons (bottom-up)
   const buildLayer = (lower, upper) => {
-    const top = series.map((s, i) => `${x(i)},${y(upper(s))}`).join(' ');
-    const bottom = series.map((s, i) => `${x(i)},${y(lower(s))}`).reverse().join(' ');
+    const top = series.map((s) => `${xOf(s.month)},${yOf(upper(s))}`).join(' ');
+    const bottom = series.map((s) => `${xOf(s.month)},${yOf(lower(s))}`).reverse().join(' ');
     return `${top} ${bottom}`;
   };
   const startingPoly = buildLayer(_ => 0, s => s.starting);
@@ -91,24 +94,8 @@ export default function Chad401kChart({
 
   // Balance line (= top of stack)
   const balancePath = series
-    .map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(i)},${y(s.starting + s.contributions + s.match + s.growth)}`)
+    .map((s, i) => `${i === 0 ? 'M' : 'L'} ${xOf(s.month)},${yOf(s.starting + s.contributions + s.match + s.growth)}`)
     .join(' ');
-
-  // Y-axis ticks
-  const tickCount = 5;
-  const ticks = Array.from({ length: tickCount + 1 }, (_, i) => {
-    const v = (maxVal * (tickCount - i)) / tickCount;
-    return { v, y: y(v) };
-  });
-
-  const formatYrLabel = (m) => {
-    if (m === 0) return 'Now';
-    const yr = Math.floor(m / 12);
-    return `Y${yr}`;
-  };
-  // X-axis ticks every 12 months
-  const xTicks = [];
-  for (let i = 0; i < n; i += 12) xTicks.push({ i, label: formatYrLabel(data[i].month) });
 
   const retIdx = data.findIndex(d => d.month === chadRetirementMonth);
 
@@ -131,7 +118,7 @@ export default function Chad401kChart({
   }
 
   return (
-    <div data-testid="chad-401k-chart" style={{
+    <div ref={containerRef} data-testid="chad-401k-chart" style={{
       background: COLORS.bgCard, borderRadius: 12, padding: '16px 16px 12px',
       border: `1px solid ${COLORS.border}`, marginBottom: 14,
     }}>
@@ -166,17 +153,21 @@ export default function Chad401kChart({
       </div>
 
       {/* Chart */}
-      <div style={{ position: 'relative', width: '100%' }}>
-        <svg viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none" style={{ width: '100%', height: chartH, display: 'block' }}>
+      <div data-testid="chad-401k-hover-surface" style={{ position: 'relative', width: '100%' }} onMouseLeave={() => setTooltip(null)}>
+        <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
+          onMouseMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) / rect.width * svgW;
+            let closestIdx = 0;
+            let closestDist = Infinity;
+            for (let i = 0; i < series.length; i++) {
+              const dist = Math.abs(xOf(series[i].month) - mouseX);
+              if (dist < closestDist) { closestDist = dist; closestIdx = i; }
+            }
+            setTooltip({ idx: closestIdx });
+          }}>
           {/* Y-axis grid + labels */}
-          {ticks.map((t, i) => (
-            <g key={i}>
-              <line x1={padL} x2={chartW - padR} y1={t.y} y2={t.y} stroke={COLORS.border} strokeOpacity={0.4} strokeWidth={0.5} />
-              <text x={padL - 6} y={t.y + 3} fontSize={9} fill={COLORS.textDim} fontFamily="'JetBrains Mono', monospace" textAnchor="end">
-                {fmt(t.v)}
-              </text>
-            </g>
-          ))}
+          <ChartYAxis ticks={yTicks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} />
           {/* Stacked layers */}
           <polygon points={startingPoly} fill={layerColors.starting} fillOpacity={0.65} />
           <polygon points={contribPoly} fill={layerColors.contrib} fillOpacity={0.65} />
@@ -187,38 +178,17 @@ export default function Chad401kChart({
           {/* Retirement marker */}
           {retIdx > 0 && (
             <g>
-              <line x1={x(retIdx)} x2={x(retIdx)} y1={padT} y2={padT + innerH} stroke={COLORS.amber} strokeDasharray="3,3" strokeWidth={1} />
-              <text x={x(retIdx) + 4} y={padT + 12} fontSize={10} fill={COLORS.amber} fontFamily="'Inter', sans-serif">
+              <line x1={xOf(chadRetirementMonth)} x2={xOf(chadRetirementMonth)} y1={padT} y2={svgH - padB} stroke={COLORS.amber} strokeDasharray="3,3" strokeWidth={1} />
+              <text x={xOf(chadRetirementMonth) + 4} y={padT + 12} fontSize={10} fill={COLORS.amber} fontFamily="'Inter', sans-serif">
                 Retire ↓
               </text>
             </g>
           )}
           {/* X-axis labels */}
-          {xTicks.map((t, i) => (
-            <text key={i} x={x(t.i)} y={chartH - 8} fontSize={9} fill={COLORS.textDim} fontFamily="'JetBrains Mono', monospace" textAnchor="middle">
-              {t.label}
-            </text>
-          ))}
-          {/* Hover surface — captures mouse, finds nearest column */}
-          <rect
-            x={padL} y={padT} width={innerW} height={innerH}
-            fill="transparent"
-            onMouseMove={(e) => {
-              const svg = e.currentTarget.ownerSVGElement;
-              const pt = svg.createSVGPoint();
-              pt.x = e.clientX; pt.y = e.clientY;
-              const ctm = svg.getScreenCTM();
-              if (!ctm) return;
-              const local = pt.matrixTransform(ctm.inverse());
-              const ratio = (local.x - padL) / innerW;
-              const idx = Math.max(0, Math.min(n - 1, Math.round(ratio * (n - 1))));
-              setTooltip({ idx, mx: e.clientX, my: e.clientY });
-            }}
-            onMouseLeave={() => setTooltip(null)}
-          />
+          <ChartXAxis data={data} xOf={(m) => xOf(m)} svgH={svgH} />
           {/* Tooltip vertical line */}
           {tooltip && (
-            <line x1={x(tooltip.idx)} x2={x(tooltip.idx)} y1={padT} y2={padT + innerH} stroke={COLORS.text} strokeOpacity={0.4} strokeWidth={1} />
+            <line x1={xOf(series[tooltip.idx].month)} x2={xOf(series[tooltip.idx].month)} y1={padT} y2={svgH - padB} stroke={COLORS.textSecondary} strokeOpacity={0.4} strokeWidth={1} />
           )}
         </svg>
 
@@ -229,7 +199,7 @@ export default function Chad401kChart({
           return (
             <div style={{
               position: 'absolute',
-              left: `${(x(tooltip.idx) / chartW) * 100}%`,
+              left: `${(xOf(s.month) / svgW) * 100}%`,
               top: 0,
               transform: 'translateX(8px)',
               background: COLORS.bgDeep,
@@ -242,7 +212,7 @@ export default function Chad401kChart({
               minWidth: 180,
               zIndex: 10,
             }}>
-              <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 3 }}>Month {s.month} ({formatYrLabel(s.month)})</div>
+              <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 3 }}>Month {s.month} ({formatModelTimeLabel(s.month)})</div>
               <Row label="Starting" value={fmtFull(s.starting)} color={layerColors.starting} />
               <Row label="Contributions" value={fmtFull(s.contributions)} color={layerColors.contrib} />
               <Row label="Match" value={fmtFull(s.match)} color={layerColors.match} />

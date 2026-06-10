@@ -193,7 +193,8 @@ async function worker1() {
     }));
 
     results.push(await runEntry('shell.goal_panel.core', async () => {
-      await page.getByTestId('tab-plan').click();
+      // GoalPanel renders on the Risk tab (where the Overview GoalStatusStrip points).
+      await page.getByTestId('tab-risk').click();
       await page.getByTestId('goal-panel-toggle').click();
       await page.getByTestId('goal-panel-toggle').click();
       await page.getByTestId('goal-panel-add-toggle').click();
@@ -402,15 +403,6 @@ async function worker2() {
       const shell = await page.getByTestId('app-shell').getAttribute('data-rail-placement');
       eq(shell, 'below', 'plan should keep the rail below the first workspace viewport');
       return 'plan workflow order is workspace-first';
-    }));
-
-    results.push(await runEntry('plan.monthly_cash_flow.hover', async () => {
-      eq(await page.getByTestId('app-shell').getAttribute('data-rail-placement'), 'below', 'plan should stack the rail below the workspace');
-      const surface = page.getByTestId('monthly-cash-flow-hover-surface');
-      await hoverMidpoint(surface);
-      const text = await surface.innerText();
-      ok(/Q\d'\d{2}/.test(text), 'cash-flow hover tooltip did not appear');
-      return 'cash-flow tooltip rendered';
     }));
 
     results.push(await runEntry('plan.income_controls.core', async () => {

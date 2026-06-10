@@ -279,7 +279,7 @@ const IncomeControls = ({
                       Salary, bonus %, and refresh grant size step up at each promotion.
                       Annual raise % continues from the new base. */}
                   <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
-                    <div style={{ fontSize: 10, color: COLORS.orange || COLORS.amber, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Promotion Schedule</div>
+                    <div style={{ fontSize: 10, color: COLORS.amber, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Promotion Schedule</div>
                     <Toggle
                       label="Promote to L64"
                       description="Salary jumps to L64 base; raise % continues compounding from there."
@@ -532,7 +532,7 @@ const IncomeControls = ({
                                     : null;
                                 return (
                                   <tr key={yr} style={{ background: rowBg }}>
-                                    <td style={{ color: COLORS.text, padding: "3px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                                    <td style={{ color: COLORS.textSecondary, padding: "3px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>
                                       Y{yr}{labelTag}
                                     </td>
                                     {activeGrants.map((g) => {
@@ -777,7 +777,7 @@ const IncomeControls = ({
                                 into the FICA basis. */}
                             <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>FICA on this comp (exact)</div>
                             <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>FICA base (gross W-2 wages)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaBaseAnnual))}/yr</span></div>
-                            <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: w2FicaSS > 0 ? COLORS.text : COLORS.textDim }}>{fmtFull(Math.round(w2FicaSS))}/yr</span></div>
+                            <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: w2FicaSS > 0 ? COLORS.textSecondary : COLORS.textDim }}>{fmtFull(Math.round(w2FicaSS))}/yr</span></div>
                             <div style={rowStyle}><span>FICA — Medicare (1.45%)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaMedicare))}/yr</span></div>
                             {w2FicaAddlMedicare > 0 && (
                               <div style={rowStyle}><span>Additional Medicare (0.9% over {fmtFull(250000)})</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAddlMedicare))}/yr</span></div>

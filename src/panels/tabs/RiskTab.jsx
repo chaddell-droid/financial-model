@@ -3,6 +3,7 @@ import MonteCarloPanel from '../../charts/MonteCarloPanel.jsx';
 import SequenceOfReturnsChart from '../../charts/SequenceOfReturnsChart.jsx';
 import SavingsDrawdownChart from '../../charts/SavingsDrawdownChart.jsx';
 import NetWorthChart from '../../charts/NetWorthChart.jsx';
+import GoalPanel from '../GoalPanel.jsx';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 
 function RiskQuestion({ testId, step, title, body, children }) {
@@ -31,6 +32,7 @@ export default function RiskTab({
   netWorthProps,
   sarahWorkMonths,
   showEmbeddedBalanceCharts = true,
+  goalPanelProps,
 }) {
   return (
     <>
@@ -89,6 +91,15 @@ export default function RiskTab({
           <SavingsDrawdownChart {...savingsDrawdownProps} />
           <NetWorthChart {...netWorthProps} />
         </RiskQuestion>
+      ) : null}
+
+      {/* Goal editor — the Overview tab's GoalStatusStrip ("Manage →" / "Set
+          goals on the Risk tab →") directs users here, and the per-goal Monte
+          Carlo success rates it displays come from the panel above. */}
+      {goalPanelProps ? (
+        <section data-testid="risk-goals-section">
+          <GoalPanel {...goalPanelProps} />
+        </section>
       ) : null}
     </>
   );

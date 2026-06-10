@@ -11,6 +11,7 @@ export const CHART_REGISTRY = [
   { id: 'income', label: 'Income vs Expenses', description: 'Stacked income composition against expenses', color: '#22d3ee' },
   { id: 'montecarlo', label: 'Monte Carlo', description: 'Probabilistic solvency analysis', color: '#a78bfa' },
   { id: 'sequence', label: 'Sequence of Returns', description: 'Bad-early vs good-early return scenarios', color: '#f87171' },
+  { id: 'chad401k', label: '401(k) Decomposition', description: 'Contributions, match, and growth stacked into the 401(k) balance', color: '#3b82f6' },
 ];
 
 /** Look up a chart's metadata by ID. */

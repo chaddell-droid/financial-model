@@ -11,9 +11,9 @@ import { INITIAL_STATE, MODEL_KEYS } from './state/initialState.js';
 import { buildRecommendationProvenance } from './state/scenarioProvenance.js';
 import { reducer } from './state/reducer.js';
 import { gatherState as _gatherState, deriveCapitalItemsFromLegacy, prepareComparisonState, computeOneTimeTotal } from './state/gatherState.js';
-import { buildTaxSchedule } from './model/taxProjection.js';
 import { extractProjectionInputs, projectionInputsEqual } from './state/autoSave.js';
 import { usePersistence } from './state/usePersistence.js';
+import { useChartPropBundles } from './hooks/useChartPropBundles.js';
 import Header from './components/Header.jsx';
 import SaveLoadPanel from './components/SaveLoadPanel.jsx';
 import KeyMetrics from './components/KeyMetrics.jsx';
@@ -463,33 +463,39 @@ export default function FinancialModel() {
   const { breakevenIdx, bestProjectedGap, bestProjectedLabel, breakevenLabel } = chartHelpers;
 
   // === PROP BUNDLES for tab components ===
-  const bridgeProps = useMemo(() => ({
-    monthlyDetail, data,
-    sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    retireDebt, vanSold, lifestyleCutsApplied,
-    ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
-    ssFamilyTotal, ssStartMonth,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    milestones, bcsYearsLeft, bcsFamilyMonthly,
-    baseExpenses: effectiveBaseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
-    lifestyleCuts, cutInHalf, extraCuts,
-    startingSavings, investmentReturn, msftGrowth, msftPrice,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-  }), [
-    monthlyDetail, data,
-    sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
-    sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
-    retireDebt, vanSold, lifestyleCutsApplied,
-    ssType, ssdiApprovalMonth, ssdiDenied, ssdiFamilyTotal, chadConsulting,
-    ssFamilyTotal, ssStartMonth,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    milestones, bcsYearsLeft, bcsFamilyMonthly,
-    effectiveBaseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
-    lifestyleCuts, cutInHalf, extraCuts,
-    startingSavings, investmentReturn, msftGrowth, msftPrice,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-  ]);
+  // Stable across UI-only state changes (remediation 6.1/6.3): identity
+  // changes only when the model-input subset does. Gathers FRESH on every
+  // call — consumers (RecommendationCascade, TaxSettingsPanel, AdvisorPane,
+  // TopMovesPanel) key memos on this identity and may mutate the result.
+  const stableGatherState = useCallback(() => _gatherState(modelInputs), [modelInputs]);
+
+  // Chart/tab prop bundles (extracted to useChartPropBundles — Phase 7 file
+  // split, behavior-identical). Bundles whose contracts are locked to this
+  // file (scenarioStripProps' layoutBucket, retirementRailProps, the
+  // instanceId variants, railPropsMap) intentionally stay below.
+  const {
+    bridgeProps,
+    incomeControlsProps,
+    expenseControlsProps,
+    monteCarloProps,
+    seqReturnsProps,
+    savingsDrawdownProps,
+    netWorthProps,
+    chad401kChartProps,
+    incomeChartProps,
+    taxTabProps,
+    dataTableProps,
+    summaryAskProps,
+  } = useChartPropBundles({
+    state,
+    monthlyDetail, data, savingsData, wealthData, gatheredModelState,
+    compareProjections, compareColors: COMPARE_COLORS,
+    sarahCurrentNet, effectiveBaseExpenses, debtTotal,
+    lifestyleCuts, cutInHalf, extraCuts, bcsFamilyMonthly, advanceNeeded,
+    ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
+    savingsZeroMonth, savingsZeroLabel, breakevenIdx, totalRemainingVesting,
+    set, handleRunMonteCarlo, stableGatherState,
+  });
 
   const scenarioStripProps = useMemo(() => ({
     retireDebt, lifestyleCutsApplied, cutsOverride,
@@ -519,114 +525,6 @@ export default function FinancialModel() {
     otherProjects, otherInclude,
     advanceNeeded, shellWidthBucket, set,
   ]);
-
-  // Real federal/FICA breakdown for the W-2 Net Diagnostic, from the same engine as
-  // the Tax tab. FICA is exact; federal is the household return for the first working
-  // year (representative). Falls back to null (pane then shows FICA-only) on any error.
-  // Keyed on the gathered model inputs (remediation 6.2) — never the whole
-  // state object, so UI-only changes don't re-run the full tax engine.
-  const chadTaxBreakdown = useMemo(() => {
-    if (!gatheredModelState.chadJob) return null;
-    try {
-      const sched = buildTaxSchedule(gatheredModelState);
-      if (!sched || sched.length === 0) return null;
-      const idx = sched.findIndex((e) => e.chadW2Gross > 0);
-      const yr = idx >= 0 ? sched[idx] : sched[0];
-      const b = yr.chadW2OnlyTax;
-      if (!b) return null;
-      const combinedTax = b.ficaTotal + b.fedTax;
-      return {
-        year: idx >= 0 ? idx : 0,
-        // Everything below is on the SAME year-0 gross (b.ficaBase) so the rows reconcile.
-        ficaBase: b.ficaBase,
-        ficaSS: b.ficaSS,
-        ficaMedicare: b.ficaMedicare,
-        ficaAddlMedicare: b.ficaAddlMedicare,
-        ficaTotal: b.ficaTotal,
-        fedTax: b.fedTax,
-        combinedTax,
-        effectivePct: b.ficaBase > 0 ? combinedTax / b.ficaBase : 0,
-      };
-    } catch {
-      return null;
-    }
-  }, [gatheredModelState]);
-
-  const incomeControlsProps = useMemo(() => ({
-    ssType, ssdiDenied,
-    ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
-    ssdiApprovalMonth, ssdiBackPayMonths,
-    ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
-    ssClaimAge, ssPIA,
-    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadConsulting,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
-    chadCurrentAge, chadAge65VestOverride,
-    chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
-    chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
-    msftPrice, msftGrowth,
-    chadWorkMonths,
-    postJobBenefit,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
-    chadTaxBreakdown,
-    onFieldChange: set,
-  }), [
-    ssType, ssdiDenied,
-    ssdiFamilyTotal, ssdiPersonal, kidsAgeOutMonths,
-    ssdiApprovalMonth, ssdiBackPayMonths,
-    ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
-    ssClaimAge, ssPIA,
-    ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    chadConsulting,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
-    chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
-    chadCurrentAge, chadAge65VestOverride,
-    chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
-    chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
-    msftPrice, msftGrowth,
-    chadWorkMonths,
-    postJobBenefit,
-    trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
-    vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
-    chadTaxBreakdown, set,
-  ]);
-
-  const expenseControlsProps = useMemo(() => ({
-    totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
-    expenseInflation, expenseInflationRate,
-    debtTotal, retireDebt,
-    lifestyleCutsApplied, cutsOverride,
-    bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    vanSold, vanMonthlySavings, vanSaleMonth,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    milestones,
-    moldCost, moldInclude, roofCost, roofInclude,
-    otherProjects, otherInclude,
-    // Milestone month slider max should match the actual projection horizon,
-    // not a hardcoded 60. Derived from monthlyDetail length (= horizon + 1).
-    totalProjectionMonths: Math.max(0, (monthlyDetail?.length || 73) - 1),
-    onFieldChange: set,
-  }), [
-    totalMonthlySpend, effectiveBaseExpenses, debtService,
-    expenseInflation, expenseInflationRate,
-    debtTotal, retireDebt,
-    lifestyleCutsApplied, cutsOverride,
-    bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    vanSold, vanMonthlySavings, vanSaleMonth,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    milestones,
-    moldCost, moldInclude, roofCost, roofInclude,
-    otherProjects, otherInclude,
-    monthlyDetail, set,
-  ]);
-
-  // Stable across UI-only state changes (remediation 6.1/6.3): identity
-  // changes only when the model-input subset does. Gathers FRESH on every
-  // call — consumers (RecommendationCascade, TaxSettingsPanel, AdvisorPane,
-  // TopMovesPanel) key memos on this identity and may mutate the result.
-  const stableGatherState = useCallback(() => _gatherState(modelInputs), [modelInputs]);
 
   // Save-from-preview helper — builds recommendation provenance from the
   // current preview stack + active scenario name, then calls saveScenario.
@@ -679,120 +577,6 @@ export default function FinancialModel() {
     saveFromPreview,
     setLeverConstraintOverride,
   }), [previewMoves, applyPreviewMove, removePreviewMove, clearPreview, commitPreview, saveFromPreview, setLeverConstraintOverride]);
-  const monteCarloProps = useMemo(() => ({
-    mcResults, mcRunning,
-    mcNumSims, mcInvestVol, mcBizGrowthVol,
-    mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
-    onParamChange: set, onRun: handleRunMonteCarlo,
-    savingsData, presentMode,
-    // Remediation 6.3: the tornado depends on DATA (the gathered model state
-    // shared with the main projection), not a gatherState callback whose
-    // identity changed on every state update.
-    gatheredState: gatheredModelState,
-    mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline },
-  }), [
-    mcResults, mcRunning,
-    mcNumSims, mcInvestVol, mcBizGrowthVol,
-    mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
-    savingsData, presentMode, gatheredModelState, set, handleRunMonteCarlo,
-  ]);
-
-  const seqReturnsProps = useMemo(() => ({
-    seqBadY1, seqBadY2,
-    onParamChange: set,
-    startingSavings, investmentReturn,
-    ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
-    ssStartMonth, ssKidsAgeOutMonths,
-    monthlyDetail, presentMode,
-  }), [
-    seqBadY1, seqBadY2,
-    startingSavings, investmentReturn,
-    ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
-    ssStartMonth, ssKidsAgeOutMonths,
-    monthlyDetail, presentMode, set,
-  ]);
-
-  const savingsDrawdownProps = useMemo(() => ({
-    savingsData, savingsZeroMonth, savingsZeroLabel,
-    compareProjections, compareColors: COMPARE_COLORS,
-    data, startingSavings, investmentReturn,
-    debtCC, debtPersonal, debtIRS, debtFirstmark,
-    debtService, ssdiApprovalMonth, ssdiBackPayActual,
-    milestones, retireDebt, presentMode,
-    onFieldChange: set, baseExpenses: effectiveBaseExpenses, totalMonthlySpend,
-    monthlyDetail,
-  }), [
-    savingsData, savingsZeroMonth, savingsZeroLabel,
-    compareProjections,
-    data, startingSavings, investmentReturn,
-    debtCC, debtPersonal, debtIRS, debtFirstmark,
-    debtService, ssdiApprovalMonth, ssdiBackPayActual,
-    milestones, retireDebt, presentMode, effectiveBaseExpenses, totalMonthlySpend,
-    monthlyDetail, set,
-  ]);
-
-  const netWorthProps = useMemo(() => ({
-    savingsData, wealthData,
-    starting401k, return401k,
-    homeEquity, homeAppreciation,
-    deficit401kTaxRate,
-    presentMode, onFieldChange: set,
-    compareProjections, compareColors: COMPARE_COLORS,
-  }), [
-    savingsData, wealthData,
-    starting401k, return401k,
-    homeEquity, homeAppreciation,
-    deficit401kTaxRate,
-    presentMode,
-    compareProjections, set,
-  ]);
-
-  // 401(k) detail chart props — exposes monthly contribution/match/balance breakdown
-  // for the Chad401kChart rail chart (registered as 'chad401k' in chartRegistry).
-  const chad401kChartProps = useMemo(() => ({
-    monthlyDetail,
-    starting401k,
-    return401k,
-    chadJob,
-    chadRetirementMonth: chadWorkMonths || 72,
-    chadJob401kEnabled,
-  }), [monthlyDetail, starting401k, return401k, chadJob, chadWorkMonths, chadJob401kEnabled]);
-
-  // Income-composition chart props — single memo shared by the rail's
-  // 'income' entry and PlanTab (remediation 6.3: the inline object literals
-  // re-rendered the memo'd IncomeCompositionChart on every parent render).
-  const incomeChartProps = useMemo(() => ({
-    monthlyDetail, investmentReturn, ssType,
-    ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    vanSold, vanSaleMonth, vanMonthlySavings,
-    bcsYearsLeft, milestones,
-    compareProjections, compareColors: COMPARE_COLORS,
-  }), [
-    monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    vanSold, vanSaleMonth, vanMonthlySavings,
-    bcsYearsLeft, milestones, compareProjections,
-  ]);
-
-  // Tax tab prop bundle. The panels read the individual tax* fields for their
-  // controls and call gatherState() (the FULL gathered state — never a
-  // hand-built subset) to feed buildTaxSchedule (remediation 2026-06-09 D1).
-  const taxTabProps = useMemo(() => ({
-    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-    taxOdcDependents, taxCapGainLoss, taxSolo401k,
-    chadJob,
-    gatherState: stableGatherState,
-    onFieldChange: set,
-  }), [
-    taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
-    taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
-    taxCharitable, taxMedical, taxW2Withholding, taxCtcChildren,
-    taxOdcDependents, taxCapGainLoss, taxSolo401k,
-    chadJob, stableGatherState, set,
-  ]);
 
   // Stable risk-tab variants with instanceId baked in (avoids inline spread that defeats memo)
   const riskSavingsDrawdownProps = useMemo(
@@ -815,28 +599,6 @@ export default function FinancialModel() {
     () => ({ ...netWorthProps, instanceId: 'plan-networth' }),
     [netWorthProps],
   );
-
-  const dataTableProps = useMemo(() => ({ data }), [data]);
-
-  const summaryAskProps = useMemo(() => ({
-    totalRemainingVesting, data, startingSavings,
-    savingsZeroMonth, savingsZeroLabel,
-    ssdiApprovalMonth, ssdiBackPayActual, ssdiBackPayMonths,
-    retireDebt, debtTotal, debtService,
-    moldInclude, moldCost, roofInclude, roofCost,
-    otherInclude, otherProjects,
-    bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    advanceNeeded, breakevenIdx,
-  }), [
-    totalRemainingVesting, data, startingSavings,
-    savingsZeroMonth, savingsZeroLabel,
-    ssdiApprovalMonth, ssdiBackPayActual, ssdiBackPayMonths,
-    retireDebt, debtTotal, debtService,
-    moldInclude, moldCost, roofInclude, roofCost,
-    otherInclude, otherProjects,
-    bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
-    advanceNeeded, breakevenIdx,
-  ]);
 
   const trackTabProps = useMemo(() => ({
     checkInHistory,

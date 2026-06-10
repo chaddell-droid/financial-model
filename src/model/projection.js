@@ -211,16 +211,30 @@ export function runMonthlySimulation(s) {
   // FRA calendar year (m=70..77 for this household).
   const ssFraAttainMonth = SS_FRA_MONTH - 1;
   const ssFraCalYear = Math.floor((ssFraAttainMonth + PROJECTION_START_MONTH) / 12);
+  // A8 (remediation 2026-06-10, item 1.6): earnings test on Sarah's SPOUSAL
+  // benefit vs her own net SE earnings while she is under HER FRA — the same
+  // whole-check semantics as Chad's test above. Fully-withheld months earn
+  // the ARF recredit at her FRA: the early-claim reduction is recomputed
+  // with those months removed (clamped at the full FRA ceiling).
+  const sarahCurAgeForFra = s.sarahCurrentAge ?? 59;
+  const sarahFraMonth = Math.max(0, Math.round((SS_FRA - sarahCurAgeForFra) * 12));
+  const sarahFraCalYear = Math.floor((sarahFraMonth + PROJECTION_START_MONTH) / 12);
+  const sarahSpousalMonthsEarlyAtClaim = Math.max(0, Math.round((SS_FRA - (s.sarahSpousalClaimAge || 67)) * 12));
+  let sarahEtYear = -1;
+  let sarahEtWithheldThisYear = 0;
+  let sarahSpousalMonthsWithheld = 0;
+  let sarahSpousalAtFra = null; // ARF-recredited spousal, fixed at her FRA
 
   // Sarah's practice stops at her work duration
   const sarahRetirementMonth = s.sarahWorkMonths || 72;
 
   for (let m = 0; m <= months; m++) {
     let sarahIncome = 0;
+    let sarahGross = 0; // A8: her net SE earnings drive the spousal earnings test
     if (m <= sarahRetirementMonth) {
       const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
       const clients = Math.min(s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12), s.sarahMaxClients);
-      const sarahGross = Math.round(rate * clients * DAYS_PER_MONTH);
+      sarahGross = Math.round(rate * clients * DAYS_PER_MONTH);
       sarahIncome = Math.round(sarahGross * (1 - (s.sarahTaxRate ?? 25) / 100));
     }
     const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0, s.msftPrice);
@@ -483,7 +497,19 @@ export function runMonthlySimulation(s) {
       // this household's PIA).
       && ssBenefit <= ssBenefitPersonal
     ) {
-      sarahSpousal = s.sarahSpousalAmount || 0;
+      if (m >= sarahFraMonth) {
+        // A8: ARF recredit at HER FRA — recompute the spousal reduction with
+        // the fully-withheld months removed (mirrors Chad's B2 recredit).
+        if (sarahSpousalAtFra === null) {
+          sarahSpousalAtFra = (s.ssPIA || 0) > 0
+            ? Math.round(s.ssPIA * 0.5 * ssSpousalFactorFromMonthsEarly(
+                Math.max(0, sarahSpousalMonthsEarlyAtClaim - sarahSpousalMonthsWithheld)))
+            : (s.sarahSpousalAmount || 0);
+        }
+        sarahSpousal = sarahSpousalAtFra;
+      } else {
+        sarahSpousal = s.sarahSpousalAmount || 0;
+      }
     }
 
     // A2 (remediation 2026-06-10, plan 1.1): SS COLA. Benefits are statutorily
@@ -589,6 +615,32 @@ export function runMonthlySimulation(s) {
         // B1: ARF counts only months with NO benefit payable (20 CFR 404.412)
         // — a partially-paid boundary month does not earn a recredit month.
         if (ssBenefit === 0) ssMonthsWithheld++;
+      }
+    }
+
+    // A8 (2026-06-10, item 1.6): earnings test on Sarah's spousal vs HER net
+    // SE earnings while under HER FRA — whole-check withholding (B1
+    // semantics), annualized from her current-month practice earnings (the
+    // model has no Schedule C expense layer, so gross revenue is her net SE
+    // earnings). Exempt from her FRA-attainment month onward; the $1/$3 tier
+    // applies inside her FRA calendar year.
+    if (sarahSpousal > 0 && m < sarahFraMonth) {
+      const sarahCalYear = Math.floor((m + PROJECTION_START_MONTH) / 12);
+      if (sarahCalYear !== sarahEtYear) { sarahEtYear = sarahCalYear; sarahEtWithheldThisYear = 0; }
+      const sarahAnnualSeEarnings = sarahGross * 12;
+      if (sarahAnnualSeEarnings > 0) {
+        const inSarahFraCalYear = sarahCalYear === sarahFraCalYear;
+        const sarahExempt = inSarahFraCalYear ? SS_EARNINGS_LIMIT_FRA_YEAR : SS_EARNINGS_LIMIT_ANNUAL;
+        const sarahDivisor = inSarahFraCalYear ? 3 : 2;
+        const sarahRequired = Math.round(Math.max(0, sarahAnnualSeEarnings - sarahExempt) / sarahDivisor);
+        const sarahRemaining = Math.max(0, sarahRequired - sarahEtWithheldThisYear);
+        const sarahWithheld = Math.min(sarahSpousal, sarahRemaining);
+        if (sarahWithheld > 0) {
+          sarahSpousal -= sarahWithheld;
+          sarahEtWithheldThisYear += sarahWithheld;
+          // ARF: only months with NO spousal payable count toward her recredit.
+          if (sarahSpousal === 0) sarahSpousalMonthsWithheld++;
+        }
       }
     }
 
@@ -766,7 +818,17 @@ export function runMonthlySimulation(s) {
     });
   }
 
-  return { monthlyData, backPayActual, backPayTax, ssWithheldSummary: { monthsFullyWithheld: ssMonthsWithheld, totalAmountWithheld: ssTotalAmountWithheld } };
+  return {
+    monthlyData,
+    backPayActual,
+    backPayTax,
+    ssWithheldSummary: {
+      monthsFullyWithheld: ssMonthsWithheld,
+      totalAmountWithheld: ssTotalAmountWithheld,
+      // A8: fully-withheld spousal months (drives her ARF recredit at FRA).
+      sarahSpousalMonthsWithheld,
+    },
+  };
 }
 
 export function computeProjection(s) {

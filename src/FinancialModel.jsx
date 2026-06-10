@@ -169,6 +169,7 @@ export default function FinancialModel() {
     comparisons,
     starting401k, return401k, homeEquity, homeAppreciation, deficit401kTaxRate, retirement401kTaxRate,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
+    mcBlockBootstrap,
     seqBadY1, seqBadY2,
     taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
     taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
@@ -389,6 +390,7 @@ export default function FinancialModel() {
           mcNumSims: st.mcNumSims, mcInvestVol: st.mcInvestVol, mcBizGrowthVol: st.mcBizGrowthVol,
           mcMsftVol: st.mcMsftVol, mcSsdiDelay: st.mcSsdiDelay, mcSsdiDenialPct: st.mcSsdiDenialPct,
           mcCutsDiscipline: st.mcCutsDiscipline,
+          mcBlockBootstrap: st.mcBlockBootstrap,
         };
         const mcSeed = typeof window !== 'undefined' && window.__FIN_MODEL_TEST__ && typeof window.__FIN_MODEL_TEST__.getMonteCarloSeed === 'function'
           ? window.__FIN_MODEL_TEST__.getMonteCarloSeed()

@@ -444,6 +444,7 @@ export const TOOLS = Object.freeze([
         mcSsdiDelay: state.mcSsdiDelay ?? 6,
         mcSsdiDenialPct: state.mcSsdiDenialPct ?? 5,
         mcCutsDiscipline: state.mcCutsDiscipline ?? 25,
+        mcBlockBootstrap: state.mcBlockBootstrap ?? false,
       };
       const goals = state.goals || [];
       const opts = args.seed != null ? { seed: args.seed } : {};

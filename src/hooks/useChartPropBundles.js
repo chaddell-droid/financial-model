@@ -48,6 +48,7 @@ export function useChartPropBundles({
     presentMode,
     starting401k, return401k, homeEquity, homeAppreciation, deficit401kTaxRate,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
+    mcBlockBootstrap,
     seqBadY1, seqBadY2,
     taxMode, taxInflationAdjust, taxInflationRate, taxSchCExpenseRatio,
     taxPropertyTax, taxSalesTax, taxPersonalPropTax, taxMortgageInt,
@@ -191,17 +192,19 @@ export function useChartPropBundles({
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
+    mcBlockBootstrap,
     onParamChange: set, onRun: handleRunMonteCarlo,
     savingsData, presentMode,
     // Remediation 6.3: the tornado depends on DATA (the gathered model state
     // shared with the main projection), not a gatherState callback whose
     // identity changed on every state update.
     gatheredState: gatheredModelState,
-    mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline },
+    mcParams: { mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline, mcBlockBootstrap },
   }), [
     mcResults, mcRunning,
     mcNumSims, mcInvestVol, mcBizGrowthVol,
     mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
+    mcBlockBootstrap,
     savingsData, presentMode, gatheredModelState, set, handleRunMonteCarlo,
   ]);
 

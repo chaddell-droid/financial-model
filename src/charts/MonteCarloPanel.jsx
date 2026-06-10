@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { computeProjection } from '../model/projection.js';
 import Slider from '../components/Slider.jsx';
+import Toggle from '../components/Toggle.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
 import { COLORS } from './chartUtils.js';
 import ChartXAxis from './ChartXAxis.jsx';
@@ -19,6 +20,7 @@ function MonteCarloPanel({
   mcSsdiDelay,
   mcSsdiDenialPct,
   mcCutsDiscipline,
+  mcBlockBootstrap,
   onParamChange,
   onRun,
   savingsData,
@@ -111,14 +113,28 @@ function MonteCarloPanel({
 
           {/* Uncertainty controls */}
           <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 700, marginBottom: 2 }}>
-            Stress assumptions — assumption uncertainty
+            {mcBlockBootstrap ? 'Stress assumptions — historical sequence risk' : 'Stress assumptions — assumption uncertainty'}
           </div>
-          {/* D8 (remediation 2026-06-09): each simulated path draws ONE constant
-              value per assumption and holds it for the whole horizon, so this
-              panel models uncertainty about the long-run assumptions — NOT
-              year-to-year market swings (sequence-of-returns risk). */}
+          {/* D8 (remediation 2026-06-09) / D7 (2026-06-10 item 4.2): in the
+              default mode each simulated path draws ONE constant value per
+              assumption (assumption uncertainty, no sequence risk). With the
+              block-bootstrap toggle on, savings/401(k) returns instead ride
+              12-month blocks sampled from the Shiller historical series —
+              true year-to-year sequence-of-returns risk. */}
           <div style={{ fontSize: 10, color: COLORS.borderLight, fontStyle: "italic", marginBottom: 8, lineHeight: 1.4 }}>
-            Each simulated path draws one constant value per assumption (e.g. a single average return) and holds it for the whole horizon — this measures assumption uncertainty, not year-to-year market swings (no sequence-of-returns risk). See the Sequence of Returns chart for early-bad-years stress.
+            {mcBlockBootstrap
+              ? 'Historical block bootstrap: each path’s savings/401(k) returns follow a chain of 12-month blocks sampled from the Shiller monthly stock series (recentered on your expected return) — this measures sequence-of-returns risk with historical volatility. MSFT and home stay correlated with each path’s realized market luck; the investment-volatility slider only scales the home/MSFT spread in this mode.'
+              : 'Each simulated path draws one constant value per assumption (e.g. a single average return) and holds it for the whole horizon — this measures assumption uncertainty, not year-to-year market swings (no sequence-of-returns risk). See the Sequence of Returns chart for early-bad-years stress.'}
+          </div>
+          <div style={{ background: COLORS.bgDeep, borderRadius: 6, padding: "0 10px", border: `1px solid ${COLORS.bgCard}`, marginBottom: 8 }}>
+            <Toggle
+              label="Historical block bootstrap (sequence-of-returns risk)"
+              description="Sample 12-month blocks of real Shiller stock returns per path instead of one constant return"
+              checked={Boolean(mcBlockBootstrap)}
+              onChange={onParamChange('mcBlockBootstrap')}
+              color={COLORS.cyan}
+              testId="mc-block-bootstrap-toggle"
+            />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
             <div style={{ background: COLORS.bgDeep, borderRadius: 6, padding: "8px 10px", border: `1px solid ${COLORS.bgCard}` }}>

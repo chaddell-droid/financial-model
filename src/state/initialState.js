@@ -238,6 +238,13 @@ export const INITIAL_STATE = {
   mcSsdiDelay: 6,
   mcSsdiDenialPct: 5,
   mcCutsDiscipline: 25,
+  // Block-bootstrap mode (item 4.2 — remediation 2026-06-10, gate D7,
+  // opt-in). When on, each sim's savings/401(k) returns ride a sequence of
+  // 12-month blocks sampled from the Shiller monthly real stock-return
+  // series (recentered on the user's expected return) instead of one
+  // constant draw — true sequence-of-returns risk. Off = the legacy
+  // "assumption uncertainty" mode (one constant value per assumption).
+  mcBlockBootstrap: false,
 
   // Wealth / Net Worth tracking
   starting401k: 478000,
@@ -348,5 +355,6 @@ export const MODEL_KEYS = [
   // Monte Carlo settings (remediation phase 5). mcResults/mcRunning stay
   // UI-only — only the user-tunable parameters persist.
   'mcNumSims', 'mcInvestVol', 'mcBizGrowthVol', 'mcMsftVol', 'mcSsdiDelay', 'mcSsdiDenialPct', 'mcCutsDiscipline',
+  'mcBlockBootstrap',
   'goals',
 ];

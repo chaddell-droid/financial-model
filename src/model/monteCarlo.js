@@ -1,6 +1,7 @@
 import { runMonthlySimulation } from './projection.js';
 import { evaluateGoalPass } from './goalEvaluation.js';
 import { interpolatedPercentile } from './percentile.js';
+import { MONTHLY_REAL_RETURNS } from './shillerReturns.js';
 
 function createMulberry32(seed) {
   let s = seed | 0;
@@ -31,6 +32,50 @@ function createRandomSource(seed) {
 export const MSFT_MARKET_RHO = 0.7;
 export const HOME_MARKET_RHO = 0.3;
 export const HOME_SIGMA_FRACTION = 1 / 3;
+
+// ── Block bootstrap (item 4.2, gate D7 — opt-in via `mcBlockBootstrap`).
+// Instead of one constant return per sim ("assumption uncertainty"), each sim
+// samples 12-month BLOCKS from the repo's Shiller monthly real stock-return
+// series (1871–2025) and rides that month-by-month sequence — true
+// sequence-of-returns risk, with historical volatility clustering preserved
+// inside each block. The user's expected return stays the level anchor: the
+// path is base monthly rate + (block month's return − Shiller long-run mean).
+export const BOOTSTRAP_BLOCK_MONTHS = 12;
+
+// Lazily computed Shiller stock-return stats (column 2 of the series).
+let shillerStats = null;
+function getShillerStats() {
+  if (!shillerStats) {
+    const returns = MONTHLY_REAL_RETURNS.map(r => r[2]);
+    const n = returns.length;
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += returns[i];
+    const mean = sum / n;
+    let varSum = 0;
+    for (let i = 0; i < n; i++) varSum += (returns[i] - mean) * (returns[i] - mean);
+    const sigma = Math.sqrt(varSum / (n - 1));
+    shillerStats = { returns, mean, sigma };
+  }
+  return shillerStats;
+}
+
+/**
+ * Sample a months-long sequence of return DEVIATIONS (vs the Shiller long-run
+ * monthly mean) by concatenating uniformly-drawn 12-month blocks. Exported
+ * for unit tests.
+ */
+export function sampleBootstrapDeviations(rng, months) {
+  const { returns, mean } = getShillerStats();
+  const maxStart = returns.length - BOOTSTRAP_BLOCK_MONTHS;
+  const devs = new Float64Array(months);
+  for (let m = 0; m < months; m += BOOTSTRAP_BLOCK_MONTHS) {
+    const start = Math.floor(rng() * (maxStart + 1));
+    for (let k = 0; k < BOOTSTRAP_BLOCK_MONTHS && m + k < months; k++) {
+      devs[m + k] = returns[start + k] - mean;
+    }
+  }
+  return devs;
+}
 
 /**
  * Compute percentile bands at each month index for an array of per-sim series.
@@ -88,6 +133,7 @@ function percentileAt(arr, p) {
  */
 export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
   const { mcNumSims: N, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline } = mcParams;
+  const blockBootstrap = Boolean(mcParams.mcBlockBootstrap);
   const months = base.totalProjectionMonths || 72;
   const clampGrowth = (value) => Math.max(-99.9, value);
   const rng = createRandomSource(options.seed);
@@ -119,7 +165,25 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
     const useSS = base.ssType === 'ss';
     // Common market factor Z + idiosyncratic deviates (A6 + B11, D7).
     // Correlated draws use z = rho*Z + sqrt(1-rho^2)*eps so each stays N(0,1).
-    const Z = randNorm(0, 1);
+    //
+    // Block-bootstrap mode (item 4.2): the savings/401(k) market shock comes
+    // from a sampled Shiller 12-month-block SEQUENCE instead of one constant
+    // draw; Z is then the standardized mean of that path's deviations
+    // (mean·sqrt(months)/sigma ≈ N(0,1) for an iid path; blocks add mild
+    // autocorrelation) so MSFT and home stay correlated with the realized
+    // market path in both modes.
+    let Z;
+    let bootstrapDevs = null;
+    if (blockBootstrap) {
+      bootstrapDevs = sampleBootstrapDeviations(rng, months);
+      const { sigma } = getShillerStats();
+      let devSum = 0;
+      for (let m = 0; m < bootstrapDevs.length; m++) devSum += bootstrapDevs[m];
+      const devMean = devSum / Math.max(1, bootstrapDevs.length);
+      Z = sigma > 0 ? devMean * Math.sqrt(bootstrapDevs.length) / sigma : 0;
+    } else {
+      Z = randNorm(0, 1);
+    }
     const zMsft = MSFT_MARKET_RHO * Z
       + Math.sqrt(1 - MSFT_MARKET_RHO * MSFT_MARKET_RHO) * randNorm(0, 1);
     const zHome = HOME_MARKET_RHO * Z
@@ -127,8 +191,12 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
     const homeVol = mcInvestVol * HOME_SIGMA_FRACTION;
     const simParams = {
       ...base,
-      investmentReturn: clampGrowth(base.investmentReturn + mcInvestVol * Z),
-      return401k: clampGrowth((base.return401k ?? 8) + mcInvestVol * Z),
+      investmentReturn: blockBootstrap
+        ? base.investmentReturn
+        : clampGrowth(base.investmentReturn + mcInvestVol * Z),
+      return401k: blockBootstrap
+        ? (base.return401k ?? 8)
+        : clampGrowth((base.return401k ?? 8) + mcInvestVol * Z),
       homeAppreciation: clampGrowth((base.homeAppreciation ?? 4) + homeVol * zHome),
       sarahClientGrowth: clampGrowth(randNorm(base.sarahClientGrowth, mcBizGrowthVol)),
       sarahRateGrowth: clampGrowth(randNorm(base.sarahRateGrowth, mcBizGrowthVol * 0.5)),
@@ -137,6 +205,21 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
       ssdiApprovalMonth: useSS ? base.ssdiApprovalMonth : base.ssdiApprovalMonth + drawDelayMonths(mcSsdiDelay),
       cutsDiscipline: Math.min(1, Math.max(0, randNorm(1, mcCutsDiscipline / 100))),
     };
+    if (blockBootstrap) {
+      // Monthly rate paths: user's expected level + bootstrapped deviation.
+      // -0.99 floor mirrors clampGrowth (a month can't lose >99%).
+      const baseSavingsMonthly = Math.pow(1 + (base.investmentReturn || 0) / 100, 1 / 12) - 1;
+      const base401kMonthly = Math.pow(1 + ((base.return401k ?? 8) / 100), 1 / 12) - 1;
+      const savingsPath = new Array(months + 1);
+      const k401Path = new Array(months + 1);
+      for (let m = 0; m <= months; m++) {
+        const dev = m < bootstrapDevs.length ? bootstrapDevs[m] : 0;
+        savingsPath[m] = Math.max(-0.99, baseSavingsMonthly + dev);
+        k401Path[m] = Math.max(-0.99, base401kMonthly + dev);
+      }
+      simParams.investmentReturnMonthlyPath = savingsPath;
+      simParams.return401kMonthlyPath = k401Path;
+    }
 
     // Randomly deny SSDI based on denial probability (not applicable to SS retirement)
     if (!useSS && mcSsdiDenialPct > 0 && rng() * 100 < mcSsdiDenialPct) {

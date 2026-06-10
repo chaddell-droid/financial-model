@@ -100,6 +100,14 @@ export function runMonthlySimulation(s) {
     ? s.customLevers.reduce((sum, lv) => sum + (lv && lv.active ? Math.max(0, Number(lv.currentValue) || 0) : 0), 0)
     : 0;
   const monthlyReturnRate = Math.pow(1 + (s.investmentReturn || 0) / 100, 1/12) - 1;
+  // Optional per-month return paths (item 4.2, gate D7 — Monte Carlo block
+  // bootstrap). When the MC engine runs in block-bootstrap mode it passes
+  // monthly rate ARRAYS (decimal fractions, e.g. 0.01 = +1% that month) so a
+  // sim can carry a real return SEQUENCE instead of one constant rate.
+  // Simulation-input only — NOT persisted state fields (not in MODEL_KEYS);
+  // when absent (every non-MC caller) the constant rates apply.
+  const investReturnPath = Array.isArray(s.investmentReturnMonthlyPath) ? s.investmentReturnMonthlyPath : null;
+  const return401kPath = Array.isArray(s.return401kMonthlyPath) ? s.return401kMonthlyPath : null;
 
   // Chad's work duration — driven by chadWorkMonths state field (was hardcoded chadRetirementMonth = 72)
   const chadRetirementMonth = s.chadRetirementMonth || 72;
@@ -684,7 +692,10 @@ export function runMonthlySimulation(s) {
     if (ssBenefitPersonal > 0) ssBenefitPersonal = Math.round(ssBenefitPersonal * (1 - SS_INTERIM_TAX_HAIRCUT));
     if (sarahSpousal > 0) sarahSpousal = Math.round(sarahSpousal * (1 - SS_INTERIM_TAX_HAIRCUT));
 
-    const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
+    // Block-bootstrap mode (item 4.2): a per-month rate path overrides the
+    // constant rate; months past the path's end fall back to the constant.
+    const monthReturnRate = investReturnPath ? (investReturnPath[m] ?? monthlyReturnRate) : monthlyReturnRate;
+    const investReturn = balance > 0 ? Math.round(balance * monthReturnRate) : 0;
 
     // Base living expenses with optional inflation (debt/van/BCS are fixed contracts, not inflated)
     let inflatedBase = s.baseExpenses;
@@ -776,7 +787,7 @@ export function runMonthlySimulation(s) {
     // symmetric. Previously 401k grew before drawdown but home grew after,
     // creating an inconsistent treatment of the two reserves.
     // (skip month 0 to match standalone behavior — the starting balance is the snapshot)
-    if (m > 0) bal401k *= (1 + monthly401kRate);
+    if (m > 0) bal401k *= (1 + (return401kPath ? (return401kPath[m] ?? monthly401kRate) : monthly401kRate));
     // 401(k) contributions: employee (pre-tax + Roth catch-up) + employer match flow into bal401k
     // each employed month. Added AFTER monthly growth so this month's contribution doesn't earn
     // a free month of return (matches typical end-of-month payroll deposit semantics).

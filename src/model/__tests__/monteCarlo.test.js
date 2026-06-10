@@ -3,7 +3,8 @@
  * Run with: node src/model/__tests__/monteCarlo.test.js
  */
 import assert from 'node:assert';
-import { runMonteCarlo, computeBands } from '../monteCarlo.js';
+import { runMonteCarlo, computeBands, sampleBootstrapDeviations } from '../monteCarlo.js';
+import { runMonthlySimulation } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
@@ -502,6 +503,97 @@ test('25. A6: zero investment vol -> 401k and home bands stay degenerate even wi
       assert.strictEqual(p10.series[m], p90.series[m],
         `${key} month ${m}: MSFT-only volatility must not leak into 401k/home growth`);
     }
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Item 4.2 (remediation 2026-06-10, gate D7): opt-in block-bootstrap mode.
+// 12-month blocks sampled from the Shiller monthly real stock series drive
+// the savings/401(k) return SEQUENCE per sim (recentered on the user's
+// expected return) — true sequence-of-returns risk inside the MC.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Monte Carlo — block bootstrap (item 4.2, D7) ===');
+
+test('26. bootstrap default OFF: explicit false matches a params object without the key (back-compat)', () => {
+  const base = gatherStateWithOverrides({});
+  const rNoKey = runMonteCarlo(base, mcParams({ mcNumSims: 60 }), [], { seed: 7 });
+  const rFalse = runMonteCarlo(base, mcParams({ mcNumSims: 60, mcBlockBootstrap: false }), [], { seed: 7 });
+  assert.strictEqual(rNoKey.medianFinal, rFalse.medianFinal);
+  assert.strictEqual(rNoKey.solvencyRate, rFalse.solvencyRate);
+  assert.strictEqual(rNoKey.p10Final, rFalse.p10Final);
+});
+
+test('27. bootstrap ON is deterministic with a seed and differs from OFF', () => {
+  const base = gatherStateWithOverrides({});
+  const mc = mcParams({ mcNumSims: 60, mcBlockBootstrap: true });
+  const r1 = runMonteCarlo(base, mc, [], { seed: 7 });
+  const r2 = runMonteCarlo(base, mc, [], { seed: 7 });
+  assert.strictEqual(r1.medianFinal, r2.medianFinal, 'same seed must reproduce');
+  assert.strictEqual(r1.p10Final, r2.p10Final, 'same seed must reproduce p10');
+  const rOff = runMonteCarlo(base, mcParams({ mcNumSims: 60 }), [], { seed: 7 });
+  assert.ok(r1.medianFinal !== rOff.medianFinal || r1.p10Final !== rOff.p10Final,
+    'bootstrap mode should produce different outcomes than constant-draw mode');
+});
+
+test('28. bootstrap ON: savings bands spread even with EVERY volatility slider at zero (sequence risk)', () => {
+  const mc = mcParams({
+    mcNumSims: 100, mcBlockBootstrap: true,
+    mcInvestVol: 0, mcBizGrowthVol: 0, mcMsftVol: 0,
+    mcSsdiDelay: 0, mcSsdiDenialPct: 0, mcCutsDiscipline: 0,
+  });
+  const result = runMonteCarlo(solventBase(), mc, [], { seed: 7 });
+  const p10 = result.bands.find(b => b.pct === 10);
+  const p90 = result.bands.find(b => b.pct === 90);
+  const last = p10.series.length - 1;
+  assert.ok(p10.series[last] < p90.series[last],
+    `bootstrap savings p10 final (${p10.series[last]}) should be < p90 (${p90.series[last]}) — historical sequences carry their own volatility`);
+  // 401(k) rides the SAME bootstrapped market path — its bands spread too.
+  const k10 = result.bands401k.find(b => b.pct === 10);
+  const k90 = result.bands401k.find(b => b.pct === 90);
+  assert.ok(k10.series[last] < k90.series[last],
+    `bootstrap 401k p10 final (${k10.series[last]}) should be < p90 (${k90.series[last]})`);
+});
+
+test('29. sampleBootstrapDeviations: 12-month blocks of finite, mean-centered deviations', () => {
+  // Deterministic rng stub: always picks block start 0.
+  const devs = sampleBootstrapDeviations(() => 0, 30);
+  assert.strictEqual(devs.length, 30, 'returns exactly the requested number of months');
+  for (let m = 0; m < devs.length; m++) {
+    assert.ok(Number.isFinite(devs[m]), `dev[${m}] must be finite`);
+  }
+  // Block structure: months 0-11 and 12-23 are the SAME historical block
+  // (start 0 both times with the stub rng).
+  for (let k = 0; k < 12; k++) {
+    assert.strictEqual(devs[k], devs[12 + k], 'repeated block start must repeat the block');
+  }
+  // Deviations are vs the series mean: a long sample should average near 0.
+  const all = sampleBootstrapDeviations(createSeq(), 1200);
+  const mean = all.reduce((a, b) => a + b, 0) / all.length;
+  assert.ok(Math.abs(mean) < 0.01, `long-run mean deviation should be ~0, got ${mean}`);
+});
+
+// Linear-congruential stub for test 29's long sample (deterministic, no seed plumbing).
+function createSeq() {
+  let s = 42;
+  return () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+}
+
+test('30. projection accepts per-month return paths: constant path == constant rate (parity)', () => {
+  const base = gatherStateWithOverrides({ ssType: 'ss' });
+  const months = (base.totalProjectionMonths || 72);
+  const monthlyRate = Math.pow(1 + base.investmentReturn / 100, 1 / 12) - 1;
+  const k401Rate = Math.pow(1 + (base.return401k ?? 8) / 100, 1 / 12) - 1;
+  const withPath = {
+    ...base,
+    investmentReturnMonthlyPath: Array(months + 1).fill(monthlyRate),
+    return401kMonthlyPath: Array(months + 1).fill(k401Rate),
+  };
+  const a = runMonthlySimulation(base).monthlyData;
+  const b = runMonthlySimulation(withPath).monthlyData;
+  assert.strictEqual(a.length, b.length);
+  for (let m = 0; m < a.length; m++) {
+    assert.strictEqual(a[m].balance, b[m].balance, `month ${m}: constant path must equal constant rate`);
+    assert.strictEqual(a[m].balance401k, b[m].balance401k, `month ${m}: 401k path parity`);
   }
 });
 

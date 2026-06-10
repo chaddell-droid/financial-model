@@ -209,6 +209,7 @@ const NON_DEFAULT_VALUES = {
   mcSsdiDelay: 9,
   mcSsdiDenialPct: 10,
   mcCutsDiscipline: 40,
+  mcBlockBootstrap: true,          // item 4.2 (2026-06-10, D7): flipped from default false
   // Arrays — set values that differ from INITIAL_STATE
   capitalItems: [
     { id: 'test-1', name: 'Test capital item', description: 'audit', cost: 50000, include: true, likelihood: 80 },
@@ -527,9 +528,9 @@ test('unknown goal type is still dropped by the sanitizer', () => {
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== Monte Carlo settings — MODEL_KEYS + round-trip ===');
 
-const MC_FIELDS = ['mcNumSims', 'mcInvestVol', 'mcBizGrowthVol', 'mcMsftVol', 'mcSsdiDelay', 'mcSsdiDenialPct', 'mcCutsDiscipline'];
+const MC_FIELDS = ['mcNumSims', 'mcInvestVol', 'mcBizGrowthVol', 'mcMsftVol', 'mcSsdiDelay', 'mcSsdiDenialPct', 'mcCutsDiscipline', 'mcBlockBootstrap'];
 
-test('all seven mc* fields are MODEL_KEYS', () => {
+test('all eight mc* fields are MODEL_KEYS', () => {
   const missing = MC_FIELDS.filter(k => !MODEL_KEYS.includes(k));
   assert.deepStrictEqual(missing, [], `mc* fields missing from MODEL_KEYS: ${missing.join(', ')}`);
 });
@@ -545,11 +546,20 @@ test('mc* overrides survive round-trip (override behavior)', () => {
   const overrides = {
     mcNumSims: 2000, mcInvestVol: 25, mcBizGrowthVol: 10,
     mcMsftVol: 30, mcSsdiDelay: 12, mcSsdiDenialPct: 20, mcCutsDiscipline: 60,
+    mcBlockBootstrap: true,
   };
   const result = roundTrip(overrides);
   for (const [k, v] of Object.entries(overrides)) {
     assert.strictEqual(result[k], v, `${k} expected ${v}, got ${result[k]}`);
   }
+});
+
+test('mcBlockBootstrap is coerced to a boolean by the schema sanitizer (edge: corrupted save)', () => {
+  // item 4.2 (2026-06-10, D7): a corrupted scenario with a truthy/falsy
+  // non-boolean must come back as a clean boolean, never leak a string into
+  // the MC engine.
+  assert.strictEqual(roundTrip({ mcBlockBootstrap: 'yes' }).mcBlockBootstrap, true);
+  assert.strictEqual(roundTrip({ mcBlockBootstrap: 0 }).mcBlockBootstrap, false);
 });
 
 test('mc* RANGE constraints execute (edge clamping)', () => {

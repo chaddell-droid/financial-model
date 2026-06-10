@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from "react";
 import { getMsftPrice } from '../model/vesting.js';
 import { fmtFull } from '../model/formatters.js';
 import { getCurrentModelMonth } from '../model/checkIn.js';
+import { COLORS } from './chartUtils.js';
 import Slider from '../components/Slider.jsx';
 
 // Optional Alpha Vantage key for the live-price fallback. Never hardcoded:

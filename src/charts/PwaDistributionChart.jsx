@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import { getDistributionPercentile } from '../model/pwaDistribution.js';
 import { buildLegendItems } from './chartContract.js';
+import { COLORS } from './chartUtils.js';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
 function normalizeSampleValue(sample) {

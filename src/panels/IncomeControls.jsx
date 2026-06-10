@@ -6,9 +6,11 @@ import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OF
 import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
-import { levelAtMonthsWorked, age65VestEligibility, projectedPostRetirementVests, vestSchedule, computeChadPensionMonthly } from '../model/chadLevels.js';
+import { computeChadPensionMonthly } from '../model/chadLevels.js';
 import { computeW2Diagnostic } from '../model/w2Diagnostic.js';
-import { SS_WAGE_BASE } from '../model/taxConstants.js';
+import Age65VestBlock from './blocks/Age65VestBlock.jsx';
+import VestScheduleMatrix from './blocks/VestScheduleMatrix.jsx';
+import W2NetDiagnostic from './blocks/W2NetDiagnostic.jsx';
 
 const IncomeControls = ({
   ssType,
@@ -58,41 +60,12 @@ const IncomeControls = ({
     chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth,
     chadJobPensionContrib, chadJobSignOnCash, msftGrowth,
   });
-  const w2SalaryMult = _w2.salaryMult;
-  const w2BonusMult = _w2.bonusMult;
-  const w2PensionCashflowMult = _w2.pensionCashflowMult;
-  const w2RefreshSteadyMult = _w2.refreshSteadyMult;
-  const w2MonthlyGross = _w2.monthlyGross;
-  const w2TaxableMo = _w2.taxableMo;
-  const w2PensionDeductionMo = _w2.pensionDeductionMo;
-  const w2PensionCashflowMo = _w2.pensionCashflowMo;
-  const w2SalaryNetMo = _w2.salaryNetMo;
-  const w2AnnualSalaryNet = _w2.annualSalaryNet;
-  const w2BonusGrossYr = _w2.bonusGrossYr;
-  const w2BonusNetYr = _w2.bonusNetYr;
-  const w2HireY1 = _w2.chadJobHireStockY1;
-  const w2HireY2 = _w2.chadJobHireStockY2;
-  const w2HireY3 = _w2.chadJobHireStockY3;
-  const w2HireY4 = _w2.chadJobHireStockY4;
-  const w2HireTotalAtHire = _w2.hireTotalAtHire;
-  const w2HireGrownTotal = _w2.hireGrownTotal;
-  const w2HireNetAvgYr = _w2.hireNetAvgYr;
-  const w2RefreshNetYr = _w2.refreshNetYrSteady;
-  // Real FICA breakdown (computed by the tax engine on the W-2 gross — traceable).
-  const w2FicaBaseAnnual = _w2.ficaBaseAnnual;
-  const w2FicaSS = _w2.ficaSocialSecurity;
-  const w2FicaMedicare = _w2.ficaMedicare;
-  const w2FicaAddlMedicare = _w2.ficaAddlMedicare;
-  const w2FicaAllInTotal = _w2.ficaAllInTotal;
-  const w2FicaEffectivePct = _w2.ficaEffectivePct;
-  const w2TotalAvgYr = _w2.totalAvgYr;
+  // Only the values consumed directly by this component are aliased here;
+  // the full diagnostic display lives in blocks/W2NetDiagnostic.jsx and
+  // receives the whole _w2 object (Phase 7 file-size split).
   const w2TotalAvgMo = _w2.totalAvgMo;
-  const w2TotalGrossYr = _w2.totalGrossYr;
-  const w2BlendedTakeHomePct = _w2.blendedTakeHomePct;
-  const w2SignOnGross = _w2.signOnGross;
-  const w2SignOnNet = _w2.signOnNet;
   // chadJobMonthlyNet preserved for legacy display callers.
-  const chadJobMonthlyNet = w2SalaryNetMo;
+  const chadJobMonthlyNet = _w2.salaryNetMo;
   const monthlyHealthSavings = _w2.monthlyHealthSavings;
   const ssEarningsLimit = 22320;
   const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
@@ -335,281 +308,41 @@ const IncomeControls = ({
                   {/* Post-retirement RSU vest continuation (MSFT age-65 rule).
                       Standalone section — always visible whenever Chad has a job,
                       independent of the Stock Compensation block (which is hidden
-                      in some Plan-tab columns). */}
-                  <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
-                    <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Retirement Stock Benefit (Age 65+)</div>
-                    <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 6, lineHeight: 1.4 }}>
-                      MSFT-style: when Chad is age 65+ at retirement, unvested refresh grants keep vesting on their original 5-yr schedule.
-                    </div>
-                    <Slider label="Chad's current age" value={chadCurrentAge} onChange={set('chadCurrentAge')} commitStrategy={commitStrategy} min={30} max={75} step={1} color={COLORS.blue} format={(v) => v + " yrs"} />
-                    {(() => {
-                      const retMonth = chadWorkMonths || 72;
-                      const ageAtRetirement = (chadCurrentAge || 61) + retMonth / 12;
-                      const eligibleAuto = ageAtRetirement >= 65;
-                      const override = chadAge65VestOverride || 'auto';
-                      const applies =
-                        override === 'on' ? true :
-                        override === 'off' ? false :
-                        eligibleAuto;
-                      const labelMap = { auto: 'Auto (by age)', on: 'Force on', off: 'Force off' };
-                      return (
-                        <>
-                          <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                            {['auto', 'on', 'off'].map(opt => (
-                              <button
-                                key={opt}
-                                onClick={() => set('chadAge65VestOverride')(opt)}
-                                data-testid={`income-age65-${opt}`}
-                                style={{
-                                  flex: 1, padding: "6px 4px", borderRadius: 4, cursor: "pointer",
-                                  fontSize: 11, fontWeight: 600, fontFamily: "'Inter', sans-serif",
-                                  border: override === opt ? `1px solid ${COLORS.blue}` : `1px solid ${COLORS.border}`,
-                                  background: override === opt ? "#1e3a5f" : COLORS.bgDeep,
-                                  color: override === opt ? COLORS.blue : COLORS.textDim,
-                                }}
-                              >
-                                {labelMap[opt]}
-                              </button>
-                            ))}
-                          </div>
-                          <div style={{ marginTop: 6, fontSize: 11, color: COLORS.textDim, lineHeight: 1.5 }}>
-                            Age at retirement: <span style={{ color: applies ? COLORS.greenDark : COLORS.amber, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{ageAtRetirement.toFixed(1)}</span>
-                            {' '}·{' '}
-                            Vest continues: <span style={{ color: applies ? COLORS.greenDark : COLORS.amber, fontWeight: 600 }}>{applies ? 'YES' : 'NO'}</span>
-                            {override === 'auto' && (
-                              <span style={{ color: COLORS.textDim, fontSize: 10 }}> ({eligibleAuto ? 'eligible by age' : 'too young at retirement'})</span>
-                            )}
-                            {override !== 'auto' && (
-                              <span style={{ color: COLORS.textDim, fontSize: 10 }}> (manual override)</span>
-                            )}
-                          </div>
-                          {applies && (() => {
-                            // Build a synthetic state mirroring what the engine would see, then
-                            // ask chadLevels.js for the analytic windfall (1-year cliff applied).
-                            const synthState = {
-                              chadJob: true,
-                              chadJobStartMonth: chadJobStartMonth ?? 0,
-                              chadRetirementMonth: retMonth,
-                              chadJobRefreshStartMonth: chadJobRefreshStartMonth ?? 12,
-                              chadJobStockRefresh: chadJobStockRefresh || 0,
-                              chadJobSalary: chadJobSalary || 0,
-                              chadJobBonusPct: 0,
-                              chadCurrentAge: chadCurrentAge ?? 61,
-                              chadAge65VestOverride: override,
-                              chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
-                              chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
-                              msftPrice, msftGrowth,
-                            };
-                            const w = projectedPostRetirementVests(synthState);
-                            const taxRateDec = effectiveTaxRate / 100;
-                            // Post-retirement vests come from the FORMER employer's W-2, which
-                            // ALWAYS withholds full FICA — the active-employment noFICA toggle does
-                            // NOT carry over (mirrors projection.js:115 chadJobBonusNetMultPostRet).
-                            // So NO 6.2% FICA add-back here, unlike the in-employment bonus mult.
-                            const postRetNetMult = 1 - taxRateDec;
-                            const netWindfall = Math.round(w.grossWindfall * postRetNetMult);
-                            const hasGrants = w.grossWindfall > 0 || w.forfeitedGrants > 0;
-                            return (
-                              <div style={{ marginTop: 6, padding: "6px 8px", background: hasGrants ? "#1a3a2a" : "#3a2e1a", borderRadius: 4, border: `1px solid ${hasGrants ? COLORS.greenDark : COLORS.amber}55`, fontSize: 10, color: hasGrants ? COLORS.greenDark : COLORS.amber, lineHeight: 1.5 }}>
-                                <div style={{ fontWeight: 600, marginBottom: 2 }}>Projected post-retirement RSU windfall</div>
-                                {w.grossWindfall > 0 && (
-                                  <div>
-                                    {w.eligibleGrants} grant{w.eligibleGrants === 1 ? '' : 's'} continue vesting · gross <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{fmtFull(Math.round(w.grossWindfall))}</span> · net ~<span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{fmtFull(netWindfall)}</span> after tax.
-                                  </div>
-                                )}
-                                {w.forfeitedGrants > 0 && (
-                                  <div style={{ color: COLORS.amber, marginTop: 2 }}>
-                                    {w.forfeitedGrants} grant{w.forfeitedGrants === 1 ? '' : 's'} forfeited (1-year cliff: issued within 12 months of retirement).
-                                  </div>
-                                )}
-                                {!hasGrants && (
-                                  <div>
-                                    Eligibility met, but no refresh grants are configured. Set "Annual stock refresh" in Plan → Cashflow → Stock compensation, or set L64/L65 refresh grants above.
-                                  </div>
-                                )}
-                                <div style={{ color: COLORS.textDim, marginTop: 3, fontStyle: "italic" }}>
-                                  Computed analytically. Post-retirement vests are NOT run through the main savings simulation — that produced misleading crashes when both spouses retired together with no SS yet active. Treat this as a side windfall, not a runway extension.
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </>
-                      );
-                    })()}
-                  </div>
+                      in some Plan-tab columns). Extracted to blocks/Age65VestBlock.jsx. */}
+                  <Age65VestBlock
+                    chadCurrentAge={chadCurrentAge}
+                    chadWorkMonths={chadWorkMonths}
+                    chadAge65VestOverride={chadAge65VestOverride}
+                    chadJobStartMonth={chadJobStartMonth}
+                    chadJobRefreshStartMonth={chadJobRefreshStartMonth}
+                    chadJobStockRefresh={chadJobStockRefresh}
+                    chadJobSalary={chadJobSalary}
+                    chadL64Enabled={chadL64Enabled} chadL64Month={chadL64Month} chadL64Salary={chadL64Salary} chadL64StockRefresh={chadL64StockRefresh} chadL64BonusPct={chadL64BonusPct}
+                    chadL65Enabled={chadL65Enabled} chadL65Month={chadL65Month} chadL65Salary={chadL65Salary} chadL65StockRefresh={chadL65StockRefresh} chadL65BonusPct={chadL65BonusPct}
+                    msftPrice={msftPrice} msftGrowth={msftGrowth}
+                    effectiveTaxRate={effectiveTaxRate}
+                    commitStrategy={commitStrategy}
+                    onFieldChange={set}
+                  />
 
                   {/* Vest schedule matrix — year × grant table showing when each
                       RSU refresh grant vests and how much. Always visible when Chad
-                      has a job and at least one grant is configured. */}
-                  {(() => {
-                    const synthState = {
-                      chadJob: true,
-                      chadJobStartMonth: chadJobStartMonth ?? 0,
-                      chadRetirementMonth: chadWorkMonths || 72,
-                      chadJobRefreshStartMonth: chadJobRefreshStartMonth ?? 12,
-                      chadJobStockRefresh: chadJobStockRefresh || 0,
-                      chadJobSalary: chadJobSalary || 0,
-                      chadJobBonusPct: 0,
-                      chadCurrentAge: chadCurrentAge ?? 61,
-                      chadAge65VestOverride: chadAge65VestOverride || 'auto',
-                      chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
-                      chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
-                      msftPrice, msftGrowth,
-                    };
-                    const sched = vestSchedule(synthState);
-                    const activeGrants = sched.grants.filter(g => g.gross > 0);
-                    if (activeGrants.length === 0) return null;
-                    // Display NET dollars (after tax) — matches how user thinks of cashflow.
-                    const taxRateDec = effectiveTaxRate / 100;
-                    const ficaPctDec = chadJobNoFICA ? 0.062 : 0;
-                    // In-employment vests use the active net mult (with FICA add-back when noFICA).
-                    const netMult = 1 - taxRateDec + ficaPctDec;
-                    // Post-retirement vests come from the FORMER employer's W-2 — full FICA always
-                    // withheld, so NO add-back (mirrors projection.js:115 chadJobBonusNetMultPostRet).
-                    const postRetNetMult = 1 - taxRateDec;
-                    const fmtCell = (v) => v > 0 ? '$' + (v / 1000).toFixed(2) + 'K' : '—';
-                    const fmtTotal = (v) => v > 0 ? '$' + (v / 1000).toFixed(2) + 'K' : '—';
-
-                    // Per-grant post-retirement gross is computed per-vest in vestSchedule
-                    // (vm > retMonth) so partial years are handled correctly. The Y? (post-ret)
-                    // shading and (retire mid-yr) tag are driven by sched.postRetYearTotals,
-                    // which keeps shading and subtotals consistent.
-                    const postRetTotalsByGrant = activeGrants.map(g => (g.postRetGross || 0) * postRetNetMult);
-                    const postRetGrandTotal = postRetTotalsByGrant.reduce((a, b) => a + b, 0);
-                    const eligibleGrantCount = activeGrants.filter(g => g.postRetVested).length;
-
-                    return (
-                      <div style={{ marginTop: 8, padding: "8px 10px", background: COLORS.bgDeep, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
-                        <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
-                          Vest schedule by year (after-tax $)
-                          <span style={{ color: COLORS.textDim, fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 6 }}>
-                            @ MSFT ${(msftPrice || 0).toFixed(2)} · {(msftGrowth || 0) >= 0 ? '+' : ''}{(msftGrowth || 0).toFixed(1)}%/yr growth
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 6, lineHeight: 1.4 }}>
-                          Each grant vests 5%/qtr × 20 quarters = 5 years. Slider value = grant dollars at issue; shares = grant ÷ price-at-issue. Each vest's value scales with MSFT growth from issue → vest, so later grants buy fewer shares but each grant's vests grow within its 5-yr cycle. "(done)" = fully vested. <span style={{ color: COLORS.amber }}>★</span> = grant continues vesting post-retirement under age-65 rule. <span style={{ color: COLORS.greenDark }}>Green rows</span> are fully post-retirement; <span style={{ color: COLORS.amber }}>amber rows</span> straddle retirement and show "(post)" sub-amounts for the portion that lands after the last work month. The subtotal sums those post-retirement portions.
-                        </div>
-                        <div style={{ overflowX: "auto", marginTop: 4 }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>
-                            <thead>
-                              <tr>
-                                <th style={{ textAlign: "left", color: COLORS.textDim, padding: "4px 6px", borderBottom: `1px solid ${COLORS.border}`, whiteSpace: "nowrap" }}>Year</th>
-                                {activeGrants.map(g => {
-                                  const shares = Math.round(g.sharesAtIssue || 0);
-                                  const issuePrice = g.priceAtIssue || (msftPrice || 0);
-                                  return (
-                                    <th key={g.id} style={{ textAlign: "right", color: COLORS.textDim, padding: "4px 6px", borderBottom: `1px solid ${COLORS.border}`, whiteSpace: "nowrap" }}>
-                                      <div>
-                                        #{g.id} ({g.level})
-                                        {g.postRetVested && (
-                                          <span title="Continues vesting post-retirement (cleared 1-yr cliff)" style={{ color: COLORS.amber, marginLeft: 3 }}>★</span>
-                                        )}
-                                        {g.cliff && (
-                                          <span title="Forfeited at retirement (within 1-yr cliff)" style={{ color: COLORS.red, marginLeft: 3 }}>✕</span>
-                                        )}
-                                      </div>
-                                      <div style={{ fontSize: 9, color: COLORS.textDim, fontWeight: 400 }} title={`$${(g.gross / 1000).toFixed(0)}K grant at issue ÷ $${issuePrice.toFixed(2)} (price at issue month ${g.issueMonth}) = ${shares} shares`}>
-                                        {shares} sh @ ${issuePrice.toFixed(0)}
-                                      </div>
-                                    </th>
-                                  );
-                                })}
-                                <th style={{ textAlign: "right", color: COLORS.blue, padding: "4px 6px", borderBottom: `1px solid ${COLORS.border}`, fontWeight: 700, whiteSpace: "nowrap" }}>Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sched.years.map((yr, yi) => {
-                                const rowTotalNet = sched.yearTotals[yi] * netMult;
-                                const yearPostRetTotal = sched.postRetYearTotals[yi] || 0;
-                                const yearTotal = sched.yearTotals[yi] || 0;
-                                // Relative tolerance — yearTotal can reach $50K+ where 0.01 absolute is too tight under accumulated FP error.
-                                const isFullyPostRet = yearPostRetTotal > 0 && yearTotal > 0 && Math.abs(yearPostRetTotal - yearTotal) <= 1e-6 * yearTotal;
-                                const isStraddle = yearPostRetTotal > 0 && !isFullyPostRet;
-                                const rowBg = isFullyPostRet ? '#1a2e1a' : isStraddle ? '#3a2e1a' : 'transparent';
-                                const labelTag = isFullyPostRet
-                                  ? <span style={{ color: COLORS.greenDark, fontWeight: 400, fontSize: 9 }}> (post-ret)</span>
-                                  : isStraddle
-                                    ? <span style={{ color: COLORS.amber, fontWeight: 400, fontSize: 9 }}> (retire mid-yr)</span>
-                                    : null;
-                                return (
-                                  <tr key={yr} style={{ background: rowBg }}>
-                                    <td style={{ color: COLORS.textSecondary, padding: "3px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                                      Y{yr}{labelTag}
-                                    </td>
-                                    {activeGrants.map((g) => {
-                                      const origIdx = sched.grants.indexOf(g);
-                                      const gross = sched.cells[yi][origIdx] || 0;
-                                      const net = gross * netMult;
-                                      const postRetNet = (sched.postRetCells[yi][origIdx] || 0) * postRetNetMult;
-                                      const isDone = g.lastVestYear > 0 && yr > g.lastVestYear;
-                                      const showPostInline = isStraddle && postRetNet > 0 && postRetNet < net;
-                                      return (
-                                        <td key={g.id} style={{ textAlign: "right", padding: "3px 6px", color: net > 0 ? COLORS.greenDark : COLORS.textDim, whiteSpace: "nowrap" }}>
-                                          {net > 0 ? (
-                                            <>
-                                              {fmtCell(net)}
-                                              {showPostInline && (
-                                                <span style={{ fontSize: 9, color: COLORS.amber, fontWeight: 400, marginLeft: 4 }} title={`${fmtCell(postRetNet)} of this cell vests after retirement (vest month > ${sched.retMonth})`}>
-                                                  ({fmtCell(postRetNet)})
-                                                </span>
-                                              )}
-                                            </>
-                                          ) : isDone ? (
-                                            <span style={{ color: COLORS.textDim, fontStyle: "italic" }}>{g.cliff ? '(forfeit)' : '(done)'}</span>
-                                          ) : '—'}
-                                        </td>
-                                      );
-                                    })}
-                                    <td style={{ textAlign: "right", padding: "3px 6px", color: COLORS.blue, fontWeight: 700, whiteSpace: "nowrap" }}>
-                                      {fmtTotal(rowTotalNet)}
-                                      {isStraddle && yearPostRetTotal > 0 && (
-                                        <span style={{ fontSize: 9, color: COLORS.amber, fontWeight: 400, marginLeft: 4 }}>
-                                          ({fmtCell(yearPostRetTotal * postRetNetMult)})
-                                        </span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {/* Post-retirement subtotal row — only if there are any post-retirement vests */}
-                              {postRetGrandTotal > 0 && (
-                                <tr style={{ background: '#1a3a2a', borderTop: `2px solid ${COLORS.greenDark}` }}>
-                                  <td style={{ color: COLORS.greenDark, padding: "5px 6px", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>
-                                    Post-ret subtotal
-                                  </td>
-                                  {activeGrants.map((g, i) => {
-                                    const v = postRetTotalsByGrant[i];
-                                    return (
-                                      <td key={g.id} style={{ textAlign: "right", padding: "5px 6px", color: v > 0 ? COLORS.greenDark : COLORS.textDim, fontWeight: 700, whiteSpace: "nowrap" }}>
-                                        {fmtCell(v)}
-                                      </td>
-                                    );
-                                  })}
-                                  <td style={{ textAlign: "right", padding: "5px 6px", color: COLORS.greenDark, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>
-                                    {fmtTotal(postRetGrandTotal)}
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 6, lineHeight: 1.4 }}>
-                          {activeGrants.length} active grant{activeGrants.length === 1 ? '' : 's'} ·
-                          {' '}gross grant sizes: {activeGrants.map(g => `#${g.id} ${(g.gross/1000).toFixed(0)}K (${g.level})`).join(', ')}
-                          {eligibleGrantCount > 0 && (
-                            <span style={{ color: COLORS.greenDark }}>
-                              {' '}· <span style={{ fontWeight: 600 }}>★ {eligibleGrantCount} grant{eligibleGrantCount === 1 ? '' : 's'}</span> continue post-retirement (≈{fmtTotal(postRetGrandTotal)} after-tax windfall)
-                            </span>
-                          )}
-                          {sched.grants.some(g => g.cliff) && (
-                            <span style={{ color: COLORS.red }}>
-                              {' '}· <span style={{ fontWeight: 600 }}>✕ {sched.grants.filter(g => g.cliff && g.gross > 0).length} grant{sched.grants.filter(g => g.cliff && g.gross > 0).length === 1 ? '' : 's'}</span> forfeited (1-yr cliff)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                      has a job and at least one grant is configured. Extracted to
+                      blocks/VestScheduleMatrix.jsx (renders null with no grants). */}
+                  <VestScheduleMatrix
+                    chadJobStartMonth={chadJobStartMonth}
+                    chadWorkMonths={chadWorkMonths}
+                    chadJobRefreshStartMonth={chadJobRefreshStartMonth}
+                    chadJobStockRefresh={chadJobStockRefresh}
+                    chadJobSalary={chadJobSalary}
+                    chadCurrentAge={chadCurrentAge}
+                    chadAge65VestOverride={chadAge65VestOverride}
+                    chadL64Enabled={chadL64Enabled} chadL64Month={chadL64Month} chadL64Salary={chadL64Salary} chadL64StockRefresh={chadL64StockRefresh} chadL64BonusPct={chadL64BonusPct}
+                    chadL65Enabled={chadL65Enabled} chadL65Month={chadL65Month} chadL65Salary={chadL65Salary} chadL65StockRefresh={chadL65StockRefresh} chadL65BonusPct={chadL65BonusPct}
+                    msftPrice={msftPrice} msftGrowth={msftGrowth}
+                    effectiveTaxRate={effectiveTaxRate}
+                    chadJobNoFICA={chadJobNoFICA}
+                  />
 
                   {!hideStockComp && (
                   <>
@@ -702,189 +435,26 @@ const IncomeControls = ({
                         <span style={{ color: COLORS.greenDark, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>+{fmtFull(chadJobMonthlyNet)}</span>
                       </div>
                       {/* W-2 net computation diagnostic — exposes every input feeding chadJobMonthlyNet.
-                          All numeric values come from the hoisted w2* vars (top of component) so the
-                          diagnostic display and the SSDI comparison always show the same numbers. */}
-                      {(() => {
-                        const annualGross = chadJobSalary || 0;
-                        const monthlyGross = w2MonthlyGross;
-                        const ficaPct = chadJobNoFICA ? 6.2 : 0;
-                        const pensionPct = chadJobPensionContrib || 0;
-                        const deferral = chadJob401kEnabled ? (chadJob401kDeferral || 0) : 0;
-                        const catchup = chadJob401kEnabled ? (chadJob401kCatchupRoth || 0) : 0;
-                        const match = chadJob401kEnabled ? (chadJob401kMatch || 0) : 0;
-                        const salaryMult = w2SalaryMult;
-                        const bonusMult = w2BonusMult;
-                        const pensionCashflowMult = w2PensionCashflowMult;
-                        const taxableSalaryMo = w2TaxableMo;
-                        const afterTaxSalaryMo = w2TaxableMo * w2SalaryMult;
-                        const pensionCashflowMo = w2PensionCashflowMo;
-                        const salaryNetMo = w2SalaryNetMo;
-                        const bonusNetYr = w2BonusNetYr;
-                        const refreshNetYr = w2RefreshNetYr;
-                        const refreshSteadyMult = w2RefreshSteadyMult;
-                        const hireTotalAtHire = w2HireTotalAtHire;
-                        const hireNetAvgYr = w2HireNetAvgYr;
-                        const annualSalaryNet = w2AnnualSalaryNet;
-                        const totalAvgMo = w2TotalAvgMo;
-                        const totalAvgYr = w2TotalAvgYr;
-                        const totalGrossYr = w2TotalGrossYr;
-                        const blendedTakeHomePct = w2BlendedTakeHomePct;
-                        const signOnGross = w2SignOnGross;
-                        const signOnNet = w2SignOnNet;
-                        // 401(k) economic value to the household (added to the 401k balance incl. match).
-                        const k401AnnualToBalance = deferral + catchup + match;
-                        const k401MonthlyToBalance = k401AnnualToBalance / 12;
-                        const msftGrowthPct = (msftGrowth || 0);
-                        const hiddenPension = pensionPct > 0 && (chadJobPensionRate || 0) === 0;
-                        const rowStyle = { display: "flex", justifyContent: "space-between", marginTop: 1, fontSize: 10 };
-                        const monoStyle = { fontFamily: "'JetBrains Mono', monospace" };
-                        return (
-                          <div data-testid="w2-diagnostic" style={{ marginTop: 6, padding: "6px 8px", background: COLORS.bgDeep, borderRadius: 6, border: `1px dashed ${COLORS.border}` }}>
-                            <div style={{ color: COLORS.amber, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
-                              W-2 Net Diagnostic
-                            </div>
-                            {hiddenPension && (
-                              <div style={{ color: COLORS.amber, fontSize: 10, marginBottom: 4, padding: "4px 6px", background: "#3a2e1a", borderRadius: 4, border: `1px solid ${COLORS.amber}55` }}>
-                                <div style={{ fontWeight: 600 }}>PENSION INCONSISTENCY</div>
-                                <div style={{ marginTop: 2 }}>Contributing {pensionPct.toFixed(1)}% to a pension with 0% accrual rate — you're paying in but not earning benefits. This costs ~{fmtFull(Math.round(annualGross * pensionPct / 100 / 12))}/mo. Either set an accrual rate above, or zero the contribution.</div>
-                                <button
-                                  onClick={() => set('chadJobPensionContrib')(0)}
-                                  style={{ marginTop: 4, padding: "3px 8px", fontSize: 10, fontWeight: 600, cursor: "pointer", background: COLORS.amber, color: "#000", border: "none", borderRadius: 3 }}
-                                >
-                                  Reset pension contribution to 0
-                                </button>
-                              </div>
-                            )}
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>Inputs (L63 baseline — see Promotion Schedule for L64/L65)</div>
-                            <div style={rowStyle}><span>Annual gross salary</span><span style={monoStyle}>{fmtFull(annualGross)}</span></div>
-                            <div style={rowStyle}><span>Monthly gross</span><span style={monoStyle}>{fmtFull(Math.round(monthlyGross))}</span></div>
-                            <div style={rowStyle}><span>Tax rate (effective)</span><span style={monoStyle}>{effectiveTaxRate}%</span></div>
-                            <div style={rowStyle}><span>FICA addback (no-FICA toggle)</span><span style={{ ...monoStyle, color: ficaPct > 0 ? COLORS.green : COLORS.textDim }}>+{ficaPct.toFixed(1)}%</span></div>
-                            <div style={rowStyle}><span>Pension contribution</span><span style={{ ...monoStyle, color: pensionPct > 0 ? COLORS.amber : COLORS.textDim }}>−{pensionPct.toFixed(1)}%</span></div>
-                            <div style={rowStyle}><span>401(k) pre-tax deferral</span><span style={{ ...monoStyle, color: deferral > 0 ? COLORS.amber : COLORS.textDim }}>{deferral > 0 ? `${fmtFull(deferral)}/yr` : '—'}</span></div>
-                            <div style={rowStyle}><span>401(k) Roth catch-up</span><span style={{ ...monoStyle, color: catchup > 0 ? COLORS.amber : COLORS.textDim }}>{catchup > 0 ? `${fmtFull(catchup)}/yr` : '—'}</span></div>
-                            <div style={rowStyle}><span>Employer match (to 401k bal, not cashflow)</span><span style={{ ...monoStyle, color: match > 0 ? COLORS.green : COLORS.textDim }}>{match > 0 ? `${fmtFull(match)}/yr` : '—'}</span></div>
-
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Multipliers</div>
-                            <div style={rowStyle}><span>Salary net mult (1 − tax + fica)</span><span style={monoStyle}>{salaryMult.toFixed(4)}</span></div>
-                            <div style={rowStyle}><span>Bonus / RSU / sign-on net mult (1 − tax + fica)</span><span style={monoStyle}>{bonusMult.toFixed(4)}</span></div>
-                            {pensionPct > 0 && (
-                              <div style={rowStyle}><span>Pension cashflow mult (1 − tax + FICA-on-pension)</span><span style={monoStyle}>{pensionCashflowMult.toFixed(4)}</span></div>
-                            )}
-                            <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
-                              The multiplier is a FLAT all-in effective rate (income tax + FICA folded into your {effectiveTaxRate}% assumption). The real, traceable split is below — same engine as the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span>.
-                            </div>
-
-                            {/* Tax breakdown. FICA is on the STEADY-STATE comp shown above (exact —
-                                FICA depends only on gross wages, and this is the comp the whole pane
-                                describes). Federal income tax can't be a single steady-state number
-                                (it depends on the year's full household return), so it is shown only
-                                as a clearly-labeled per-year reference from the Tax tab — never mixed
-                                into the FICA basis. */}
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>FICA on this comp (exact)</div>
-                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>FICA base (gross W-2 wages)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaBaseAnnual))}/yr</span></div>
-                            <div style={rowStyle}><span>FICA — Social Security {chadJobNoFICA ? '(none — non-FICA employer)' : `(6.2%, capped at ${fmtFull(SS_WAGE_BASE)} wages)`}</span><span style={{ ...monoStyle, color: w2FicaSS > 0 ? COLORS.textSecondary : COLORS.textDim }}>{fmtFull(Math.round(w2FicaSS))}/yr</span></div>
-                            <div style={rowStyle}><span>FICA — Medicare (1.45%)</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaMedicare))}/yr</span></div>
-                            {w2FicaAddlMedicare > 0 && (
-                              <div style={rowStyle}><span>Additional Medicare (0.9% over {fmtFull(250000)})</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAddlMedicare))}/yr</span></div>
-                            )}
-                            <div style={{ ...rowStyle, fontWeight: 600, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>FICA total</span><span style={monoStyle}>{fmtFull(Math.round(w2FicaAllInTotal))}/yr · {(w2FicaEffectivePct * 100).toFixed(1)}% of gross</span></div>
-                            {chadTaxBreakdown ? (
-                              <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
-                                Federal income tax varies by year on your full household return, so there's no single steady-state figure. For reference, the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span> engine shows ≈{fmtFull(Math.round(chadTaxBreakdown.fedTax))}/yr federal in projection year {chadTaxBreakdown.year} (on that year's {fmtFull(Math.round(chadTaxBreakdown.ficaBase))} gross), an all-in ≈{(chadTaxBreakdown.effectivePct * 100).toFixed(1)}% vs your flat {effectiveTaxRate}% assumption. No state income tax is modeled.
-                              </div>
-                            ) : (
-                              <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>
-                                FICA is exact (depends only on gross wages). See the <span style={{ color: COLORS.blueLight, fontWeight: 600 }}>Tax tab</span> for precise per-year federal income tax. No state income tax is modeled.
-                              </div>
-                            )}
-
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Salary cashflow walk</div>
-                            <div style={rowStyle}><span>Monthly gross</span><span style={monoStyle}>{fmtFull(Math.round(monthlyGross))}</span></div>
-                            <div style={rowStyle}><span>− 401(k) deferral / 12</span><span style={monoStyle}>−{fmtFull(Math.round(deferral / 12))}</span></div>
-                            <div style={rowStyle}><span>= Taxable salary</span><span style={monoStyle}>{fmtFull(Math.round(taxableSalaryMo))}</span></div>
-                            <div style={rowStyle}><span>× salary mult</span><span style={monoStyle}>{fmtFull(Math.round(afterTaxSalaryMo))}</span></div>
-                            {pensionPct > 0 && (
-                              <div style={rowStyle}><span>− Pension × pension mult</span><span style={monoStyle}>−{fmtFull(Math.round(pensionCashflowMo))}</span></div>
-                            )}
-                            <div style={rowStyle}><span>− Roth catch-up / 12</span><span style={monoStyle}>−{fmtFull(Math.round(catchup / 12))}</span></div>
-                            <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>= Salary net (cashflow)</span><span style={monoStyle}>{fmtFull(salaryNetMo)}/mo</span></div>
-
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Annual W-2 (steady state, all components)</div>
-                            <div style={rowStyle}><span>Salary net (12 × monthly)</span><span style={monoStyle}>{fmtFull(annualSalaryNet)}/yr</span></div>
-                            <div style={rowStyle}><span>Bonus net (paid Sept lump)</span><span style={monoStyle}>{fmtFull(Math.round(bonusNetYr))}/yr</span></div>
-                            <div style={rowStyle}>
-                              <span>RSU refresh net {msftGrowthPct !== 0 ? `(steady state · ×${refreshSteadyMult.toFixed(3)} for ${msftGrowthPct}% MSFT growth)` : '(steady state)'}</span>
-                              <span style={monoStyle}>{fmtFull(Math.round(refreshNetYr))}/yr</span>
-                            </div>
-                            <div style={rowStyle}>
-                              <span>Hire stock net {msftGrowthPct !== 0 ? `(avg over 4 yr · ${msftGrowthPct}% MSFT growth applied)` : '(avg over 4 yr)'}</span>
-                              <span style={monoStyle}>{fmtFull(Math.round(hireNetAvgYr))}/yr</span>
-                            </div>
-                            <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>Avg total monthly W-2 net</span><span style={monoStyle}>{fmtFull(totalAvgMo)}/mo</span></div>
-                            <div style={rowStyle}><span>Total annual W-2 net (take-home)</span><span style={monoStyle}>{fmtFull(Math.round(totalAvgYr))}/yr</span></div>
-
-                            {/* Gross comp denominator + blended take-home %. */}
-                            <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Total comp (steady state, gross → net)</div>
-                            <div style={rowStyle}><span>Total annual gross comp</span><span style={monoStyle}>{fmtFull(Math.round(totalGrossYr))}/yr</span></div>
-                            <div style={rowStyle}><span>Total annual net comp</span><span style={{ ...monoStyle, color: COLORS.greenDark }}>{fmtFull(Math.round(totalAvgYr))}/yr</span></div>
-                            <div style={rowStyle}><span>Blended take-home %</span><span style={monoStyle}>{(blendedTakeHomePct * 100).toFixed(1)}%</span></div>
-                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>↳ salary gross → net</span><span style={monoStyle}>{fmtFull(annualGross)} → {fmtFull(annualSalaryNet)}</span></div>
-                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>↳ bonus gross → net</span><span style={monoStyle}>{fmtFull(Math.round(w2BonusGrossYr))} → {fmtFull(Math.round(bonusNetYr))}</span></div>
-                            <div style={{ ...rowStyle, color: COLORS.textDim, fontSize: 9 }}><span>↳ hire stock (grown) gross → net (avg/yr)</span><span style={monoStyle}>{fmtFull(Math.round(w2HireGrownTotal / 4))} → {fmtFull(Math.round(hireNetAvgYr))}</span></div>
-
-                            {/* Economic value to household = cash net + 401(k) incl. match. */}
-                            {k401AnnualToBalance > 0 && (
-                              <>
-                                <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Economic value to household</div>
-                                <div style={rowStyle}><span>Cash net</span><span style={monoStyle}>{fmtFull(totalAvgMo)}/mo</span></div>
-                                <div style={rowStyle}><span>+ 401(k) incl. match (to balance)</span><span style={{ ...monoStyle, color: COLORS.green }}>+{fmtFull(Math.round(k401MonthlyToBalance))}/mo</span></div>
-                                <div style={{ ...rowStyle, fontWeight: 600, color: COLORS.greenDark, paddingTop: 2, borderTop: `1px solid ${COLORS.border}` }}><span>= Total economic value</span><span style={monoStyle}>{fmtFull(Math.round(totalAvgMo + k401MonthlyToBalance))}/mo</span></div>
-                              </>
-                            )}
-
-                            {/* Sign-on bonus — ONE-TIME, NOT in the steady-state average above. */}
-                            {signOnGross > 0 && (
-                              <>
-                                <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>Sign-on bonus (one-time, not in average)</div>
-                                <div style={rowStyle}><span>Sign-on gross (50% hire / 50% 1-yr)</span><span style={monoStyle}>{fmtFull(Math.round(signOnGross))}</span></div>
-                                <div style={rowStyle}><span>Sign-on net (× bonus mult)</span><span style={{ ...monoStyle, color: COLORS.greenDark }}>{fmtFull(Math.round(signOnNet))}</span></div>
-                              </>
-                            )}
-                            <div style={{ fontSize: 9, color: COLORS.textDim, fontStyle: "italic", marginTop: 3 }}>
-                              "Monthly after tax" above shows salary only. Bonus, RSUs, and sign-on land in specific months — average above includes them (sign-on is one-time and excluded). RSU and hire-stock totals reflect projected MSFT growth from grant to vest (matches engine).
-                            </div>
-                            {/* Promotion projections — show monthly net at L64 and L65 if those toggles are on. */}
-                            {(chadL64Enabled || chadL65Enabled) && (() => {
-                              const projectLevel = (salary, refresh, bonusPctRaw, label, monthsFromHire) => {
-                                const gross = salary || 0;
-                                const monGross = gross / 12;
-                                const taxableMo = Math.max(0, monGross - deferral / 12);
-                                const pensionMo = monGross * pensionPct / 100 * pensionCashflowMult;
-                                const salNet = Math.round(taxableMo * salaryMult - pensionMo - catchup / 12);
-                                const bPct = (bonusPctRaw || 0) / 100;
-                                const bonusYr = gross * bPct * bonusMult;
-                                // Apply same steady-state MSFT growth mult to L64/L65 refresh as L63 (matches engine treatment).
-                                const refreshYr = (refresh || 0) * bonusMult * refreshSteadyMult;
-                                const totalMo = Math.round((salNet * 12 + bonusYr + refreshYr) / 12);
-                                return (
-                                  <div key={label} style={rowStyle}>
-                                    <span>{label} (mo {monthsFromHire})</span>
-                                    <span style={monoStyle}>{fmtFull(salNet)}/mo salary · {fmtFull(totalMo)}/mo total</span>
-                                  </div>
-                                );
-                              };
-                              return (
-                                <>
-                                  <div style={{ color: COLORS.textDim, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 6 }}>After promotion (jump-and-hold, no raise compounding shown)</div>
-                                  {chadL64Enabled && projectLevel(chadL64Salary, chadL64StockRefresh, chadL64BonusPct, 'L64', chadL64Month)}
-                                  {chadL65Enabled && projectLevel(chadL65Salary, chadL65StockRefresh, chadL65BonusPct, 'L65', chadL65Month)}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        );
-                      })()}
+                          All numeric values come from the shared _w2 object (computeW2Diagnostic)
+                          so the diagnostic display and the SSDI comparison always show the same
+                          numbers. Extracted to blocks/W2NetDiagnostic.jsx (Phase 7 file split). */}
+                      <W2NetDiagnostic
+                        w2={_w2}
+                        chadJobSalary={chadJobSalary}
+                        chadJobNoFICA={chadJobNoFICA}
+                        chadJobPensionRate={chadJobPensionRate}
+                        chadJobPensionContrib={chadJobPensionContrib}
+                        chadJob401kEnabled={chadJob401kEnabled}
+                        chadJob401kDeferral={chadJob401kDeferral}
+                        chadJob401kCatchupRoth={chadJob401kCatchupRoth}
+                        chadJob401kMatch={chadJob401kMatch}
+                        chadL64Enabled={chadL64Enabled} chadL64Month={chadL64Month} chadL64Salary={chadL64Salary} chadL64StockRefresh={chadL64StockRefresh} chadL64BonusPct={chadL64BonusPct}
+                        chadL65Enabled={chadL65Enabled} chadL65Month={chadL65Month} chadL65Salary={chadL65Salary} chadL65StockRefresh={chadL65StockRefresh} chadL65BonusPct={chadL65BonusPct}
+                        msftGrowth={msftGrowth}
+                        effectiveTaxRate={effectiveTaxRate}
+                        chadTaxBreakdown={chadTaxBreakdown}
+                        onFieldChange={set}
+                      />
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
                         <span style={{ color: COLORS.textDim }}>Health insurance saved:</span>
                         <span style={{ color: COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>

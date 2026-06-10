@@ -148,6 +148,22 @@ export const INITIAL_STATE = {
   expenseInflation: true,        // Apply annual inflation to base living expenses
   expenseInflationRate: 3,       // 3% annual default (CPI approximation)
 
+  // Healthcare cost path (6.4 — remediation 2026-06-10, improvement a-6, gate D6).
+  // healthPremiumMonthly is the family's private health premium, carved OUT of
+  // the inflating baseExpenses and re-added as its own expense line trending at
+  // medicalTrendRate (D6: 6.5%/yr) instead of general CPI. SINGLE SOURCE with
+  // chadJobHealthSavings: while employer coverage is active the premium line is
+  // zeroed (the legacy flat chadJobHealthSavings subtraction applies only when
+  // this field is 0). taxProjection's SEHI deduction reads the same field.
+  healthPremiumMonthly: 4200,    // $/mo family private premium (matches the long-standing 4200 convention)
+  medicalTrendRate: 6.5,         // %/yr medical-trend inflation on the premium (D6)
+  // Chad's SSDI Medicare entitlement month (months from projection start;
+  // negative = entitlement date already passed). When set, chadMedicareMonth =
+  // min(entitlement + 24, age-65 month) relieves Chad's per-capita share of
+  // the premium. null = no Medicare modeled — D6: the UI hint asks for the
+  // date from the SSA award letter.
+  ssdiEntitlementMonth: null,
+
   // BCS Tuition
   bcsAnnualTotal: 43400,       // Grades 7-12: $22,720 (1st) + $20,680 (2nd)
   bcsParentsAnnual: 25000,
@@ -370,6 +386,8 @@ export const MODEL_KEYS = [
   // Per-debt amortization + mortgage P&I split (6.3 — remediation 2026-06-10, D5)
   'debts', 'mortgagePI', 'mortgageBalance', 'mortgageRate',
   'expenseInflation', 'expenseInflationRate',
+  // Healthcare cost path (6.4 — remediation 2026-06-10, D6)
+  'healthPremiumMonthly', 'medicalTrendRate', 'ssdiEntitlementMonth',
   'bcsAnnualTotal', 'bcsParentsAnnual', 'bcsYearsLeft',
   // Twins' college (6.2 — remediation 2026-06-10, D4)
   'collegeCostPerKidMonthly', 'collegeStartMonth', 'collegeMonths', 'college529Balance',

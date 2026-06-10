@@ -180,8 +180,11 @@ test('totalMonthlySpend back-calc subtracts the LIST payments when a debt list i
 console.log('\n=== 6.3 b-12 — mortgage P&I split ===');
 
 test('mortgagePI is carved out of the inflating base: month-0 total unchanged, year-1 base inflates on (base − PI)', () => {
-  const flat = sim({});
-  const rows = sim({ mortgagePI: 5000 }); // no balance info → fixed payment forever
+  // 6.4 (2026-06-10): healthPremiumMonthly=0 disables the health carve so this
+  // test keeps isolating the MORTGAGE carve (with the default $4,200 premium
+  // carve active, baseLiving would be base − PI − premium).
+  const flat = sim({ healthPremiumMonthly: 0 });
+  const rows = sim({ mortgagePI: 5000, healthPremiumMonthly: 0 }); // no balance info → fixed payment forever
   assert.strictEqual(rows[0].expenses, flat[0].expenses, 'month-0 total should not change');
   assert.strictEqual(rows[0].expenseBreakdown.mortgagePI, 5000);
   assert.strictEqual(rows[0].expenseBreakdown.baseLiving, INITIAL_STATE.baseExpenses - 5000);

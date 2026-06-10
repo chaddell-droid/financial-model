@@ -36,6 +36,7 @@ export function useChartPropBundles({
     chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
     totalMonthlySpend, debtService, expenseInflation, expenseInflationRate, ssColaRate,
     debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
+    healthPremiumMonthly, medicalTrendRate, ssdiEntitlementMonth, // 6.4 (2026-06-10, D6)
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft,
     collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance, // 6.2 (2026-06-10)
     lifestyleCutsApplied, cutsOverride,
@@ -165,6 +166,7 @@ export function useChartPropBundles({
     totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
     debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
     expenseInflation, expenseInflationRate, ssColaRate, // A2 (2026-06-10)
+    healthPremiumMonthly, medicalTrendRate, ssdiEntitlementMonth, chadCurrentAge, // 6.4 (2026-06-10, D6)
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
@@ -182,6 +184,7 @@ export function useChartPropBundles({
     totalMonthlySpend, effectiveBaseExpenses, debtService,
     debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
     expenseInflation, expenseInflationRate, ssColaRate, // A2 (2026-06-10)
+    healthPremiumMonthly, medicalTrendRate, ssdiEntitlementMonth, chadCurrentAge, // 6.4 (2026-06-10, D6)
     debtTotal, retireDebt,
     lifestyleCutsApplied, cutsOverride,
     bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,

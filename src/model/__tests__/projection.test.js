@@ -2631,8 +2631,11 @@ test('Inflation OFF: expenses flat at month 0 vs month 12', () => {
     `Month 0 (${monthlyData[0].expenses}) should equal month 12 (${monthlyData[12].expenses}) with inflation OFF`);
 });
 
+// 6.4 (2026-06-10): healthPremiumMonthly:0 disables the medical-trend carve in the
+// three CPI-machinery tests below so they keep isolating GENERAL inflation
+// (with the default carve, $4,200 of the base trends at 6.5% instead of CPI).
 test('Inflation ON at 3%: month-12 base expenses ≈ base × 1.03', () => {
-  const s = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 3, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const s = gatherStateWithOverrides({ healthPremiumMonthly: 0, expenseInflation: true, expenseInflationRate: 3, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
   const { monthlyData } = runMonthlySimulation(s);
   const expected = Math.round(s.baseExpenses * 1.03);
   near(monthlyData[12].expenses, expected, 1, 'Y1 inflated expenses');
@@ -2648,8 +2651,8 @@ test('Inflation: month 0 unchanged (factor = 1.0)', () => {
 });
 
 test('Inflation: rate 0% equals flat expenses', () => {
-  const sFlat = gatherStateWithOverrides({ expenseInflation: false, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
-  const sZero = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 0, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const sFlat = gatherStateWithOverrides({ healthPremiumMonthly: 0, expenseInflation: false, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const sZero = gatherStateWithOverrides({ healthPremiumMonthly: 0, expenseInflation: true, expenseInflationRate: 0, retireDebt: true, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
   const flatData = runMonthlySimulation(sFlat).monthlyData;
   const zeroData = runMonthlySimulation(sZero).monthlyData;
   assert.strictEqual(flatData[36].expenses, zeroData[36].expenses,
@@ -2657,7 +2660,7 @@ test('Inflation: rate 0% equals flat expenses', () => {
 });
 
 test('Inflation: only baseExpenses inflates, not debtService', () => {
-  const s = gatherStateWithOverrides({ expenseInflation: true, expenseInflationRate: 5, retireDebt: false, debtService: 5000, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
+  const s = gatherStateWithOverrides({ healthPremiumMonthly: 0, expenseInflation: true, expenseInflationRate: 5, retireDebt: false, debtService: 5000, vanSold: true, vanSaleMonth: 0, vanLoanBalance: 0, vanSalePrice: 0, lifestyleCutsApplied: false, milestones: [], bcsYearsLeft: 0, chadJob: false, oneTimeExtras: 0 });
   const { monthlyData } = runMonthlySimulation(s);
   // At month 12, total = inflatedBase + debtService. inflatedBase = round(baseExpenses * 1.05)
   const expectedInflatedBase = Math.round(s.baseExpenses * 1.05);

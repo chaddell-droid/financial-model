@@ -117,8 +117,17 @@ test('mid-year job start: only pre-coverage months carry premiums', () => {
   assert.strictEqual(sched[1].sehiPremiums, 0, 'year 1: fully covered');
 });
 
-test('premium derives from chadJobHealthSavings (one source of truth)', () => {
-  const s = gatherStateWithOverrides({ chadJobHealthSavings: 3000 });
+// 6.4 (remediation 2026-06-10, improvement a-6): healthPremiumMonthly is now the
+// single source for the family premium; chadJobHealthSavings only backstops it
+// when the premium field is 0 (the engine's legacy fallback path).
+test('premium derives from healthPremiumMonthly (one source of truth)', () => {
+  const s = gatherStateWithOverrides({ healthPremiumMonthly: 3000 });
+  const sched = buildTaxSchedule(s);
+  assert.strictEqual(sched[0].sehiPremiums, 36000, '12 × $3,000');
+});
+
+test('legacy fallback: healthPremiumMonthly=0 derives the premium from chadJobHealthSavings', () => {
+  const s = gatherStateWithOverrides({ healthPremiumMonthly: 0, chadJobHealthSavings: 3000 });
   const sched = buildTaxSchedule(s);
   assert.strictEqual(sched[0].sehiPremiums, 36000, '12 × $3,000');
 });

@@ -272,6 +272,10 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                     // 6.2 (2026-06-10): twins' tuition (out-of-pocket after the 529)
                     college: 'College (twins)',
                     healthInsurance: 'Health ins. (employer)',
+                    // 6.4 (2026-06-10): premium carved from base (medical trend);
+                    // Medicare relieves Chad's share (SSDI 24-month rule / age 65).
+                    healthPremium: 'Health premium',
+                    medicareRelief: 'Medicare (Chad\'s share)',
                     // C12: cuts over-shot total expenses — floor-at-$0 adjustment.
                     clampAdjustment: 'Floor at $0 (cuts exceed expenses)',
                   };

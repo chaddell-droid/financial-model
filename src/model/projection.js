@@ -33,6 +33,13 @@ export const SS_TAXABLE_SHARE = 0.85;          // IRC §86(a)(2) upper-tier incl
 export const SS_INTERIM_MARGINAL_RATE = 0.22;  // household MFJ marginal bracket estimate
 export const SS_INTERIM_TAX_HAIRCUT = SS_TAXABLE_SHARE * SS_INTERIM_MARGINAL_RATE; // 0.187
 
+// ── 6.4 healthcare (remediation 2026-06-10, improvement a-6, gate D6) ──
+// Chad's per-capita share of the family health premium that Medicare relieves
+// once he is entitled (SSDI entitlement + 24 months, or age 65 — whichever is
+// first). Family of 4 → 1/4 of the premium: 0.25 × $4,200 = $1,050/mo at the
+// default, matching the audit's "plausibly ~$1,000/mo of relief" estimate.
+export const HEALTH_CHAD_MEDICARE_SHARE = 0.25;
+
 /**
  * Haircut the ADULT share of a (possibly family-total) benefit. The adult
  * share is capped at the personal benefit; anything above it is the kids'
@@ -174,6 +181,23 @@ export function runMonthlySimulation(s) {
   // Post-retirement RSU vests come from former employer's W-2 — full FICA always applies.
   const chadJobBonusNetMultPostRet = 1 - chadJobTaxRate;
   const chadJobHealthSavings = chadJob ? (s.chadJobHealthSavings || 4200) : 0;
+  // 6.4 (remediation 2026-06-10, improvement a-6, gate D6): healthcare cost
+  // path. The family premium is carved OUT of the inflating base and re-added
+  // as its own line trending at medicalTrendRate (D6: 6.5%/yr) instead of
+  // general CPI. SINGLE SOURCE with chadJobHealthSavings: employer-coverage
+  // months ZERO the premium line (the legacy flat subtraction applies only
+  // when healthPremiumMonthly = 0). When ssdiEntitlementMonth is set (months
+  // from projection start; negative = already entitled), Medicare starts at
+  // min(entitlement + 24 months, the age-65 month) — 42 U.S.C. §426(b)'s
+  // 24-month waiting period vs. ordinary age-65 entitlement — and relieves
+  // Chad's per-capita share of the premium. null = no Medicare modeled (the
+  // UI hint asks for the SSA award-letter date).
+  const healthPremiumBase = Math.max(0, s.healthPremiumMonthly ?? 4200);
+  const medicalTrendRate = Math.max(0, s.medicalTrendRate ?? 6.5) / 100;
+  const chadAge65Month = Math.max(0, Math.round((65 - (s.chadCurrentAge ?? 61)) * 12));
+  const chadMedicareMonth = (s.ssdiEntitlementMonth ?? null) !== null
+    ? Math.min(s.ssdiEntitlementMonth + 24, chadAge65Month)
+    : null;
   // MSFT stock-price growth applied to refresh-grant vests. Refresh sliders
   // are nominal dollars at issue: a $50K grant in year 3 buys fewer shares
   // than a $50K grant in year 1 because MSFT has appreciated. Each vest's
@@ -739,13 +763,36 @@ export function runMonthlySimulation(s) {
     // b-12 (6.3): the fixed mortgage P&I is carved OUT of the inflating base
     // (clamped at baseExpenses) — only the non-mortgage remainder inflates.
     const mortgageCarve = mortgagePayment > 0 ? Math.min(mortgagePayment, s.baseExpenses) : 0;
-    let inflatedBase = s.baseExpenses - mortgageCarve;
+    // 6.4 (a-6): the health premium is carved out of the inflating base too —
+    // clamped to whatever base remains after the mortgage carve so the
+    // month-0 total always equals the un-split baseExpenses.
+    const healthCarve = healthPremiumBase > 0
+      ? Math.min(healthPremiumBase, Math.max(0, s.baseExpenses - mortgageCarve))
+      : 0;
+    let inflatedBase = s.baseExpenses - mortgageCarve - healthCarve;
     if (s.expenseInflation) {
       inflatedBase = Math.round(inflatedBase * Math.pow(1 + (s.expenseInflationRate || 0) / 100, m / 12));
     }
     // Track expense breakdown so tooltips can show the math that rolls up to `expenses`.
     const expenseBreakdown = { baseLiving: inflatedBase };
     let expenses = inflatedBase;
+    // 6.4 (a-6, D6): health premium line — trends at the medical rate (gated
+    // on expenseInflation so both ledger sides share one nominal frame, like
+    // the SS COLA above). Employer coverage (chadJob && m >= start) zeroes
+    // the line entirely — single source with chadJobHealthSavings. Medicare
+    // relieves Chad's per-capita share of the TRENDED premium (family of 4 →
+    // HEALTH_CHAD_MEDICARE_SHARE = 0.25 ≈ the audit's ~$1,000/mo at default).
+    if (healthCarve > 0 && !(chadJob && m >= chadJobStartMonth)) {
+      const medicalTrendFactor = s.expenseInflation ? Math.pow(1 + medicalTrendRate, m / 12) : 1;
+      const healthPremium = Math.round(healthCarve * medicalTrendFactor);
+      expenses += healthPremium;
+      expenseBreakdown.healthPremium = healthPremium;
+      if (chadMedicareMonth !== null && m >= chadMedicareMonth) {
+        const medicareRelief = Math.round(healthPremium * HEALTH_CHAD_MEDICARE_SHARE);
+        expenses -= medicareRelief;
+        expenseBreakdown.medicareRelief = -medicareRelief;
+      }
+    }
     // b-12 (6.3): mortgage P&I — amortizes when balance info is present (the
     // payment drops to zero at payoff; the principal portion is credited to
     // home equity after the growth step below). Without balance info the
@@ -837,7 +884,11 @@ export function runMonthlySimulation(s) {
     // healthcare is covered by retiree benefits / Sarah's practice / Medicare,
     // so expenses should NOT jump up at retirement when the employer subsidy
     // would otherwise end.
-    if (chadJob && m >= chadJobStartMonth) {
+    // 6.4: LEGACY PATH ONLY — when the health carve is active (the default),
+    // employer coverage is modeled by zeroing the premium line above and
+    // chadJobHealthSavings is engine-inert (single source). This flat
+    // subtraction survives solely for healthPremiumMonthly = 0 scenarios.
+    if (healthCarve === 0 && chadJob && m >= chadJobStartMonth) {
       expenses -= chadJobHealthSavings;
       expenseBreakdown.healthInsurance = -chadJobHealthSavings;
     }

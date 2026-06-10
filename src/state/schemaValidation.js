@@ -107,6 +107,15 @@ const RANGE = {
   mortgageBalance: { min: 0, max: 5_000_000 },
   mortgageRate: { min: 0, max: 25 },
   expenseInflationRate: { min: 0, max: 15 },
+  // Healthcare cost path (6.4 — remediation 2026-06-10, improvement a-6, D6).
+  // Premium ceiling is a corruption guard (~5× the current $4,200 family
+  // premium); trend shares the expense-inflation ceiling. ssdiEntitlementMonth
+  // is NULLABLE (null = no Medicare modeled) — the nullable branch in
+  // validateAndSanitize applies this clamp; negative = entitlement in the past
+  // (with 18 months of back pay the award letter can predate the projection).
+  healthPremiumMonthly: { min: 0, max: 20000 },
+  medicalTrendRate: { min: 0, max: 15 },
+  ssdiEntitlementMonth: { min: -120, max: 120 },
   bcsAnnualTotal: { min: 0 },
   bcsParentsAnnual: { min: 0 },
   // Twins' college (6.2 — remediation 2026-06-10, D4). Cost ceiling is a

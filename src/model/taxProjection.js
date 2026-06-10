@@ -296,13 +296,18 @@ export function buildTaxSchedule(s) {
   const chadJob401kEnabled = !!s.chadJob401kEnabled;
   const chadJob401kDeferralAnnual = chadJob401kEnabled ? (s.chadJob401kDeferral || 0) : 0;
   // 6.1 (remediation 2026-06-10, improvement a-2): SEHI premium = the SAME
-  // family private premium that employer coverage replaces
-  // (chadJobHealthSavings, $/mo — one source of truth with projection.js's
-  // expense offset, including its `|| 4200` default convention). A month has
-  // employer coverage when the projection's offset condition holds
-  // (chadJob && m >= chadJobStartMonth — no retirement boundary, matching
-  // projection.js); every OTHER month's premium is §162(l)-eligible.
-  const sehiPremiumMonthly = s.chadJobHealthSavings || 4200;
+  // family private premium the expense engine charges. 6.4 (improvement a-6)
+  // made healthPremiumMonthly the single source for that premium (carved out
+  // of baseExpenses; employer coverage zeroes it), so the §162(l) deduction
+  // reads it too. When the premium field is 0 the engine falls back to the
+  // legacy chadJobHealthSavings convention (`|| 4200` default included) —
+  // mirrored here so tax and cashflow stay in lockstep. A month has employer
+  // coverage when the projection's condition holds (chadJob && m >=
+  // chadJobStartMonth — no retirement boundary, matching projection.js);
+  // every OTHER month's premium is §162(l)-eligible.
+  const sehiPremiumMonthly = (s.healthPremiumMonthly ?? 4200) > 0
+    ? (s.healthPremiumMonthly ?? 4200)
+    : (s.chadJobHealthSavings || 4200);
   const hasEmployerCoverage = (m) => chadJob && m >= chadJobStartMonth;
   // C6 (remediation 2026-06-10): the tax schedule consumes the ADULT-ONLY
   // benefit estimate (Pub 915: kids' auxiliary benefits and kids' back pay

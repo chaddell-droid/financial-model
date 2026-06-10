@@ -22,6 +22,9 @@ const colorFor = {
   lifestyleCuts: '#22c55e',     // negative — shown green (reduction)
   milestones: '#22c55e',         // negative — shown green
   healthInsurance: '#22c55e',    // negative — shown green
+  // 6.4 (2026-06-10): health premium line (medical trend) + Medicare relief
+  healthPremium: '#f472b6',
+  medicareRelief: '#22c55e',     // negative — shown green
 };
 
 const cellStyle = (color, weight = 400) => ({
@@ -81,6 +84,10 @@ const DataTable = ({ data, presentMode }) => {
     { key: 'lifestyleCuts',   label: 'Cuts (−)' },
     { key: 'milestones',      label: 'Milestones (−)' },
     { key: 'healthInsurance', label: 'Health (−)' },
+    // 6.4 (2026-06-10): premium carved from base, trending at the medical rate;
+    // Medicare relieves Chad's share from min(entitlement+24, age 65).
+    { key: 'healthPremium',   label: 'Health Prem.' },
+    { key: 'medicareRelief',  label: 'Medicare (−)' },
     // C12: floor-at-$0 adjustment when cuts/milestones exceed total expenses.
     { key: 'clampAdjustment', label: 'Floor at $0 (+)' },
   ].filter(c => hasBreakdown(c.key));

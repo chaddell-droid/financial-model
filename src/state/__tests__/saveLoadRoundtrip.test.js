@@ -137,6 +137,10 @@ const NON_DEFAULT_VALUES = {
   mortgageRate: 5.75,
   expenseInflation: false,         // flipped
   expenseInflationRate: 4,
+  // Healthcare cost path (6.4 — remediation 2026-06-10, D6)
+  healthPremiumMonthly: 3600,
+  medicalTrendRate: 8,
+  ssdiEntitlementMonth: -12,       // non-null (nullable field)
   // BCS tuition
   bcsAnnualTotal: 50000,
   bcsParentsAnnual: 27500,

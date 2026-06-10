@@ -10,6 +10,7 @@ const ExpenseControls = ({
   totalMonthlySpend, baseExpenses, debtService,
   debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
   expenseInflation, expenseInflationRate, ssColaRate,
+  healthPremiumMonthly, medicalTrendRate, ssdiEntitlementMonth, chadCurrentAge, // 6.4 (2026-06-10, D6)
   bcsAnnualTotal, bcsParentsAnnual, bcsYearsLeft, bcsFamilyMonthly,
   collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance,
   vanMonthlySavings,
@@ -100,6 +101,77 @@ const ExpenseControls = ({
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Healthcare cost path (6.4 — remediation 2026-06-10, improvement
+                a-6, gate D6). The premium is carved OUT of baseExpenses and
+                trends at the medical rate; employer coverage zeroes it; when
+                the SSDI entitlement month is set, Medicare relieves Chad's
+                share from min(entitlement + 24mo, age 65). */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }} data-testid="expense-healthcare">
+              <h4 style={{ fontSize: 11, color: '#f472b6', margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Healthcare</h4>
+              <Slider label="Health premium (within base expenses)" value={healthPremiumMonthly} onChange={set('healthPremiumMonthly')} commitStrategy={commitStrategy} min={0} max={10000} step={50} color={healthPremiumMonthly > 0 ? '#f472b6' : COLORS.border} format={(v) => fmtFull(v) + '/mo'} />
+              {healthPremiumMonthly > 0 && (
+                <>
+                  <Slider label="Medical trend (vs general inflation)" value={medicalTrendRate} onChange={set('medicalTrendRate')} commitStrategy={commitStrategy} min={0} max={15} step={0.5} color={'#f472b6'} format={(v) => v + '%'} />
+                  {expenseInflation && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2, color: COLORS.textDim }}>
+                      <span>Y6 premium at {medicalTrendRate}%/yr:</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#f472b6' }}>
+                        {fmtFull(Math.round(healthPremiumMonthly * Math.pow(1 + medicalTrendRate / 100, 6)))}/mo
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginTop: 8 }}>
+                    <span style={{ color: COLORS.textMuted }}>SSDI Medicare entitlement month:</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input
+                        type="number"
+                        value={ssdiEntitlementMonth ?? ''}
+                        placeholder="—"
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          set('ssdiEntitlementMonth')(v === '' ? null : Math.round(Number(v)));
+                        }}
+                        data-testid="expense-ssdi-entitlement-month"
+                        aria-label="SSDI Medicare entitlement month (months from now, negative = past)"
+                        style={{
+                          width: 64, background: COLORS.bgCard, border: `1px solid ${ssdiEntitlementMonth != null ? '#f472b6' : COLORS.border}`,
+                          borderRadius: 4, color: ssdiEntitlementMonth != null ? '#f472b6' : COLORS.textDim,
+                          padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+                          textAlign: "right", outline: "none",
+                        }}
+                      />
+                      {ssdiEntitlementMonth != null && (
+                        <button
+                          onClick={() => set('ssdiEntitlementMonth')(null)}
+                          aria-label="Clear SSDI entitlement month"
+                          style={{ background: "transparent", border: "none", color: COLORS.textDim, fontSize: 10, cursor: "pointer", padding: "2px 4px" }}
+                        >✕</button>
+                      )}
+                    </div>
+                  </div>
+                  {ssdiEntitlementMonth != null && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
+                      <span>Chad on Medicare from:</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.green }}>
+                        {/* min(entitlement + 24mo waiting period, age-65 month) — mirrors projection.js */}
+                        month {Math.max(0, Math.min(ssdiEntitlementMonth + 24, Math.max(0, Math.round((65 - (chadCurrentAge ?? 61)) * 12))))}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
+                    {ssdiEntitlementMonth != null
+                      ? "Medicare relieves Chad's quarter of the family premium from min(entitlement + 24 months, age 65)."
+                      : <>No Medicare modeled. <b>Chad: enter the entitlement date from the SSA award letter</b> (months from now, negative if it's in the past) to model the 24-month Medicare rule.</>}
+                  </div>
+                </>
+              )}
+              <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
+                {healthPremiumMonthly > 0
+                  ? "Carved out of base expenses (no double count) and inflated at the medical trend instead of CPI. Employer coverage (Chad's job) zeroes it."
+                  : "At $0 the premium stays inside base expenses at general inflation (pre-6.4 behavior) and the Job toggle's flat health-savings offset applies."}
+              </div>
             </div>
 
             {/* Debts (6.3 — remediation 2026-06-10, improvement a-5, gate D5).

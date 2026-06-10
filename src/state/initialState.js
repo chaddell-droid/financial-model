@@ -337,9 +337,12 @@ export const INITIAL_STATE = {
   // Tax engine (Tax tab — remediation 2026-06-09 D1). Defaults MUST match the
   // engine's own `??` fallbacks in taxProjection.js (getTaxInputs/buildTaxSchedule)
   // so adding these fields to gathered state changes no locked tax number.
-  // The engine is DISPLAY-ONLY for now: the monthly projection loop still uses
-  // the flat-rate fields (sarahTaxRate, chadJobTaxRate).
-  taxMode: 'flat',            // 'flat' (legacy flat-rate) or 'engine' (full federal engine display)
+  // P7 (remediation 2026-06-10, improvement a-1): taxMode='engine' wires the
+  // per-year engine rates INTO the monthly simulation (SS taxability, Sarah's
+  // SE tax + QBI, Chad's W-2 comp + legacy vests, RSU withholding true-up,
+  // RMDs at 75). 'flat' (the default) keeps the legacy flat-rate cashflow —
+  // the locked regression baseline.
+  taxMode: 'flat',            // 'flat' (legacy flat-rate cashflow) or 'engine' (engine drives the simulation)
   taxInflationAdjust: false,  // Inflate bracket thresholds + deduction inputs annually
   taxInflationRate: 2,        // Annual inflation % applied when taxInflationAdjust is on
   taxSchCExpenseRatio: 25,    // Sarah's Sch C business expense ratio (% of gross)

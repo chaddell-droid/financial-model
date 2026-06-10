@@ -212,3 +212,36 @@ export const SS_PROVISIONAL_THRESHOLD_1 = BASE.ssProvisionalThreshold1;
 export const SS_PROVISIONAL_THRESHOLD_2 = BASE.ssProvisionalThreshold2;
 export const SS_TAXABLE_TIER_1 = 0.50;
 export const SS_TAXABLE_TIER_2 = 0.85;
+
+// ── P7 / b-14 (remediation 2026-06-10): statutory RSU vest withholding ──
+// Supplemental wage withholding 22% (§3402(g), <$1M) + employee FICA
+// 6.2% SS + 1.45% Medicare = 29.65%. Employers withhold this at vest; the
+// engine-mode simulation trues it up against the real liability the
+// following April. (Flat mode keeps the project's legacy 0.80 net factor.)
+export const RSU_SUPPLEMENTAL_WITHHOLDING_RATE = 0.22;
+export const RSU_VEST_WITHHOLDING_RATE = RSU_SUPPLEMENTAL_WITHHOLDING_RATE + 0.062 + 0.0145; // 0.2965
+
+// ── P7 / b-9 (remediation 2026-06-10): RMD Uniform Lifetime Table ──
+// IRS Pub 590-B Table III (2022+ divisors). SECURE 2.0 §107: required
+// beginning age is 75 for those born 1960+ (Chad, b. ~1965). Keyed by the
+// attained age in the distribution calendar year; ages past 100 use the
+// table tail (the engine clamps).
+export const RMD_START_AGE = 75;
+export const RMD_UNIFORM_LIFETIME = {
+  75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0, 79: 21.1,
+  80: 20.2, 81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8,
+  85: 16.0, 86: 15.2, 87: 14.4, 88: 13.7, 89: 12.9,
+  90: 12.2, 91: 11.5, 92: 10.8, 93: 10.1, 94: 9.5,
+  95: 8.9, 96: 8.4, 97: 7.8, 98: 7.3, 99: 6.8, 100: 6.4,
+};
+
+/**
+ * RMD divisor for the attained age in a distribution year.
+ * null below RMD_START_AGE (no RMD due); ages beyond the table clamp to the
+ * age-100 tail (conservative — real divisors keep shrinking to 2.0 at 120+,
+ * but balances at that horizon are noise for this model).
+ */
+export function rmdDivisorForAge(age) {
+  if (!(age >= RMD_START_AGE)) return null;
+  return RMD_UNIFORM_LIFETIME[Math.min(Math.floor(age), 100)];
+}

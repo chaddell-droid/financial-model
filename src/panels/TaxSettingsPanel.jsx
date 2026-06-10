@@ -64,8 +64,8 @@ export default function TaxSettingsPanel({
         <Toggle
           label="Use full tax engine"
           description={isEngine
-            ? "Computing real federal tax with brackets, SE tax, deductions, and credits."
-            : "Using flat percentage rates. Enable this for accurate tax modeling."}
+            ? "Per-year engine rates (brackets, SE tax, QBI, SS taxability, credits) drive the cash-flow simulation, with RSU withholding true-ups each April and RMDs at 75."
+            : "Using flat percentage rates in the simulation. Enable this for accurate tax modeling."}
           checked={isEngine}
           onChange={(v) => set('taxMode')(v ? 'engine' : 'flat')}
           color={COLORS.cyan}

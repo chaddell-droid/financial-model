@@ -15,8 +15,9 @@ function nextStockVestMonthAfter(month) {
   }
   return month + 3; // fallback (shouldn't hit — vest months are every 3 months)
 }
-import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
-import { getTaxParamsForYear, TAX_PARAMS_BASE_YEAR } from './taxConstants.js';
+import { getVestingMonthly, getVestingLumpSum, getVestingGrossMonthly, getVestingGrossLumpSum } from './vesting.js';
+import { getTaxParamsForYear, TAX_PARAMS_BASE_YEAR, RSU_VEST_WITHHOLDING_RATE, RMD_START_AGE, rmdDivisorForAge } from './taxConstants.js';
+import { buildTaxSchedule } from './taxProjection.js';
 
 // ── A1 INTERIM SS taxability haircut (remediation 2026-06-10, plan 1.2) ──
 // SS/SSDI benefits previously flowed into cash flow completely untaxed. With
@@ -25,10 +26,10 @@ import { getTaxParamsForYear, TAX_PARAMS_BASE_YEAR } from './taxConstants.js';
 // ~$57k of overstated savings over 72 months plus ~$14.2k of back-pay-year tax.
 // Kids' auxiliary benefits are the KIDS' income (Pub 915) and stay untaxed.
 //
-// *** INTERIM until Phase 7 (improvement a-1) wires taxMode='engine' per-year
-// effective rates from buildTaxSchedule into this loop. These constants are an
-// effective-rate approximation, NOT the tiered §86 computation the tax engine
-// already performs for the display layer. Replace this whole block in P7. ***
+// *** P7 (improvement a-1) wired taxMode='engine' per-year effective rates
+// from buildTaxSchedule into this loop — in engine mode the per-year
+// ssEffRate REPLACES these constants (no double-counting). FLAT mode (the
+// default regression baseline) keeps this effective-rate approximation. ***
 export const SS_TAXABLE_SHARE = 0.85;          // IRC §86(a)(2) upper-tier inclusion
 export const SS_INTERIM_MARGINAL_RATE = 0.22;  // household MFJ marginal bracket estimate
 export const SS_INTERIM_TAX_HAIRCUT = SS_TAXABLE_SHARE * SS_INTERIM_MARGINAL_RATE; // 0.187
@@ -45,13 +46,17 @@ export const HEALTH_CHAD_MEDICARE_SHARE = 0.25;
  * share is capped at the personal benefit; anything above it is the kids'
  * auxiliary share and passes through untaxed. An earnings-test-reduced total
  * below the personal amount is fully adult (taxed in full).
+ *
+ * P7 (improvement a-1): `rate` defaults to the interim flat haircut (flat
+ * mode); engine mode passes the per-year SS-attributable rate from
+ * buildTaxSchedule instead — never both (no double-counting).
  */
-export function applyInterimSsTax(totalBenefit, personalBenefit) {
+export function applyInterimSsTax(totalBenefit, personalBenefit, rate = SS_INTERIM_TAX_HAIRCUT) {
   if (!(totalBenefit > 0)) return 0;
   const cap = personalBenefit > 0 ? personalBenefit : totalBenefit;
   const adultShare = Math.min(totalBenefit, cap);
   const kidShare = totalBenefit - adultShare;
-  return kidShare + Math.round(adultShare * (1 - SS_INTERIM_TAX_HAIRCUT));
+  return kidShare + Math.round(adultShare * (1 - rate));
 }
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
 import { computeOneTimeTotal } from '../state/gatherState.js';
@@ -79,6 +84,17 @@ export function runMonthlySimulation(s) {
   const chadJob = s.chadJob || false;
   // If SS retirement, SSDI denied, or Chad has a job: no SSDI, no back pay.
   const effectiveSsdiApproval = (useSS || chadJob) ? 999 : (s.ssdiDenied ? 999 : (s.ssdiApprovalMonth ?? 7));
+  // ── P7 (remediation 2026-06-10, improvement a-1): taxMode='engine' ──
+  // Per-year effective rates from buildTaxSchedule drive the tax treatment of
+  // every income stream, replacing the flat multipliers (sarahTaxRate,
+  // chadJobTaxRate) AND superseding the A1 interim SS haircut (flat mode
+  // keeps both). Also gates b-14 (RSU withholding true-up) and b-9 (RMDs at
+  // 75) below. Flat mode ('flat', the default) is byte-identical to pre-P7.
+  const engineMode = s.taxMode === 'engine';
+  const engineSched = engineMode ? buildTaxSchedule(s) : null;
+  const engineFor = (m) => engineSched[
+    Math.min(Math.max(0, Math.floor(m / 12)), engineSched.length - 1)
+  ].engine;
   // Back pay includes auxiliary benefits for dependent kids during their eligibility window.
   // Bound auxiliary months by kidsAgeOutMonths as a forward-looking proxy: if kids are
   // eligible at/after approval they were eligible during the (past) back-pay window too.
@@ -92,7 +108,11 @@ export function runMonthlySimulation(s) {
   // (SSA-1099 box 5 is gross of the attorney fee, but the interim haircut uses
   // the adult gross — C3/§86(e) refinements land in Phase 2). Kids' auxiliary
   // back pay is the kids' income — untaxed.
-  const backPayTax = Math.round(adultBackPayGross * SS_INTERIM_TAX_HAIRCUT);
+  // P7: engine mode taxes the lump at the receipt-year engine rate (which is
+  // blended over regular adult benefits + the gross lump, §86(e)-aware).
+  const backPayTax = Math.round(adultBackPayGross * (engineMode
+    ? engineFor(effectiveSsdiApproval + 2).ssEffRate
+    : SS_INTERIM_TAX_HAIRCUT));
   const backPayActual = adultBackPayGross + auxBackPayGross - backPayFee - backPayTax;
   const ssStartMonth = s.ssStartMonth ?? 18;
   const ssFamilyTotal = s.ssFamilyTotal || 7099;
@@ -328,6 +348,21 @@ export function runMonthlySimulation(s) {
   const collegeMonthlyCost = COLLEGE_KIDS * Math.max(0, s.collegeCostPerKidMonthly ?? 2833);
   let college529 = Math.max(0, s.college529Balance || 0);
 
+  // P7 / b-14 (engine mode): RSU gross vested per PROJECTION year (legacy
+  // MSFT vests + job refresh/hire grants). Each year's 29.65% statutory
+  // withholding is trued-up against the engine rate the following April
+  // (April is month 12y+1 — the projection year starts in March). The final
+  // year's withholding has no April inside the horizon and stays unreconciled
+  // (conservative — withholding exceeds the true rate at this household).
+  const rsuVestGrossByYear = [];
+  // P7 / b-9 (engine mode): RMDs on the pre-tax 401(k) from the calendar
+  // year Chad attains RMD_START_AGE (75, SECURE 2.0 §107 for his birth year).
+  // The annual RMD = year-start balance / Uniform-Lifetime divisor, drawn in
+  // twelve monthly slices; the net of retirement401kTaxRate lands in savings.
+  const rmdTaxRate = Math.min(Math.max((s.retirement401kTaxRate ?? 13) / 100, 0), 0.99);
+  let rmdCalYear = -1;
+  let rmdMonthlyGross = 0;
+
   for (let m = 0; m <= months; m++) {
     let sarahIncome = 0;
     let sarahGross = 0; // A8: her net SE earnings drive the spousal earnings test
@@ -335,10 +370,27 @@ export function runMonthlySimulation(s) {
       const rate = Math.min(s.sarahRate * Math.pow(1 + s.sarahRateGrowth / 100, m / 12), s.sarahMaxRate);
       const clients = Math.min(s.sarahCurrentClients * Math.pow(1 + s.sarahClientGrowth / 100, m / 12), s.sarahMaxClients);
       sarahGross = Math.round(rate * clients * DAYS_PER_MONTH);
-      sarahIncome = Math.round(sarahGross * (1 - (s.sarahTaxRate ?? 25) / 100));
+      // P7: engine mode applies the per-year all-in rate on GROSS revenue
+      // (Sch C expense ratio + her engine-attributed tax: SE tax, QBI, the
+      // works) instead of the flat sarahTaxRate.
+      sarahIncome = engineMode
+        ? Math.round(sarahGross * (1 - engineFor(m).sarahEffRateOnGross))
+        : Math.round(sarahGross * (1 - (s.sarahTaxRate ?? 25) / 100));
     }
-    const msftSmoothed = getVestingMonthly(m, s.msftGrowth || 0, s.msftPrice);
-    const msftLump = getVestingLumpSum(m, s.msftGrowth || 0, s.msftPrice);
+    // P7 / b-14: engine mode nets legacy MSFT vests at the statutory 29.65%
+    // vest withholding (trued-up in April); flat mode keeps the legacy 0.80
+    // net factor (test-locked deliberate convention).
+    const msftLumpGrossThisMonth = engineMode ? getVestingGrossLumpSum(m, s.msftGrowth || 0, s.msftPrice) : 0;
+    const msftSmoothed = engineMode
+      ? Math.round(getVestingGrossMonthly(m, s.msftGrowth || 0, s.msftPrice) * (1 - RSU_VEST_WITHHOLDING_RATE))
+      : getVestingMonthly(m, s.msftGrowth || 0, s.msftPrice);
+    const msftLump = engineMode
+      ? Math.round(msftLumpGrossThisMonth * (1 - RSU_VEST_WITHHOLDING_RATE))
+      : getVestingLumpSum(m, s.msftGrowth || 0, s.msftPrice);
+    if (engineMode && msftLumpGrossThisMonth > 0) {
+      const yIdx = Math.floor(m / 12);
+      rsuVestGrossByYear[yIdx] = (rsuVestGrossByYear[yIdx] || 0) + msftLumpGrossThisMonth;
+    }
     const trustLLC = m < trustMonth ? trustNow : trustFuture;
 
     // Chad's job income (after tax) — salary compounds with annual raise; bonus
@@ -383,12 +435,22 @@ export function runMonthlySimulation(s) {
       // before the all-in netMult wrongly "saved" the 7.65% FICA too; add it
       // back at the same rate the pension uses (Medicare-only 1.45% when the
       // employer is non-SS-covered). Mirrored in w2Diagnostic.js.
-      chadJobSalaryNet = Math.round(
-        taxableSalaryGross * chadJobSalaryNetMult
-        - pensionDeduction * pensionCashflowMult
-        - chadJob401kDeferralMonthly * ficaRateOnPension
-        - chadJob401kCatchupRothMonthly
-      );
+      // P7: engine mode taxes the Box-1 taxable base (gross − deferral −
+      // pension) at the per-year engine rate. The rate's numerator includes
+      // FICA on the FULL gross (incl. pension + deferral, §3121(v)) and the
+      // noFICA employer attribute, so no separate FICA add-backs apply; the
+      // post-tax Roth catch-up still leaves cash in full.
+      chadJobSalaryNet = engineMode
+        ? Math.round(
+            (taxableSalaryGross - pensionDeduction) * (1 - engineFor(m).chadCompEffRate)
+            - chadJob401kCatchupRothMonthly
+          )
+        : Math.round(
+            taxableSalaryGross * chadJobSalaryNetMult
+            - pensionDeduction * pensionCashflowMult
+            - chadJob401kDeferralMonthly * ficaRateOnPension
+            - chadJob401kCatchupRothMonthly
+          );
       chadJob401kContribGross = Math.round(chadJob401kDeferralMonthly + chadJob401kCatchupRothMonthly);
       chadJob401kMatchGross = Math.round(chadJob401kMatchMonthly);
       chadJob401kFlow = chadJob401kContribGross; // outflow from take-home (employee side)
@@ -408,7 +470,8 @@ export function runMonthlySimulation(s) {
           bonusFraction = 0; // strict eligibility — no bonus until 1 full year
         }
         chadJobBonusGross = chadCurrentAnnualSalary * lvl.bonusPct * bonusFraction;
-        chadJobBonusNet = Math.round(chadJobBonusGross * chadJobBonusNetMult);
+        chadJobBonusNet = Math.round(chadJobBonusGross
+          * (engineMode ? (1 - engineFor(m).chadCompEffRate) : chadJobBonusNetMult));
       }
 
       // Stock comp — both schedules are lumpy.
@@ -447,15 +510,23 @@ export function runMonthlySimulation(s) {
         }
       }
       chadJobStockGross = refreshGrossThisMonth + hireGrossThisMonth;
-      chadJobStockRefreshNet = refreshGrossThisMonth > 0 ? Math.round(refreshGrossThisMonth * chadJobBonusNetMult) : 0;
-      chadJobStockHireNet = hireGrossThisMonth > 0 ? Math.round(hireGrossThisMonth * chadJobBonusNetMult) : 0;
+      // P7 / b-14: engine mode withholds the statutory 29.65% at vest (the
+      // true-up below settles against the engine rate each April).
+      const stockNetMult = engineMode ? (1 - RSU_VEST_WITHHOLDING_RATE) : chadJobBonusNetMult;
+      chadJobStockRefreshNet = refreshGrossThisMonth > 0 ? Math.round(refreshGrossThisMonth * stockNetMult) : 0;
+      chadJobStockHireNet = hireGrossThisMonth > 0 ? Math.round(hireGrossThisMonth * stockNetMult) : 0;
+      if (engineMode && chadJobStockGross > 0) {
+        const yIdx = Math.floor(m / 12);
+        rsuVestGrossByYear[yIdx] = (rsuVestGrossByYear[yIdx] || 0) + chadJobStockGross;
+      }
 
       // Cash sign-on bonus — 50% on hire date (m === startMonth), 50% on 1-yr anniversary.
       if (chadJobSignOnCash > 0) {
+        const signOnNetMult = engineMode ? (1 - engineFor(m).chadCompEffRate) : chadJobBonusNetMult;
         if (monthsWorked === 0) {
-          chadJobSignOnNet = Math.round(chadJobSignOnCash * 0.5 * chadJobBonusNetMult);
+          chadJobSignOnNet = Math.round(chadJobSignOnCash * 0.5 * signOnNetMult);
         } else if (monthsWorked === 12) {
-          chadJobSignOnNet = Math.round(chadJobSignOnCash * 0.5 * chadJobBonusNetMult);
+          chadJobSignOnNet = Math.round(chadJobSignOnCash * 0.5 * signOnNetMult);
         }
       }
 
@@ -491,8 +562,15 @@ export function runMonthlySimulation(s) {
         // BUG #5: Former-employer W-2 always withholds full FICA — the noFICA toggle from
         // active employment does NOT carry over post-retirement. Use a netMult without
         // the ficaSavings addback for these vest checks.
-        chadJobStockRefreshNet = Math.round(refreshGrossThisMonth * chadJobBonusNetMultPostRet);
+        // P7 / b-14: engine mode uses the same 29.65% vest withholding +
+        // April true-up as in-service vests (former-employer W-2 either way).
+        chadJobStockRefreshNet = Math.round(refreshGrossThisMonth
+          * (engineMode ? (1 - RSU_VEST_WITHHOLDING_RATE) : chadJobBonusNetMultPostRet));
         chadJobIncome = chadJobStockRefreshNet;
+        if (engineMode) {
+          const yIdx = Math.floor(m / 12);
+          rsuVestGrossByYear[yIdx] = (rsuVestGrossByYear[yIdx] || 0) + refreshGrossThisMonth;
+        }
       }
     }
 
@@ -760,11 +838,18 @@ export function runMonthlySimulation(s) {
     // (ssBenefit − ssBenefitPersonal) is unchanged by the haircut. Applied
     // AFTER COLA and the earnings test (tax is on what SSA actually pays),
     // and after the withheld-month counters (which track gross withholding).
+    // P7: engine mode REPLACES the interim flat haircut with the per-year
+    // engine SS rate (the §86 tiered computation incl. any §86(e) election,
+    // attributed at the household's top margin) — never both. Sarah's spousal
+    // is haircut at the same year rate (the schedule's SS estimate does not
+    // model spousal, so this treats it as same-tier SS income — a documented
+    // approximation).
+    const ssTaxRateThisMonth = engineMode ? engineFor(m).ssEffRate : SS_INTERIM_TAX_HAIRCUT;
     const ssBenefitGross = ssBenefit;
     const sarahSpousalGross = sarahSpousal;
-    ssBenefit = applyInterimSsTax(ssBenefit, ssBenefitPersonal);
-    if (ssBenefitPersonal > 0) ssBenefitPersonal = Math.round(ssBenefitPersonal * (1 - SS_INTERIM_TAX_HAIRCUT));
-    if (sarahSpousal > 0) sarahSpousal = Math.round(sarahSpousal * (1 - SS_INTERIM_TAX_HAIRCUT));
+    ssBenefit = applyInterimSsTax(ssBenefit, ssBenefitPersonal, ssTaxRateThisMonth);
+    if (ssBenefitPersonal > 0) ssBenefitPersonal = Math.round(ssBenefitPersonal * (1 - ssTaxRateThisMonth));
+    if (sarahSpousal > 0) sarahSpousal = Math.round(sarahSpousal * (1 - ssTaxRateThisMonth));
 
     // Block-bootstrap mode (item 4.2): a per-month rate path overrides the
     // constant rate; months past the path's end fall back to the constant.
@@ -946,6 +1031,23 @@ export function runMonthlySimulation(s) {
     if (effectiveSsdiApproval !== 999 && backPayActual > 0 && m === effectiveSsdiApproval + 2) {
       balance += backPayActual;
     }
+    // P7 / b-14 (engine mode): April reconciliation of last year's RSU vest
+    // withholding. The projection year starts in March, so April of year y+1
+    // is month 12(y+1)+1; the refund(+)/owed(−) = withheld 29.65% minus the
+    // engine rate on the same gross. ~$30k of cash timing moves out of the
+    // bridge months into refund months (audit b-14).
+    let rsuTaxTrueUp = 0;
+    if (engineMode && m > 12 && m % 12 === 1) {
+      const settleYear = Math.floor(m / 12) - 1;
+      const vestGrossLastYear = rsuVestGrossByYear[settleYear] || 0;
+      if (vestGrossLastYear > 0) {
+        const engineRateLastYear = engineSched[
+          Math.min(settleYear, engineSched.length - 1)
+        ].engine.chadCompEffRate;
+        rsuTaxTrueUp = Math.round(vestGrossLastYear * (RSU_VEST_WITHHOLDING_RATE - engineRateLastYear));
+        balance += rsuTaxTrueUp;
+      }
+    }
     // FIX #10: Van sale at sale month — handle BOTH shortfall (sale price < loan)
     // AND positive equity (sale price > loan). Previously only deficit was handled,
     // silently dropping any positive proceeds.
@@ -968,6 +1070,28 @@ export function runMonthlySimulation(s) {
       bal401k += chadJob401kContribGross + chadJob401kMatchGross;
     }
     bal401k = Math.round(bal401k);
+    // P7 / b-9 (engine mode): RMDs on the pre-tax 401(k). Attained age per
+    // calendar year derives from the household FRA anchor (same derivation
+    // as the C7 catch-up gate). The annual RMD is set once per calendar year
+    // from the year-start balance and drawn in monthly slices; the net of
+    // retirement401kTaxRate is credited to savings. Flat mode: untouched.
+    let rmd401k = 0;
+    if (engineMode && bal401k > 0) {
+      const rmdCalYearIdx = Math.floor((m + PROJECTION_START_MONTH) / 12);
+      const rmdAttainedAge = SS_FRA - (k401FraCalYearIdx - rmdCalYearIdx);
+      if (rmdAttainedAge >= RMD_START_AGE) {
+        if (rmdCalYearIdx !== rmdCalYear) {
+          rmdCalYear = rmdCalYearIdx;
+          const divisor = rmdDivisorForAge(rmdAttainedAge);
+          rmdMonthlyGross = divisor ? (bal401k / divisor) / 12 : 0;
+        }
+        if (rmdMonthlyGross > 0) {
+          rmd401k = Math.round(Math.min(rmdMonthlyGross, bal401k));
+          bal401k -= rmd401k;
+          balance += Math.round(rmd401k * (1 - rmdTaxRate));
+        }
+      }
+    }
     if (m > 0) homeEquity = Math.round(homeEquity * (1 + monthlyHomeRate));
     // b-12 (6.3): mortgage principal paydown is forced saving — credit it to
     // home equity AFTER growth (end-of-month payment semantics, mirroring the
@@ -1044,6 +1168,12 @@ export function runMonthlySimulation(s) {
       // computed but never exposed — charts/MC had to diff the homeEquity
       // series to reconstruct them. Dollar-for-dollar equity sale (untaxed).
       withdrawalHome,
+      // P7 (engine mode; always 0 in flat mode): April RSU withholding
+      // true-up credited to savings this month, and the gross RMD drawn from
+      // the pre-tax 401(k) this month (net of retirement401kTaxRate lands in
+      // the balance).
+      rsuTaxTrueUp,
+      rmd401k,
     });
   }
 
@@ -1051,6 +1181,9 @@ export function runMonthlySimulation(s) {
     monthlyData,
     backPayActual,
     backPayTax,
+    // P7 / b-14 (engine mode; null in flat mode): RSU gross vested per
+    // projection year — the basis for each April's withholding true-up.
+    rsuVestGrossByYear: engineMode ? rsuVestGrossByYear : null,
     ssWithheldSummary: {
       monthsFullyWithheld: ssMonthsWithheld,
       totalAmountWithheld: ssTotalAmountWithheld,

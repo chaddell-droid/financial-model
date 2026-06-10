@@ -2,13 +2,14 @@
  * Bridge between the tax engine and the financial model.
  *
  * buildTaxSchedule(s) pre-computes per-year tax results for the full
- * projection horizon. DISPLAY-ONLY for now (remediation 2026-06-09 D1): it is
- * consumed by the Tax tab (TaxSettingsPanel + TaxVisualization), the W-2 Net
- * Diagnostic breakdown (chadTaxBreakdown in FinancialModel), and the
- * advisor's taxBreakdown tool. The monthly projection loop in projection.js
- * does NOT consume it — cashflow still uses the flat-rate fields
- * (sarahTaxRate, chadJobTaxRate). A follow-on (D1-A2) may wire the engine
- * into the simulation behind taxMode === 'engine'.
+ * projection horizon. It is consumed by the Tax tab (TaxSettingsPanel +
+ * TaxVisualization), the W-2 Net Diagnostic breakdown (chadTaxBreakdown in
+ * FinancialModel), the advisor's taxBreakdown tool, AND — since P7
+ * (remediation 2026-06-10, improvement a-1) — by runMonthlySimulation when
+ * taxMode === 'engine': the per-year `engine` rate block drives the monthly
+ * cash-flow tax treatment. In the default taxMode === 'flat', cashflow still
+ * uses the flat-rate fields (sarahTaxRate, chadJobTaxRate) and this schedule
+ * is display-only.
  */
 
 import { DAYS_PER_MONTH, PROJECTION_START_MONTH, STOCK_VEST_CALENDAR_MONTHS, TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, SSDI_ATTORNEY_FEE_CAP, SS_START_OFFSET, ssAdjustmentFactor } from './constants.js';
@@ -569,7 +570,7 @@ export function buildTaxSchedule(s) {
 
     // Full household tax (Sarah + Chad) — b-10: §86(e)-aware in the
     // back-pay receipt year.
-    const fullRun = applyLumpSumElection({
+    const fullInputs = {
       w2Wages: chadW2,
       w2FicaBase: chadW2FicaBase, // BUG #2: full gross for FICA, reduced w2Wages for income tax
       w2Withholding: taxInputs.w2Withholding,
@@ -592,13 +593,14 @@ export function buildTaxSchedule(s) {
       ltcgBrackets: inflatedLtcgBrackets, // C4
       stdDeduction: inflatedStdDeduction, // C5
       noFICA: chadJobNoFICA, // FIX #1
-    }, y, fullOtherAGIHistory);
+    };
+    const fullRun = applyLumpSumElection(fullInputs, y, fullOtherAGIHistory);
     const fullTax = fullRun.result;
 
     // W-2 only tax (for marginal attribution — what would tax be without
     // Sarah?). b-10: the counterfactual elects independently on its own
     // income history so the attribution split stays internally consistent.
-    const w2Run = applyLumpSumElection({
+    const w2Inputs = {
       w2Wages: chadW2,
       w2FicaBase: chadW2FicaBase, // BUG #2: full gross for FICA, reduced w2Wages for income tax
       w2Withholding: taxInputs.w2Withholding,
@@ -621,8 +623,44 @@ export function buildTaxSchedule(s) {
       ltcgBrackets: inflatedLtcgBrackets, // C4
       stdDeduction: inflatedStdDeduction, // C5
       noFICA: chadJobNoFICA, // FIX #1
-    }, y, w2OnlyOtherAGIHistory);
+    };
+    const w2Run = applyLumpSumElection(w2Inputs, y, w2OnlyOtherAGIHistory);
     const w2OnlyTax = w2Run.result;
+
+    // ── P7 (remediation 2026-06-10, improvement a-1): engine-mode rate
+    // decomposition. Two no-SS counterfactuals split the full household tax
+    // into three additive pieces the monthly simulation can apply per-stream:
+    //   ssAnnualTax        = full − full-without-SS  (SS taxed at the TOP
+    //                        margin, where §86 actually puts it for this
+    //                        household — incl. any §86(e) election benefit)
+    //   chadCompAnnualTax  = W-2-only-without-SS     (his comp + legacy vests)
+    //   sarahEngineAnnualTax = the remainder          (her SE tax + QBI etc.)
+    // The pieces sum to fullTax.totalTax unless a max(0,·) clamp binds.
+    const fullNoSs = calculateTax({ ...fullInputs, ssBenefitAnnual: 0 });
+    const w2NoSs = calculateTax({ ...w2Inputs, ssBenefitAnnual: 0, solo401kContribution: 0 });
+    const ssAnnualTax = Math.max(0, fullTax.totalTax - fullNoSs.totalTax);
+    const chadCompAnnualTax = w2NoSs.totalTax;
+    const sarahEngineAnnualTax = Math.max(0, fullTax.totalTax - ssAnnualTax - chadCompAnnualTax);
+    const engine = {
+      ssAnnualTax,
+      chadCompAnnualTax,
+      sarahEngineAnnualTax,
+      // Effective rate on the ADULT SS benefits the estimate sees this year
+      // (incl. gross back pay in the receipt year). Capped at the §86 85%
+      // ceiling times a defensive top rate; ~18–20% at this household's mix.
+      ssEffRate: (ssAnnualBenefits[y] || 0) > 0
+        ? Math.min(0.85, ssAnnualTax / ssAnnualBenefits[y])
+        : 0,
+      // Chad's all-in rate on his Box-1 wage base (FICA on the full gross is
+      // in the numerator, so the rate is grossed up accordingly). Applying it
+      // to each month's taxable comp re-totals to chadCompAnnualTax.
+      chadCompEffRate: chadW2 > 0 ? Math.min(0.95, chadCompAnnualTax / chadW2) : 0,
+      // Sarah's all-in haircut on GROSS practice revenue: Sch C expenses +
+      // her attributed tax — the engine twin of the flat sarahTaxRate.
+      sarahEffRateOnGross: annualSarahGross > 0
+        ? Math.min(0.95, (annualSarahGross * expenseRatio + sarahEngineAnnualTax) / annualSarahGross)
+        : 0,
+    };
 
     // b-10: record this year's non-SS AGI for later receipt years.
     fullOtherAGIHistory.push(fullTax.agi - fullTax.ssTaxableIncome);
@@ -687,6 +725,10 @@ export function buildTaxSchedule(s) {
       // taxableElection, electionApplied } — fullTax already reflects the
       // winning (minimum) treatment.
       ssLumpSum: fullRun.lumpSum,
+
+      // P7: per-stream engine rates consumed by runMonthlySimulation when
+      // taxMode === 'engine' (see decomposition above).
+      engine,
 
       // Full engine results for detailed display
       fullTax,

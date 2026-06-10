@@ -29,6 +29,19 @@ export function getVestingGrossMonthly(monthOffset, msftGrowth, msftPrice) {
   return 0;
 }
 
+// P7 / b-14 (remediation 2026-06-10): GROSS lump twin of getVestingLumpSum.
+// Engine mode withholds the statutory 29.65% at vest (instead of the legacy
+// flat 0.80 net factor) and trues up in April, so it needs the gross dollars.
+export function getVestingGrossLumpSum(monthOffset, msftGrowth, msftPrice) {
+  for (const v of VEST_SHARES) {
+    if (monthOffset === v.endMonth) {
+      const price = getMsftPrice(v.endMonth, msftGrowth, msftPrice);
+      return Math.round(v.shares * price);
+    }
+  }
+  return 0;
+}
+
 export function getVestingLumpSum(monthOffset, msftGrowth, msftPrice) {
   for (const v of VEST_SHARES) {
     if (monthOffset === v.endMonth) {

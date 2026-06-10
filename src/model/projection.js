@@ -113,6 +113,12 @@ export function runMonthlySimulation(s) {
   // 401(k) is tax-sheltered (its eventual tax lands via deficit401kTaxRate /
   // retirement401kTaxRate at withdrawal). Clamped to [0, 1].
   const taxableDragMult = 1 - Math.min(Math.max((s.taxableReturnDragPct ?? 0) / 100, 0), 1);
+  // 6.6 (remediation 2026-06-10, improvement b-15): emergency-fund floor +
+  // two-bucket returns. The first cashFloorAmount dollars of the balance are
+  // a CASH bucket earning cashYieldPct; only the remainder earns the equity
+  // return. 0 = off (whole balance at the equity rate — snapshot-preserving).
+  const cashFloorAmount = Math.max(0, s.cashFloorAmount || 0);
+  const monthlyCashRate = Math.pow(1 + Math.max(0, s.cashYieldPct ?? 4) / 100, 1 / 12) - 1;
   // Optional per-month return paths (item 4.2, gate D7 — Monte Carlo block
   // bootstrap). When the MC engine runs in block-bootstrap mode it passes
   // monthly rate ARRAYS (decimal fractions, e.g. 0.01 = +1% that month) so a
@@ -763,8 +769,14 @@ export function runMonthlySimulation(s) {
     // Block-bootstrap mode (item 4.2): a per-month rate path overrides the
     // constant rate; months past the path's end fall back to the constant.
     const monthReturnRate = investReturnPath ? (investReturnPath[m] ?? monthlyReturnRate) : monthlyReturnRate;
-    // 6.5 (b-11): the taxable balance earns the after-tax return.
-    const investReturn = balance > 0 ? Math.round(balance * monthReturnRate * taxableDragMult) : 0;
+    // 6.6 (b-15): two-bucket split — cash floor at the cash yield, invested
+    // remainder at the equity rate. 6.5 (b-11): the whole account is taxable,
+    // so the after-tax drag multiplies BOTH buckets.
+    const cashBucket = balance > 0 ? Math.min(balance, cashFloorAmount) : 0;
+    const equityBucket = balance > 0 ? balance - cashBucket : 0;
+    const investReturn = balance > 0
+      ? Math.round((cashBucket * monthlyCashRate + equityBucket * monthReturnRate) * taxableDragMult)
+      : 0;
 
     // Base living expenses with optional inflation (debt/van/BCS are fixed contracts, not inflated)
     // b-12 (6.3): the fixed mortgage P&I is carved OUT of the inflating base

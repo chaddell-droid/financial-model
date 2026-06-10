@@ -139,6 +139,9 @@ const NON_DEFAULT_VALUES = {
   expenseInflationRate: 4,
   // Tax drag on the taxable return (6.5 — remediation 2026-06-10, b-11)
   taxableReturnDragPct: 20,
+  // Emergency-fund floor + two-bucket returns (6.6 — remediation 2026-06-10, b-15)
+  cashFloorAmount: 60000,
+  cashYieldPct: 5,
   // Healthcare cost path (6.4 — remediation 2026-06-10, D6)
   healthPremiumMonthly: 3600,
   medicalTrendRate: 8,

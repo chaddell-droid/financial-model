@@ -77,6 +77,7 @@ function SavingsDrawdownChart({
   startingSavings,
   investmentReturn,
   taxableReturnDragPct, // 6.5 (2026-06-10, b-11): tax drag on the taxable return
+  cashFloorAmount, cashYieldPct, // 6.6 (2026-06-10, b-15): emergency-fund floor + two-bucket returns
   debtService,
   ssdiApprovalMonth,
   ssdiBackPayActual,
@@ -442,6 +443,19 @@ function SavingsDrawdownChart({
               Effective after-tax return: <span style={{ color: COLORS.cyan, fontFamily: "'JetBrains Mono', monospace" }}>{(investmentReturn * (1 - (taxableReturnDragPct || 0) / 100)).toFixed(1)}%</span> — taxable account only; the 401(k) is sheltered.
             </div>
           </div>
+          {/* 6.6 (2026-06-10, b-15): emergency-fund floor — the first
+              cashFloorAmount dollars earn the cash yield, the rest the equity return. */}
+          <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Slider label="Emergency-fund cash floor" value={cashFloorAmount || 0} onChange={onFieldChange('cashFloorAmount')} commitStrategy='release'
+              min={0} max={300000} step={5000} color={(cashFloorAmount || 0) > 0 ? COLORS.green : COLORS.border} />
+            <Slider label="Cash yield (annual)" value={cashYieldPct ?? 4} onChange={onFieldChange('cashYieldPct')} commitStrategy='release'
+              min={0} max={10} step={0.25} format={(v) => v + "%"} color={(cashFloorAmount || 0) > 0 ? COLORS.green : COLORS.border} />
+          </div>
+          {(cashFloorAmount || 0) > 0 && (
+            <div style={{ marginTop: 2, fontSize: 10, color: COLORS.textDim, fontStyle: "italic" }}>
+              First {fmtFull(cashFloorAmount)} of savings stays in cash at {cashYieldPct ?? 4}% (the SSDI-denial buffer); only the remainder rides the {investmentReturn}% equity return.
+            </div>
+          )}
           <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, padding: "0 2px" }}>
             <span style={{ color: COLORS.textDim }}>
               Total outflow (now): <span style={{ color: COLORS.red, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(data[0].expenses)}/mo</span>

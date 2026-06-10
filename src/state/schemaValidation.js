@@ -30,6 +30,11 @@ const RANGE = {
   // lost to tax each month. 100 = fully taxed away (the engine clamps the
   // multiplier at 0 — returns can never flip sign from drag alone).
   taxableReturnDragPct: { min: 0, max: 100 },
+  // 6.6 (remediation 2026-06-10, improvement b-15): emergency-fund cash
+  // bucket. Floor capped at $2M (10× default startingSavings — corruption
+  // guard, not a UI mirror); yield shares the expense-inflation 15% ceiling.
+  cashFloorAmount: { min: 0, max: 2_000_000 },
+  cashYieldPct: { min: 0, max: 15 },
   sarahTaxRate: { min: 0, max: 50 },
   chadJobTaxRate: { min: 0, max: 100 },
   return401k: { min: -50, max: 100 },

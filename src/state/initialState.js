@@ -227,6 +227,14 @@ export const INITIAL_STATE = {
   // return as the model's most optimistic untracked assumption (~$15–30k over
   // 6 years). The 401(k) is tax-sheltered and is never dragged.
   taxableReturnDragPct: 0,
+  // Emergency-fund floor + two-bucket returns (6.6 — remediation 2026-06-10,
+  // improvement b-15). The first cashFloorAmount dollars of savings are a CASH
+  // bucket earning cashYieldPct; only the remainder earns the equity
+  // investmentReturn. 0 = off (whole balance at the equity return — the
+  // pre-6.6 behavior, snapshot-preserving). The 6.5 tax drag applies to both
+  // buckets (the entire account is taxable).
+  cashFloorAmount: 0,   // $ kept in cash (emergency fund); 0 = feature off
+  cashYieldPct: 4,      // %/yr yield on the cash bucket (HYSA/T-bill ballpark)
 
   // Capital Projects (legacy scalar fields — preserved for back-compat; migration seeds capitalItems from these)
   moldCost: 60000,
@@ -403,7 +411,7 @@ export const MODEL_KEYS = [
   'trustIncomeNow', 'trustIncomeFuture', 'trustIncreaseMonth',
   'vanSold', 'vanMonthlySavings', 'vanSalePrice', 'vanLoanBalance', 'vanSaleMonth',
   'retireDebt',
-  'startingSavings', 'investmentReturn', 'taxableReturnDragPct', 'ssdiBackPayMonths',
+  'startingSavings', 'investmentReturn', 'taxableReturnDragPct', 'cashFloorAmount', 'cashYieldPct', 'ssdiBackPayMonths',
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'capitalItems', 'capitalFundingSource', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',

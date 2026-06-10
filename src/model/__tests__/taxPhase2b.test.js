@@ -18,6 +18,7 @@ import assert from 'node:assert';
 import {
   calculateTax,
   computeMax401k,
+  computeQBI,
 } from '../taxEngine.js';
 
 let passed = 0;
@@ -59,6 +60,47 @@ test('C2-1. audit regression: $100k Sch C → employerMax $18,587 (was $23,234)'
 test('C2-2. employer max = round((schCNet − halfSE) × 0.20) exactly', () => {
   const max = computeMax401k(101816, 1363);
   assert.strictEqual(max.employerMax, Math.round((101816 - 1363) * 0.20));
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// C1 — QBI SSTB applicable-percentage step + net-capital-gain cap term
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== C1: QBI SSTB phase-in + §199A(a)(2) cap ===');
+
+test('C1-1. SSTB (default) in the $403,500–$553,500 band: 20%·QBI·(1−p)²', () => {
+  // Midpoint → p = 0.5 → factor 0.25.
+  const qbi = computeQBI({ schCNet: 100000, taxableBeforeQbi: 478500 });
+  near(qbi, 20000 * 0.25, 0.01, 'SSTB applicable-percentage squared');
+  // Quarter point → p = 0.25 → factor 0.75² = 0.5625.
+  const q2 = computeQBI({ schCNet: 100000, taxableBeforeQbi: 403500 + 37500 });
+  near(q2, 20000 * 0.75 * 0.75, 0.01, 'SSTB at p=0.25');
+});
+
+test('C1-2. isSSTB=false keeps the linear (1−p) zero-wage phase-in', () => {
+  const qbi = computeQBI({ schCNet: 100000, taxableBeforeQbi: 478500, isSSTB: false });
+  near(qbi, 20000 * 0.5, 0.01, 'non-SSTB linear phase-in');
+});
+
+test('C1-3. SSTB above the band: deduction is 0 (unchanged)', () => {
+  assert.strictEqual(computeQBI({ schCNet: 100000, taxableBeforeQbi: 600000 }), 0);
+});
+
+test('C1-4. overall cap subtracts net capital gain (§199A(a)(2))', () => {
+  // Cap = 20% × max(0, taxableBeforeQbi − netCapitalGain), binding here.
+  const qbi = computeQBI({ schCNet: 100000, taxableBeforeQbi: 90000, netCapitalGain: 50000 });
+  near(qbi, (90000 - 50000) * 0.20, 0.01, 'cap term net of capital gain');
+  // Without the gain the cap would not bind.
+  near(computeQBI({ schCNet: 100000, taxableBeforeQbi: 90000 }), 90000 * 0.20, 0.01,
+    'no-gain baseline caps at 20% of taxable');
+});
+
+test('C1-5. calculateTax integration: LT gain shrinks the QBI cap', () => {
+  // schCNet $60k + $100k LT gain: taxableBeforeQbi ≈ 60000 − halfSE + 100000
+  // − 32200 std ded; the §199A(a)(2) cap nets out the $100k gain.
+  const r = calculateTax({ schCNet: 60000, capGainLoss: 100000 });
+  near(r.qbi, Math.max(0, r.taxableBeforeQbi - r.ltGain) * 0.20, 1,
+    'QBI capped at 20% of (taxable − net capital gain)');
+  assert.ok(r.qbi < 0.20 * 60000, 'cap must bind below 20% of Sch C net');
 });
 
 // ════════════════════════════════════════════════════════════════════════

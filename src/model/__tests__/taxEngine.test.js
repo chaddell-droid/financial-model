@@ -274,12 +274,21 @@ describe("computeQBI", () => {
     expect(qbi).toBe(10000);
   });
 
-  it("phases out QBI within phase-out range above threshold", () => {
+  it("phases out QBI within phase-out range above threshold — SSTB (1−p)²", () => {
     // FIX #3: 2026 phase-in threshold MFJ = $403,500, range = $150,000 (OBBBA).
-    // Midpoint = 403500 + 75000 = 478500 → 50% phase-out.
+    // Midpoint = 403500 + 75000 = 478500 → p = 50%.
+    // C1 (remediation 2026-06-10): therapy is an SSTB (§199A(d)(2)), default
+    // isSSTB=true — in-band deduction = 20%·QBI·(1−p)², not 20%·QBI·(1−p):
+    // the applicable percentage cuts the includable QBI AND the zero-wage
+    // limit phases in on the remainder.
     const qbi = computeQBI({ schCNet: 100000, taxableBeforeQbi: 478500 });
     const fullQbi = Math.min(100000 * 0.20, 478500 * 0.20); // 20000
-    approx(qbi, fullQbi * 0.5);
+    approx(qbi, fullQbi * 0.5 * 0.5); // (1−p)² = 0.25
+  });
+
+  it("non-SSTB keeps the linear (1−p) zero-wage phase-in", () => {
+    const qbi = computeQBI({ schCNet: 100000, taxableBeforeQbi: 478500, isSSTB: false });
+    approx(qbi, 20000 * 0.5);
   });
 
   it("returns 0 above full phase-out", () => {

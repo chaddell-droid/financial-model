@@ -111,17 +111,33 @@ export function computeItemizedDeductions({ agi, propertyTax, salesTax, personal
   return { saltTotal, saltDeductible, medicalFloor, medicalDeductible, itemized, deductionUsed, usingItemized };
 }
 
-export function computeQBI({ schCNet, taxableBeforeQbi, skipPhaseOut = false }) {
+/**
+ * §199A qualified business income deduction (zero-W-2-wage sole proprietor).
+ *
+ * C1 (remediation 2026-06-10):
+ * - `isSSTB` (default TRUE — Sarah's therapy practice is a specified service
+ *   trade or business, §199A(d)(2)). Inside the MFJ phase-in band
+ *   ($403,500–$553,500 for 2026) the SSTB applicable percentage (1−p) cuts
+ *   the includable QBI, and the zero-wage W-2 limit phases in on what's left,
+ *   giving 20%·QBI·(1−p)² — the old linear (1−p) overstated the deduction.
+ *   Non-SSTB keeps the linear (1−p) (zero-wage limit phase-in only).
+ *   Above the band: 0 for both (SSTB excluded; zero W-2 wages bind non-SSTB).
+ * - `netCapitalGain`: the §199A(a)(2) overall cap is 20% of (taxable income
+ *   − net capital gain), not 20% of taxable income.
+ */
+export function computeQBI({ schCNet, taxableBeforeQbi, skipPhaseOut = false, isSSTB = true, netCapitalGain = 0 }) {
   if (skipPhaseOut) {
     return schCNet * QBI_RATE;
   }
-  const fullQbi = Math.min(schCNet * QBI_RATE, taxableBeforeQbi * QBI_RATE);
+  const overallCap = Math.max(0, taxableBeforeQbi - Math.max(0, netCapitalGain)) * QBI_RATE;
+  const fullQbi = Math.min(schCNet * QBI_RATE, overallCap);
   if (taxableBeforeQbi <= QBI_PHASE_OUT) {
     return fullQbi;
   }
   if (taxableBeforeQbi < QBI_PHASE_OUT + QBI_PHASE_OUT_RANGE) {
     const phaseOutPct = (taxableBeforeQbi - QBI_PHASE_OUT) / QBI_PHASE_OUT_RANGE;
-    return fullQbi * (1 - phaseOutPct);
+    const factor = isSSTB ? (1 - phaseOutPct) * (1 - phaseOutPct) : (1 - phaseOutPct);
+    return fullQbi * factor;
   }
   return 0;
 }
@@ -212,6 +228,9 @@ export function calculateTax(inputs) {
     brackets = null,
     // C4: optional LTCG-breakpoint override for inflation adjustment.
     ltcgBrackets = null,
+    // C1: SSTB status for the QBI phase-in band. Default TRUE — Sarah's
+    // therapy practice is a specified service trade or business (§199A(d)(2)).
+    isSSTB = true,
 
     // FIX #1: Non-FICA-covered W-2 employer (no SS withholding on Chad's W-2 wages).
     // When true, the employee SS portion (6.2% × min(wages, SS_WAGE_BASE)) is zero,
@@ -305,7 +324,9 @@ export function calculateTax(inputs) {
   // Remediation 2026-06-09 Phase 4: previously used raw schCNet.
   const taxableBeforeQbi = Math.max(0, agi - deductions.deductionUsed);
   const qbiBase = Math.max(0, schCNet - se.halfSeTax - effective401k);
-  const qbi = computeQBI({ schCNet: qbiBase, taxableBeforeQbi, skipPhaseOut: skipQbiPhaseOut });
+  // C1: isSSTB default true (therapy practice); the §199A(a)(2) cap nets out
+  // the LT capital gain computed above.
+  const qbi = computeQBI({ schCNet: qbiBase, taxableBeforeQbi, skipPhaseOut: skipQbiPhaseOut, isSSTB, netCapitalGain: ltGain });
   const taxableIncome = Math.max(0, taxableBeforeQbi - qbi);
 
   // Federal income tax (use inflated brackets if provided).

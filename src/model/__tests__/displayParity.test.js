@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert';
 import fs from 'node:fs';
-import { runMonthlySimulation, computeProjection } from '../projection.js';
+import { runMonthlySimulation, computeProjection, SS_INTERIM_TAX_HAIRCUT } from '../projection.js';
 import { gatherStateWithOverrides, gatherState } from '../../state/gatherState.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
 import { DAYS_PER_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
@@ -899,7 +899,10 @@ test('D38: projection.backPayActual matches UI formula', () => {
   const ssdiAdultBackPayGross = ssdiBackPayMonths * ssdiPersonal;
   const ssdiAuxBackPayGross = ssdiAuxBackPayMonths * Math.max(0, (ssdiFamilyTotal || 0) - ssdiPersonal);
   const ssdiAttorneyFee = Math.min(Math.round(ssdiAdultBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  const ssdiBackPayActual = ssdiAdultBackPayGross + ssdiAuxBackPayGross - ssdiAttorneyFee;
+  // A1 (2026-06-10): the engine nets the interim 18.7% tax on the adult share;
+  // the UI breakdown shows the same line, so the formulas stay in lockstep.
+  const ssdiBackPayTax = Math.round(ssdiAdultBackPayGross * SS_INTERIM_TAX_HAIRCUT);
+  const ssdiBackPayActual = ssdiAdultBackPayGross + ssdiAuxBackPayGross - ssdiAttorneyFee - ssdiBackPayTax;
   assert.strictEqual(backPayActual, ssdiBackPayActual,
     `projection.backPayActual (${backPayActual}) should match UI formula (${ssdiBackPayActual})`);
 });
@@ -1509,8 +1512,10 @@ test('BP-1: Gross label components (worker + kids aux) sum exactly to the displa
   const s = gatherStateWithOverrides({});
   const { backPayActual } = runMonthlySimulation(s);
   const fee = Math.min(Math.round(ssdiBackPayMonths * ssdiPersonal * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  assert.strictEqual(displayedGross - fee, backPayActual,
-    `displayed gross (${displayedGross}) minus fee (${fee}) must equal engine backPayActual (${backPayActual})`);
+  // A1 (2026-06-10): gross − fee − interim tax on the adult share = net deposit.
+  const tax = Math.round(ssdiBackPayMonths * ssdiPersonal * SS_INTERIM_TAX_HAIRCUT);
+  assert.strictEqual(displayedGross - fee - tax, backPayActual,
+    `displayed gross (${displayedGross}) minus fee (${fee}) minus tax (${tax}) must equal engine backPayActual (${backPayActual})`);
 });
 
 test('BP-2: IncomeControls Gross row label includes the kids auxiliary component', () => {

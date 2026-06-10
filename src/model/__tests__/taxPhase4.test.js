@@ -247,15 +247,18 @@ console.log('\n=== P4-SSEST: estimator parity with projection.js monthly loop ==
 
 /** Sum projection.js ssBenefit per projection-year bucket (+ SSDI back-pay). */
 function yearlyBenefitsFromProjection(s) {
-  const { monthlyData, backPayActual } = runMonthlySimulation(s);
+  // A1 (2026-06-10): the tax estimate works on GROSS SSA amounts (what lands
+  // on the SSA-1099), so parity sums ssBenefitGross and adds the tax haircut
+  // back to the engine's net back-pay deposit (gross-of-tax, net-of-fee).
+  const { monthlyData, backPayActual, backPayTax } = runMonthlySimulation(s);
   const months = s.totalProjectionMonths || 72;
   const years = Math.ceil((months + 1) / 12);
   const yearly = new Array(years).fill(0);
-  for (const row of monthlyData) yearly[Math.floor(row.month / 12)] += row.ssBenefit;
+  for (const row of monthlyData) yearly[Math.floor(row.month / 12)] += row.ssBenefitGross;
   if (backPayActual > 0) {
     const receiptMonth = (s.ssdiApprovalMonth ?? 7) + 2;
     const idx = Math.floor(receiptMonth / 12);
-    if (idx >= 0 && idx < years) yearly[idx] += backPayActual;
+    if (idx >= 0 && idx < years) yearly[idx] += backPayActual + backPayTax;
   }
   return yearly;
 }

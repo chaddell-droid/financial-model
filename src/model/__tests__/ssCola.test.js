@@ -17,6 +17,10 @@ import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import { validateAndSanitize } from '../../state/schemaValidation.js';
 import { runMonthlySimulation } from '../projection.js';
 
+// NOTE (A1, 2026-06-10): COLA assertions use the GROSS row fields
+// (ssBenefitGross / sarahSpousalGross) — the A1 interim taxability haircut
+// nets the adult share afterwards and is locked in ssTaxHaircut.test.js.
+
 let passed = 0;
 let failed = 0;
 
@@ -60,29 +64,33 @@ test('default behavior: SSDI benefit grows at ssColaRate when expense inflation 
   const { monthlyData } = runMonthlySimulation(s);
   // m=12: one year of COLA on the family rate.
   const expected12 = Math.round(6321 * colaFactor(2.5, 12));
-  assert.strictEqual(monthlyData[12].ssBenefit, expected12,
+  assert.strictEqual(monthlyData[12].ssBenefitGross, expected12,
     `m=12 family benefit should carry one year of COLA (${expected12})`);
   // m=48 (post kids, personal rate 4214): four years of COLA.
   const expected48 = Math.round(4214 * colaFactor(2.5, 48));
-  assert.strictEqual(monthlyData[48].ssBenefit, expected48,
+  assert.strictEqual(monthlyData[48].ssBenefitGross, expected48,
     `m=48 personal benefit should carry four years of COLA (${expected48})`);
-  // ssBenefitPersonal is COLA'd by the same factor so the kids' share
-  // (ssBenefit − ssBenefitPersonal) stays consistent in chart tooltips.
-  assert.strictEqual(monthlyData[12].ssBenefitPersonal, Math.round(4214 * colaFactor(2.5, 12)));
+  // ssBenefitPersonal is COLA'd (then taxed, A1) by the same factors, so the
+  // kids' share (ssBenefit − ssBenefitPersonal) equals the COLA'd gross kids
+  // share in chart tooltips: round(6321×f) − round(4214×f) = 6479 − 4319 = 2160.
+  assert.strictEqual(
+    monthlyData[12].ssBenefit - monthlyData[12].ssBenefitPersonal,
+    Math.round(6321 * colaFactor(2.5, 12)) - Math.round(4214 * colaFactor(2.5, 12)),
+  );
 });
 
 test('override behavior: ssColaRate=0 pays flat benefits even with inflation on', () => {
   const s = gatherStateWithOverrides({ ssColaRate: 0 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[12].ssBenefit, 6321, 'flat family rate at cola 0');
-  assert.strictEqual(monthlyData[48].ssBenefit, 4214, 'flat personal rate at cola 0');
+  assert.strictEqual(monthlyData[12].ssBenefitGross, 6321, 'flat family rate at cola 0');
+  assert.strictEqual(monthlyData[48].ssBenefitGross, 4214, 'flat personal rate at cola 0');
 });
 
 test('edge/gate: expenseInflation=false suppresses COLA regardless of rate', () => {
   const s = gatherStateWithOverrides({ expenseInflation: false, ssColaRate: 4 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[12].ssBenefit, 6321, 'no COLA when inflation toggle is off');
-  assert.strictEqual(monthlyData[48].ssBenefit, 4214, 'no COLA when inflation toggle is off');
+  assert.strictEqual(monthlyData[12].ssBenefitGross, 6321, 'no COLA when inflation toggle is off');
+  assert.strictEqual(monthlyData[48].ssBenefitGross, 4214, 'no COLA when inflation toggle is off');
 });
 
 test('SS retirement stream is COLA\'d too', () => {
@@ -90,7 +98,7 @@ test('SS retirement stream is COLA\'d too', () => {
   const { monthlyData } = runMonthlySimulation(s);
   // ssStartMonth 19, family total 6110 (B5 bend-point max).
   const expected = Math.round(s.ssFamilyTotal * colaFactor(2.5, 19));
-  assert.strictEqual(monthlyData[19].ssBenefit, expected,
+  assert.strictEqual(monthlyData[19].ssBenefitGross, expected,
     `SS family at m=19 should be COLA'd to ${expected}`);
 });
 
@@ -103,14 +111,14 @@ test('Sarah\'s spousal benefit is COLA\'d by the same factor', () => {
   });
   const { monthlyData } = runMonthlySimulation(s);
   const expected = Math.round(s.sarahSpousalAmount * colaFactor(2.5, 36));
-  assert.strictEqual(monthlyData[36].sarahSpousal, expected,
+  assert.strictEqual(monthlyData[36].sarahSpousalGross, expected,
     `spousal at m=36 should be COLA'd to ${expected} (gross ${s.sarahSpousalAmount})`);
 });
 
 test('m=0 carries no COLA (factor 1) on any path', () => {
   const s = gatherStateWithOverrides({ ssdiApprovalMonth: 0 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[0].ssBenefit, 6321, 'month 0 is the baseline — no COLA yet');
+  assert.strictEqual(monthlyData[0].ssBenefitGross, 6321, 'month 0 is the baseline — no COLA yet');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

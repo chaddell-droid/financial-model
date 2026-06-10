@@ -6,7 +6,7 @@
  * Run with: node src/model/__tests__/postJobBenefit.test.js
  */
 import assert from 'node:assert';
-import { runMonthlySimulation } from '../projection.js';
+import { runMonthlySimulation, SS_INTERIM_TAX_HAIRCUT } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import { SS_START_OFFSET, ssAdjustmentFactor } from '../constants.js';
 
@@ -66,8 +66,9 @@ test('PJB-2: ssRetirement pays once the calendar reaches the claim-age anchor', 
     `Month ${anchor - 1} (one before anchor) must be 0, got ${monthlyData[anchor - 1].ssBenefit}`);
   // Anchor month — pays PIA × early-claim adjustment: round(4214 × 0.70) = 2950
   const expected = Math.round(4214 * ssAdjustmentFactor(62));
-  assert.strictEqual(monthlyData[anchor].ssBenefit, expected,
-    `At anchor month ${anchor} must pay PIA × adjustment = ${expected}, got ${monthlyData[anchor].ssBenefit}`);
+  // A1 (2026-06-10): gross — net cash carries the interim taxability haircut.
+  assert.strictEqual(monthlyData[anchor].ssBenefitGross, expected,
+    `At anchor month ${anchor} must pay PIA × adjustment = ${expected}, got ${monthlyData[anchor].ssBenefitGross}`);
   assert.strictEqual(monthlyData[anchor].ssBenefitType, 'retirement',
     `Label must be 'retirement' (not 'ssdi' like the prior bug), got ${monthlyData[anchor].ssBenefitType}`);
 });
@@ -77,14 +78,14 @@ test('PJB-3: ssdi mode pays SSDI immediately after job ends', () => {
   const { monthlyData } = runMonthlySimulation(s);
   // Month 25 (just retired) — should pay SSDI family (kids still under TWINS_AGE_OUT_MONTH)
   // Note: TWINS_AGE_OUT_MONTH default is 36 (3 yrs from now), so at m=25 still under
-  assert.strictEqual(monthlyData[25].ssBenefit, 6321,
-    `Month 25 ssdi family must be 6321 (kids still home), got ${monthlyData[25].ssBenefit}`);
+  assert.strictEqual(monthlyData[25].ssBenefitGross, 6321,
+    `Month 25 ssdi family must be 6321 (kids still home), got ${monthlyData[25].ssBenefitGross}`); // A1: gross
   assert.strictEqual(monthlyData[25].ssBenefitType, 'ssdi',
     `Label must be 'ssdi', got ${monthlyData[25].ssBenefitType}`);
   // After TWINS_AGE_OUT_MONTH (~36) — drops to personal
   if (monthlyData.length > 40) {
-    assert.strictEqual(monthlyData[40].ssBenefit, 4214,
-      `After twins age out, ssdi must drop to personal 4214, got ${monthlyData[40].ssBenefit}`);
+    assert.strictEqual(monthlyData[40].ssBenefitGross, 4214,
+      `After twins age out, ssdi must drop to personal 4214, got ${monthlyData[40].ssBenefitGross}`);
   }
 });
 
@@ -179,11 +180,14 @@ test('PJB-8 (2.4): pre-job and post-job paths start SS benefits in the SAME mont
     assert.strictEqual(postFirst, anchor,
       `Post-job path (claim ${claimAge}) must start at calendar month ${anchor}, got ${postFirst} (pre-fix bug: fired ~7 months early)`);
     // Personal amounts agree too: both pay round(PIA × ssAdjustmentFactor(claimAge)).
-    const expectedPersonal = Math.round(4214 * ssAdjustmentFactor(claimAge));
+    // A1 (2026-06-10): ssBenefitPersonal is net of the interim taxability
+    // haircut — parity between pre/post paths is what matters here, so compare
+    // the NET fields to each other and to the net of the expected gross.
+    const expectedPersonal = Math.round(Math.round(4214 * ssAdjustmentFactor(claimAge)) * (1 - SS_INTERIM_TAX_HAIRCUT));
     assert.strictEqual(preData[preFirst].ssBenefitPersonal, expectedPersonal,
-      `Pre-job personal at claim ${claimAge} must be ${expectedPersonal}`);
+      `Pre-job personal (net) at claim ${claimAge} must be ${expectedPersonal}`);
     assert.strictEqual(postData[postFirst].ssBenefitPersonal, expectedPersonal,
-      `Post-job personal at claim ${claimAge} must be ${expectedPersonal}`);
+      `Post-job personal (net) at claim ${claimAge} must be ${expectedPersonal}`);
   }
 });
 

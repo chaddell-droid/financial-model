@@ -16,6 +16,35 @@ function nextStockVestMonthAfter(month) {
   return month + 3; // fallback (shouldn't hit — vest months are every 3 months)
 }
 import { getVestingMonthly, getVestingLumpSum } from './vesting.js';
+
+// ── A1 INTERIM SS taxability haircut (remediation 2026-06-10, plan 1.2) ──
+// SS/SSDI benefits previously flowed into cash flow completely untaxed. With
+// Sarah's Schedule C profit, MFJ provisional income is far above the $44,000
+// tier, so 85% of the ADULT benefit is federally taxable (IRC §86, Pub 915) —
+// ~$57k of overstated savings over 72 months plus ~$14.2k of back-pay-year tax.
+// Kids' auxiliary benefits are the KIDS' income (Pub 915) and stay untaxed.
+//
+// *** INTERIM until Phase 7 (improvement a-1) wires taxMode='engine' per-year
+// effective rates from buildTaxSchedule into this loop. These constants are an
+// effective-rate approximation, NOT the tiered §86 computation the tax engine
+// already performs for the display layer. Replace this whole block in P7. ***
+export const SS_TAXABLE_SHARE = 0.85;          // IRC §86(a)(2) upper-tier inclusion
+export const SS_INTERIM_MARGINAL_RATE = 0.22;  // household MFJ marginal bracket estimate
+export const SS_INTERIM_TAX_HAIRCUT = SS_TAXABLE_SHARE * SS_INTERIM_MARGINAL_RATE; // 0.187
+
+/**
+ * Haircut the ADULT share of a (possibly family-total) benefit. The adult
+ * share is capped at the personal benefit; anything above it is the kids'
+ * auxiliary share and passes through untaxed. An earnings-test-reduced total
+ * below the personal amount is fully adult (taxed in full).
+ */
+export function applyInterimSsTax(totalBenefit, personalBenefit) {
+  if (!(totalBenefit > 0)) return 0;
+  const cap = personalBenefit > 0 ? personalBenefit : totalBenefit;
+  const adultShare = Math.min(totalBenefit, cap);
+  const kidShare = totalBenefit - adultShare;
+  return kidShare + Math.round(adultShare * (1 - SS_INTERIM_TAX_HAIRCUT));
+}
 import { levelAtMonthsWorked, age65VestEligibility, clearsOneYearCliff, firstAugustAtOrAfter } from './chadLevels.js';
 import { computeOneTimeTotal } from '../state/gatherState.js';
 
@@ -51,8 +80,12 @@ export function runMonthlySimulation(s) {
   const adultBackPayGross = totalBackPayMonths * (s.ssdiPersonal || 4214);
   const auxBackPayGross = auxBackPayMonths * Math.max(0, (s.ssdiFamilyTotal || 6321) - (s.ssdiPersonal || 4214));
   const backPayFee = Math.min(Math.round(adultBackPayGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  const backPayActual = adultBackPayGross + auxBackPayGross - backPayFee;
-  const backPayGross = adultBackPayGross + auxBackPayGross;
+  // A1 INTERIM (2026-06-10): the ADULT back pay is taxable in the receipt year
+  // (SSA-1099 box 5 is gross of the attorney fee, but the interim haircut uses
+  // the adult gross — C3/§86(e) refinements land in Phase 2). Kids' auxiliary
+  // back pay is the kids' income — untaxed.
+  const backPayTax = Math.round(adultBackPayGross * SS_INTERIM_TAX_HAIRCUT);
+  const backPayActual = adultBackPayGross + auxBackPayGross - backPayFee - backPayTax;
   const ssStartMonth = s.ssStartMonth ?? 18;
   const ssFamilyTotal = s.ssFamilyTotal || 7099;
   const ssPersonal = s.ssPersonal || 2933;
@@ -500,6 +533,20 @@ export function runMonthlySimulation(s) {
       if (ssWithheldThisMonth > 0) { ssMonthsWithheld++; ssTotalAmountWithheld += ssWithheldThisMonth; }
     }
 
+    // A1 INTERIM (2026-06-10, until P7 engine wiring — see module constants):
+    // haircut the ADULT share of the benefit streams by the effective SS tax
+    // rate (0.85 × 22% = 18.7%). Gross amounts are preserved on the row
+    // (ssBenefitGross / sarahSpousalGross) for the tax layer and tooltips.
+    // ssBenefitPersonal nets by the same rate so the kids' untaxed share
+    // (ssBenefit − ssBenefitPersonal) is unchanged by the haircut. Applied
+    // AFTER COLA and the earnings test (tax is on what SSA actually pays),
+    // and after the withheld-month counters (which track gross withholding).
+    const ssBenefitGross = ssBenefit;
+    const sarahSpousalGross = sarahSpousal;
+    ssBenefit = applyInterimSsTax(ssBenefit, ssBenefitPersonal);
+    if (ssBenefitPersonal > 0) ssBenefitPersonal = Math.round(ssBenefitPersonal * (1 - SS_INTERIM_TAX_HAIRCUT));
+    if (sarahSpousal > 0) sarahSpousal = Math.round(sarahSpousal * (1 - SS_INTERIM_TAX_HAIRCUT));
+
     const investReturn = balance > 0 ? Math.round(balance * monthlyReturnRate) : 0;
 
     // Base living expenses with optional inflation (debt/van/BCS are fixed contracts, not inflated)
@@ -641,7 +688,10 @@ export function runMonthlySimulation(s) {
     monthlyData.push({
       month: m,
       sarahIncome, msftSmoothed, msftLump, trustLLC, ssBenefit, ssBenefitType, ssBenefitPersonal,
-      sarahSpousal, // Sarah's spousal SS benefit (50% of Chad's PIA at her FRA, reduced for early claim)
+      // A1: pre-haircut (post-COLA, post-earnings-test) gross amounts — what
+      // SSA actually pays before federal tax. The net fields above are cash.
+      ssBenefitGross, sarahSpousalGross,
+      sarahSpousal, // Sarah's spousal SS benefit (net of the A1 interim tax haircut)
       consulting, chadJobIncome,
       chadJobSalaryNet, chadJobBonusNet, chadJobStockRefreshNet, chadJobStockHireNet, chadJobSignOnNet,
       chadJob401kContribGross, chadJob401kMatchGross, chadJob401kFlow, // 401(k) breakdown for tooltips/audit
@@ -657,11 +707,11 @@ export function runMonthlySimulation(s) {
     });
   }
 
-  return { monthlyData, backPayActual, ssWithheldSummary: { monthsFullyWithheld: ssMonthsWithheld, totalAmountWithheld: ssTotalAmountWithheld } };
+  return { monthlyData, backPayActual, backPayTax, ssWithheldSummary: { monthsFullyWithheld: ssMonthsWithheld, totalAmountWithheld: ssTotalAmountWithheld } };
 }
 
 export function computeProjection(s) {
-  const { monthlyData, backPayActual, ssWithheldSummary } = runMonthlySimulation(s);
+  const { monthlyData, backPayActual, backPayTax, ssWithheldSummary } = runMonthlySimulation(s);
 
   // Aggregate to quarterly snapshots for charts (every 3rd month starting at 0)
   const { labels: qLabels, monthValues: qMonthValues } = buildQuarterlySchedule(s.totalProjectionMonths || 72);
@@ -721,6 +771,6 @@ export function computeProjection(s) {
     return { month: d.month, balance: d.balance, label };
   });
 
-  return { data, savingsData, backPayActual, monthlyData, ssWithheldSummary };
+  return { data, savingsData, backPayActual, backPayTax, monthlyData, ssWithheldSummary };
 }
 

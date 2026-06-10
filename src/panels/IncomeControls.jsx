@@ -3,6 +3,7 @@ import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
 import { SGA_LIMIT, ssAdjustmentFactor, SS_CHILD_BENEFIT_END_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR, familyMaxForPIA } from '../model/constants.js';
+import { SS_INTERIM_TAX_HAIRCUT } from '../model/projection.js';
 import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
@@ -779,6 +780,12 @@ const IncomeControls = ({
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
                 <span style={{ color: COLORS.textDim }}>Attorney fee (25% of worker share, capped):</span>
                 <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(ssdiAttorneyFee)}</span>
+              </div>
+              {/* A1 (2026-06-10): adult back pay is taxable in the receipt year —
+                  interim 18.7% effective haircut (0.85 × 22%), kids' share untaxed. */}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+                <span style={{ color: COLORS.textDim }}>Est. federal tax (85% taxable × 22% bracket):</span>
+                <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono', monospace" }}>-{fmtFull(Math.round(ssdiBackPayMonths * ssdiPersonal * SS_INTERIM_TAX_HAIRCUT))}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
                 <span style={{ color: COLORS.green }}>Net lump sum:</span>

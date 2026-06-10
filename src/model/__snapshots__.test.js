@@ -137,18 +137,18 @@ const { monthlyData, backPayActual } = runMonthlySimulation(base);
 // 401(k) deficit draws are now grossed up by deficit401kTaxRate (default 25%) —
 // covering $1 of net deficit withdraws $1/(1-rate) gross — so reserve-backed
 // scenarios deplete faster and end deeper. Old default lock was -487171.
-test('backPayActual', () => eq(backPayActual, 104578));
+test('backPayActual', () => eq(backPayActual, 90394)); // A1 (2026-06-10): -14,184 interim tax on the adult share (75,852 x 18.7%)
 test('month 0 balance', () => eq(monthlyData[0].balance, 160888));
 test('month 12 balance', () => eq(monthlyData[12].balance, 0));
 test('month 36 balance', () => eq(monthlyData[36].balance, 0));
-test('month 72 balance', () => eq(monthlyData[72].balance, -628826)); // B4 student rule +$13.3k, then A2 SS COLA (2.5%/yr on benefits) +$28.6k
+test('month 72 balance', () => eq(monthlyData[72].balance, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 SS taxability haircut -$80.0k (benefits + back pay now taxed)
 test('month 0 netCashFlow', () => eq(monthlyData[0].netCashFlow, -41455));
-test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -29755)); // B4 family rate at m=36; A2 COLA adds ~+486 at m=36
-test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -33241)); // A2 (2026-06-10): COLA'd SSDI personal at m=72 (+673)
+test('month 36 netCashFlow', () => eq(monthlyData[36].netCashFlow, -30604)); // B4 family rate; A2 COLA; A1 haircut -849 at m=36
+test('month 72 netCashFlow', () => eq(monthlyData[72].netCashFlow, -34155)); // A2 COLA +673; A1 haircut -914 at m=72
 test('produces 73 months (0-72)', () => eq(monthlyData.length, 73));
 test('min balance is at month 12', () => {
   const minBal = Math.min(...monthlyData.map(d => d.balance));
-  eq(minBal, -628826); // re-baselined for D7 gross-up, B4 student rule (+$13.3k), A2 SS COLA (+$28.6k)
+  eq(minBal, -708785); // re-baselined for D7 gross-up, B4 (+$13.3k), A2 COLA (+$28.6k), A1 haircut (-$80.0k)
   eq(monthlyData.findIndex(d => d.balance === minBal), 72);
 });
 test('monthly rows reconcile to balance deltas when vesting is recognized in actual cash month', () => {
@@ -193,7 +193,7 @@ const cappedBackPayScenario = gatherState({
 });
 const { backPayActual: cappedBackPayActual } = runMonthlySimulation(cappedBackPayScenario);
 
-test('SSDI attorney fee caps at 9200', () => eq(cappedBackPayActual, 90800));
+test('SSDI attorney fee caps at 9200', () => eq(cappedBackPayActual, 72100)); // A1: 100,000 - 9,200 fee - 18,700 tax (18.7% of adult gross)
 
 console.log('\n=== Retire Debt ===');
 
@@ -201,10 +201,10 @@ const debtRetired = gatherState({ retireDebt: true });
 const { monthlyData: debtData } = runMonthlySimulation(debtRetired);
 
 test('month 0 expenses (no debt service)', () => eq(debtData[0].expenses, 47948));
-test('month 12 balance', () => eq(debtData[12].balance, 40417)); // A2 (2026-06-10): COLA on months 7-12 SSDI (+769)
+test('month 12 balance', () => eq(debtData[12].balance, 20764)); // A2 COLA +769; A1 haircut (benefit tax m7-12 + back-pay tax 14,184) -19,653
 // Re-baselined for D7 gross-up (was 0): the grossed-up draws now exhaust the
 // reserves before month 72 even with debt retired.
-test('month 72 balance', () => eq(debtData[72].balance, -81255)); // B4 student rule +$13.3k, A2 SS COLA +$30.3k
+test('month 72 balance', () => eq(debtData[72].balance, -168232)); // B4 +$13.3k, A2 COLA +$30.3k, A1 haircut -$87.0k
 test('expenses lower than default', () => {
   assert.ok(debtData[0].expenses < monthlyData[0].expenses, 'Expenses should be lower with debt retired');
 });
@@ -217,7 +217,7 @@ const { monthlyData: cutsData } = runMonthlySimulation(cutsOn);
 test('month 0 expenses (cuts have no effect when all cut defaults are 0)', () => eq(cutsData[0].expenses, 54382));
 test('month 12 balance', () => eq(cutsData[12].balance, 0));
 // Re-baselined for D7 gross-up (was -487171, matching the default scenario).
-test('month 72 balance', () => eq(cutsData[72].balance, -628826)); // B4 student rule +$13.3k, A2 SS COLA +$28.6k
+test('month 72 balance', () => eq(cutsData[72].balance, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k
 test('expenses equal default (all cuts are 0)', () => {
   assert.strictEqual(cutsData[0].expenses, monthlyData[0].expenses, 'Expenses should equal default when all cuts are 0');
 });
@@ -252,9 +252,9 @@ const goalResults = evaluateAllGoals(goals, monthlyData, { wealthData, retireDeb
 
 test('savings positive at Y6 - passes', () => eq(goalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -628826)); // B4 +$13.3k, A2 SS COLA +$28.6k
+test('savings positive at Y6 - value', () => eq(goalResults[0].currentValue, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k
 test('cash flow breakeven - fails', () => eq(goalResults[1].achieved, false));
-test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -29755)); // B4 family rate; A2 COLA at m=36
+test('cash flow breakeven - value', () => eq(goalResults[1].currentValue, -30604)); // B4; A2 COLA; A1 haircut at m=36
 test('emergency fund $50k - fails', () => eq(goalResults[2].achieved, false));
 test('emergency fund $50k - value', () => eq(goalResults[2].currentValue, 0));
 test('income target uses operational cash flow, not netMonthly', () => {
@@ -295,7 +295,7 @@ console.log('\n=== Goal Evaluation (Cuts + SSDI) ===');
 const cutsGoalResults = evaluateAllGoals(goals, cutsData, { wealthData, retireDebt: false });
 test('savings positive at Y6 - passes with cuts', () => eq(cutsGoalResults[0].achieved, false));
 // Re-baselined for D7 gross-up (was -487171).
-test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -628826)); // B4 +$13.3k, A2 SS COLA +$28.6k
+test('savings positive at Y6 - value with cuts', () => eq(cutsGoalResults[0].currentValue, -708785)); // B4 +$13.3k, A2 COLA +$28.6k, A1 haircut -$80.0k
 test('emergency fund $50k - passes with cuts', () => eq(cutsGoalResults[2].achieved, false));
 test('emergency fund $50k - value with cuts', () => eq(cutsGoalResults[2].currentValue, 0));
 test('zero-target net worth progress stays at 0 while net worth is negative', () => {
@@ -2260,16 +2260,20 @@ test('R3: SS at 62 benefit at month 19', () => {
   const s = gatherState({ ssType: 'ss', ssClaimAge: 62, ssPIA: 4214 });
   const { monthlyData } = runMonthlySimulation(s);
   // A2 (2026-06-10): 19 months of 2.5%/yr COLA on the B5 family total:
-  // round(6110 x 1.025^(19/12)) = 6354.
-  assert.strictEqual(monthlyData[19].ssBenefit, 6354);
+  // round(6110 x 1.025^(19/12)) = 6354 gross. A1: the adult share (COLA'd
+  // personal 3068) is taxed 18.7% -> net cash 6354 - 3068 + round(3068 x 0.813) = 5780.
+  assert.strictEqual(monthlyData[19].ssBenefitGross, 6354);
+  assert.strictEqual(monthlyData[19].ssBenefit, 5780);
 });
 
 // R4 — SS at FRA (67) first month, extended horizon
 test('R4: SS at FRA benefit at month 79', () => {
   const s = gatherState({ ssType: 'ss', ssClaimAge: 67, ssPIA: 4214, sarahWorkMonths: 96 });
   const { monthlyData } = runMonthlySimulation(s);
-  // A2 (2026-06-10): 79 months of 2.5%/yr COLA: round(4214 x 1.025^(79/12)) = 4958.
-  assert.strictEqual(monthlyData[79].ssBenefit, 4958);
+  // A2 (2026-06-10): 79 months of 2.5%/yr COLA: round(4214 x 1.025^(79/12)) = 4958 gross.
+  // A1: fully adult -> net cash round(4958 x 0.813) = 4031.
+  assert.strictEqual(monthlyData[79].ssBenefitGross, 4958);
+  assert.strictEqual(monthlyData[79].ssBenefit, 4031);
 });
 
 // R5 — Denied SSDI: no income support, balance deeply negative
@@ -2283,14 +2287,14 @@ test('R5: denied SSDI balance at month 71', () => {
 test('R6: van sold at month 6, balance at month 71', () => {
   const s = gatherState({ vanSold: true, vanSaleMonth: 6 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -477252); // was -505255 pre-A2 (SS COLA +$28k), -518665 pre-B4, -333183 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -556751); // was -477252 pre-A1 (taxability haircut -$79.5k), -505255 pre-A2, -518665 pre-B4, -333183 pre-D7
 });
 
 // R7 — Lifestyle cuts active with override
 test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
   const s = gatherState({ lifestyleCutsApplied: true, cutsOverride: 5000 });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -179291); // was -208383 pre-A2 (SS COLA +$29.1k), -222214 pre-B4, -19887 pre-D7
+  assert.strictEqual(monthlyData[71].balance, -263291); // was -179291 pre-A1 (haircut -$84.0k), -208383 pre-A2, -222214 pre-B4, -19887 pre-D7
 });
 
 // R8 — Debt retired. Was 0 pre-D7 (reserves still covered the deficit); the
@@ -2298,7 +2302,7 @@ test('R7: lifestyle cuts $5000 override, balance at month 71', () => {
 test('R8: debt retired, balance at month 71', () => {
   const s = gatherState({ retireDebt: true });
   const { monthlyData } = runMonthlySimulation(s);
-  assert.strictEqual(monthlyData[71].balance, -54448); // was -84087 pre-A2 (SS COLA +$29.6k), -98156 pre-B4
+  assert.strictEqual(monthlyData[71].balance, -140511); // was -54448 pre-A1 (haircut -$86.1k), -84087 pre-A2, -98156 pre-B4
 });
 
 // R9 — All toggles on: debt retired + van sold + cuts + job
@@ -2315,7 +2319,8 @@ test('R9: all toggles on, balance at month 71', () => {
 test('R10: SSDI back pay with 18 months at PIA $4214', () => {
   const s = gatherState({ ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7, ssdiBackPayMonths: 18, ssdiPersonal: 4214 });
   const { backPayActual } = runMonthlySimulation(s);
-  assert.strictEqual(backPayActual, 104578);
+  // A1 (2026-06-10): 75,852 adult + 37,926 aux - 9,200 fee - 14,184 interim tax = 90,394.
+  assert.strictEqual(backPayActual, 90394);
 });
 
 // R11 — One-time extras in expenses (month 0)

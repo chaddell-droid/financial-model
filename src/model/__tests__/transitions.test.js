@@ -5,7 +5,7 @@
  * Run with: node src/model/__tests__/transitions.test.js
  */
 import assert from 'node:assert';
-import { runMonthlySimulation } from '../projection.js';
+import { runMonthlySimulation, SS_INTERIM_TAX_HAIRCUT } from '../projection.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 import { DAYS_PER_MONTH } from '../constants.js';
 
@@ -179,9 +179,9 @@ console.log('\n=== 4. SS/SSDI Start ===');
   const simA = runMonthlySimulation(sA);
 
   test('4.1 SSDI: ssBenefit === 0 before approval (m=9), === 6321 at approval (m=10)', () => {
-    assert.strictEqual(simA.monthlyData[9].ssBenefit, 0,
+    assert.strictEqual(simA.monthlyData[9].ssBenefitGross, 0,
       `expected ssBenefit === 0 at month 9, got ${simA.monthlyData[9].ssBenefit}`);
-    assert.strictEqual(simA.monthlyData[10].ssBenefit, 6321,
+    assert.strictEqual(simA.monthlyData[10].ssBenefitGross, 6321,
       `expected ssBenefit === 6321 at month 10, got ${simA.monthlyData[10].ssBenefit}`);
   });
 
@@ -204,9 +204,9 @@ console.log('\n=== 4. SS/SSDI Start ===');
 
   test('4.3 SS at 62: ssBenefit === 0 before ssStartMonth, ssFamilyTotal at ssStartMonth', () => {
     const ssStart = sB.ssStartMonth; // 19
-    assert.strictEqual(simB.monthlyData[ssStart - 1].ssBenefit, 0,
+    assert.strictEqual(simB.monthlyData[ssStart - 1].ssBenefitGross, 0,
       `expected ssBenefit === 0 at month ${ssStart - 1}, got ${simB.monthlyData[ssStart - 1].ssBenefit}`);
-    assert.strictEqual(simB.monthlyData[ssStart].ssBenefit, sB.ssFamilyTotal,
+    assert.strictEqual(simB.monthlyData[ssStart].ssBenefitGross, sB.ssFamilyTotal,
       `expected ssBenefit === ${sB.ssFamilyTotal} at month ${ssStart}, got ${simB.monthlyData[ssStart].ssBenefit}`);
   });
 
@@ -240,12 +240,12 @@ console.log('\n=== 5. Kids Age Out ===');
   const simA = runMonthlySimulation(sA);
 
   test('5.1 SSDI: last family month (m=39, SS_CHILD_BENEFIT_END_MONTH-1) gets ssdiFamilyTotal', () => {
-    assert.strictEqual(simA.monthlyData[39].ssBenefit, 6321,
+    assert.strictEqual(simA.monthlyData[39].ssBenefitGross, 6321,
       `expected 6321 at month 39, got ${simA.monthlyData[39].ssBenefit}`);
   });
 
   test('5.2 SSDI: first personal month (m=40, SS_CHILD_BENEFIT_END_MONTH) gets ssdiPersonal', () => {
-    assert.strictEqual(simA.monthlyData[40].ssBenefit, 4214,
+    assert.strictEqual(simA.monthlyData[40].ssBenefitGross, 4214,
       `expected 4214 at month 40, got ${simA.monthlyData[40].ssBenefit}`);
   });
 
@@ -261,12 +261,12 @@ console.log('\n=== 5. Kids Age Out ===');
   const simB = runMonthlySimulation(sB);
 
   test('5.3 SS at 62: last family month (m=39) gets ssFamilyTotal', () => {
-    assert.strictEqual(simB.monthlyData[39].ssBenefit, sB.ssFamilyTotal,
+    assert.strictEqual(simB.monthlyData[39].ssBenefitGross, sB.ssFamilyTotal,
       `expected ${sB.ssFamilyTotal} at month 39, got ${simB.monthlyData[39].ssBenefit}`);
   });
 
   test('5.4 SS at 62: first personal month (m=40) gets ssPersonal', () => {
-    assert.strictEqual(simB.monthlyData[40].ssBenefit, sB.ssPersonal,
+    assert.strictEqual(simB.monthlyData[40].ssBenefitGross, sB.ssPersonal,
       `expected ${sB.ssPersonal} at month 40, got ${simB.monthlyData[40].ssBenefit}`);
   });
 }
@@ -554,11 +554,13 @@ console.log('\n=== 12. SSDI Back Pay Lump Sum ===');
   //   adult gross = 18 * 4152 = 74736
   //   aux gross   = 18 * (6228 - 4152) = 37368  (kids' 50% portion of family total)
   //   fee         = min(round(74736*0.25), 9200) = 9200  (fee on adult share only)
-  //   net         = 74736 + 37368 - 9200 = 102904. Appears at month 8 + 2 = 10.
+  //   tax (A1)    = round(74736 * 0.187) = 13976  (interim haircut, adult share only)
+  //   net         = 74736 + 37368 - 9200 - 13976 = 88928. Appears at month 8 + 2 = 10.
   const adultBackPayGross = 18 * 4152;
   const auxBackPayGross = 18 * (6228 - 4152);
   const backPayFee = Math.min(Math.round(adultBackPayGross * 0.25), 9200);
-  const backPayExpected = adultBackPayGross + auxBackPayGross - backPayFee;
+  const backPayTax = Math.round(adultBackPayGross * SS_INTERIM_TAX_HAIRCUT); // A1 (2026-06-10)
+  const backPayExpected = adultBackPayGross + auxBackPayGross - backPayFee - backPayTax;
 
   test('12.1 Balance reconciliation at month 9 (no lump sum)', () => {
     // balance[9] = balance[8] + investReturn(0) + (cashIncome[9] - expenses[9])
@@ -577,7 +579,7 @@ console.log('\n=== 12. SSDI Back Pay Lump Sum ===');
       `month 10 balance should include lump sum: expected ${Math.round(expected)}, got ${monthlyData[10].balance}`);
   });
 
-  test('12.3 backPayActual matches formula: 102904', () => {
+  test('12.3 backPayActual matches formula: 88928 (A1 net of interim tax)', () => {
     assert.strictEqual(sim.backPayActual, backPayExpected,
       `backPayActual should be ${backPayExpected}, got ${sim.backPayActual}`);
   });

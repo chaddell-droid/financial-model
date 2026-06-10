@@ -17,7 +17,7 @@
 
 import assert from 'node:assert';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
-import { runMonthlySimulation } from '../projection.js';
+import { runMonthlySimulation, SS_INTERIM_TAX_HAIRCUT } from '../projection.js';
 import { TWINS_AGE_OUT_MONTH, SS_CHILD_BENEFIT_END_MONTH, SSDI_ATTORNEY_FEE_CAP } from '../constants.js';
 import { getMonthLabel } from '../checkIn.js';
 
@@ -60,7 +60,9 @@ test('family-rate window equals max(0, SS_CHILD_BENEFIT_END_MONTH − approvalMo
     // Family rate (6321) is distinct from the personal rate (4214) in the
     // default state, so counting family-total months is unambiguous.
     assert.notStrictEqual(s.ssdiFamilyTotal, s.ssdiPersonal);
-    const familyMonths = monthlyData.filter((d) => d.ssBenefit === s.ssdiFamilyTotal).length;
+    // A1 (2026-06-10): filter on the GROSS row field — net cash carries the
+    // interim taxability haircut (locked in ssTaxHaircut.test.js).
+    const familyMonths = monthlyData.filter((d) => d.ssBenefitGross === s.ssdiFamilyTotal).length;
     const expected = Math.max(0, SS_CHILD_BENEFIT_END_MONTH - approval);
     assert.strictEqual(familyMonths, expected,
       `approval ${approval}: family-rate months ${familyMonths} ≠ derived ${expected}`);
@@ -80,10 +82,12 @@ test('kidsAgeOutMonths still bounds auxiliary back-pay (field must be kept)', ()
   const withAux = runMonthlySimulation(gatherStateWithOverrides({ ...base, kidsAgeOutMonths: 36 }));
   const noAux = runMonthlySimulation(gatherStateWithOverrides({ ...base, kidsAgeOutMonths: 0 }));
   // Exact mirror of projection.js back-pay math (defaults: personal 4214, family 6321).
+  // A1 (2026-06-10): adult back pay also carries the interim 18.7% tax haircut.
   const adultGross = 18 * 4214;
   const fee = Math.min(Math.round(adultGross * 0.25), SSDI_ATTORNEY_FEE_CAP);
-  assert.strictEqual(noAux.backPayActual, adultGross - fee);
-  assert.strictEqual(withAux.backPayActual, adultGross + 18 * (6321 - 4214) - fee);
+  const tax = Math.round(adultGross * SS_INTERIM_TAX_HAIRCUT);
+  assert.strictEqual(noAux.backPayActual, adultGross - fee - tax);
+  assert.strictEqual(withAux.backPayActual, adultGross + 18 * (6321 - 4214) - fee - tax);
   assert.ok(withAux.backPayActual > noAux.backPayActual, 'aux back-pay must respond to the field');
 });
 

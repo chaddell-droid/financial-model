@@ -752,7 +752,14 @@ export function runMonthlySimulation(s) {
       expenses += oneTimeExtras;
       expenseBreakdown.oneTimeExtras = oneTimeExtras;
     }
+    // C12 (remediation 2026-06-10, item 5.3): the floor-at-zero clamp must be
+    // visible — when cuts/milestones over-shoot total expenses, record the
+    // adjustment as its own breakdown line so Σ breakdown still equals
+    // `expenses`, and flag the row for tooltips/audit.
+    const clampAdjustment = Math.max(0, -expenses);
     expenses = Math.max(expenses, 0);
+    if (clampAdjustment > 0) expenseBreakdown.clampAdjustment = clampAdjustment;
+    const expensesClamped = clampAdjustment > 0;
 
     // Canonical monthly cash-flow rows use actual vest timing so they reconcile to
     // savings balance changes. Keep smoothed MSFT as an explicit secondary series.
@@ -845,6 +852,7 @@ export function runMonthlySimulation(s) {
       chadJob401kContribGross, chadJob401kMatchGross, chadJob401kFlow, // 401(k) breakdown for tooltips/audit
       customLeverMonthly, // FIX RA-2: expose on row so charts/tooltips can sum back to cashIncome
       investReturn, cashIncome, cashIncomeSmoothed, expenses, expenseBreakdown, homeEquity,
+      expensesClamped, // C12: true when the floor-at-zero clamp bound this month
       netCashFlow: cashIncome - expenses,
       netCashFlowSmoothed: cashIncomeSmoothed - expenses,
       netMonthly: cashIncome + investReturn - expenses,

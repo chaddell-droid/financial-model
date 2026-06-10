@@ -79,6 +79,8 @@ const DataTable = ({ data, presentMode }) => {
     { key: 'lifestyleCuts',   label: 'Cuts (−)' },
     { key: 'milestones',      label: 'Milestones (−)' },
     { key: 'healthInsurance', label: 'Health (−)' },
+    // C12: floor-at-$0 adjustment when cuts/milestones exceed total expenses.
+    { key: 'clampAdjustment', label: 'Floor at $0 (+)' },
   ].filter(c => hasBreakdown(c.key));
 
   const tableShell = {

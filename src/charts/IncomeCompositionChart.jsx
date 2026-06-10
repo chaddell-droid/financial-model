@@ -270,6 +270,8 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                     lifestyleCuts: 'Lifestyle cuts',
                     milestones: 'Milestones',
                     healthInsurance: 'Health ins. (employer)',
+                    // C12: cuts over-shot total expenses — floor-at-$0 adjustment.
+                    clampAdjustment: 'Floor at $0 (cuts exceed expenses)',
                   };
                   const expenseComponents = [];
                   if (d.expenseBreakdown) {

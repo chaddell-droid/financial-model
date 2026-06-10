@@ -938,6 +938,56 @@ test('34j. C11: withdrawalHome is 0 in surplus months (no phantom draws)', () =>
   }
 });
 
+// ── C12 (remediation 2026-06-10, item 5.3): the Math.max(expenses, 0) clamp
+// silently broke the expenses = Σ expenseBreakdown invariant in over-cut
+// scenarios — the tooltip showed components that didn't sum to the total.
+// The clamp must be recorded as a clampAdjustment breakdown line + row flag.
+
+// Over-cut fixture: cuts exceed every expense → pre-clamp total is negative.
+const C12_OVERCUT = {
+  baseExpenses: 1000, retireDebt: true, vanSold: false, vanMonthlySavings: 0,
+  lifestyleCutsApplied: true, cutsOverride: 5000, cutInHalf: 0, extraCuts: 0,
+  bcsYearsLeft: 0, milestones: [], chadJob: false, ssdiDenied: true,
+  expenseInflation: false, oneTimeExtras: 0,
+};
+
+test('34k. C12: clamp binding → clampAdjustment line restores Σbreakdown = expenses + row flag', () => {
+  const s = gatherStateWithOverrides(C12_OVERCUT);
+  const { monthlyData } = runMonthlySimulation(s);
+  const m0 = monthlyData[0];
+  assert.strictEqual(m0.expenses, 0, 'over-cut expenses must clamp to 0');
+  // Pre-clamp: 1000 base − 5000 cuts = −4000 → clampAdjustment = +4000.
+  assert.strictEqual(m0.expenseBreakdown.clampAdjustment, 4000,
+    `clampAdjustment must record the bound clamp, got ${m0.expenseBreakdown.clampAdjustment}`);
+  const sum = Object.values(m0.expenseBreakdown).reduce((a, v) => a + v, 0);
+  assert.strictEqual(sum, m0.expenses,
+    `Σ expenseBreakdown (${sum}) must equal expenses (${m0.expenses}) when the clamp binds`);
+  assert.strictEqual(m0.expensesClamped, true, 'row must be flagged expensesClamped');
+});
+
+test('34l. C12: clamp not binding → no clampAdjustment line, flag false, parity still holds', () => {
+  const s = gatherStateWithOverrides({ ...C12_OVERCUT, cutsOverride: 500 });
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const d of monthlyData) {
+    assert.ok(!('clampAdjustment' in d.expenseBreakdown),
+      `month ${d.month}: no clampAdjustment line when the clamp does not bind`);
+    assert.strictEqual(d.expensesClamped, false, `month ${d.month}: flag must be false`);
+    const sum = Object.values(d.expenseBreakdown).reduce((a, v) => a + v, 0);
+    assert.strictEqual(sum, d.expenses, `month ${d.month}: Σ breakdown must equal expenses`);
+  }
+});
+
+test('34m. C12: Σ expenseBreakdown = expenses holds every month in the over-cut scenario', () => {
+  const s = gatherStateWithOverrides(C12_OVERCUT);
+  const { monthlyData } = runMonthlySimulation(s);
+  for (const d of monthlyData) {
+    const sum = Object.values(d.expenseBreakdown).reduce((a, v) => a + v, 0);
+    assert.strictEqual(sum, d.expenses,
+      `month ${d.month}: Σ breakdown (${sum}) must equal expenses (${d.expenses})`);
+    assert.strictEqual(d.expensesClamped, true, `month ${d.month}: clamp binds all months here`);
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // runMonthlySimulation — toggle combinations
 // ════════════════════════════════════════════════════════════════════════

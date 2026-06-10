@@ -1,6 +1,6 @@
 import React, { memo, useState, useMemo, useRef } from 'react';
 import { fmtFull } from '../../model/formatters.js';
-import { parseTransactionCSV, mergeTransactions, groupByMonth, getCurrentMonth, analyzeMerchantFrequency, ALWAYS_CORE, ALWAYS_ONETIME, MIXED_CATEGORY_THRESHOLDS } from '../../model/csvParser.js';
+import { parseTransactionCSVDetailed, mergeTransactions, groupByMonth, getCurrentMonth, analyzeMerchantFrequency, ALWAYS_CORE, ALWAYS_ONETIME, MIXED_CATEGORY_THRESHOLDS } from '../../model/csvParser.js';
 import { computeActualsDrift } from '../../model/checkIn.js';
 import { UI_COLORS, UI_SPACE, UI_TEXT, UI_RADII } from '../../ui/tokens.js';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
@@ -121,9 +121,10 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const parsed = parseTransactionCSV(e.target.result, merchantClassifications, monthlyActuals);
+      const { transactions: parsed, skippedCount } = parseTransactionCSVDetailed(e.target.result, merchantClassifications, monthlyActuals);
+      const badAmountNote = skippedCount > 0 ? `, ${skippedCount} row${skippedCount !== 1 ? 's' : ''} skipped (unreadable amount)` : '';
       if (parsed.length === 0) {
-        setUploadFeedback('No valid transactions found in file.');
+        setUploadFeedback(`No valid transactions found in file${badAmountNote ? badAmountNote.replace(/^, /, ' — ') : ''}.`);
         setTimeout(() => setUploadFeedback(null), 5000);
         return;
       }
@@ -138,7 +139,7 @@ function ActualsTab({ monthlyActuals, merchantClassifications, currentTotalMonth
       }
       const firstMonth = Object.keys(grouped).sort()[0];
       if (firstMonth) setSelectedMonth(firstMonth);
-      setUploadFeedback(`Added ${totalNew} new transactions (${totalSkipped} duplicates skipped)`);
+      setUploadFeedback(`Added ${totalNew} new transactions (${totalSkipped} duplicates skipped${badAmountNote})`);
       setTimeout(() => setUploadFeedback(null), 5000);
     };
     reader.readAsText(file);

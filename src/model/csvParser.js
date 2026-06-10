@@ -117,12 +117,34 @@ export function classifyTransaction(amount, category, merchant, merchantClassifi
   return 'core';
 }
 
-export function parseTransactionCSV(csvString, merchantClassifications, monthlyActuals) {
-  if (!csvString || typeof csvString !== 'string') return [];
+/**
+ * The transaction id used before the Original-Statement/occurrence id format.
+ * Kept so re-imports dedupe against data imported under the old scheme.
+ */
+export function legacyTransactionId(t) {
+  return `${t.date}|${t.merchant}|${t.amount}`;
+}
+
+/**
+ * Parse a Monarch CSV export.
+ *
+ * Returns `{ transactions, skippedCount }` where `skippedCount` is the number
+ * of transaction-shaped rows dropped because their Amount could not be parsed
+ * to a finite number (after stripping `$` and thousands separators).
+ *
+ * Transaction ids are `date|merchant|amount|originalStatement|occurrence`.
+ * The per-parse occurrence counter keeps legitimate identical rows (two
+ * same-day same-price charges) distinct while staying deterministic for the
+ * same file content, so re-importing an identical file is a no-op after merge.
+ */
+export function parseTransactionCSVDetailed(csvString, merchantClassifications, monthlyActuals) {
+  if (!csvString || typeof csvString !== 'string') return { transactions: [], skippedCount: 0 };
   const lines = csvString.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length <= 1) return [];
+  if (lines.length <= 1) return { transactions: [], skippedCount: 0 };
 
   const transactions = [];
+  const occurrenceCounts = new Map();
+  let skippedCount = 0;
   for (let i = 1; i < lines.length; i++) {
     const fields = parseCSVRow(lines[i]);
     if (fields.length < 7) continue;
@@ -131,24 +153,41 @@ export function parseTransactionCSV(csvString, merchantClassifications, monthlyA
     const merchant = fields[1]?.trim();
     const category = fields[2]?.trim();
     const account = fields[3]?.trim();
-    const amount = parseFloat(fields[6]) || 0;
+    const statement = fields[4]?.trim() ?? '';
 
     if (!date || !merchant) continue;
 
-    const id = `${date}|${merchant}|${amount}`;
+    const rawAmount = (fields[6] ?? '').replace(/[$,]/g, '').trim();
+    const amount = rawAmount === '' ? NaN : Number(rawAmount);
+    if (!Number.isFinite(amount)) { skippedCount++; continue; }
+
+    const baseId = `${date}|${merchant}|${amount}|${statement}`;
+    const occurrence = occurrenceCounts.get(baseId) ?? 0;
+    occurrenceCounts.set(baseId, occurrence + 1);
+    const id = `${baseId}|${occurrence}`;
     const month = date.slice(0, 7);
     const type = classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals);
 
     transactions.push({ id, date, month, merchant, category, account, amount, type });
   }
-  return transactions;
+  return { transactions, skippedCount };
+}
+
+export function parseTransactionCSV(csvString, merchantClassifications, monthlyActuals) {
+  return parseTransactionCSVDetailed(csvString, merchantClassifications, monthlyActuals).transactions;
 }
 
 export function mergeTransactions(existing, incoming) {
   const map = new Map();
   for (const t of existing) map.set(t.id, t);
   for (const t of incoming) {
-    if (!map.has(t.id)) map.set(t.id, t);
+    if (map.has(t.id)) continue;
+    // Back-compat: data imported before the id-format change is stored under
+    // `date|merchant|amount`. The FIRST occurrence of a row (id ends in `|0`)
+    // is the one a legacy import would have kept, so treat it as a duplicate
+    // of its legacy form; later occurrences were never representable and are new.
+    if (/\|0$/.test(t.id) && map.has(legacyTransactionId(t))) continue;
+    map.set(t.id, t);
   }
   return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date) || a.merchant.localeCompare(b.merchant));
 }

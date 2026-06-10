@@ -3,7 +3,7 @@
  * Run with: node src/model/__tests__/csvParser.test.js
  */
 import assert from 'node:assert';
-import { parseTransactionCSV, classifyTransaction, mergeTransactions, groupByMonth, sanitizeMonthlyActuals, analyzeMerchantFrequency, isAmountConsistent, ALWAYS_CORE, ALWAYS_ONETIME, MIXED_CATEGORY_THRESHOLDS } from '../csvParser.js';
+import { parseTransactionCSV, parseTransactionCSVDetailed, classifyTransaction, mergeTransactions, groupByMonth, sanitizeMonthlyActuals, analyzeMerchantFrequency, isAmountConsistent, legacyTransactionId, ALWAYS_CORE, ALWAYS_ONETIME, MIXED_CATEGORY_THRESHOLDS } from '../csvParser.js';
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -170,6 +170,131 @@ test('sanitizeMonthlyActuals filters malformed data', () => {
   });
   assert.strictEqual(Object.keys(valid).length, 1);
   assert.strictEqual(valid['2026-03'].transactions.length, 1);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// CSV Import Integrity (remediation 2.6)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== CSV Import Integrity ===');
+
+const HEADER = 'Date,Merchant,Category,Account,Original Statement,Notes,Amount,Tags,Owner';
+
+test('twin same-day same-merchant same-amount rows BOTH survive parsing', () => {
+  const csv = `${HEADER}
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared`;
+  const result = parseTransactionCSV(csv);
+  assert.strictEqual(result.length, 2, 'both twin rows must survive');
+  assert.notStrictEqual(result[0].id, result[1].id, 'twin rows must get distinct ids');
+});
+
+test('same-day same-amount rows with different Original Statement get distinct ids', () => {
+  const csv = `${HEADER}
+2026-03-15,Amazon,Shopping,Main (...6040),AMZN MKTP US*ABC,,-25.00,,Shared
+2026-03-15,Amazon,Shopping,Main (...6040),AMZN MKTP US*XYZ,,-25.00,,Shared`;
+  const result = parseTransactionCSV(csv);
+  assert.strictEqual(result.length, 2);
+  assert.notStrictEqual(result[0].id, result[1].id);
+});
+
+test('re-import of the IDENTICAL file adds nothing (idempotent import)', () => {
+  const csv = `${HEADER}
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-16,QFC,Groceries,Main (...6040),QFC #456,,-84.93,,Shared`;
+  const firstImport = mergeTransactions([], parseTransactionCSV(csv));
+  assert.strictEqual(firstImport.length, 3);
+  const reImport = mergeTransactions(firstImport, parseTransactionCSV(csv));
+  assert.strictEqual(reImport.length, 3, 're-importing the same file must add nothing');
+});
+
+test('cross-file merge dedupes overlapping rows but keeps distinct twins', () => {
+  const fileA = `${HEADER}
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-16,QFC,Groceries,Main (...6040),QFC #456,,-84.93,,Shared`;
+  const fileB = `${HEADER}
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-17,TacoTime,Restaurants & Bars,Main (...6040),TACO TIME,,-13.52,,Shared`;
+  const afterA = mergeTransactions([], parseTransactionCSV(fileA));
+  const afterB = mergeTransactions(afterA, parseTransactionCSV(fileB));
+  // fileA's Starbucks dedupes against fileB's first occurrence; fileB's second
+  // occurrence and TacoTime are new → 2 + 2 = 4
+  assert.strictEqual(afterB.length, 4);
+  assert.strictEqual(afterB.filter(t => t.merchant === 'Starbucks').length, 2);
+});
+
+test('legacy-id existing data: re-import does not duplicate first occurrence', () => {
+  // Data imported before the id-format change uses `date|merchant|amount` ids.
+  const existing = [
+    { id: '2026-03-15|Starbucks|-6.75', date: '2026-03-15', merchant: 'Starbucks', amount: -6.75, type: 'core' },
+  ];
+  const csv = `${HEADER}
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared`;
+  const merged = mergeTransactions(existing, parseTransactionCSV(csv));
+  assert.strictEqual(merged.length, 1, 'first occurrence must dedupe against legacy id');
+  assert.strictEqual(merged[0].type, 'core', 'existing classification preserved');
+});
+
+test('legacy-id existing data: genuine second twin is still added', () => {
+  const existing = [
+    { id: '2026-03-15|Starbucks|-6.75', date: '2026-03-15', merchant: 'Starbucks', amount: -6.75, type: 'core' },
+  ];
+  const csv = `${HEADER}
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared
+2026-03-15,Starbucks,Coffee Shops,Main (...6040),STARBUCKS #123,,-6.75,,Shared`;
+  const merged = mergeTransactions(existing, parseTransactionCSV(csv));
+  assert.strictEqual(merged.length, 2, 'second twin (never representable under legacy ids) is new');
+});
+
+test('legacyTransactionId derives the pre-change id format', () => {
+  const t = { date: '2026-03-15', merchant: 'Starbucks', amount: -6.75 };
+  assert.strictEqual(legacyTransactionId(t), '2026-03-15|Starbucks|-6.75');
+});
+
+test('amount with thousands separators parses correctly: "-1,234.56" → -1234.56', () => {
+  const csv = `${HEADER}
+2026-03-15,BigCo,Shopping,Main (...6040),BIGCO,,"-1,234.56",,Shared`;
+  const result = parseTransactionCSV(csv);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].amount, -1234.56);
+});
+
+test('amount with dollar sign and separators parses: "$2,500.00" → 2500', () => {
+  const csv = `${HEADER}
+2026-03-15,Square,Business Income,Sarah (...0618),SQUARE INC,,"$2,500.00",,Shared`;
+  const result = parseTransactionCSV(csv);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].amount, 2500);
+  assert.strictEqual(result[0].type, 'income');
+});
+
+test('garbage amount row is skipped and counted, valid rows survive', () => {
+  const csv = `${HEADER}
+2026-03-15,GoodRow,Groceries,Main (...6040),GOOD,,-50.00,,Shared
+2026-03-15,BadRow,Groceries,Main (...6040),BAD,,not-a-number,,Shared
+2026-03-15,EmptyAmount,Groceries,Main (...6040),EMPTY,,,,Shared`;
+  const { transactions, skippedCount } = parseTransactionCSVDetailed(csv);
+  assert.strictEqual(transactions.length, 1, 'only the valid row survives');
+  assert.strictEqual(transactions[0].merchant, 'GoodRow');
+  assert.strictEqual(skippedCount, 2, 'both unparseable-amount rows counted');
+});
+
+test('parseTransactionCSVDetailed reports zero skipped for a clean file', () => {
+  const csv = `${HEADER}
+2026-03-15,QFC,Groceries,Main (...6040),QFC,,-84.93,,Shared`;
+  const { transactions, skippedCount } = parseTransactionCSVDetailed(csv);
+  assert.strictEqual(transactions.length, 1);
+  assert.strictEqual(skippedCount, 0);
+});
+
+test('garbage amount is never stored as a wrong number (parseFloat("1,234.56") regression)', () => {
+  const csv = `${HEADER}
+2026-03-15,Landlord,Rent,Main (...6040),RENT,,"-1,234.56",,Shared`;
+  const result = parseTransactionCSV(csv);
+  // Old bug: parseFloat('-1,234.56') === -1 stored silently
+  assert.strictEqual(result[0].amount, -1234.56);
+  assert.notStrictEqual(result[0].amount, -1);
 });
 
 // ════════════════════════════════════════════════════════════════════════

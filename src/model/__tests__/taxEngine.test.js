@@ -369,10 +369,14 @@ describe("calculateTax — full mode (Dellinger defaults)", () => {
     approx(r.totalTax, expected);
   });
 
-  it("computes balance as withholding plus addl-Medicare prepayment minus tax", () => {
+  it("computes balance off 1040 quantities only (no employee FICA)", () => {
     // Phase 4 (2026-06-09): the withheld 0.9% is a PREPAYMENT in balance.
+    // C9 (2026-06-10): employee W-2 FICA is payroll-withheld and never
+    // appears on Form 1040 — balance uses tax1040Total, not the all-in
+    // totalTax (which keeps FICA for burden display).
     const r = calculateTax(defaultInputs);
-    approx(r.balance, 60872 + r.addlMedicareWithheld - r.totalTax);
+    approx(r.tax1040Total, r.totalTax - r.w2FicaTax);
+    approx(r.balance, 60872 + r.addlMedicareWithheld - r.tax1040Total);
   });
 });
 
@@ -648,10 +652,17 @@ describe("INVARIANTS: mathematical properties across input ranges", () => {
         expect(r.totalTax).toBeCloseTo(expected, 10);
       });
 
-      it("balance = withholding + addl-Medicare prepayment - totalTax (exact)", () => {
+      it("balance = withholding + addl-Medicare prepayment - tax1040Total (exact)", () => {
         // Phase 4: withheld 0.9% is a prepayment credited in balance.
+        // C9 (2026-06-10): balance is a 1040 quantity — employee W-2 FICA
+        // (payroll-withheld, never on the return) is excluded.
         const w2Withholding = inputs.w2Withholding ?? 0;
-        expect(r.balance).toBeCloseTo(w2Withholding + r.addlMedicareWithheld - r.totalTax, 10);
+        expect(r.balance).toBeCloseTo(w2Withholding + r.addlMedicareWithheld - r.tax1040Total, 10);
+      });
+
+      it("tax1040Total = totalTax - employee W-2 FICA (exact)", () => {
+        // C9: the all-in burden keeps FICA; the 1040 view never has it.
+        expect(r.tax1040Total).toBeCloseTo(r.totalTax - r.w2FicaTax, 10);
       });
     });
   });

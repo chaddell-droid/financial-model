@@ -400,10 +400,24 @@ export function calculateTax(inputs) {
   const netInvestmentIncome = Math.max(0, capAdj);
   const niit = NIIT_RATE * Math.max(0, Math.min(netInvestmentIncome, agi - NIIT_THRESHOLD_MFJ));
 
-  // Total tax — includes the FULL additional-Medicare liability. The withheld
-  // 0.9% is credited as a prepayment alongside w2Withholding in `balance`.
+  // Total tax — the ALL-IN household burden for display: includes the FULL
+  // additional-Medicare liability AND employee W-2 FICA.
   const totalTax = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicare + niit + w2Fica.ficaTax;
-  const balance = w2Withholding + addlMedicareWithheld - totalTax;
+
+  // C9 (remediation 2026-06-10) — CONVENTION:
+  //   totalTax      = all-in burden (display): 1040 tax + employee W-2 FICA.
+  //   tax1040Total  = what Form 1040 actually assesses: income tax after
+  //                   credits + SE tax + Additional Medicare (Form 8959)
+  //                   + NIIT (Form 8960). Employee W-2 FICA is collected by
+  //                   payroll and NEVER appears on the return — neither as a
+  //                   liability nor as a payment.
+  //   balance       = refund(+)/owed(−) at filing, defined off 1040
+  //                   quantities ONLY: (income-tax withholding + withheld
+  //                   0.9% addl Medicare) − tax1040Total. The old definition
+  //                   subtracted totalTax, understating the refund by exactly
+  //                   the employee FICA.
+  const tax1040Total = Math.max(0, fedTax - totalCredits) + se.seTax + addlMedicare + niit;
+  const balance = w2Withholding + addlMedicareWithheld - tax1040Total;
   const effectiveRate = agi > 0 ? totalTax / agi : 0;
 
   return {
@@ -441,8 +455,10 @@ export function calculateTax(inputs) {
     w2FicaTax: w2Fica.ficaTax,
     w2FicaSS: w2Fica.ssTax,
     w2FicaMedicare: w2Fica.medTax,
-    // Totals
+    // Totals — see the C9 convention comment above: totalTax is the all-in
+    // burden; tax1040Total and balance are the Form-1040 view.
     totalTax,
+    tax1040Total,
     balance,
     effectiveRate,
     // Pass-through inputs for deduction impact display

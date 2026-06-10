@@ -117,10 +117,12 @@ test('P4-AM-1. totalTax includes the FULL additional-Medicare liability', () => 
 });
 
 test('P4-AM-2. withheld 0.9% is credited as a prepayment in balance', () => {
+  // C9 (2026-06-10): balance is a 1040 quantity — uses tax1040Total
+  // (excludes employee W-2 FICA), not the all-in totalTax.
   const r = calculateTax({ w2Wages: 300000, schCNet: 100000, w2Withholding: 60000 });
   near(r.addlMedicareWithheld, (300000 - 200000) * 0.009, 0.01, 'withheld = (W2 − 200K) × 0.9%');
-  near(r.balance, 60000 + r.addlMedicareWithheld - r.totalTax, 0.01,
-    'balance = withholding + addl-Medicare prepayment − totalTax');
+  near(r.balance, 60000 + r.addlMedicareWithheld - r.tax1040Total, 0.01,
+    'balance = withholding + addl-Medicare prepayment − tax1040Total');
 });
 
 test('P4-AM-3. withholding never changes the liability itself', () => {

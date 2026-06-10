@@ -359,6 +359,39 @@ test('C5-3. calculateTax accepts a stdDeduction override', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// C9 — `balance` (refund/owed) is a Form-1040 quantity: employee W-2 FICA
+//       (payroll-withheld, never on the return) must not appear in it
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== C9: balance off 1040 quantities only ===');
+
+test('C9-1. audit regression: balance no longer off by exactly the employee FICA', () => {
+  // Pure W-2 year with full income-tax withholding. Old behavior: balance
+  // included w2FicaTax as a liability with no matching credit, understating
+  // the refund by exactly the FICA amount.
+  const r = calculateTax({ w2Wages: 200000, w2Withholding: 40000 });
+  near(r.tax1040Total, r.totalTax - r.w2FicaTax, 0.01,
+    '1040 total = all-in burden minus employee FICA');
+  near(r.balance, 40000 + r.addlMedicareWithheld - r.tax1040Total, 0.01,
+    'balance = payments − 1040 tax');
+  // The old (wrong) definition differs by exactly the FICA amount.
+  const oldBalance = 40000 + r.addlMedicareWithheld - r.totalTax;
+  near(r.balance - oldBalance, r.w2FicaTax, 0.01, 'delta is exactly the employee FICA');
+});
+
+test('C9-2. noFICA toggles the FICA burden but never the 1040 balance', () => {
+  const fica = calculateTax({ w2Wages: 150000, w2Withholding: 25000 });
+  const noFica = calculateTax({ w2Wages: 150000, w2Withholding: 25000, noFICA: true });
+  assert.ok(fica.totalTax > noFica.totalTax, 'all-in burden includes FICA');
+  near(fica.balance, noFica.balance, 0.01, '1040 balance is FICA-independent');
+});
+
+test('C9-3. totalTax (all-in burden) still includes employee FICA for display', () => {
+  const r = calculateTax({ w2Wages: 150000 });
+  assert.ok(r.w2FicaTax > 0);
+  near(r.totalTax, r.tax1040Total + r.w2FicaTax, 0.01);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

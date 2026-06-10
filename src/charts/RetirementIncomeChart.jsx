@@ -691,11 +691,16 @@ function RetirementIncomeChart({
             const dist = Math.abs(xScale(i) - mouseX);
             if (dist < closestDist) { closestDist = dist; closestIdx = i; }
           }
-          const d = yearlyData[closestIdx];
-          const pctX = (xScale(closestIdx) / svgW) * 100;
-          const histBands = bandResult.bands.map(b => b.series[closestIdx]);
-          const pctY = (yPool(histBands[0]) / svgH) * 100;
-          setTooltip({ pctX, pctY, ...d, p10: histBands[0], p25: histBands[1], p50: histBands[2], p75: histBands[3], p90: histBands[4] });
+          // Functional bail-out (remediation 6.4): unchanged nearest point →
+          // return the SAME state object so React skips the re-render.
+          setTooltip(prev => {
+            if (prev && prev.idx === closestIdx) return prev;
+            const d = yearlyData[closestIdx];
+            const pctX = (xScale(closestIdx) / svgW) * 100;
+            const histBands = bandResult.bands.map(b => b.series[closestIdx]);
+            const pctY = (yPool(histBands[0]) / svgH) * 100;
+            return { idx: closestIdx, pctX, pctY, ...d, p10: histBands[0], p25: histBands[1], p50: histBands[2], p75: histBands[3], p90: histBands[4] };
+          });
         }}>
         {/* Grid */}
         {yTicks.map((v, i) => (

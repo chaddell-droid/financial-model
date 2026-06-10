@@ -1,6 +1,7 @@
-import { useState, memo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { buildLegendItems } from './chartContract.js';
+import { useChartTooltip } from './useChartTooltip.js';
 import useContainerWidth from '../hooks/useContainerWidth.js';
 
 const LAYERS = [
@@ -11,18 +12,18 @@ const LAYERS = [
 ];
 
 function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChadAge, inhDuringCouple, hasInheritance }) {
-  const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const svgW = useContainerWidth(containerRef);
 
-  if (!yearlyData || yearlyData.length === 0) return null;
-
-  const enriched = yearlyData.map(d => ({
+  // Memoized on the data series (remediation 6.4/6.7); each entry carries its
+  // index `i` so the shared tooltip hook's xAccessor can position it.
+  const enriched = useMemo(() => (yearlyData || []).map((d, i) => ({
     ...d,
+    i,
     trustIncome: Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0) - (d.pensionIncome || 0)),
     pensionIncome: d.pensionIncome || 0,
-  }));
+  })), [yearlyData]);
 
   const n = enriched.length;
   const svgH = 260;
@@ -37,6 +38,18 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
 
   const xOf = (i) => padL + (i / (n - 1)) * plotW;
   const yOf = (v) => padT + plotH - (v / yMax) * plotH;
+
+  // Shared tooltip hook (remediation 6.4): nearest-point detection with a
+  // prev-index bail-out so unchanged hovers skip the state set.
+  const { tooltip, onMouseMove, onMouseLeave } = useChartTooltip({
+    data: enriched,
+    xAccessor: (d) => xOf(d.i),
+    svgW,
+    svgH,
+  });
+
+  // Empty-data return AFTER all hooks (stable hook order across renders).
+  if (!yearlyData || yearlyData.length === 0) return null;
 
   // Build stacked area paths (bottom-up: SS, Trust, Pension, Pool Draw)
   const layerKeys = ['ssIncome', 'trustIncome', 'pensionIncome', 'poolDraw'];
@@ -64,19 +77,6 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   const yTicks = [];
   for (let v = 0; v <= yMax; v += tickStep) yTicks.push(v);
 
-  // Mouse interaction
-  const handleMouseMove = (e) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * svgW;
-    const idx = Math.round(((mouseX - padL) / plotW) * (n - 1));
-    if (idx < 0 || idx >= n) { setTooltip(null); return; }
-    const d = enriched[idx];
-    const total = (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome + (d.pensionIncome || 0);
-    setTooltip({ idx, x: xOf(idx), data: d, trustIncome: d.trustIncome, pensionIncome: d.pensionIncome || 0, total });
-  };
-
   const legendItems = buildLegendItems([
     ...LAYERS.map(l => ({ id: l.key, label: l.label, color: l.color })),
     { id: 'target', label: 'Spending Target', color: '#f87171', line: true },
@@ -97,8 +97,8 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
       <div style={{ position: 'relative' }}>
         <svg ref={svgRef} viewBox={`0 0 ${svgW} ${svgH}`}
           style={{ width: '100%', height: 'auto', display: 'block' }}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setTooltip(null)}>
+          onMouseMove={onMouseMove}
+          onMouseLeave={onMouseLeave}>
 
           {/* Y-axis grid + labels */}
           {yTicks.map(v => (
@@ -166,15 +166,15 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
 
           {/* Hover crosshair */}
           {tooltip && (
-            <line x1={tooltip.x} y1={padT} x2={tooltip.x} y2={padT + plotH}
+            <line x1={xOf(tooltip.index)} y1={padT} x2={xOf(tooltip.index)} y2={padT + plotH}
               stroke="#94a3b8" strokeWidth={0.8} opacity={0.5} />
           )}
         </svg>
 
         {/* Tooltip */}
-        {tooltip && tooltip.data && (() => {
-          const d = tooltip.data;
-          const pct = (tooltip.x / svgW) * 100;
+        {tooltip && tooltip.dataPoint && (() => {
+          const d = tooltip.dataPoint;
+          const pct = tooltip.pctX;
           const flipLeft = pct > 65;
           return (
             <div style={{
@@ -203,8 +203,8 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
               {[
                 { label: 'Pool Draw', color: '#60a5fa', value: d.poolDraw || 0 },
                 { label: 'Social Security', color: '#34d399', value: d.ssIncome || 0, detail: d.ssLabel },
-                { label: 'Trust', color: '#a78bfa', value: tooltip.trustIncome },
-                { label: 'PERS Pension', color: '#fbbf24', value: tooltip.pensionIncome || 0 },
+                { label: 'Trust', color: '#a78bfa', value: d.trustIncome },
+                { label: 'PERS Pension', color: '#fbbf24', value: d.pensionIncome || 0 },
               ].filter(s => s.value > 0).map((s, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

@@ -152,23 +152,12 @@ export function useRetirementSimulation({
     });
   }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
-  // Closed-form cohort math includes inheritance as a future cash event (like SS/trust).
-  const formulaSupplementalFlows = useMemo(() => {
-    return buildSupplementalFlows({
-      horizonMonths,
-      chadPassesAge: dChadPassesAge,
-      ageDiff,
-      chadSS,
-      ssFRA,
-      sarahOwnSS,
-      survivorSS,
-      trustMonthly,
-      pensionMonthly,
-      hasInheritance,
-      inheritanceMonth,
-      inheritanceAmount: dInheritanceAmount,
-    });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  // Closed-form cohort math includes inheritance as a future cash event (like
+  // SS/trust). Since the inheritance double-count fix (finding 2026-06-09 2.1)
+  // routed everything through a single carrier, the formula path uses the
+  // EXACT same flows as the simulation path — alias it instead of building
+  // (and memoizing) an identical second array (remediation 6.7).
+  const formulaSupplementalFlows = simulationSupplementalFlows;
 
   const pwaStartContext = useMemo(
     () => sliceRetirementContext(retirementContext, 0),

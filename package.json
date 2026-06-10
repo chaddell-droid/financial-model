@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node scripts/run-tests.mjs",
+    "lint": "eslint src",
     "ui:swarm": "node tests/ui/run-swarm.js",
     "ui:perf": "node tests/ui/perf/run-perf.js",
     "playwright:mcp:recover": "pwsh -NoProfile -File scripts/recover-playwright-mcp.ps1"
@@ -23,6 +24,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^10.4.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "kill-port": "^2.0.1",
     "playwright-core": "^1.58.2",
     "vite": "^6.0.0"

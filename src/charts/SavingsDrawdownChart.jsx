@@ -1,4 +1,4 @@
-import React, { memo, useState, useRef } from 'react';
+import React, { memo, useMemo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel, getSummaryTimeframeLabel } from './chartContract.js';
@@ -89,7 +89,66 @@ function SavingsDrawdownChart({
 }) {
   const containerRef = useRef(null);
   const svgW = useContainerWidth(containerRef);
-  const [savingsTooltip, setSavingsTooltip] = useState(null);
+
+  // Chart geometry + SVG paths, memoized on the data that actually shapes
+  // them (remediation 6.7) — previously rebuilt inline on every render.
+  const geometry = useMemo(() => {
+    const svgH = 380;
+    const padL = 60;
+    const padR = 20;
+    const padT = 20;
+    const padB = 60;
+    const plotW = svgW - padL - padR;
+    const plotH = svgH - padT - padB;
+
+    const allCompBalances = (compareProjections || []).flatMap(cp => (cp.projection.savingsData || []).map(d => d.balance));
+    const dataMax = Math.max(startingSavings, ...savingsData.map(d => d.balance), ...allCompBalances);
+    const dataMin = Math.min(0, ...savingsData.map(d => d.balance), ...allCompBalances);
+    // Lock range to at least -startingSavings to startingSavings*1.5 so small changes don't rescale
+    const maxBal = Math.max(dataMax, startingSavings * 1.5);
+    const minBal = Math.min(dataMin, -startingSavings);
+    const range = maxBal - minBal || 1;
+
+    const maxMonth = savingsData[savingsData.length - 1]?.month || 72;
+    const x = (m) => padL + (m / maxMonth) * plotW;
+    const y = (b) => padT + (1 - (b - minBal) / range) * plotH;
+
+    // Build SVG path
+    const pathPoints = savingsData.map(d => `${x(d.month)},${y(d.balance)}`);
+    const linePath = `M ${pathPoints.join(" L ")}`;
+
+    // Area fill path (down to zero line or bottom)
+    const zeroY = y(0);
+    const areaPath = `M ${x(savingsData[0].month)},${zeroY} L ${pathPoints.join(" L ")} L ${x(savingsData[savingsData.length - 1].month)},${zeroY} Z`;
+
+    // Y-axis ticks
+    const yTicks = [];
+    const tickStep = range < 300000 ? 50000 : 100000;
+    for (let v = Math.floor(minBal / tickStep) * tickStep; v <= maxBal; v += tickStep) {
+      yTicks.push(v);
+    }
+
+    return { svgH, padL, padR, padT, padB, plotW, plotH, maxMonth, x, y, linePath, areaPath, zeroY, yTicks };
+  }, [svgW, startingSavings, savingsData, compareProjections]);
+
+  // Structural-transition annotations, memoized on the engine series
+  // (remediation 6.7) — detectSignificantChanges walks every month and was
+  // previously re-run on every render.
+  const significantChanges = useMemo(
+    () => detectSignificantChanges(monthlyDetail),
+    [monthlyDetail]
+  );
+
+  // Shared tooltip hook (remediation 6.4): nearest-point detection with a
+  // prev-index bail-out so unchanged hovers skip the state set.
+  const { tooltip: savingsTooltip, onMouseMove, onMouseLeave } = useChartTooltip({
+    data: savingsData,
+    xAccessor: (d) => geometry.x(d.month),
+    yAccessor: (d) => geometry.y(d.balance),
+    svgW,
+    svgH: geometry.svgH,
+  });
+
   const comparisonLegend = buildLegendItems(compareProjections && compareProjections.length > 0 ? [
     { id: 'current', label: 'Current settings', color: COLORS.green },
     ...compareProjections.map((cp, ci) => ({
@@ -159,58 +218,13 @@ function SavingsDrawdownChart({
           </div>
           )}
           {(() => {
-            const svgH = 380;
-            const padL = 60;
-            const padR = 20;
-            const padT = 20;
-            const padB = 60;
-            const plotW = svgW - padL - padR;
-            const plotH = svgH - padT - padB;
-
-            const allCompBalances = (compareProjections || []).flatMap(cp => (cp.projection.savingsData || []).map(d => d.balance));
-            const dataMax = Math.max(startingSavings, ...savingsData.map(d => d.balance), ...allCompBalances);
-            const dataMin = Math.min(0, ...savingsData.map(d => d.balance), ...allCompBalances);
-            // Lock range to at least -startingSavings to startingSavings*1.5 so small changes don't rescale
-            const maxBal = Math.max(dataMax, startingSavings * 1.5);
-            const minBal = Math.min(dataMin, -startingSavings);
-            const range = maxBal - minBal || 1;
-
-            const maxMonth = savingsData[savingsData.length - 1]?.month || 72;
-            const x = (m) => padL + (m / maxMonth) * plotW;
-            const y = (b) => padT + (1 - (b - minBal) / range) * plotH;
-
-            // Build SVG path
-            const pathPoints = savingsData.map(d => `${x(d.month)},${y(d.balance)}`);
-            const linePath = `M ${pathPoints.join(" L ")}`;
-
-            // Area fill path (down to zero line or bottom)
-            const zeroY = y(0);
-            const areaPath = `M ${x(savingsData[0].month)},${zeroY} L ${pathPoints.join(" L ")} L ${x(savingsData[savingsData.length-1].month)},${zeroY} Z`;
-
-            // Y-axis ticks
-            const yTicks = [];
-            const tickStep = range < 300000 ? 50000 : 100000;
-            for (let v = Math.floor(minBal / tickStep) * tickStep; v <= maxBal; v += tickStep) {
-              yTicks.push(v);
-            }
+            const { svgH, padL, padR, padT, plotW, plotH, maxMonth, x, y, linePath, areaPath, zeroY, yTicks } = geometry;
 
             return (
               <div data-testid={`savings-drawdown-hover-surface-${instanceId}`} style={{ position: "relative" }}
-                onMouseLeave={() => setSavingsTooltip(null)}>
+                onMouseLeave={onMouseLeave}>
               <svg data-testid={`savings-drawdown-svg-${instanceId}`} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto", display: "block" }}
-                onMouseMove={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const mouseX = (e.clientX - rect.left) / rect.width * svgW;
-                  let closest = savingsData[0];
-                  let closestDist = Infinity;
-                  for (const d of savingsData) {
-                    const dist = Math.abs(x(d.month) - mouseX);
-                    if (dist < closestDist) { closestDist = dist; closest = d; }
-                  }
-                  const pctX = (x(closest.month) / svgW) * 100;
-                  const pctY = (y(closest.balance) / svgH) * 100;
-                  setSavingsTooltip({ pctX, pctY, balance: closest.balance, month: closest.month });
-                }}>
+                onMouseMove={onMouseMove}>
                 {/* Clip regions for above/below zero */}
                 <defs>
                   <clipPath id={`sav-above-${instanceId}`}>
@@ -301,8 +315,8 @@ function SavingsDrawdownChart({
 
                 {/* Hover highlight dot */}
                 {savingsTooltip && (
-                  <circle cx={x(savingsTooltip.month)} cy={y(savingsTooltip.balance)} r="5"
-                    fill={savingsTooltip.balance >= 0 ? COLORS.green : COLORS.red}
+                  <circle cx={x(savingsTooltip.dataPoint.month)} cy={y(savingsTooltip.dataPoint.balance)} r="5"
+                    fill={savingsTooltip.dataPoint.balance >= 0 ? COLORS.green : COLORS.red}
                     stroke={COLORS.textPrimary} strokeWidth="2" />
                 )}
 
@@ -342,11 +356,10 @@ function SavingsDrawdownChart({
                   </g>
                 )}
 
-                {/* Significant balance change markers */}
+                {/* Significant balance change markers (memoized — remediation 6.7) */}
                 {(() => {
-                  const changes = detectSignificantChanges(monthlyDetail);
                   const backPayMonth = ssdiBackPayActual > 0 ? ssdiApprovalMonth + 2 : -1;
-                  const filtered = changes.filter(c => c.month <= maxMonth && c.month !== backPayMonth);
+                  const filtered = significantChanges.filter(c => c.month <= maxMonth && c.month !== backPayMonth);
                   // Stagger labels vertically when close together
                   const usedSlots = [];
                   return filtered.map((c, i) => {
@@ -386,7 +399,7 @@ function SavingsDrawdownChart({
                     top: `${savingsTooltip.pctY}%`,
                   transform: "translate(-50%, -120%)",
                   background: COLORS.bgDeep,
-                  border: `1px solid ${savingsTooltip.balance >= 0 ? COLORS.green : COLORS.red}`,
+                  border: `1px solid ${savingsTooltip.dataPoint.balance >= 0 ? COLORS.green : COLORS.red}`,
                   borderRadius: 6,
                   padding: "6px 10px",
                   pointerEvents: "none",
@@ -395,14 +408,14 @@ function SavingsDrawdownChart({
                     boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
                   }}>
                   <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 2 }}>
-                    {formatModelTimeLabel(savingsTooltip.month)}
+                    {formatModelTimeLabel(savingsTooltip.dataPoint.month)}
                   </div>
                   <div style={{
                     fontSize: 14, fontWeight: 700,
-                    color: savingsTooltip.balance >= 0 ? COLORS.green : COLORS.red,
+                    color: savingsTooltip.dataPoint.balance >= 0 ? COLORS.green : COLORS.red,
                     fontFamily: "'JetBrains Mono', monospace"
                   }}>
-                    {fmtFull(savingsTooltip.balance)}
+                    {fmtFull(savingsTooltip.dataPoint.balance)}
                   </div>
                   </div>
                 )}

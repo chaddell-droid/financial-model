@@ -365,6 +365,54 @@ test('isAmountConsistent returns false for 3x+ spike', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Frequency hoist (remediation 2026-06-09, 6.7): classifyTransaction accepts
+// a precomputed frequency map so parseTransactionCSVDetailed scans
+// monthlyActuals ONCE per import instead of once per row.
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== Frequency hoist — precomputed map parity ===');
+
+test('classifyTransaction with precomputed freq map matches the computed path', () => {
+  const actuals = {
+    '2026-03': { transactions: [
+      { merchant: 'Netflix', amount: -15.99 },
+      { merchant: 'OneTime Co', amount: -200 },
+    ]},
+    '2026-04': { transactions: [{ merchant: 'Netflix', amount: -15.99 }] },
+  };
+  const freq = analyzeMerchantFrequency(actuals);
+  const cases = [
+    [-15.99, 'Shopping', 'Netflix'],     // frequency-based core
+    [-200, 'Shopping', 'OneTime Co'],    // single month → threshold path
+    [-50, 'Groceries', 'Unknown'],       // ALWAYS_CORE
+    [500, 'Paycheck', 'Employer'],       // income
+  ];
+  for (const [amount, category, merchant] of cases) {
+    assert.strictEqual(
+      classifyTransaction(amount, category, merchant, null, actuals, freq),
+      classifyTransaction(amount, category, merchant, null, actuals),
+      `${merchant}: precomputed-map result must match per-call computation`,
+    );
+  }
+});
+
+test('full parse classifies identically with frequency data present (regression lock)', () => {
+  const actuals = {
+    '2026-01': { transactions: [{ merchant: 'Netflix', amount: -15.99 }] },
+    '2026-02': { transactions: [{ merchant: 'Netflix', amount: -15.99 }] },
+  };
+  const csv = `${HEADER}
+2026-03-15,Netflix,Shopping,Main (...6040),NETFLIX.COM,,-15.99,,Shared
+2026-03-16,Delta,Travel & Vacation,Main (...6040),DELTA AIR,,-500.00,,Shared
+2026-03-17,QFC,Groceries,Main (...6040),QFC #1,,-84.93,,Shared`;
+  const result = parseTransactionCSV(csv, null, actuals);
+  assert.strictEqual(result.length, 3);
+  const byMerchant = Object.fromEntries(result.map(t => [t.merchant, t.type]));
+  assert.strictEqual(byMerchant['Netflix'], 'core', 'recurring merchant → core via hoisted frequency map');
+  assert.strictEqual(byMerchant['Delta'], 'onetime', 'ALWAYS_ONETIME category unchanged');
+  assert.strictEqual(byMerchant['QFC'], 'core', 'ALWAYS_CORE category unchanged');
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

@@ -270,6 +270,36 @@ test('28. Override does not mutate the defaults (immutability check)', () => {
   assert.strictEqual(LEVER_CLASSIFICATION.sarahRate.max, 300);
 });
 
+// Remediation 2026-06-09 (6.5): inverted windows are NORMALIZED here so every
+// downstream consumer (optimizer hard-asserts min<=max; sliders render dead
+// without it) sees a valid window even if a bad override sneaks past the
+// sanitizer (e.g. injected at runtime via SET_FIELD).
+test('29. Inverted override window (min > max) is normalized by swapping', () => {
+  const override = { sarahRate: { min: 320, max: 240 } };
+  const eff = computeEffectiveLeverConstraints(override);
+  assert.strictEqual(eff.sarahRate.min, 240);
+  assert.strictEqual(eff.sarahRate.max, 320);
+  assert.ok(eff.sarahRate.min <= eff.sarahRate.max);
+});
+
+test('30. Partial override inverting against the default is normalized too', () => {
+  // min-only override above the default max (300) → window would invert
+  const eff = computeEffectiveLeverConstraints({ sarahRate: { min: 350 } });
+  assert.strictEqual(eff.sarahRate.min, 300);
+  assert.strictEqual(eff.sarahRate.max, 350);
+});
+
+test('31. Every effective constraint satisfies min <= max under adversarial overrides', () => {
+  const adversarial = {};
+  for (const key of Object.keys(LEVER_CLASSIFICATION)) {
+    adversarial[key] = { min: 1e9, max: -1e9 };
+  }
+  const eff = computeEffectiveLeverConstraints(adversarial);
+  for (const [key, c] of Object.entries(eff)) {
+    assert.ok(c.min <= c.max, `${key}: min (${c.min}) must be <= max (${c.max})`);
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // Summary
 // ════════════════════════════════════════════════════════════════════════

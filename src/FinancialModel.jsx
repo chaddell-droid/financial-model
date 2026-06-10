@@ -68,6 +68,12 @@ function getInitialShellWidthBucket() {
   return getShellWidthBucket(window.innerWidth);
 }
 
+// Multi-comparison line colors (yellow, cyan, purple). Module-scope constant
+// (remediation 6.6): this used to be re-created inside the component on every
+// render, so every memo bundle passing `compareColors` carried an unstable
+// identity that silently defeated React.memo on the receiving charts.
+const COMPARE_COLORS = ['#fbbf24', '#22d3ee', '#c084fc'];
+
 // Remediation 2026-06-09 phase 6.1: stable extraction of the projection-input
 // subset (MODEL_KEYS + schemaVersion + previewMoves). Returns the PREVIOUS
 // object whenever nothing the projection pipeline reads has changed, so memos
@@ -350,7 +356,6 @@ export default function FinancialModel() {
   // Compared states are SAVED scenario payloads — route them through the same
   // migrate + validateAndSanitize + gatherState pipeline as loading, so an
   // old-schema scenario compares identically to loading it (remediation phase 5).
-  const COMPARE_COLORS = ['#fbbf24', '#22d3ee', '#c084fc']; // yellow, cyan, purple
   const compareProjections = useMemo(() => {
     return (comparisons || []).map(c => ({
       name: c.name,
@@ -762,7 +767,7 @@ export default function FinancialModel() {
     moldCost, moldInclude,
     roofCost, roofInclude,
     otherProjects, otherInclude,
-    advanceNeeded, shellWidthBucket,
+    advanceNeeded, shellWidthBucket, set,
   ]);
 
   // Real federal/FICA breakdown for the W-2 Net Diagnostic, from the same engine as
@@ -835,7 +840,7 @@ export default function FinancialModel() {
     postJobBenefit,
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
-    chadTaxBreakdown,
+    chadTaxBreakdown, set,
   ]);
 
   const expenseControlsProps = useMemo(() => ({
@@ -864,7 +869,7 @@ export default function FinancialModel() {
     milestones,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
-    monthlyDetail,
+    monthlyDetail, set,
   ]);
 
   // Stable across UI-only state changes (remediation 6.1/6.3): identity
@@ -954,7 +959,7 @@ export default function FinancialModel() {
     startingSavings, investmentReturn,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiBackPayActual,
     ssStartMonth, ssKidsAgeOutMonths,
-    monthlyDetail, presentMode,
+    monthlyDetail, presentMode, set,
   ]);
 
   const savingsDrawdownProps = useMemo(() => ({
@@ -973,7 +978,7 @@ export default function FinancialModel() {
     debtCC, debtPersonal, debtIRS, debtFirstmark,
     debtService, ssdiApprovalMonth, ssdiBackPayActual,
     milestones, retireDebt, presentMode, effectiveBaseExpenses, totalMonthlySpend,
-    monthlyDetail,
+    monthlyDetail, set,
   ]);
 
   const netWorthProps = useMemo(() => ({
@@ -989,7 +994,7 @@ export default function FinancialModel() {
     homeEquity, homeAppreciation,
     deficit401kTaxRate,
     presentMode,
-    compareProjections,
+    compareProjections, set,
   ]);
 
   // 401(k) detail chart props — exposes monthly contribution/match/balance breakdown
@@ -1046,6 +1051,18 @@ export default function FinancialModel() {
   );
   const riskNetWorthProps = useMemo(
     () => ({ ...netWorthProps, instanceId: 'risk-tab' }),
+    [netWorthProps],
+  );
+  // Stable Plan-tab variants — same pattern as the risk-tab ones above
+  // (remediation 6.6: these were inline `{...props, instanceId}` spreads in
+  // plannerWorkspace, handing PlanTab's memo'd charts a fresh object on every
+  // workspace re-evaluation).
+  const planSavingsDrawdownProps = useMemo(
+    () => ({ ...savingsDrawdownProps, instanceId: 'plan-savings' }),
+    [savingsDrawdownProps],
+  );
+  const planNetWorthProps = useMemo(
+    () => ({ ...netWorthProps, instanceId: 'plan-networth' }),
     [netWorthProps],
   );
 
@@ -1116,9 +1133,10 @@ export default function FinancialModel() {
     mcRunning,
     presentMode,
     onGoalsChange: (newGoals) => set('goals')(newGoals),
-  }), [goals, goalResults, mcGoalResults, mcRunning, presentMode]);
+  }), [goals, goalResults, mcGoalResults, mcRunning, presentMode, set]);
 
-  const deferredPlanBridgeProps = useDeferredValue(bridgeProps);
+  // (deferredPlanBridgeProps deleted — remediation 6.6: it was computed and
+  // listed as a plannerWorkspace dep but never rendered anywhere.)
   // savingsDrawdownProps and netWorthProps are NOT deferred — they contain sliders
   // whose values must update immediately. The projection data inside them is already
   // deferred via deferredState (layer 1), so no second defer is needed.
@@ -1194,6 +1212,10 @@ export default function FinancialModel() {
       </>
     );
   }, [
+    // Deps audited (remediation 6.6): every value RENDERED inside is listed —
+    // the missing ones (oneTimeExtras/Months, steadyStateIncome, the expense
+    // breakdown rows, projection) left KeyMetrics' controlled inputs stale
+    // during deferred windows; the unused cut components are gone.
     showTopSummary,
     data,
     breakevenLabel,
@@ -1202,7 +1224,10 @@ export default function FinancialModel() {
     savingsZeroMonth,
     advanceNeeded,
     totalMonthlySpend,
+    oneTimeExtras,
+    oneTimeMonths,
     totalCurrentIncome,
+    steadyStateIncome,
     totalCurrentExpenses,
     mcResults,
     rawMonthlyGap,
@@ -1214,19 +1239,21 @@ export default function FinancialModel() {
     lifestyleCutsApplied,
     vanSold,
     debtService,
-    lifestyleCuts,
-    cutInHalf,
-    extraCuts,
+    effectiveBaseExpenses,
+    vanMonthlySavings,
+    bcsFamilyMonthly,
     effectiveCutsTotal,
     showCompareBanner,
     comparisons,
     compareProjections,
+    projection,
     retirementSpendingTargets,
+    set,
   ]);
 
   const plannerTabs = useMemo(() => (
     showTabs ? <TabBar activeTab={effectiveTab} onChange={set('activeTab')} compact={compactShell} /> : null
-  ), [showTabs, effectiveTab, compactShell]);
+  ), [showTabs, effectiveTab, compactShell, set]);
 
   // Chart picker: component map + props map for the configurable rail
   // Must be defined BEFORE plannerWorkspace which references them
@@ -1280,8 +1307,8 @@ export default function FinancialModel() {
           incomeControlsProps={incomeControlsProps}
           expenseControlsProps={expenseControlsProps}
           scenarioStripProps={scenarioStripProps}
-          savingsChartProps={{ ...savingsDrawdownProps, instanceId: 'plan-savings' }}
-          netWorthChartProps={{ ...netWorthProps, instanceId: 'plan-networth' }}
+          savingsChartProps={planSavingsDrawdownProps}
+          netWorthChartProps={planNetWorthProps}
           incomeChartProps={incomeChartProps}
           capitalItems={effectiveCapitalItems}
           capitalFundingSource={capitalFundingSource}
@@ -1372,41 +1399,12 @@ export default function FinancialModel() {
       )}
     </>
   ), [
+    // Deps audited (remediation 6.6): every value rendered by some tab branch
+    // is listed; dead entries (deferredPlanBridgeProps, data, railConfig,
+    // RAIL_COMPONENTS, railPropsMap — none rendered inside this memo) removed.
     effectiveTab,
+    // overview
     bridgeProps,
-    deferredPlanBridgeProps,
-    incomeControlsProps,
-    expenseControlsProps,
-    incomeChartProps,
-    scenarioStripProps,
-    deferredGoalPanelProps,
-    shellWidthBucket,
-    presentMode,
-    vestEvents,
-    totalRemainingVesting,
-    msftGrowth,
-    sarahRate,
-    sarahMaxRate,
-    sarahRateGrowth,
-    sarahCurrentClients,
-    sarahMaxClients,
-    sarahClientGrowth,
-    data,
-    investmentReturn,
-    vanSold,
-    vanSaleMonth,
-    vanMonthlySavings,
-    bcsYearsLeft,
-    milestones,
-    monteCarloProps,
-    seqReturnsProps,
-    taxTabProps,
-    savingsDrawdownProps,
-    netWorthProps,
-    showRail,
-    dataTableProps,
-    summaryAskProps,
-    trackTabProps,
     rawMonthlyGap,
     savingsZeroLabel,
     savingsZeroMonth,
@@ -1417,11 +1415,73 @@ export default function FinancialModel() {
     ssType,
     goals,
     goalResults,
-    stableGatherState,
+    previewProps,
+    // plan
+    incomeControlsProps,
+    expenseControlsProps,
+    scenarioStripProps,
+    planSavingsDrawdownProps,
+    planNetWorthProps,
+    incomeChartProps,
+    effectiveCapitalItems,
     capitalFundingSource,        // D4: Plan-tab funding-source toggle
-    railConfig, RAIL_COMPONENTS, railPropsMap,
+    customLevers,
+    shellWidthBucket,
+    // track
+    trackTabProps,
+    // actuals
+    monthlyActuals,
+    merchantClassifications,
+    totalMonthlySpend,
+    oneTimeExtras,
+    effectiveBaseExpenses,
+    debtService,
+    vanMonthlySavings,
+    bcsFamilyMonthly,
     actualsDispatch,             // stable wrapper around dispatch for ActualsTab
-    state, set,                  // advisor pane reads state + uses set() to apply moves
+    // income
+    vestEvents,
+    totalRemainingVesting,
+    msftPrice,
+    msftGrowth,
+    sarahRate,
+    sarahMaxRate,
+    sarahRateGrowth,
+    sarahCurrentClients,
+    sarahMaxClients,
+    sarahClientGrowth,
+    sarahTaxRate,
+    sarahWorkMonths,
+    sarahCurrentGross,
+    sarahCurrentNet,
+    sarahCeilingGross,
+    sarahCeiling,
+    investmentReturn,
+    ssPersonal,
+    ssdiPersonal,
+    chadJob,
+    chadJobStartMonth,
+    chadJobHealthSavings,
+    vanSold,
+    vanSaleMonth,
+    bcsYearsLeft,
+    milestones,
+    compareProjections,
+    // tax
+    taxTabProps,
+    // risk
+    monteCarloProps,
+    seqReturnsProps,
+    riskSavingsDrawdownProps,
+    riskNetWorthProps,
+    showRail,
+    deferredGoalPanelProps,
+    // details
+    dataTableProps,
+    summaryAskProps,
+    presentMode,
+    // advisor (reads state + uses set() to apply moves) + shared callbacks
+    state, set, stableGatherState,
   ]);
 
   const plannerRail = (

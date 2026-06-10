@@ -1,6 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { fmt, fmtFull } from "../model/formatters.js";
 import { DAYS_PER_MONTH } from "../model/constants.js";
+import { useChartTooltip } from './useChartTooltip.js';
 import Slider from '../components/Slider.jsx';
 
 export default function SarahPracticeChart({
@@ -26,7 +27,6 @@ export default function SarahPracticeChart({
 }) {
   const set = onFieldChange;
   const commitStrategy = 'release';
-  const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
 
   const months = sarahWorkMonths || 72;
@@ -39,25 +39,29 @@ export default function SarahPracticeChart({
   const plotW = chartW - padL - padR;
   const plotH = chartH - padT - padB;
 
-  // Compute monthly data points
+  // Compute monthly data points — memoized on the inputs that shape them
+  // (remediation 6.4/6.7) so the tooltip hook's prev-point bail-out holds.
   // FIX M-Sarah: Net income pulled from engine row (monthlyDetail[m].sarahIncome)
   // when available; otherwise computed inline. Gross/rate/clients are still
   // derived locally because the engine doesn't expose those component fields.
-  const pts = [];
-  for (let m = 0; m <= months; m++) {
-    const rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, m / 12), sarahMaxRate);
-    const clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, m / 12), sarahMaxClients);
-    const gross = Math.round(rate * clients * DAYS_PER_MONTH);
-    const year = Math.floor(m / 12);
-    const mo = m % 12;
-    const label = m === 0 ? 'Now' : `Y${year}${mo > 0 ? `M${mo}` : ''}`;
-    const calYear = 26 + Math.floor((2 + m) / 12);
-    const calMonth = (2 + m) % 12;
-    const dateLabel = `${['Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb'][calMonth]} '${calYear}`;
-    const inlineNet = Math.round(gross * (1 - (sarahTaxRate ?? 25) / 100));
-    const net = monthlyDetail && monthlyDetail[m] ? (monthlyDetail[m].sarahIncome ?? inlineNet) : inlineNet;
-    pts.push({ m, rate: Math.round(rate), clients: +clients.toFixed(2), gross, net, label, dateLabel });
-  }
+  const pts = useMemo(() => {
+    const out = [];
+    for (let m = 0; m <= months; m++) {
+      const rate = Math.min(sarahRate * Math.pow(1 + sarahRateGrowth / 100, m / 12), sarahMaxRate);
+      const clients = Math.min(sarahCurrentClients * Math.pow(1 + sarahClientGrowth / 100, m / 12), sarahMaxClients);
+      const gross = Math.round(rate * clients * DAYS_PER_MONTH);
+      const year = Math.floor(m / 12);
+      const mo = m % 12;
+      const label = m === 0 ? 'Now' : `Y${year}${mo > 0 ? `M${mo}` : ''}`;
+      const calYear = 26 + Math.floor((2 + m) / 12);
+      const calMonth = (2 + m) % 12;
+      const dateLabel = `${['Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb'][calMonth]} '${calYear}`;
+      const inlineNet = Math.round(gross * (1 - (sarahTaxRate ?? 25) / 100));
+      const net = monthlyDetail && monthlyDetail[m] ? (monthlyDetail[m].sarahIncome ?? inlineNet) : inlineNet;
+      out.push({ m, rate: Math.round(rate), clients: +clients.toFixed(2), gross, net, label, dateLabel });
+    }
+    return out;
+  }, [months, sarahRate, sarahRateGrowth, sarahMaxRate, sarahCurrentClients, sarahClientGrowth, sarahMaxClients, sarahTaxRate, monthlyDetail]);
 
   const maxGross = Math.max(...pts.map(p => p.gross)) * 1.1;
   const minGross = Math.min(...pts.map(p => p.gross)) * 0.9;
@@ -88,19 +92,14 @@ export default function SarahPracticeChart({
     yTicks.push(v);
   }
 
-  // Mouse interaction
-  const handleMouseMove = (e) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * chartW;
-    const idx = Math.round(((mouseX - padL) / plotW) * months);
-    if (idx < 0 || idx > months) { setTooltip(null); return; }
-    const p = pts[idx];
-    if (!p) { setTooltip(null); return; }
-    const pctX = ((xOf(p.m)) / chartW) * 100;
-    setTooltip({ idx, x: xOf(p.m), pctX, ...p });
-  };
+  // Mouse interaction — shared tooltip hook (remediation 6.4): nearest-point
+  // detection with a prev-index bail-out so unchanged hovers skip the state set.
+  const { tooltip, onMouseMove, onMouseLeave } = useChartTooltip({
+    data: pts,
+    xAccessor: (p) => xOf(p.m),
+    svgW: chartW,
+    svgH: chartH,
+  });
 
   // Growth from current
   const growthPct = (gross) => currentGross > 0 ? Math.round(((gross - currentGross) / currentGross) * 100) : 0;
@@ -138,8 +137,8 @@ export default function SarahPracticeChart({
 
       <div style={{ position: 'relative' }}>
         <svg ref={svgRef} viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: "100%", height: "auto", display: 'block' }}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setTooltip(null)}>
+          onMouseMove={onMouseMove}
+          onMouseLeave={onMouseLeave}>
           {/* Grid lines */}
           {yTicks.map(v => (
             <g key={v}>
@@ -210,9 +209,9 @@ export default function SarahPracticeChart({
           {/* Hover crosshair + dot */}
           {tooltip && (
             <>
-              <line x1={tooltip.x} y1={padT} x2={tooltip.x} y2={padT + plotH}
+              <line x1={xOf(tooltip.dataPoint.m)} y1={padT} x2={xOf(tooltip.dataPoint.m)} y2={padT + plotH}
                 stroke="#94a3b8" strokeWidth={0.8} opacity={0.5} />
-              <circle cx={tooltip.x} cy={yOf(tooltip.gross)} r="5"
+              <circle cx={xOf(tooltip.dataPoint.m)} cy={yOf(tooltip.dataPoint.gross)} r="5"
                 fill="#60a5fa" stroke="#0f172a" strokeWidth="2" />
             </>
           )}
@@ -220,8 +219,9 @@ export default function SarahPracticeChart({
 
         {/* Tooltip */}
         {tooltip && (() => {
+          const p = tooltip.dataPoint;
           const flipLeft = tooltip.pctX > 65;
-          const growth = growthPct(tooltip.gross);
+          const growth = growthPct(p.gross);
           return (
             <div style={{
               position: "absolute",
@@ -242,29 +242,29 @@ export default function SarahPracticeChart({
               fontSize: 11,
             }}>
               <div style={{ fontSize: 11, color: "#f8fafc", fontWeight: 700, marginBottom: 4, borderBottom: "1px solid #334155", paddingBottom: 3 }}>
-                {tooltip.dateLabel} ({tooltip.label})
+                {p.dateLabel} ({p.label})
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                 <span style={{ color: "#94a3b8" }}>Gross income</span>
-                <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(tooltip.gross)}/mo</span>
+                <span style={{ color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(p.gross)}/mo</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                 <span style={{ color: "#94a3b8" }}>Net after tax</span>
-                <span style={{ color: "#34d399", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(tooltip.net)}/mo</span>
+                <span style={{ color: "#34d399", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{fmtFull(p.net)}/mo</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                 <span style={{ color: "#94a3b8" }}>Hourly rate</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${tooltip.rate}/hr</span>
+                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${p.rate}/hr</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                 <span style={{ color: "#94a3b8" }}>Clients/day</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{tooltip.clients}</span>
+                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{p.clients}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                 <span style={{ color: "#94a3b8" }}>Daily gross</span>
-                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(tooltip.rate * tooltip.clients)}</span>
+                <span style={{ color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>${Math.round(p.rate * p.clients)}</span>
               </div>
-              {tooltip.m > 0 && (
+              {p.m > 0 && (
                 <div style={{ borderTop: "1px solid #334155", marginTop: 4, paddingTop: 3, display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#94a3b8" }}>Growth</span>
                   <span style={{ color: growth >= 0 ? "#4ade80" : "#f87171", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>

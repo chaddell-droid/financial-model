@@ -99,12 +99,19 @@ export function getMerchantAmounts(merchant, monthlyActuals) {
   return amounts;
 }
 
-export function classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals) {
+/**
+ * Classify a transaction. `merchantFrequency` is an OPTIONAL precomputed
+ * map from analyzeMerchantFrequency (remediation 2026-06-09, 6.7):
+ * parseTransactionCSVDetailed passes it so the full monthlyActuals scan runs
+ * once per import instead of once per row. When omitted, it is computed
+ * on the fly (back-compat for direct callers).
+ */
+export function classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals, merchantFrequency) {
   if (amount > 0) return 'income';
   if (merchantClassifications && merchantClassifications[merchant]) return merchantClassifications[merchant];
   // Frequency-based: merchant in 2+ prior months with consistent amount → core
   if (monthlyActuals) {
-    const freq = analyzeMerchantFrequency(monthlyActuals);
+    const freq = merchantFrequency || analyzeMerchantFrequency(monthlyActuals);
     if (freq[merchant] >= 2) {
       const amounts = getMerchantAmounts(merchant, monthlyActuals);
       if (isAmountConsistent(amount, amounts)) return 'core';
@@ -144,6 +151,9 @@ export function parseTransactionCSVDetailed(csvString, merchantClassifications, 
 
   const transactions = [];
   const occurrenceCounts = new Map();
+  // Hoisted out of the per-row classify path (remediation 6.7): one
+  // monthlyActuals scan per import, not one per row.
+  const merchantFrequency = monthlyActuals ? analyzeMerchantFrequency(monthlyActuals) : null;
   let skippedCount = 0;
   for (let i = 1; i < lines.length; i++) {
     const fields = parseCSVRow(lines[i]);
@@ -166,7 +176,7 @@ export function parseTransactionCSVDetailed(csvString, merchantClassifications, 
     occurrenceCounts.set(baseId, occurrence + 1);
     const id = `${baseId}|${occurrence}`;
     const month = date.slice(0, 7);
-    const type = classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals);
+    const type = classifyTransaction(amount, category, merchant, merchantClassifications, monthlyActuals, merchantFrequency);
 
     transactions.push({ id, date, month, merchant, category, account, amount, type });
   }

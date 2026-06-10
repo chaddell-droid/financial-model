@@ -3,7 +3,7 @@
  * Run with: node src/model/__tests__/monteCarlo.test.js
  */
 import assert from 'node:assert';
-import { runMonteCarlo } from '../monteCarlo.js';
+import { runMonteCarlo, computeBands } from '../monteCarlo.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
@@ -463,6 +463,66 @@ test('21. Zero-volatility run produces identical 401k bands across percentiles',
   for (let m = 0; m < p10.series.length; m++) {
     assert.strictEqual(p10.series[m], p90.series[m],
       `Month ${m}: 401k p10 should equal p90 with zero vol`);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// computeBands — single sort per month (remediation 2026-06-09, 6.7)
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== computeBands — single-sort refactor parity ===');
+
+// Reference implementation: the ORIGINAL per-percentile loop (one sort per
+// percentile per month). The refactored computeBands sorts each month once
+// and must produce byte-identical output.
+function referenceBands(series, percentiles, months) {
+  return percentiles.map(p => {
+    const out = [];
+    for (let m = 0; m <= months; m++) {
+      const vals = series.map(b => b[m]).sort((a, b) => a - b);
+      const idx = Math.floor(vals.length * p / 100);
+      out.push(vals[Math.min(idx, vals.length - 1)]);
+    }
+    return { pct: p, series: out };
+  });
+}
+
+test('computeBands matches the per-percentile reference implementation', () => {
+  // Deterministic pseudo-random series: 40 sims × 25 months
+  const months = 24;
+  const series = [];
+  let s = 1;
+  const next = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  for (let i = 0; i < 40; i++) {
+    series.push(Array.from({ length: months + 1 }, () => Math.round(next() * 1000000 - 200000)));
+  }
+  const percentiles = [10, 25, 50, 75, 90];
+  assert.deepStrictEqual(
+    computeBands(series, percentiles, months),
+    referenceBands(series, percentiles, months),
+  );
+});
+
+test('computeBands handles a single sim and a single month', () => {
+  const out = computeBands([[5, 7]], [10, 50, 90], 1);
+  assert.deepStrictEqual(out, [
+    { pct: 10, series: [5, 7] },
+    { pct: 50, series: [5, 7] },
+    { pct: 90, series: [5, 7] },
+  ]);
+});
+
+test('computeBands percentile ordering: p10 <= p50 <= p90 at every month', () => {
+  const months = 12;
+  const series = [];
+  let s = 99;
+  const next = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  for (let i = 0; i < 17; i++) {
+    series.push(Array.from({ length: months + 1 }, () => next() * 500000));
+  }
+  const [p10, p50, p90] = computeBands(series, [10, 50, 90], months);
+  for (let m = 0; m <= months; m++) {
+    assert.ok(p10.series[m] <= p50.series[m], `month ${m}: p10 <= p50`);
+    assert.ok(p50.series[m] <= p90.series[m], `month ${m}: p50 <= p90`);
   }
 });
 

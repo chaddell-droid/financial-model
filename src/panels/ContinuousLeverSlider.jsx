@@ -38,8 +38,14 @@ export default function ContinuousLeverSlider({
 }) {
   const [editing, setEditing] = useState(false);
 
-  if (presentMode) return null;
-  if (typeof min !== 'number' || typeof max !== 'number' || min > max) return null;
+  // Bounds validity is computed BEFORE the early returns below so every hook
+  // can guard on it — hooks must run unconditionally on every render
+  // (remediation 2026-06-09, 6.5: the early returns used to sit above the
+  // useState/useEffect hooks, so a presentMode flip or a bounds glitch
+  // changed the hook count mid-lifecycle — a rules-of-hooks violation).
+  // Note: computeEffectiveLeverConstraints normalizes min>max upstream, so
+  // an inverted window here means a caller bypassed it.
+  const boundsValid = typeof min === 'number' && typeof max === 'number' && min <= max;
 
   const resolvedStep = step ?? defaultStepFor(leverKey);
 
@@ -51,7 +57,9 @@ export default function ContinuousLeverSlider({
   // pauses for DISPATCH_DEBOUNCE_MS, which keeps the slider's DOM element
   // mounted throughout the drag. Without this, every input event caused a
   // reducer round-trip and the cascade filter could unmount the rung.
-  const initialLocal = clamp(currentValue, min, max);
+  const initialLocal = boundsValid
+    ? clamp(currentValue, min, max)
+    : (typeof currentValue === 'number' && Number.isFinite(currentValue) ? currentValue : 0);
   const [localValue, setLocalValue] = useState(initialLocal);
   // Track the last value we actually dispatched, so external prop changes
   // (e.g., the cascade re-stages the lever at a new optimizer value) can
@@ -64,17 +72,22 @@ export default function ContinuousLeverSlider({
     // staged move was removed, etc.) — only adopt it if the incoming value
     // differs from what we last sent ourselves. That filters out the echo
     // from our own onChange dispatch re-arriving as a prop.
+    if (!boundsValid) return;
     if (typeof currentValue !== 'number') return;
     const clamped = clamp(currentValue, min, max);
     if (Math.abs(clamped - lastDispatchedRef.current) < 1e-6) return;
     setLocalValue(clamped);
     lastDispatchedRef.current = clamped;
-  }, [currentValue, min, max]);
+  }, [currentValue, min, max, boundsValid]);
 
   // Cleanup any pending dispatch on unmount.
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
+
+  // Early returns AFTER all hooks (stable hook order across renders).
+  if (presentMode) return null;
+  if (!boundsValid) return null;
 
   const handleChange = (e) => {
     const next = parseFloat(e.target.value);

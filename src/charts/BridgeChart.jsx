@@ -478,11 +478,14 @@ const BridgeChart = ({
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
 
-  const pts = (monthlyDetail || []).filter((row) => row.month <= months);
-  if (!pts.length) return null;
-
-  // Memoize the entire expensive computation block — story model, SVG geometry, markers
+  // Memoize the entire expensive computation block — story model, SVG geometry,
+  // markers. `pts` is built INSIDE the memo (remediation 6.5): the old
+  // outside-the-memo `pts` had a fresh identity every render, so the memo
+  // never actually cached; depending on monthlyDetail instead restores caching.
   const computed = useMemo(() => {
+    const pts = (monthlyDetail || []).filter((row) => row.month <= months);
+    if (!pts.length) return null;
+
     const trendNet = (row) => Math.round(row.netMonthlySmoothed ?? row.netMonthly ?? 0);
     const allNet = pts.map(trendNet);
     const maxNet = Math.max(...allNet, 1000) * 1.12;
@@ -568,9 +571,9 @@ const BridgeChart = ({
     const finalNet = story.meta.steadyGap;
     const markerLayouts = getMarkerClusterLayouts(story, xOf, padT, plotH, variant);
 
-    return { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts };
+    return { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts, points: pts };
   }, [
-    pts, monthlyDetail, data, variant,
+    monthlyDetail, months, data, variant, plotW, plotH,
     sarahCurrentNet, sarahTaxRate, sarahRate, sarahMaxRate, sarahRateGrowth,
     sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
     retireDebt, vanSold, lifestyleCutsApplied,
@@ -580,11 +583,16 @@ const BridgeChart = ({
     milestones, bcsYearsLeft, bcsFamilyMonthly,
     baseExpenses, debtService, vanMonthlySavings, vanSaleMonth,
     lifestyleCuts, cutInHalf, extraCuts,
-    startingSavings, investmentReturn, msftGrowth,
-    chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
+    startingSavings, investmentReturn, msftGrowth, msftPrice,
+    // chadJobSalary/chadJobTaxRate intentionally absent: the memo reads the
+    // engine's chadJobSalaryNet from monthlyDetail (FIX #5), not those fields.
+    chadJob, chadJobStartMonth, chadJobHealthSavings,
   ]);
 
-  const { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts } = computed;
+  // Empty-data return AFTER all hooks (remediation 6.5: stable hook order).
+  if (!computed) return null;
+
+  const { trendNet, maxNet, minNet, xOf, yOf, zeroY, xTicks, yTicks, path, story, finalNet, markerLayouts, points } = computed;
 
   return (
     <SurfaceCard
@@ -689,7 +697,7 @@ const BridgeChart = ({
           <g data-testid='bridge-marker-layer'>
             {markerLayouts.map((marker) => {
               const x = xOf(marker.month);
-              const point = pts.find((row) => row.month >= marker.month) || pts[0];
+              const point = points.find((row) => row.month >= marker.month) || points[0];
               const pointY = yOf(trendNet(point));
               const markerColor = MARKER_COLORS[marker.kind] || UI_COLORS.textMuted;
               const bubble = getMarkerBubble(marker, x, markerColor);

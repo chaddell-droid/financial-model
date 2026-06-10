@@ -301,10 +301,12 @@ export function getOptimizerEligibleLevers() {
  * optimizer, slider UI) read only from this resolved map and never touch
  * LEVER_CLASSIFICATION directly.
  *
- * If the user provides `min > max` in their override, the override value is
- * accepted as-is — callers are responsible for validation. (Story 2.3's
- * optimizer hard-asserts bounds; Story 2.4's UI should refuse invalid
- * user-entered bounds.)
+ * Inverted windows (`min > max` after merging) are NORMALIZED by swapping the
+ * bounds (remediation 2026-06-09, 6.5) so every downstream consumer — the
+ * Story 2.3 optimizer hard-asserts min <= max; the Story 2.4 slider returns
+ * null for inverted windows — always receives a valid window, even when a bad
+ * override bypasses the schema sanitizer (which rejects inverted windows on
+ * load, but not on runtime SET_FIELD).
  */
 export function computeEffectiveLeverConstraints(override) {
   const result = {};
@@ -322,7 +324,7 @@ export function computeEffectiveLeverConstraints(override) {
       userOverride && typeof userOverride.max === 'number' && Number.isFinite(userOverride.max)
         ? userOverride.max
         : entry.max;
-    result[key] = { min, max };
+    result[key] = min > max ? { min: max, max: min } : { min, max };
   }
   return result;
 }

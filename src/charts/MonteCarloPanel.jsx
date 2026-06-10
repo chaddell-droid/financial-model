@@ -33,8 +33,6 @@ function MonteCarloPanel({
   // total wealth, retirement assets, or home equity dynamics.
   const [reserveView, setReserveView] = useState('savings');
 
-  if (presentMode) return null;
-
   // Compute sensitivity tornado when results exist. Keyed on DATA — the
   // gathered model state shared with the main projection plus its savings
   // series — not a gatherState callback whose identity changed on every
@@ -81,6 +79,10 @@ function MonteCarloPanel({
       };
     }).sort((a, b) => b.spread - a.spread);
   }, [mcResults, gatheredState, savingsData, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcCutsDiscipline]);
+
+  // Early return AFTER all hooks (remediation 6.5: stable hook order — the
+  // presentMode flip used to change the hook count mid-lifecycle).
+  if (presentMode) return null;
 
   return (
         <div ref={containerRef} data-testid="monte-carlo-panel" style={{
@@ -199,23 +201,31 @@ function MonteCarloPanel({
             const solvColor = solvencyRate >= 0.95 ? COLORS.green : solvencyRate >= 0.80 ? COLORS.yellow : COLORS.red;
             const solvEmoji = solvencyRate >= 0.95 ? "\uD83D\uDFE2" : solvencyRate >= 0.80 ? "\uD83D\uDFE1" : "\uD83D\uDD34";
 
-            // Tooltip handler
+            // Tooltip handler. Functional bail-out (remediation 6.4): when the
+            // hovered month (and reserve view) hasn't changed, return the SAME
+            // state object so React skips the re-render. pctX snaps to the
+            // month position (instead of tracking the raw mouse x) so the
+            // bail-out actually holds between data points.
             const handleMouseMove = (e) => {
               const svgEl = e.currentTarget;
               const rect = svgEl.getBoundingClientRect();
               const relX = (e.clientX - rect.left) / rect.width * svgW;
               const m = Math.round(((relX - padL) / plotW) * months);
-              if (m < 0 || m > months) { setMcTooltip(null); return; }
-              const detVal = reserveView === 'savings' ? savingsData.find(d => d.month === m)?.balance : null;
-              setMcTooltip({
-                month: m,
-                pctX: ((relX - padL) / plotW) * 100,
-                p10: bands[0].series[m],
-                p25: bands[1].series[m],
-                p50: bands[2].series[m],
-                p75: bands[3].series[m],
-                p90: bands[4].series[m],
-                det: detVal,
+              if (m < 0 || m > months) { setMcTooltip(prev => prev === null ? prev : null); return; }
+              setMcTooltip(prev => {
+                if (prev && prev.month === m && prev.view === reserveView) return prev;
+                const detVal = reserveView === 'savings' ? savingsData.find(d => d.month === m)?.balance : null;
+                return {
+                  month: m,
+                  view: reserveView,
+                  pctX: (m / months) * 100,
+                  p10: bands[0].series[m],
+                  p25: bands[1].series[m],
+                  p50: bands[2].series[m],
+                  p75: bands[3].series[m],
+                  p90: bands[4].series[m],
+                  det: detVal,
+                };
               });
             };
 

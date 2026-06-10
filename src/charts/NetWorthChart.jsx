@@ -1,8 +1,9 @@
-import React, { memo, useState, useRef } from 'react';
+import React, { memo, useMemo, useRef } from 'react';
 import { fmt, fmtFull } from '../model/formatters.js';
 import { createScales, generateYTicks, autoTickStep, COLORS } from './chartUtils.js';
 import Slider from '../components/Slider.jsx';
 import { buildLegendItems, formatModelTimeLabel } from './chartContract.js';
+import { useChartTooltip } from './useChartTooltip.js';
 import ChartYAxis from './ChartYAxis.jsx';
 import ChartXAxis from './ChartXAxis.jsx';
 import useContainerWidth from '../hooks/useContainerWidth.js';
@@ -17,7 +18,6 @@ function NetWorthChart({
 }) {
   const containerRef = useRef(null);
   const svgW = useContainerWidth(containerRef);
-  const [tooltip, setTooltip] = useState(null);
 
   const startingSavings = savingsData[0]?.balance || 0;
   const endSavings = savingsData[savingsData.length - 1]?.balance || 0;
@@ -58,6 +58,31 @@ function NetWorthChart({
   const yRange = yMax - yMin;
   const tickStep = autoTickStep(yRange);
   const yTicks = generateYTicks(yMin, yMax, tickStep);
+
+  // Shared tooltip hook (remediation 6.4): nearest-point detection with a
+  // prev-index bail-out, so mousemove over the same point skips the state
+  // set entirely. hoverPoints is memoized on the data series so the bail-out
+  // holds across unrelated parent re-renders.
+  const hoverPoints = useMemo(() =>
+    wealthData.map((w, i) => {
+      const sav = savingsData[i]?.balance || 0;
+      return {
+        month: w.month,
+        savings: sav,
+        bal401k: w.balance401k,
+        home: w.homeEquity,
+        total: sav + w.balance401k + w.homeEquity,
+      };
+    }),
+    [wealthData, savingsData]
+  );
+  const { tooltip, onMouseMove, onMouseLeave } = useChartTooltip({
+    data: hoverPoints,
+    xAccessor: (d) => xOf(d.month),
+    yAccessor: (d) => yOf(d.total),
+    svgW,
+    svgH,
+  });
 
   // Build paths
   const savPath = savingsData.map(d => `${xOf(d.month)},${yOf(d.balance)}`).join(' L ');
@@ -127,24 +152,9 @@ function NetWorthChart({
       )}
 
       {/* Chart */}
-      <div data-testid={`net-worth-hover-surface-${instanceId}`} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
+      <div data-testid={`net-worth-hover-surface-${instanceId}`} style={{ position: 'relative' }} onMouseLeave={onMouseLeave}>
         <svg data-testid={`net-worth-svg-${instanceId}`} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: 'auto', display: 'block' }}
-          onMouseMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left) / rect.width * svgW;
-            let closestIdx = 0;
-            let closestDist = Infinity;
-            for (let i = 0; i < wealthData.length; i++) {
-              const dist = Math.abs(xOf(wealthData[i].month) - mouseX);
-              if (dist < closestDist) { closestDist = dist; closestIdx = i; }
-            }
-            const w = wealthData[closestIdx];
-            const sav = savingsData[closestIdx]?.balance || 0;
-            const total = sav + w.balance401k + w.homeEquity;
-            const pctX = (xOf(w.month) / svgW) * 100;
-            const pctY = (yOf(total) / svgH) * 100;
-            setTooltip({ pctX, pctY, month: w.month, savings: sav, bal401k: w.balance401k, home: w.homeEquity, total });
-          }}>
+          onMouseMove={onMouseMove}>
 
           {/* Grid lines */}
           <ChartYAxis ticks={yTicks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} />
@@ -285,7 +295,7 @@ function NetWorthChart({
 
           {/* Hover dot */}
           {tooltip && (
-            <circle cx={xOf(tooltip.month)} cy={yOf(tooltip.total)} r="5"
+            <circle cx={xOf(tooltip.dataPoint.month)} cy={yOf(tooltip.dataPoint.total)} r="5"
               fill={COLORS.textSecondary} stroke={COLORS.textPrimary} strokeWidth="2" />
           )}
 
@@ -310,13 +320,13 @@ function NetWorthChart({
             boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           }}>
             <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>
-              {formatModelTimeLabel(tooltip.month)}
+              {formatModelTimeLabel(tooltip.dataPoint.month)}
             </div>
             {[
-              { label: 'Savings', value: tooltip.savings, color: COLORS.green },
-              { label: '401k', value: tooltip.bal401k, color: COLORS.blue },
-              { label: 'Home', value: tooltip.home, color: COLORS.amber },
-              { label: 'Total', value: tooltip.total, color: COLORS.textSecondary },
+              { label: 'Savings', value: tooltip.dataPoint.savings, color: COLORS.green },
+              { label: '401k', value: tooltip.dataPoint.bal401k, color: COLORS.blue },
+              { label: 'Home', value: tooltip.dataPoint.home, color: COLORS.amber },
+              { label: 'Total', value: tooltip.dataPoint.total, color: COLORS.textSecondary },
             ].map((row, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 12 }}>
                 <span style={{ color: row.color }}>{row.label}</span>

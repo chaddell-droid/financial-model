@@ -164,7 +164,9 @@ export default function Chad401kChart({
               const dist = Math.abs(xOf(series[i].month) - mouseX);
               if (dist < closestDist) { closestDist = dist; closestIdx = i; }
             }
-            setTooltip({ idx: closestIdx });
+            // Functional bail-out (remediation 6.4): unchanged nearest point →
+            // same state object, so React skips the re-render.
+            setTooltip(prev => prev && prev.idx === closestIdx ? prev : { idx: closestIdx });
           }}>
           {/* Y-axis grid + labels */}
           <ChartYAxis ticks={yTicks} yOf={yOf} svgW={svgW} padL={padL} padR={padR} />

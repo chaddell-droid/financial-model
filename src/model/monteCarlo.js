@@ -19,21 +19,26 @@ function createRandomSource(seed) {
 /**
  * Compute percentile bands at each month index for an array of per-sim series.
  *
+ * Each month's cross-sim values are sorted ONCE and reused across every
+ * requested percentile (remediation 2026-06-09, 6.7) — the previous
+ * per-percentile loop re-sorted the same values five times per month.
+ * Exported for unit tests (parity vs the reference implementation).
+ *
  * @param {number[][]} series - one series per sim, each of length months+1
  * @param {number[]} percentiles - which percentiles to compute (e.g. [10, 25, 50, 75, 90])
  * @param {number} months - total months in horizon (length-1 of each series)
  * @returns {{pct:number, series:number[]}[]}
  */
-function computeBands(series, percentiles, months) {
-  return percentiles.map(p => {
-    const out = [];
-    for (let m = 0; m <= months; m++) {
-      const vals = series.map(b => b[m]).sort((a, b) => a - b);
-      const idx = Math.floor(vals.length * p / 100);
-      out.push(vals[Math.min(idx, vals.length - 1)]);
+export function computeBands(series, percentiles, months) {
+  const bands = percentiles.map(p => ({ pct: p, series: [] }));
+  for (let m = 0; m <= months; m++) {
+    const vals = series.map(b => b[m]).sort((a, b) => a - b);
+    for (let i = 0; i < percentiles.length; i++) {
+      const idx = Math.floor(vals.length * percentiles[i] / 100);
+      bands[i].series.push(vals[Math.min(idx, vals.length - 1)]);
     }
-    return { pct: p, series: out };
-  });
+  }
+  return bands;
 }
 
 /** Sorted ascending; returns nth-percentile value at idx = floor(N*p/100). */

@@ -1772,7 +1772,10 @@ test('FinancialModel uses breakpoint-driven app shell scaffold', () => {
   assert.ok(source.includes('const [shellWidthBucket, setShellWidthBucket] = useState'), 'shell should track breakpoint buckets');
   assert.ok(source.includes('<AppShell'), 'shell should render AppShell');
   assert.ok(source.includes('showEmbeddedBalanceCharts={!showRail}'), 'risk tab should suppress duplicate balance charts when the rail is visible');
-  assert.ok(source.includes('useDeferredValue(bridgeProps)'), 'planner bridge updates should be deferrable');
+  // Remediation 2026-06-09 (6.6): deferredPlanBridgeProps was deleted — it was
+  // computed via useDeferredValue(bridgeProps) but never rendered anywhere.
+  // The locked contract is now the inverse: the dead deferred bundle stays gone.
+  assert.ok(!source.includes('useDeferredValue(bridgeProps)'), 'dead deferred bridge bundle must stay deleted (remediation 6.6)');
   assert.ok(source.includes('useDeferredValue(retirementRailProps)'), 'planner rail retirement props should be deferred');
   assert.ok(source.includes('deferredRetirementRailProps'), 'retirement rail props should be deferred');
   assert.ok(source.includes('savingsDrawdownProps') && source.includes('netWorthProps'), 'savings and net worth rail charts should use immediate props for responsive sliders');

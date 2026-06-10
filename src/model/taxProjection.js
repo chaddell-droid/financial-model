@@ -88,11 +88,35 @@ export function getTaxInputs(s, yearIndex) {
  * monthly ssBenefit per year against this estimate.
  */
 export function estimateAnnualSSBenefits(s) {
+  return estimateAnnualSSBenefitsCore(s).familyBenefits;
+}
+
+/**
+ * C6 (remediation 2026-06-10): the PARENTS' RETURN view of the SS estimate.
+ * Pub 915: a child's auxiliary benefit is the CHILD's income (reported
+ * against the child's own provisional income, which is ~zero here), so the
+ * household tax schedule must see ADULT-ONLY benefits and ADULT-ONLY back
+ * pay. estimateAnnualSSBenefits above keeps the family-total cashflow view.
+ *
+ * Returns { adultBenefits, backPay }:
+ *   adultBenefits — per projection year, adult-only regular benefits.
+ *   backPay — null, or the adult share of the SSDI back-pay lump for the
+ *     receipt year (approval + 2): { receiptYearIdx, adultTaxable }.
+ *     The kids' auxiliary back pay never appears here.
+ */
+export function estimateAnnualTaxableSSBenefits(s) {
+  const core = estimateAnnualSSBenefitsCore(s);
+  return { adultBenefits: core.adultBenefits, backPay: core.backPay };
+}
+
+function estimateAnnualSSBenefitsCore(s) {
   const useSS = s.ssType === 'ss';
   const chadJob = s.chadJob || false;
   const months = s.totalProjectionMonths || 72;
   const years = Math.ceil((months + 1) / 12);
-  const annualBenefits = new Array(years).fill(0);
+  const familyBenefits = new Array(years).fill(0);
+  // C6: adult-only view for the parents' tax return (kids' aux excluded).
+  const adultBenefits = new Array(years).fill(0);
   const ssStart = s.ssStartMonth ?? 18;
   const ssKidsOut = s.ssKidsAgeOutMonths ?? 18;
   const kidsOut = s.kidsAgeOutMonths || 0;
@@ -105,14 +129,17 @@ export function estimateAnnualSSBenefits(s) {
 
   for (let m = 0; m <= months; m++) {
     let benefit = 0;
+    let adultBenefit = 0;
     if (useSS) {
       if (m >= ssStart) {
         benefit = (m < ssStart + ssKidsOut) ? ssFamilyTotal : ssPersonal;
+        adultBenefit = ssPersonal;
       }
     } else if (!chadJob && m >= effectiveSsdiApproval) {
       // Calendar-anchored kids age-out, matching projection.js FIX #8.
       // B4 (2026-06-10): student-rule end month, mirroring projection.js.
       benefit = (m < SS_CHILD_BENEFIT_END_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+      adultBenefit = s.ssdiPersonal || 0;
     }
     // Post-job benefit fallback — mirrors projection.js's postJobBenefit branch.
     if (benefit === 0 && chadJob && m > chadRetirementMonth) {
@@ -125,24 +152,34 @@ export function estimateAnnualSSBenefits(s) {
           benefit = piaForFallback > 0
             ? Math.round(piaForFallback * ssAdjustmentFactor(claimAge))
             : ssPersonal;
+          adultBenefit = benefit;
         }
       } else if (postJobMode === 'ssdi') {
         // B4 (2026-06-10): student-rule end month, mirroring projection.js.
         benefit = (m < SS_CHILD_BENEFIT_END_MONTH) ? (s.ssdiFamilyTotal || 0) : (s.ssdiPersonal || 0);
+        adultBenefit = s.ssdiPersonal || 0;
       }
       // 'none' — benefit stays 0
     }
+    // The adult share can never exceed what is actually paid (e.g. a family
+    // total configured below the personal benefit).
+    adultBenefit = Math.min(adultBenefit, benefit);
     // A2 (2026-06-10): mirror projection.js's SS COLA so the tax schedule sees
     // the same nominal benefit amounts (gated on expense inflation, like the engine).
     if (benefit > 0 && s.expenseInflation) {
-      benefit = Math.round(benefit * Math.pow(1 + (s.ssColaRate ?? 2.5) / 100, m / 12));
+      const colaFactor = Math.pow(1 + (s.ssColaRate ?? 2.5) / 100, m / 12);
+      benefit = Math.round(benefit * colaFactor);
+      adultBenefit = Math.round(adultBenefit * colaFactor);
     }
-    annualBenefits[Math.floor(m / 12)] += benefit;
+    const yearIdx = Math.floor(m / 12);
+    familyBenefits[yearIdx] += benefit;
+    adultBenefits[yearIdx] += adultBenefit;
   }
 
   // FIX #4: Add SSDI back-pay to the calendar year containing approval+2.
   // Re-derive backPayActual the same way projection.js does (in case the caller
   // hasn't already attached it to state).
+  let backPay = null;
   if (!useSS && !chadJob && !s.ssdiDenied && (s.ssdiBackPayMonths || 0) > 0) {
     const totalBackPayMonths = s.ssdiBackPayMonths || 0;
     const auxBackPayMonths = Math.min(totalBackPayMonths, kidsOut);
@@ -155,11 +192,18 @@ export function estimateAnnualSSBenefits(s) {
     const receiptMonth = ssdiApproval + 2;
     const receiptYearIdx = Math.floor(receiptMonth / 12);
     if (receiptYearIdx >= 0 && receiptYearIdx < years) {
-      annualBenefits[receiptYearIdx] += backPayActual;
+      familyBenefits[receiptYearIdx] += backPayActual;
+      // C6: the parents' return sees the ADULT share only (the kids' aux back
+      // pay is the kids' income). Fee treatment matches the cashflow estimate
+      // (net of the withheld attorney fee) — C3 revisits this.
+      backPay = {
+        receiptYearIdx,
+        adultTaxable: adultBackPayGross - backPayFee,
+      };
     }
   }
 
-  return annualBenefits;
+  return { familyBenefits, adultBenefits, backPay };
 }
 
 /**
@@ -225,7 +269,15 @@ export function buildTaxSchedule(s) {
   // Gated by master toggle chadJob401kEnabled — matches projection.js semantics.
   const chadJob401kEnabled = !!s.chadJob401kEnabled;
   const chadJob401kDeferralAnnual = chadJob401kEnabled ? (s.chadJob401kDeferral || 0) : 0;
-  const ssAnnualBenefits = estimateAnnualSSBenefits(s);
+  // C6 (remediation 2026-06-10): the tax schedule consumes the ADULT-ONLY
+  // benefit estimate (Pub 915: kids' auxiliary benefits and kids' back pay
+  // are the kids' income, never the parents'). The family-total view remains
+  // available via estimateAnnualSSBenefits for cashflow parity.
+  const ssTaxable = estimateAnnualTaxableSSBenefits(s);
+  const ssAnnualBenefits = ssTaxable.adultBenefits.map((adult, y) =>
+    adult + (ssTaxable.backPay && ssTaxable.backPay.receiptYearIdx === y
+      ? ssTaxable.backPay.adultTaxable
+      : 0));
   const schedule = [];
 
   for (let y = 0; y < years; y++) {

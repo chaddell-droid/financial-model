@@ -379,18 +379,20 @@ describe('buildTaxSchedule', () => {
     expect(schedule[0].chadW2OnlyTax.ficaSS).toBeGreaterThan(0);
   });
 
-  it('A4: 2026 displayed household tax jumps to the corrected ~$104k (defaults)', () => {
+  it('A4: 2026 displayed household tax jumps to the corrected ~$93k (defaults)', () => {
     // Audit A4: default (SSDI-path) 2026 displayed tax was ~$50,050 with the
     // vests missing; the audit estimated ~$85-90k corrected — but that figure
     // was A4 in ISOLATION on the pre-A3 engine, where adding the vest FICA
     // base would also have (wrongly) zeroed Sarah's ~$11.7k SE SS tax via the
     // shared-wage-base bug. With A3 landed first (per-individual SE), the
-    // combined corrected figure is ~$104k: vest W-2 + FICA taxed, higher
-    // SS-benefit taxability via provisional income, AND Sarah's full SE tax.
+    // combined figure was ~$104k. C6 (item 2.8) then removed ~$11.1k of
+    // phantom tax (kids' SS aux + kids' back pay are the KIDS' income,
+    // Pub 915), landing at ~$92.8k: vest W-2 + FICA taxed, ADULT-only SS
+    // taxability, AND Sarah's full SE tax.
     const s = gatherStateWithOverrides({ taxMode: 'engine' });
     const schedule = buildTaxSchedule(s);
-    expect(schedule[0].annualTotalTax).toBeGreaterThan(95000);
-    expect(schedule[0].annualTotalTax).toBeLessThan(112000);
+    expect(schedule[0].annualTotalTax).toBeGreaterThan(85000);
+    expect(schedule[0].annualTotalTax).toBeLessThan(100000);
   });
 
   it('chadW2OnlyTax suppresses the SS portion under a non-FICA employer', () => {

@@ -20,6 +20,12 @@ import {
   computeMax401k,
   computeQBI,
 } from '../taxEngine.js';
+import {
+  buildTaxSchedule,
+  estimateAnnualSSBenefits,
+  estimateAnnualTaxableSSBenefits,
+} from '../taxProjection.js';
+import { gatherStateWithOverrides } from '../../state/gatherState.js';
 
 let passed = 0;
 let failed = 0;
@@ -159,6 +165,84 @@ test('C4-5. losses unchanged: -$3,000 cap loss still reduces ordinary income, no
 test('C4-6. NIIT threshold: MAGI below $250k → zero NIIT even with gains', () => {
   const r = calculateTax({ w2Wages: 100000, capGainLoss: 30000 });
   assert.strictEqual(r.niit, 0, `AGI $130k < $250k must owe no NIIT, got ${r.niit}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// C6 — children's SS auxiliary benefits are the KIDS' income (Pub 915),
+//       not the parents' — the tax schedule must see adult-only amounts
+// ════════════════════════════════════════════════════════════════════════
+console.log('\n=== C6: kids’ SS benefits off the parents’ return ===');
+
+test('C6-1. taxable estimate is adult-only during the kids window', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7,
+    ssdiPersonal: 4214, ssdiFamilyTotal: 6321, ssdiBackPayMonths: 0,
+    chadJob: false, expenseInflation: false,
+  });
+  const taxable = estimateAnnualTaxableSSBenefits(s);
+  const cashflow = estimateAnnualSSBenefits(s);
+  // Year 1 (m12-23) is fully inside the kids window: cashflow sees the family
+  // total, the parents' RETURN sees only the adult benefit.
+  assert.strictEqual(cashflow[1], 12 * 6321, 'cashflow estimate keeps the family total');
+  assert.strictEqual(taxable.adultBenefits[1], 12 * 4214,
+    `parents' return must see 12 × $4,214 adult-only, got ${taxable.adultBenefits[1]}`);
+});
+
+test('C6-2. after the kids age out the two estimates agree', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7,
+    ssdiPersonal: 4214, ssdiFamilyTotal: 6321, ssdiBackPayMonths: 0,
+    chadJob: false, expenseInflation: false,
+  });
+  const taxable = estimateAnnualTaxableSSBenefits(s);
+  const cashflow = estimateAnnualSSBenefits(s);
+  const lastYear = cashflow.length - 1;
+  assert.strictEqual(taxable.adultBenefits[lastYear], cashflow[lastYear],
+    'adult-only and family totals must agree once the kids’ window has closed');
+});
+
+test('C6-3. buildTaxSchedule: kids’ aux benefits create NO phantom tax', () => {
+  const base = {
+    ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7,
+    ssdiPersonal: 4214, ssdiBackPayMonths: 0,
+    chadJob: false, expenseInflation: false,
+    sarahRate: 200, sarahCurrentClients: 4,
+  };
+  const withKidsAux = buildTaxSchedule(gatherStateWithOverrides({ ...base, ssdiFamilyTotal: 6321 }));
+  const adultOnly = buildTaxSchedule(gatherStateWithOverrides({ ...base, ssdiFamilyTotal: 4214 }));
+  for (let y = 0; y < withKidsAux.length; y++) {
+    assert.strictEqual(withKidsAux[y].fullTax.ssTaxableIncome, adultOnly[y].fullTax.ssTaxableIncome,
+      `year ${y}: kids' aux must not change the parents' taxable SS`);
+    assert.strictEqual(withKidsAux[y].fullTax.totalTax, adultOnly[y].fullTax.totalTax,
+      `year ${y}: kids' aux must not change the parents' total tax`);
+  }
+});
+
+test('C6-4. SS-retirement path: family window taxes only the personal benefit', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ss', ssClaimAge: 62, chadJob: false, expenseInflation: false,
+  });
+  const taxable = estimateAnnualTaxableSSBenefits(s);
+  const cashflow = estimateAnnualSSBenefits(s);
+  // During the family window the cashflow estimate exceeds adult-only.
+  const kidYear = cashflow.findIndex((v, i) => v > taxable.adultBenefits[i]);
+  assert.ok(kidYear >= 0, 'family window must exist in this scenario');
+  assert.ok(taxable.adultBenefits[kidYear] > 0, 'adult benefit still present');
+});
+
+test('C6-5. back pay on the parents’ return excludes the kids’ auxiliary share', () => {
+  const s = gatherStateWithOverrides({
+    ssType: 'ssdi', ssdiDenied: false, ssdiApprovalMonth: 7,
+    ssdiPersonal: 4214, ssdiFamilyTotal: 6321, ssdiBackPayMonths: 18,
+    kidsAgeOutMonths: 24, chadJob: false, expenseInflation: false,
+  });
+  const taxable = estimateAnnualTaxableSSBenefits(s);
+  assert.ok(taxable.backPay, 'back-pay info must be present');
+  assert.strictEqual(taxable.backPay.receiptYearIdx, 0, 'receipt at approval+2 → year 0');
+  // Adult share only: at most 18 × $4,214 — never including the aux 18 × $2,107.
+  assert.ok(taxable.backPay.adultTaxable <= 18 * 4214,
+    `taxable back pay must exclude the kids' aux share, got ${taxable.backPay.adultTaxable}`);
+  assert.ok(taxable.backPay.adultTaxable > 0, 'adult back pay present');
 });
 
 // ════════════════════════════════════════════════════════════════════════

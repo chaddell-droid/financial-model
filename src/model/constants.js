@@ -26,10 +26,48 @@ export const VEST_SHARES = [
   { startMonth: 27, endMonth: 29, shares: 33,  label: "Aug '28" },
 ];
 
-export const SGA_LIMIT = 1690;
-export const SS_EARNINGS_LIMIT_ANNUAL = 22320; // 2026 earnings test limit (before FRA)
-export const SS_EARNINGS_LIMIT_FRA_YEAR = 62160; // 2026 earnings test in FRA year ($1 per $3 over)
-export const SSDI_ATTORNEY_FEE_CAP = 9200; // SSA statutory cap, raised to $9,200 in Nov 2024 and unchanged for 2026
+// ── SSA statutory limits, year-indexed (remediation 2026-06-10 Phase 0, item 0.2; fixes B3) ──
+// Published values go in SSA_LIMITS; years beyond the table are projected with an
+// assumed wage-index rate (SSA indexes the earnings-test exempt amounts and SGA by
+// national average wage growth). 2026 values verified against ssa.gov/oact/cola/rtea.html
+// (earnings test $24,480 / $65,160) — the old constants ($22,320 / $62,160) were the
+// 2024 lower and 2025 FRA-year amounts mislabeled "2026".
+export const SSA_LIMITS_BASE_YEAR = 2026;
+export const SSA_ASSUMED_WAGE_INDEX_RATE = 0.025; // assumed AWI growth for years past the table
+export const SSA_LIMITS = {
+  2026: {
+    earningsTestAnnual: 24480,        // lower exempt amount, $1 withheld per $2 over (pre-FRA years)
+    earningsTestFraYearAnnual: 65160, // FRA-calendar-year exempt amount, $1 per $3 over
+    sgaMonthly: 1690,                 // SGA, non-blind
+    attorneyFeeCap: 9200,             // SSA fee-agreement cap — statutory, raised ad hoc (Nov 2024), NOT auto-indexed
+  },
+};
+const ssaLimitsCache = new Map();
+export function getSsaLimitsForYear(year) {
+  const y = Math.floor(Number(year));
+  if (!Number.isFinite(y) || y <= SSA_LIMITS_BASE_YEAR) return SSA_LIMITS[SSA_LIMITS_BASE_YEAR];
+  if (SSA_LIMITS[y]) return SSA_LIMITS[y];
+  if (ssaLimitsCache.has(y)) return ssaLimitsCache.get(y);
+  // Project forward from the latest published year with the assumed wage index.
+  const publishedYears = Object.keys(SSA_LIMITS).map(Number);
+  const latestYear = Math.max(...publishedYears);
+  const base = SSA_LIMITS[latestYear];
+  const factor = Math.pow(1 + SSA_ASSUMED_WAGE_INDEX_RATE, y - latestYear);
+  const projected = {
+    // SSA rounds the MONTHLY exempt amounts to a $10 multiple → annual amounts are $120 multiples.
+    earningsTestAnnual: Math.round(base.earningsTestAnnual * factor / 120) * 120,
+    earningsTestFraYearAnnual: Math.round(base.earningsTestFraYearAnnual * factor / 120) * 120,
+    sgaMonthly: Math.round(base.sgaMonthly * factor / 10) * 10, // SGA rounds to $10
+    attorneyFeeCap: base.attorneyFeeCap, // pinned until SSA raises it by rule
+  };
+  ssaLimitsCache.set(y, projected);
+  return projected;
+}
+// Current-year (projection-start-year) convenience constants — single source is the table above.
+export const SGA_LIMIT = SSA_LIMITS[SSA_LIMITS_BASE_YEAR].sgaMonthly;
+export const SS_EARNINGS_LIMIT_ANNUAL = SSA_LIMITS[SSA_LIMITS_BASE_YEAR].earningsTestAnnual; // 2026, before FRA
+export const SS_EARNINGS_LIMIT_FRA_YEAR = SSA_LIMITS[SSA_LIMITS_BASE_YEAR].earningsTestFraYearAnnual; // 2026, FRA year ($1 per $3 over)
+export const SSDI_ATTORNEY_FEE_CAP = SSA_LIMITS[SSA_LIMITS_BASE_YEAR].attorneyFeeCap;
 export const DAYS_PER_MONTH = 21.5;
 // FIX #9: TWINS_AGE_OUT_MONTH is the FIRST INELIGIBLE month (used via `m < TWINS_AGE_OUT_MONTH`).
 // March 2026 = m=0 (PROJECTION_START_MONTH=2 → calendar offset). Twins turn 18 between
@@ -56,6 +94,26 @@ export function ssAdjustmentFactor(claimAge) {
     return 1 - monthsEarly * 5 / 9 / 100;
   }
   return 1 - 36 * 5 / 9 / 100 - (monthsEarly - 36) * 5 / 12 / 100;
+}
+
+// ── Retirement/survivor family maximum (remediation 2026-06-10 Phase 0, item 0.3; improvement b-13) ──
+// 2026 family-maximum bend points (workers who turn 62 or die in 2026), verified
+// against ssa.gov/oact/cola/familymax.html. Statutory percentages are fixed
+// (150% / 272% / 134% / 175%); only the dollar bend points move each year.
+// NOTE: the SSDI family maximum uses a DIFFERENT rule (85% of AIME, 100–150% of PIA)
+// — this helper is for the retirement/survivor maximum only. Not yet wired into
+// gatherState — Phase 1 (B5/A7) adopts it.
+export const FAMILY_MAX_BEND_POINTS = [1643, 2371, 3093]; // 2026
+export function familyMaxForPIA(pia) {
+  if (!Number.isFinite(pia) || pia <= 0) return 0;
+  const [b1, b2, b3] = FAMILY_MAX_BEND_POINTS;
+  const fmax =
+    1.50 * Math.min(pia, b1) +
+    2.72 * Math.max(0, Math.min(pia, b2) - b1) +
+    1.34 * Math.max(0, Math.min(pia, b3) - b2) +
+    1.75 * Math.max(0, pia - b3);
+  // SSA rounds the family maximum down to the next lower dime.
+  return Math.floor(fmax * 10) / 10;
 }
 
 export function ssRecalculatedBenefit(pia, originalClaimAge, monthsWithheld) {

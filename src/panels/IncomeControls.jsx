@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import Slider from '../components/Slider.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { fmtFull } from '../model/formatters.js';
-import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OFFSET } from '../model/constants.js';
+import { SGA_LIMIT, ssAdjustmentFactor, TWINS_AGE_OUT_MONTH, SS_FRA, SS_START_OFFSET, SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from '../model/constants.js';
 import { getMonthLabel } from '../model/checkIn.js';
 import { COLORS } from '../charts/chartUtils.js';
 import { useRenderMetric } from '../testing/perfMetrics.js';
@@ -66,7 +66,8 @@ const IncomeControls = ({
   // chadJobMonthlyNet preserved for legacy display callers.
   const chadJobMonthlyNet = _w2.salaryNetMo;
   const monthlyHealthSavings = _w2.monthlyHealthSavings;
-  const ssEarningsLimit = 22320;
+  // B3 (remediation 2026-06-10): statutory limit imported from the SSA limits table — no hardcoded duplicate.
+  const ssEarningsLimit = SS_EARNINGS_LIMIT_ANNUAL;
   const ssExcess = Math.max(0, effectiveSalary - ssEarningsLimit);
   const ssMonthlyReduction = Math.round(ssExcess / 2 / 12);
 
@@ -652,13 +653,13 @@ const IncomeControls = ({
                 <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 8, fontStyle: "italic" }}>
                   {atOrAfterFRA
                     ? "Claiming at or after FRA — no earnings test applies. No back pay. No SGA limit."
-                    : `Claiming ${SS_FRA - age}yr before FRA — earnings test applies until age ${SS_FRA}. Benefits reduced $1 for every $2 earned over $22,320/yr ($62,160/yr in FRA year).`
+                    : `Claiming ${SS_FRA - age}yr before FRA — earnings test applies until age ${SS_FRA}. Benefits reduced $1 for every $2 earned over $${SS_EARNINGS_LIMIT_ANNUAL.toLocaleString()}/yr ($${SS_EARNINGS_LIMIT_FRA_YEAR.toLocaleString()}/yr in FRA year).`
                   }
                 </div>
 
                 {chadJob && !atOrAfterFRA && (() => {
                   const salary = chadJobSalary || 80000;
-                  const excess = Math.max(0, salary - 22320);
+                  const excess = Math.max(0, salary - SS_EARNINGS_LIMIT_ANNUAL);
                   const monthlyReduction = Math.round(excess / 2 / 12);
                   const netSS = Math.max(0, computedPersonal - monthlyReduction);
                   return (
@@ -695,7 +696,7 @@ const IncomeControls = ({
                   </div>
                   {!atOrAfterFRA && (
                     <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 4, fontStyle: "italic" }}>
-                      SS earnings test: benefits reduced $1 for every $2 earned over $22,320/yr before FRA.
+                      SS earnings test: benefits reduced $1 for every $2 earned over ${SS_EARNINGS_LIMIT_ANNUAL.toLocaleString()}/yr before FRA.
                     </div>
                   )}
                 </div>

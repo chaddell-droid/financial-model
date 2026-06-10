@@ -1286,16 +1286,17 @@ test('55. Chad job with chadJobStartMonth = 0 — job income at month 0 and heal
 // ════════════════════════════════════════════════════════════════════════
 console.log('\n=== SS Earnings Test ===');
 
-test('56. SS earnings test: consulting at limit ($1,860/mo) — no reduction', () => {
+test('56. SS earnings test: consulting at limit ($2,040/mo) — no reduction', () => {
   // ssClaimAge 62, PIA 4214 → ssStartMonth 19, ssFamilyTotal computed
+  // B3 (remediation 2026-06-10): 2026 lower exempt amount is $24,480 (was 2024's $22,320).
   const s = gatherStateWithOverrides({
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
-    chadConsulting: 1860, // $22,320/yr = exactly at limit
+    chadConsulting: 2040, // $24,480/yr = exactly at limit
     chadJob: false, ssdiDenied: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
   assert.strictEqual(monthlyData[19].ssBenefit, s.ssFamilyTotal,
-    'SS benefits should NOT be reduced when consulting is exactly at the $22,320 annual limit');
+    'SS benefits should NOT be reduced when consulting is exactly at the $24,480 annual limit');
 });
 
 test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits reduced', () => {
@@ -1306,9 +1307,9 @@ test('57. SS earnings test: consulting above limit ($3,000/mo) — benefits redu
     chadJob: false, ssdiDenied: false,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // Annual excess: $36,000 - $22,320 = $13,680
-  // Monthly reduction: round($13,680 / 2 / 12) = round($570) = $570
-  const expectedSS = s.ssFamilyTotal - 570;
+  // Annual excess: $36,000 - $24,480 = $11,520 (B3: 2026 exempt amount)
+  // Monthly reduction: round($11,520 / 2 / 12) = round($480) = $480
+  const expectedSS = s.ssFamilyTotal - 480;
   assert.strictEqual(monthlyData[19].ssBenefit, expectedSS,
     `SS benefits should be reduced to ${expectedSS} when consulting is $3,000/mo`);
 });
@@ -1568,8 +1569,8 @@ test('Job + SS at 62: SS income flows with earnings test on salary', () => {
   // SS starts month 19 with earnings test on $80K salary
   assert.strictEqual(monthlyData[18].ssBenefit, 0, 'no SS before start month');
   assert.ok(monthlyData[19].ssBenefit > 0, 'SS income flows even with job');
-  // Earnings test: excess = $80K - $22,320 = $57,680; reduction = round($57,680/2/12) = $2,403
-  const expectedReduction = Math.round((80000 - 22320) / 2 / 12);
+  // Earnings test (B3, 2026 exempt $24,480): excess = $80K - $24,480 = $55,520; reduction = round($55,520/2/12) = $2,313
+  const expectedReduction = Math.round((80000 - 24480) / 2 / 12);
   assert.ok(monthlyData[19].ssBenefit < s.ssFamilyTotal, 'SS reduced by earnings test');
   assert.strictEqual(monthlyData[19].ssBenefit, Math.max(0, s.ssFamilyTotal - expectedReduction),
     'SS reduction matches earnings test formula');
@@ -1603,8 +1604,8 @@ test('Job + SS at 62: low salary ($30K) preserves most SS benefit', () => {
     chadJob: true, chadJobSalary: 30000, chadJobStartMonth: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // Excess = $30K - $22,320 = $7,680; reduction = round($7,680/2/12) = $320
-  const expectedReduction = Math.round((30000 - 22320) / 2 / 12);
+  // Excess = $30K - $24,480 = $5,520 (B3); reduction = round($5,520/2/12) = $230
+  const expectedReduction = Math.round((30000 - 24480) / 2 / 12);
   const expectedSS = s.ssFamilyTotal - expectedReduction;
   assert.strictEqual(monthlyData[19].ssBenefit, expectedSS,
     `Low salary preserves most SS: ${expectedSS}/mo`);
@@ -2474,18 +2475,18 @@ test('EARN-test-1. SS earnings test: 6yr employed, refresh grant 1 expired → 5
   // Grants 1..5 (issued m=24..72) all have m - issueMonth < 60 → 5 active.
   // annualStockProjected = 5 × 0.20 × $100K = $100K (FIX #7b — old logic was 6).
   // m=72 is in FRA year (SS_FRA_MONTH=79, FRA-year starts at 79-12=67).
-  // Higher limit applies: excess = $100K - $62,160 = $37,840 → reduction = round(37840/3/12) = $1,051/mo.
+  // Higher limit applies (B3, 2026 FRA-year exempt $65,160): excess = $100K - $65,160 = $34,840 → reduction = round(34840/3/12) = $968/mo.
   // m=72 > TWINS_AGE_OUT_MONTH=34 → personal rate (2950 = round(4214 × 0.7)).
-  // Final ssBenefit = max(0, 2950 - 1051) = 1899.
-  const expectedReduction = Math.round((100000 - 62160) / 3 / 12);
+  // Final ssBenefit = max(0, 2950 - 968) = 1982.
+  const expectedReduction = Math.round((100000 - 65160) / 3 / 12);
   const expectedBenefit = Math.max(0, s.ssPersonal - expectedReduction);
   assert.strictEqual(monthlyData[72].ssBenefit, expectedBenefit,
     `m=72: 5 grants × 20% = $100K earnings → ssBenefit = ${expectedBenefit}, got ${monthlyData[72].ssBenefit}`);
 
   // Counter-test: with the OLD buggy logic (6 active grants instead of 5), the
-  // earnings would be $120K → reduction = round(57840/3/12) = $1,607 → ssBenefit = 1343.
-  // The new value (1899) is HIGHER (less reduction), confirming we counted 5 grants.
-  const oldBuggyReduction = Math.round((120000 - 62160) / 3 / 12);
+  // earnings would be $120K → reduction = round(54840/3/12) = $1,523 → ssBenefit = 1427.
+  // The new value (1982) is HIGHER (less reduction), confirming we counted 5 grants.
+  const oldBuggyReduction = Math.round((120000 - 65160) / 3 / 12);
   const oldBuggyBenefit = Math.max(0, s.ssPersonal - oldBuggyReduction);
   assert.ok(monthlyData[72].ssBenefit > oldBuggyBenefit,
     `with old logic (6 grants), benefit would be ${oldBuggyBenefit}; got ${monthlyData[72].ssBenefit} > ${oldBuggyBenefit}`);
@@ -2510,10 +2511,10 @@ test('EARN-test-2. SS earnings test: hire stock projection respects anniversary 
   // SS doesn't start until m=19 in this scenario. Probe m=19 (still in Y1, before anniversary
   // m=24 since Y1 anniv was at m=12 and we're past it). yearsWorkedForSS at m=19 = 1
   // (Math.floor(19/12) = 1) → hireStockForSS = chadJobHireStock[0] = 50000.
-  // annualStockProjected = 50000. After SS_EARNINGS_LIMIT_ANNUAL ≈ $22,320:
-  // excess = 50000 - 22320 = 27680 → reduction = round(27680/2/12) = 1153.
+  // annualStockProjected = 50000. After SS_EARNINGS_LIMIT_ANNUAL = $24,480 (B3):
+  // excess = 50000 - 24480 = 25520 → reduction = round(25520/2/12) = 1063.
   // m=19 is < TWINS_AGE_OUT_MONTH=34 so family rate applies.
-  const expectedReduction = Math.round((50000 - 22320) / 2 / 12);
+  const expectedReduction = Math.round((50000 - 24480) / 2 / 12);
   const expectedBenefit = Math.max(0, s.ssFamilyTotal - expectedReduction);
   assert.strictEqual(monthlyData[19].ssBenefit, expectedBenefit,
     `m=19 (Y1 anniv passed): hire stock annualized to ${50000} → ssBenefit ${expectedBenefit}, got ${monthlyData[19].ssBenefit}`);
@@ -2549,9 +2550,9 @@ test('EARN-test-3. SS earnings test: no refresh counted before the first AUGUST 
     assert.strictEqual(monthlyData[m].ssBenefit, s.ssFamilyTotal,
       `m=${m}: refresh not yet issued (first Aug issuance m=29) → full family ${s.ssFamilyTotal}, got ${monthlyData[m].ssBenefit}`);
   }
-  // m=30 (grant issued m=29): estimate = 0.20 × 200K = 40K → excess over 22,320
-  // → reduction = round(17,680 / 2 / 12) = 737 → family 6321 - 737.
-  const expectedReduction = Math.round((0.20 * 200000 - 22320) / 2 / 12);
+  // m=30 (grant issued m=29): estimate = 0.20 × 200K = 40K → excess over 24,480 (B3)
+  // → reduction = round(15,520 / 2 / 12) = 647 → family 6321 - 647.
+  const expectedReduction = Math.round((0.20 * 200000 - 24480) / 2 / 12);
   assert.strictEqual(monthlyData[30].ssBenefit, s.ssFamilyTotal - expectedReduction,
     `m=30: grant issued m=29 → reduction ${expectedReduction}, got benefit ${monthlyData[30].ssBenefit}`);
 });
@@ -2579,8 +2580,8 @@ test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actua
   // Steady state: 4 vest months × 5 grants × 5% × $60K = $60K.
   near(windowGross, 60000, 5, 'actual 12-month refresh vests in steady state');
   // The earnings-test estimate must imply the same annual stock figure:
-  // reduction = round((windowGross - 22,320) / 2 / 12) and benefit = personal - reduction.
-  const expectedReduction = Math.round(Math.max(0, windowGross - 22320) / 2 / 12);
+  // reduction = round((windowGross - 24,480) / 2 / 12) and benefit = personal - reduction (B3: 2026 exempt).
+  const expectedReduction = Math.round(Math.max(0, windowGross - 24480) / 2 / 12);
   assert.strictEqual(monthlyData[m0].ssBenefit, Math.max(0, s.ssPersonal - expectedReduction),
     `m=${m0}: estimate should match actual vests (${windowGross}) → benefit ${Math.max(0, s.ssPersonal - expectedReduction)}, got ${monthlyData[m0].ssBenefit}`);
 });

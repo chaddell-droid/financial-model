@@ -1021,8 +1021,10 @@ function computeUiW2Diagnostic(s) {
   const bonusGrossYr = effectiveSalary * (s.chadJobBonusPct || 0) / 100;
   const bonusNetYr = bonusGrossYr * bonusMult;
   const g = (s.msftGrowth || 0) / 100;
+  // C17 (item 5.4): exact 20-quarter mean — quarterly vest ages 0.25..5.0 yrs.
   const refreshSteadyMult = g === 0 ? 1
-    : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + g, t), 0) / 5;
+    : Array.from({ length: 20 }, (_, i) => (i + 1) / 4)
+        .reduce((acc, t) => acc + Math.pow(1 + g, t), 0) / 20;
   const refreshNetYr = (s.chadJobStockRefresh || 0) * bonusMult * refreshSteadyMult;
   const hireY1 = s.chadJobHireStockY1 || 0;
   const hireY2 = s.chadJobHireStockY2 || 0;
@@ -1101,13 +1103,20 @@ test('W2-4: hire stock avg applies MSFT growth (Y1−Y4 each × (1+g)^n)', () =>
 });
 
 test('W2-5: refresh steady-state mult averages 5 grants × 5yr vest with MSFT growth', () => {
-  // g=10%: mult = mean of (1.1)^(0.5,1.5,2.5,3.5,4.5) = mean of (1.0488, 1.1537, 1.2691, 1.3960, 1.5355) ≈ 1.2806
+  // C17 (remediation 2026-06-10, item 5.4): the engine vests each grant in 20
+  // QUARTERLY tranches at vest ages 0.25..5.0 years (projection.js: first vest
+  // is the next quarterly vest month after the August issuance). The exact
+  // steady-state multiplier is the 20-quarter mean of (1+g)^(k/4), k=1..20 —
+  // NOT the annual-midpoint approximation mean of (1+g)^(0.5..4.5), which ran
+  // ~1.23% low at g=10%. g=10%: exact mean ≈ 1.2964 (was ≈ 1.2806).
   const overrides = {
     chadJobSalary: 180000, chadJobTaxRate: 25, msftGrowth: 10,
     chadJobStockRefresh: 40000,
   };
   const ui = computeUiW2Diagnostic(overrides);
-  const expectedMult = [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1.1, t), 0) / 5;
+  let expectedMult = 0;
+  for (let k = 1; k <= 20; k++) expectedMult += Math.pow(1.1, k / 4);
+  expectedMult /= 20;
   assert.ok(Math.abs(ui.refreshSteadyMult - expectedMult) < 1e-6,
     `Refresh mult (g=10%): expected ${expectedMult.toFixed(4)}, got ${ui.refreshSteadyMult.toFixed(4)}`);
   const expectedNetYr = 40000 * 0.75 * expectedMult;

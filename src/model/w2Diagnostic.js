@@ -15,9 +15,11 @@
  * Notes on the model:
  *   - salaryMult / bonusMult exclude pension; pension is subtracted separately
  *     with its own cashflow mult (mirrors projection.js:108, 112).
- *   - refreshSteadyMult assumes 5 grants in flight (each vesting 20%/yr × 5 yrs).
- *     Time-weighted mean MSFT growth multiplier across all 5 grants ≈
- *     mean of (1+g)^(k − 0.5) for k = 1..5. With g=0 this collapses to 1.
+ *   - refreshSteadyMult assumes 5 grants in flight (each vesting 5%/quarter ×
+ *     20 quarters). C17 (remediation 2026-06-10, item 5.4): EXACT 20-quarter
+ *     mean of (1+g)^(k/4) for k = 1..20 — matches the engine's quarterly vest
+ *     ages 0.25..5.0 yrs (the old annual-midpoint mean of (1+g)^(0.5..4.5) ran
+ *     ~1.23% low at g=10%). With g=0 this collapses to 1.
  *   - Hire stock Y1-Y4 vest on anniversaries; each scaled by (1+g)^n
  *     (engine: projection.js:253 via msftMultIssueToVest).
  */
@@ -79,10 +81,13 @@ export function computeW2Diagnostic(state) {
 
   // ─── Refresh RSU steady-state ─────────────────────────────────────────────
   const growth = msftGrowth / 100;
-  // 5 grants in flight; time-weighted mean MSFT multiplier across all 5.
+  // 5 grants in flight, each vesting in 20 quarterly tranches (vest ages
+  // 0.25..5.0 yrs). C17: exact 20-quarter mean of (1+g)^(k/4), k=1..20 —
+  // mirrors projection.js's msftMultIssueToVest quarterly vest schedule.
   const refreshSteadyMult = growth === 0
     ? 1
-    : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + growth, t), 0) / 5;
+    : Array.from({ length: 20 }, (_, i) => (i + 1) / 4)
+        .reduce((acc, t) => acc + Math.pow(1 + growth, t), 0) / 20;
   const refreshNetYr = chadJobStockRefresh * bonusMult * refreshSteadyMult;
 
   // ─── Hire stock Y1-Y4 (grown to vest year, taxed, averaged over 4 yrs) ───

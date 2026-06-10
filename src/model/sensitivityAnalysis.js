@@ -189,10 +189,13 @@ export function buildLeverCandidates(state) {
     const salaryNetAnnual = msftBundle.chadJobSalary * (1 - msftBundle.chadJobTaxRate / 100);
     const bonusGrossAnnual = msftBundle.chadJobSalary * (msftBundle.chadJobBonusPct / 100);
     const bonusNetAnnual = bonusGrossAnnual * (1 - msftBundle.chadJobTaxRate / 100);
-    // Refresh steady-state: average of grants issued at month 0 and vesting
-    // over years 0.5..4.5 (matches IncomeControls w2RefreshSteadyMult).
+    // Refresh steady-state: 5 grants in flight, each vesting in 20 quarterly
+    // tranches at vest ages 0.25..5.0 yrs. C17 (remediation 2026-06-10, item
+    // 5.4): exact 20-quarter mean of (1+g)^(k/4) — matches w2Diagnostic.js
+    // refreshSteadyMult and the engine's quarterly vest schedule.
     const refreshSteadyMult = w2Growth === 0 ? 1
-      : [0.5, 1.5, 2.5, 3.5, 4.5].reduce((acc, t) => acc + Math.pow(1 + w2Growth, t), 0) / 5;
+      : Array.from({ length: 20 }, (_, i) => (i + 1) / 4)
+          .reduce((acc, t) => acc + Math.pow(1 + w2Growth, t), 0) / 20;
     const refreshNetAnnual = (msftBundle.chadJobStockRefresh || 0)
       * (1 - msftBundle.chadJobTaxRate / 100) * refreshSteadyMult;
     // Hire stock: each tranche grown by (1+g)^n then averaged over 4-yr vest.

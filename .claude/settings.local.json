@@ -22,5 +22,10 @@
       "Bash(git reset *)",
       "mcp__Claude_Preview__preview_start"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "firecrawl",
+    "obsidian",
+    "claude-flow"
+  ]
 }

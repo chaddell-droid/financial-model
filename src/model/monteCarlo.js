@@ -1,5 +1,6 @@
 import { runMonthlySimulation } from './projection.js';
 import { evaluateGoalPass } from './goalEvaluation.js';
+import { interpolatedPercentile } from './percentile.js';
 
 function createMulberry32(seed) {
   let s = seed | 0;
@@ -24,6 +25,12 @@ function createRandomSource(seed) {
  * per-percentile loop re-sorted the same values five times per month.
  * Exported for unit tests (parity vs the reference implementation).
  *
+ * C15 (remediation 2026-06-10, item 4.3): quantiles use the shared
+ * INTERPOLATED percentile (percentile.js) — linear interpolation at position
+ * (N−1)·p/100, the same definition the PWA distribution uses — instead of the
+ * old nearest-rank floor(N·p/100), which was mildly optimistic on the
+ * downside bands and gave the app two quantile definitions.
+ *
  * @param {number[][]} series - one series per sim, each of length months+1
  * @param {number[]} percentiles - which percentiles to compute (e.g. [10, 25, 50, 75, 90])
  * @param {number} months - total months in horizon (length-1 of each series)
@@ -32,20 +39,17 @@ function createRandomSource(seed) {
 export function computeBands(series, percentiles, months) {
   const bands = percentiles.map(p => ({ pct: p, series: [] }));
   for (let m = 0; m <= months; m++) {
-    const vals = series.map(b => b[m]).sort((a, b) => a - b);
+    const vals = Float64Array.from(series, b => b[m]).sort();
     for (let i = 0; i < percentiles.length; i++) {
-      const idx = Math.floor(vals.length * percentiles[i] / 100);
-      bands[i].series.push(vals[Math.min(idx, vals.length - 1)]);
+      bands[i].series.push(interpolatedPercentile(vals, percentiles[i], { sorted: true }));
     }
   }
   return bands;
 }
 
-/** Sorted ascending; returns nth-percentile value at idx = floor(N*p/100). */
+/** Interpolated nth-percentile of an unsorted array (C15 — shared definition). */
 function percentileAt(arr, p) {
-  if (!arr || arr.length === 0) return 0;
-  const sorted = [...arr].sort((a, b) => a - b);
-  return sorted[Math.min(Math.floor(sorted.length * p / 100), sorted.length - 1)];
+  return interpolatedPercentile(arr, p);
 }
 
 /**
@@ -179,15 +183,16 @@ export function runMonteCarlo(base, mcParams, goals = [], options = {}) {
   const noDrawdown = drawdownFired.filter(d => !d).length;
   const savingsOnlySolvencyRate = noDrawdown / N;
 
-  // Trough: median of each sim's minimum savings balance.
-  const troughs = allBalances.map(b => Math.min(...b)).sort((a, b) => a - b);
-  const medianTrough = troughs[Math.floor(troughs.length / 2)];
+  // Trough: median of each sim's minimum savings balance (C15: interpolated).
+  const troughs = allBalances.map(b => Math.min(...b));
+  const medianTrough = percentileAt(troughs, 50);
 
-  // Final balances (savings).
-  const finals = allBalances.map(b => b[b.length - 1]).sort((a, b) => a - b);
-  const medianFinal = finals[Math.floor(finals.length / 2)];
-  const p10Final = finals[Math.floor(finals.length * 0.1)];
-  const p90Final = finals[Math.floor(finals.length * 0.9)];
+  // Final balances (savings) — C15: same interpolated quantile definition as
+  // the bands, so the headline cards and the fan-chart endpoints agree.
+  const finals = allBalances.map(b => b[b.length - 1]);
+  const medianFinal = percentileAt(finals, 50);
+  const p10Final = percentileAt(finals, 10);
+  const p90Final = percentileAt(finals, 90);
 
   // Final net worth percentiles.
   const finalsNetWorth = allNetWorth.map(b => b[b.length - 1]);

@@ -26,6 +26,7 @@ import {
   sliceRetirementContext,
 } from '../model/retirementIncome.js';
 import { buildPwaDistribution } from '../model/pwaDistribution.js';
+import { interpolatedPercentile } from '../model/percentile.js';
 import { selectPwaWithdrawal, simulateAdaptivePwaStrategy } from '../model/pwaStrategies.js';
 
 export function useRetirementSimulation({
@@ -338,12 +339,13 @@ export function useRetirementSimulation({
     const temp = new Float64Array(numCohorts);
     const bandSeries = percentiles.map(() => []);
 
+    // C15 (remediation 2026-06-10, item 4.3): shared interpolated percentile —
+    // same quantile definition as the MC bands and the PWA distribution.
     for (let y = 0; y <= years; y++) {
       for (let c = 0; c < numCohorts; c++) temp[c] = allYearlyPools[c][y];
       temp.sort();
       for (let p = 0; p < percentiles.length; p++) {
-        const idx = Math.floor(numCohorts * percentiles[p] / 100);
-        bandSeries[p].push(temp[Math.min(idx, numCohorts - 1)]);
+        bandSeries[p].push(interpolatedPercentile(temp, percentiles[p], { sorted: true }));
       }
     }
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));

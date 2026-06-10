@@ -1,16 +1,14 @@
 /**
  * Shared interpolated percentile utility.
  *
- * Phase-0 remediation (2026-06-10, item 0.4 / improvement b-5; prerequisite for
- * Phase 4's C15). The app currently computes quantiles three different ways:
- * nearest-rank floor(N·p/100) in monteCarlo.js and retirementParams.js,
- * floor((N−1)·p/100)-ish in useRetirementSimulation.js, and linear interpolation
- * in pwaDistribution.js. This module is the single tested definition — linear
- * interpolation between closest ranks at position (N−1)·p/100, the same method
- * as pwaDistribution.getDistributionPercentile (and numpy's default).
+ * Phase-0 remediation (2026-06-10, item 0.4 / improvement b-5). This module is
+ * the single tested quantile definition — linear interpolation between closest
+ * ranks at position (N−1)·p/100, the same method as
+ * pwaDistribution.getDistributionPercentile (and numpy's default).
  *
- * NOT yet adopted at the monteCarlo / useRetirementSimulation / retirementParams
- * call sites — Phase 4 (C15) swaps them over so the band changes land together.
+ * Adopted app-wide in Phase 4 (C15, item 4.3): monteCarlo.js (bands + headline
+ * finals), useRetirementSimulation.js (cohort bands), and retirementParams.js
+ * (optimal-rate extraction) all quantile through this function now.
  *
  * @param {number[]|Float64Array} values - sample values (plain or typed array)
  * @param {number} percentile - 0..100 (clamped; non-finite → 50)

@@ -467,26 +467,36 @@ test('21. Zero-volatility run produces identical 401k bands across percentiles',
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// computeBands — single sort per month (remediation 2026-06-09, 6.7)
+// computeBands — shared interpolated percentile definition (C15 — remediation
+// 2026-06-10 item 4.3). The bands must match an INDEPENDENT linear-interpolation
+// reference at position (N−1)·p/100 — the same definition as percentile.js and
+// pwaDistribution — not the old nearest-rank floor(N·p/100).
 // ════════════════════════════════════════════════════════════════════════
-console.log('\n=== computeBands — single-sort refactor parity ===');
+console.log('\n=== computeBands — interpolated percentile parity (C15) ===');
 
-// Reference implementation: the ORIGINAL per-percentile loop (one sort per
-// percentile per month). The refactored computeBands sorts each month once
-// and must produce byte-identical output.
+// Independent reference: linear interpolation between closest ranks (numpy
+// default), written inline so the test does not depend on percentile.js.
+function refPct(sortedVals, p) {
+  // Same operation order as the shared util ((N−1)·(p/100)) so the parity
+  // check is exact to the last float ulp, not just approximately equal.
+  const pos = (sortedVals.length - 1) * (p / 100);
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sortedVals[lo];
+  return sortedVals[lo] + (sortedVals[hi] - sortedVals[lo]) * (pos - lo);
+}
 function referenceBands(series, percentiles, months) {
   return percentiles.map(p => {
     const out = [];
     for (let m = 0; m <= months; m++) {
       const vals = series.map(b => b[m]).sort((a, b) => a - b);
-      const idx = Math.floor(vals.length * p / 100);
-      out.push(vals[Math.min(idx, vals.length - 1)]);
+      out.push(refPct(vals, p));
     }
     return { pct: p, series: out };
   });
 }
 
-test('computeBands matches the per-percentile reference implementation', () => {
+test('computeBands matches the interpolated-percentile reference implementation (C15)', () => {
   // Deterministic pseudo-random series: 40 sims × 25 months
   const months = 24;
   const series = [];

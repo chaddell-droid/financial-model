@@ -10,6 +10,7 @@
  */
 import { ssRecalculatedBenefit } from './constants.js';
 import { getNumCohorts, getCohortLabel } from './historicalReturns.js';
+import { interpolatedPercentile } from './percentile.js';
 
 // Sarah's planning horizon: simulate until she reaches this age.
 export const SARAH_TARGET_AGE = 90;
@@ -241,10 +242,11 @@ export function computeOptimalRates({
 
   const initialIncome = startingCoupleIncome;
 
-  // Sort cohort SWRs; 10th percentile = consumption at 90% survival
+  // Sort cohort SWRs; 10th percentile = consumption at 90% survival.
+  // C15 (remediation 2026-06-10, item 4.3): shared INTERPOLATED percentile —
+  // the same quantile definition as the MC bands and the PWA distribution.
   const sorted = Float64Array.from(cohortSWRs).sort();
-  const p10idx = Math.floor(numCohorts * 0.10);
-  const optimalConsumption = Math.max(0, sorted[p10idx]);
+  const optimalConsumption = Math.max(0, interpolatedPercentile(sorted, 10, { sorted: true }));
 
   // Convert total consumption → pool withdrawal rate
   const optimalPoolDraw = Math.max(0, optimalConsumption - initialIncome);
@@ -256,7 +258,7 @@ export function computeOptimalRates({
   let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
   if (cohortPreSwrs && cohortPreSwrs.length > 0) {
     const sortedPre = Float64Array.from(cohortPreSwrs).sort();
-    const preConsumption = Math.max(0, sortedPre[p10idx]);
+    const preConsumption = Math.max(0, interpolatedPercentile(sortedPre, 10, { sorted: true }));
     const prePoolDraw = Math.max(0, preConsumption - initialIncome);
     optimalPreRate = totalPool > 0
       ? Math.round(prePoolDraw * 12 / totalPool * 1000) / 10 : 0;

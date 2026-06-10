@@ -274,7 +274,9 @@ console.log('\n=== computeOptimalRates (pure extraction of the hook memo) ===');
 const HORIZON = 300;
 const N_COHORTS = getNumCohorts(HORIZON);
 const SYNTH_SWRS = Float64Array.from({ length: N_COHORTS }, (_, c) => 5000 + c);
-const P10_IDX = Math.floor(N_COHORTS * 0.10);
+// C15 (2026-06-10 item 4.3): interpolated percentile position (N−1)·0.10 —
+// replaces the old nearest-rank index floor(N·0.10).
+const P10_POS = (N_COHORTS - 1) * 0.10;
 const POOL = 1_000_000;
 
 test('F1: empty-pool fallback keeps every optimal-rate field numeric (replaces the source-grep test)', () => {
@@ -314,9 +316,12 @@ test('F3: 10th-percentile extraction, rate conversion, worst cohort, slider max'
     horizonMonths: HORIZON, startingCoupleIncome: income,
   });
   eq(r.numCohorts, N_COHORTS);
-  // SWRs are already sorted ascending by construction
-  const expectedConsumption = 5000 + P10_IDX;
-  eq(r.optimalConsumption, expectedConsumption, '10th percentile of sorted SWRs');
+  // SWRs are already sorted ascending by construction. C15 (remediation
+  // 2026-06-10 item 4.3): the extraction now uses the shared INTERPOLATED
+  // percentile at position (N−1)·0.10 — with SWR(c)=5000+c that is exactly
+  // 5000 + (N−1)·0.10 — not the old nearest-rank floor(N·0.10).
+  const expectedConsumption = 5000 + P10_POS;
+  eq(r.optimalConsumption, expectedConsumption, 'interpolated 10th percentile of sorted SWRs');
   const expectedDraw = expectedConsumption - income;
   eq(r.optimalMonthly, Math.round(expectedDraw));
   eq(r.optimalRate, Math.round(expectedDraw * 12 / POOL * 1000) / 10, 'annualized % of pool');
@@ -344,7 +349,7 @@ test('F5: pre-inheritance SWRs produce their own (higher) pre-phase rate', () =>
     cohortSWRs: SYNTH_SWRS, cohortPreSwrs: preSwrs, totalPool: POOL,
     horizonMonths: HORIZON, startingCoupleIncome: 0,
   });
-  const expectedPreDraw = (5000 + P10_IDX) * 1.2;
+  const expectedPreDraw = (5000 + P10_POS) * 1.2;
   eq(r.optimalPreMonthly, Math.round(expectedPreDraw));
   eq(r.optimalPreRate, Math.round(expectedPreDraw * 12 / POOL * 1000) / 10);
   assert.ok(r.optimalPreMonthly > r.optimalMonthly, 'pre-inheritance phase can spend more');

@@ -338,6 +338,23 @@ export const INITIAL_STATE = {
   // than deficit401kTaxRate because retirement income is lower).
   retirement401kTaxRate: 13,
 
+  // ── Retirement + Survivor chart assumptions (B3 — 2026-06-10 retirement
+  // review, Chad-approved batch 2). Previously component-local useState in
+  // useRetirementSimulation — invisible to saved scenarios, the advisor, and
+  // comparisons, and reset on every reload. Defaults mirror the old hook
+  // defaults EXACTLY so existing saved scenarios / live state load unchanged.
+  retChadPassesAge: 82,         // Chad's assumed age at death (survivor phase starts)
+  retEquityAllocation: 60,      // % equities in the retirement pool (60/40 default)
+  // Pool-draw slider. NULL = pristine → auto-syncs to the optimal (90%
+  // finish-above-reserve) rate, exactly like the old dirty-flag semantics;
+  // a number = the user dragged the slider and that manual value sticks.
+  retWithdrawalRate: null,
+  retPoolFloor: 0,              // Reserve floor $ the pool may not breach
+  retBequestTarget: 0,          // PWA bequest target $ (final-value constraint)
+  retInheritanceAmount: 1000000, // Expected inheritance lump $
+  retInheritanceSarahAge: 60,   // Sarah's age when the inheritance lands
+  retPwaStrategy: 'sticky_median', // PWA selection strategy
+
   // Sequence of Returns
   seqBadY1: -10,
   seqBadY2: -5,
@@ -427,6 +444,8 @@ export const MODEL_KEYS = [
   'capitalItems', 'capitalFundingSource', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate', 'retirement401kTaxRate',
+  'retChadPassesAge', 'retEquityAllocation', 'retWithdrawalRate', 'retPoolFloor', 'retBequestTarget',
+  'retInheritanceAmount', 'retInheritanceSarahAge', 'retPwaStrategy',
   'seqBadY1', 'seqBadY2',
   // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
   'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',

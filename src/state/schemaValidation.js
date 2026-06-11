@@ -152,6 +152,18 @@ const RANGE = {
   // Effective tax rate on RETIREMENT 401(k) withdrawals (A5 — remediation
   // 2026-06-10 item 3.1, D3 default 13). Same cap as the deficit-draw rate.
   retirement401kTaxRate: { min: 0, max: 60 },
+  // Retirement + Survivor chart assumptions (B3 — 2026-06-10 retirement
+  // review). Bounds match the chart's sliders; retWithdrawalRate is NULLABLE
+  // (null = pristine → auto-sync to the optimal rate) and its 100% cap is a
+  // corruption guard above any dynamic sliderMax. The nullable branch in
+  // validateAndSanitize applies the clamp to non-null values.
+  retChadPassesAge: { min: 67, max: 95 },
+  retEquityAllocation: { min: 0, max: 100 },
+  retWithdrawalRate: { min: 0, max: 100 },
+  retPoolFloor: { min: 0, max: 500000 },
+  retBequestTarget: { min: 0, max: 5_000_000 },
+  retInheritanceAmount: { min: 0, max: 2_000_000 },
+  retInheritanceSarahAge: { min: 55, max: 80 },
   // Cut items can be zero but not negative
   cutOliver: { min: 0 },
   cutVacation: { min: 0 },
@@ -196,6 +208,8 @@ const ENUMS = {
   taxMode: ['flat', 'engine'],
   // Remediation 2026-06-09 D4 — capital items funding source.
   capitalFundingSource: ['advance', 'savings'],
+  // B3 (2026-06-10 retirement review) — PWA selection strategy.
+  retPwaStrategy: ['sticky_median', 'sticky_quartile_nudge', 'fixed_percentile'],
 };
 
 // Must cover every type GoalPanel.jsx offers (GOAL_TYPES) — a missing entry

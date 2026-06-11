@@ -34,6 +34,10 @@ function RetirementIncomeChart({
   retirement401kTaxRate,
   expenseInflation,
   expenseInflationRate,
+  // B3 (2026-06-10 retirement review): persisted chart assumptions + writer
+  retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
+  retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
+  onFieldChange,
   onSpendingTargets,
 }) {
   useRenderMetric('RetirementIncomeChart');
@@ -63,7 +67,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, onFieldChange });
 
   // Report spending targets to parent
   useEffect(() => {

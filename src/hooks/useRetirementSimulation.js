@@ -36,27 +36,54 @@ export function useRetirementSimulation({
   sarahSpousalEnabled: sarahSpousalEnabledFromState,
   retirement401kTaxRate,
   expenseInflation, expenseInflationRate,
+  // B3 (2026-06-10 retirement review): chart assumptions are persisted
+  // MODEL_KEYS now - values arrive from state, writes go through the app
+  // reducer via onFieldChange so saved scenarios / advisor / comparisons
+  // see them and they survive reload.
+  retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
+  retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
+  onFieldChange,
 }) {
   // ── State ────────────────────────────────────────────────────────────
+  // View mode + PWA fine-tuning percentiles stay component-local (exploratory
+  // view state); everything a saved scenario should reproduce is state-backed
+  // (B3 - 2026-06-10 retirement review). Defaults mirror INITIAL_STATE.
   const [retirementMode, setRetirementMode] = useState('historical_safe');
-  const [pwaStrategy, setPwaStrategy] = useState('sticky_median');
   const [pwaPercentile, setPwaPercentile] = useState(50);
   const [pwaToleranceLow, setPwaToleranceLow] = useState(25);
   const [pwaToleranceHigh, setPwaToleranceHigh] = useState(75);
-  const [bequestTarget, setBequestTarget] = useState(0);
-  const [equityAllocation, setEquityAllocation] = useState(60);
-  const [withdrawalRate, setWithdrawalRate] = useState(4);
-  // Dirty flag: true once the user manually moves the pool-draw slider, which
-  // disarms the optimal-rate auto-sync effect (finding 2026-06-09 2.5b).
-  const [withdrawalRateDirty, setWithdrawalRateDirty] = useState(false);
-  const [poolFloor, setPoolFloor] = useState(0);
-  const [chadPassesAge, setChadPassesAge] = useState(82);
-  const [inheritanceAmount, setInheritanceAmount] = useState(1000000);
-  const [inheritanceSarahAge, setInheritanceSarahAge] = useState(60);
   const [showPwaIntro, setShowPwaIntro] = useState(false);
   const [pwaIntroReady, setPwaIntroReady] = useState(false);
   const isPwaMode = retirementMode === 'adaptive_pwa';
   const commitStrategy = 'release';
+
+  // State-backed assumptions (B3). Setters are the curried reducer writers -
+  // the same set('field') shape every other panel uses.
+  const setField = useCallback(
+    (field) => (onFieldChange ? onFieldChange(field) : () => {}),
+    [onFieldChange],
+  );
+  const pwaStrategy = retPwaStrategy ?? 'sticky_median';
+  const setPwaStrategy = useMemo(() => setField('retPwaStrategy'), [setField]);
+  const bequestTarget = retBequestTarget ?? 0;
+  const setBequestTarget = useMemo(() => setField('retBequestTarget'), [setField]);
+  const equityAllocation = retEquityAllocation ?? 60;
+  const setEquityAllocation = useMemo(() => setField('retEquityAllocation'), [setField]);
+  const poolFloor = retPoolFloor ?? 0;
+  const setPoolFloor = useMemo(() => setField('retPoolFloor'), [setField]);
+  const chadPassesAge = retChadPassesAge ?? 82;
+  const setChadPassesAge = useMemo(() => setField('retChadPassesAge'), [setField]);
+  const inheritanceAmount = retInheritanceAmount ?? 1000000;
+  const setInheritanceAmount = useMemo(() => setField('retInheritanceAmount'), [setField]);
+  const inheritanceSarahAge = retInheritanceSarahAge ?? 60;
+  const setInheritanceSarahAge = useMemo(() => setField('retInheritanceSarahAge'), [setField]);
+  // Pool-draw slider dirty semantics (finding 2026-06-09 2.5b, preserved):
+  // retWithdrawalRate is NULLABLE - null = pristine, the effective rate
+  // auto-syncs to the optimal rate (derived below, after optimalRates);
+  // a number = the user dragged the slider and the manual value sticks.
+  // Writing any number through the slider makes it dirty by construction.
+  const withdrawalRateDirty = retWithdrawalRate != null;
+  const setWithdrawalRate = useMemo(() => setField('retWithdrawalRate'), [setField]);
 
   // ── Deferred slider values ───────────────────────────────────────────
   // Slider thumbs + labels use the immediate value; expensive computations
@@ -66,7 +93,6 @@ export function useRetirementSimulation({
   const dPoolFloor = useDeferredValue(poolFloor);
   const dInheritanceAmount = useDeferredValue(inheritanceAmount);
   const dInheritanceSarahAge = useDeferredValue(inheritanceSarahAge);
-  const dWithdrawalRate = useDeferredValue(withdrawalRate);
   const dBequestTarget = useDeferredValue(bequestTarget);
   const dPwaPercentile = useDeferredValue(pwaPercentile);
   const dPwaToleranceLow = useDeferredValue(pwaToleranceLow);
@@ -104,8 +130,6 @@ export function useRetirementSimulation({
     monthsToRetirement: Math.max(0, endIdx),
   });
 
-  const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
-  const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
   const normalizedPwaToleranceLow = Math.min(dPwaToleranceLow, dPwaToleranceHigh);
   const normalizedPwaToleranceHigh = Math.max(dPwaToleranceLow, dPwaToleranceHigh);
 
@@ -306,6 +330,19 @@ export function useRetirementSimulation({
     [cohortSWRs, cohortPreSwrs, totalPool, horizonMonths, startingCoupleIncome]
   );
 
+  // Effective pool-draw rate (B3): pristine (null) auto-syncs to the optimal
+  // rate via the same shouldAutoSyncWithdrawalRate predicate the old effect
+  // used (PWA mode and zero/empty optimal never sync - falls back to 4, the
+  // old useState default). Manual values stick. This replaces the old
+  // setState-based sync effect with a pure derivation, so a freshly LOADED
+  // scenario keeps its saved manual rate instead of being clobbered.
+  const withdrawalRate = shouldAutoSyncWithdrawalRate({
+    isPwaMode, dirty: withdrawalRateDirty, optimalRate: optimalRates.optimalRate,
+  }) ? optimalRates.optimalRate : (retWithdrawalRate ?? 4);
+  const dWithdrawalRate = useDeferredValue(withdrawalRate);
+  const monthlyWithdrawal = Math.round(totalPool * (dWithdrawalRate / 100) / 12);
+  const baseMonthlyConsumption = monthlyWithdrawal + startingCoupleIncome;
+
   // Bands and finish-above-reserve rate at the user's slider rate
   const bandResult = useMemo(() => {
     const emptyBands = [10, 25, 50, 75, 90].map(p => ({ pct: p, series: Array(years + 1).fill(0) }));
@@ -414,22 +451,6 @@ export function useRetirementSimulation({
 
   // ── Effects ──────────────────────────────────────────────────────────
 
-  // Sync withdrawal slider to optimal rate (90% survival) — chart default.
-  // Only while the slider is PRISTINE: once the user drags it, the manual
-  // value sticks instead of being clobbered on every optimal-rate change
-  // (finding 2026-06-09 2.5b).
-  useEffect(() => {
-    if (shouldAutoSyncWithdrawalRate({ isPwaMode, dirty: withdrawalRateDirty, optimalRate: optimalRates.optimalRate })) {
-      setWithdrawalRate(optimalRates.optimalRate);
-    }
-  }, [isPwaMode, withdrawalRateDirty, optimalRates.optimalRate]);
-
-  // Manual slider setter — marks the slider dirty so auto-sync stops clobbering it.
-  const setWithdrawalRateManual = useCallback((value) => {
-    setWithdrawalRateDirty(true);
-    setWithdrawalRate(value);
-  }, []);
-
   useEffect(() => {
     if (!isPwaMode) return;
 
@@ -461,9 +482,9 @@ export function useRetirementSimulation({
     pwaToleranceHigh, setPwaToleranceHigh,
     bequestTarget, setBequestTarget,
     equityAllocation, setEquityAllocation,
-    // The exposed setter is the dirty-marking one — only user interactions
-    // (the slider) call it; the auto-sync effect uses the raw setter internally.
-    withdrawalRate, setWithdrawalRate: setWithdrawalRateManual,
+    // Writing a number through this setter makes the slider dirty by
+    // construction (retWithdrawalRate != null) - no separate flag needed.
+    withdrawalRate, setWithdrawalRate,
     poolFloor, setPoolFloor,
     chadPassesAge, setChadPassesAge,
     inheritanceAmount, setInheritanceAmount,

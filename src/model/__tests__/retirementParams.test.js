@@ -615,9 +615,39 @@ test('W2: hook two-phase band path uses the slider scale factor', () => {
   assert.ok(hookSource.includes('buildTwoPhaseSchedule'), 'hook should build scaled two-phase schedules');
 });
 
-test('W3: hook gates the sync effect on the dirty flag and marks manual slider writes dirty', () => {
-  assert.ok(hookSource.includes('shouldAutoSyncWithdrawalRate'), 'sync effect should use the pristine predicate');
-  assert.ok(hookSource.includes('setWithdrawalRateDirty(true)'), 'manual setter should mark the slider dirty');
+test('W3: pool-draw auto-sync is gated on the pristine predicate; dirtiness = non-null state (B3)', () => {
+  // B3 (2026-06-10 retirement review): the dirty flag is now structural -
+  // retWithdrawalRate is a nullable MODEL_KEY (null = pristine -> derive the
+  // optimal rate; number = manual value sticks). The old setState-based sync
+  // effect would have clobbered a freshly LOADED scenario's saved rate.
+  assert.ok(hookSource.includes('shouldAutoSyncWithdrawalRate'), 'derivation should use the pristine predicate');
+  assert.ok(/withdrawalRateDirty\s*=\s*retWithdrawalRate\s*!=\s*null/.test(hookSource),
+    'dirtiness must derive from the nullable persisted field');
+  assert.ok(!hookSource.includes('setWithdrawalRateDirty'), 'the local dirty useState must be gone');
+});
+
+test('W8: B3 - chart assumptions are state-backed (no local useState; reducer-written)', () => {
+  const fields = ['retChadPassesAge', 'retEquityAllocation', 'retWithdrawalRate', 'retPoolFloor',
+    'retBequestTarget', 'retInheritanceAmount', 'retInheritanceSarahAge', 'retPwaStrategy'];
+  for (const f of fields) {
+    assert.ok(new RegExp(`retirementRailProps[\\s\\S]{0,2500}${f}`).test(appSource),
+      `retirementRailProps should include ${f}`);
+    assert.ok(hookSource.includes(f), `hook should consume ${f}`);
+  }
+  assert.ok(/retirementRailProps[\s\S]{0,2500}onFieldChange:\s*set/.test(appSource),
+    'rail props should carry the reducer writer');
+  for (const gone of ["useState(82)", "useState(1000000)", "useState(4)", "useState('sticky_median')"]) {
+    assert.ok(!hookSource.includes(gone), `local ${gone} must be gone from the hook`);
+  }
+  // INITIAL_STATE defaults mirror the old hook defaults exactly.
+  assert.strictEqual(INITIAL_STATE.retChadPassesAge, 82);
+  assert.strictEqual(INITIAL_STATE.retEquityAllocation, 60);
+  assert.strictEqual(INITIAL_STATE.retWithdrawalRate, null);
+  assert.strictEqual(INITIAL_STATE.retPoolFloor, 0);
+  assert.strictEqual(INITIAL_STATE.retBequestTarget, 0);
+  assert.strictEqual(INITIAL_STATE.retInheritanceAmount, 1000000);
+  assert.strictEqual(INITIAL_STATE.retInheritanceSarahAge, 60);
+  assert.strictEqual(INITIAL_STATE.retPwaStrategy, 'sticky_median');
 });
 
 test('W4: FinancialModel passes chadCurrentAge/sarahCurrentAge/sarahOwnSS/sarahSpousalEnabled into the retirement rail props', () => {

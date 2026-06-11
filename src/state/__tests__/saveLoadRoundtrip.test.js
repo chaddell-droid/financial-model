@@ -199,6 +199,15 @@ const NON_DEFAULT_VALUES = {
   homeAppreciation: 5,
   deficit401kTaxRate: 30,          // remediation 2026-06-09 D7 — 401(k) deficit-draw gross-up
   retirement401kTaxRate: 18,       // A5 — remediation 2026-06-10 item 3.1 (D3) — retirement 401(k) haircut
+  // B3 (2026-06-10 retirement review): persisted Retirement + Survivor assumptions
+  retChadPassesAge: 88,
+  retEquityAllocation: 75,
+  retWithdrawalRate: 5.5,          // nullable — non-null = user dragged the slider
+  retPoolFloor: 100000,
+  retBequestTarget: 250000,
+  retInheritanceAmount: 750000,
+  retInheritanceSarahAge: 68,
+  retPwaStrategy: 'fixed_percentile',
 
   // Sequence of returns
   seqBadY1: -15,
@@ -379,6 +388,46 @@ test('deficit401kTaxRate: default, override, and explicit-zero round-trip (remed
 test('Schema RANGE clamping: deficit401kTaxRate clamps to [0, 60]', () => {
   assert.strictEqual(roundTrip({ deficit401kTaxRate: -10 }).deficit401kTaxRate, 0);
   assert.strictEqual(roundTrip({ deficit401kTaxRate: 95 }).deficit401kTaxRate, 60);
+});
+
+// ── B3 (2026-06-10 retirement review): persisted Retirement + Survivor assumptions ──
+
+test('B3: retirement assumptions default to the old hook defaults exactly', () => {
+  const r = roundTrip({});
+  assert.strictEqual(r.retChadPassesAge, 82);
+  assert.strictEqual(r.retEquityAllocation, 60);
+  assert.strictEqual(r.retWithdrawalRate, null, 'null = pristine (auto-sync to optimal)');
+  assert.strictEqual(r.retPoolFloor, 0);
+  assert.strictEqual(r.retBequestTarget, 0);
+  assert.strictEqual(r.retInheritanceAmount, 1000000);
+  assert.strictEqual(r.retInheritanceSarahAge, 60);
+  assert.strictEqual(r.retPwaStrategy, 'sticky_median');
+});
+
+test('B3: overrides round-trip; retWithdrawalRate keeps an explicit number', () => {
+  const r = roundTrip({
+    retChadPassesAge: 90, retEquityAllocation: 80, retWithdrawalRate: 3.2,
+    retPoolFloor: 200000, retBequestTarget: 500000,
+    retInheritanceAmount: 0, retInheritanceSarahAge: 72,
+    retPwaStrategy: 'sticky_quartile_nudge',
+  });
+  assert.strictEqual(r.retChadPassesAge, 90);
+  assert.strictEqual(r.retEquityAllocation, 80);
+  assert.strictEqual(r.retWithdrawalRate, 3.2);
+  assert.strictEqual(r.retPoolFloor, 200000);
+  assert.strictEqual(r.retBequestTarget, 500000);
+  assert.strictEqual(r.retInheritanceAmount, 0, 'explicit 0 (no inheritance) preserved');
+  assert.strictEqual(r.retInheritanceSarahAge, 72);
+  assert.strictEqual(r.retPwaStrategy, 'sticky_quartile_nudge');
+});
+
+test('B3: edges — range clamps, nullable clamp, bad enum reverts to default', () => {
+  assert.strictEqual(roundTrip({ retChadPassesAge: 50 }).retChadPassesAge, 67, 'clamped to slider min');
+  assert.strictEqual(roundTrip({ retChadPassesAge: 120 }).retChadPassesAge, 95, 'clamped to slider max');
+  assert.strictEqual(roundTrip({ retWithdrawalRate: -5 }).retWithdrawalRate, 0, 'nullable branch clamps non-null values');
+  assert.strictEqual(roundTrip({ retWithdrawalRate: 400 }).retWithdrawalRate, 100, 'corruption guard');
+  assert.strictEqual(roundTrip({ retInheritanceSarahAge: 40 }).retInheritanceSarahAge, 55);
+  assert.strictEqual(roundTrip({ retPwaStrategy: 'yolo' }).retPwaStrategy, 'sticky_median', 'invalid enum reverts');
 });
 
 test('retirement401kTaxRate: default, override, and explicit-zero round-trip (A5 — remediation 2026-06-10 item 3.1, D3)', () => {

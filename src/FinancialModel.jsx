@@ -168,6 +168,9 @@ export default function FinancialModel() {
     savedScenarios, scenarioName, showSaveLoad, presentMode,
     comparisons,
     starting401k, return401k, homeEquity, homeAppreciation, deficit401kTaxRate, retirement401kTaxRate,
+    // B3 (2026-06-10 retirement review): persisted Retirement + Survivor assumptions
+    retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
+    retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
     mcResults, mcRunning, mcNumSims, mcInvestVol, mcBizGrowthVol, mcMsftVol, mcSsdiDelay, mcSsdiDenialPct, mcCutsDiscipline,
     mcBlockBootstrap,
     seqBadY1, seqBadY2,
@@ -676,8 +679,12 @@ export default function FinancialModel() {
     retirement401kTaxRate, // A5 (2026-06-10): pool haircuts the pre-tax 401(k) leg by this rate
     expenseInflation, // B8 (2026-06-10): nominal pool deflated to today's dollars at the seam
     expenseInflationRate,
+    // B3 (2026-06-10 retirement review): persisted chart assumptions + writer
+    retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
+    retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
+    onFieldChange: set,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, set]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

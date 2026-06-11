@@ -25,6 +25,7 @@ function getRetirementMonthDetails(t, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  survivorCap,
   sarahSpousalClaimAge,
   pensionMonthly,
 }) {
@@ -37,6 +38,7 @@ function getRetirementMonthDetails(t, {
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    survivorCap,
     sarahSpousalClaimAge,
     // Survivor claim age = Sarah's age when widowed (floored at 60 inside the
     // helper) — locks the SSA reduction factor at claim time (D3).
@@ -87,6 +89,7 @@ export function getRetirementSSInfo(chadAge, chadAlive, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  survivorCap,
   survivorClaimAge,
   sarahSpousalClaimAge,
 }) {
@@ -131,7 +134,12 @@ export function getRetirementSSInfo(chadAge, chadAlive, {
   }
   const claimAge = Math.max(SURVIVOR_EARLIEST_AGE, survivorClaimAge ?? sarahAge);
   const factor = survivorReductionFactor(claimAge);
-  const reducedSurvivor = Math.round(survivorSS * factor);
+  // A1 (2026-06-10 retirement review): the claim-age reduction applies to the
+  // BASE (PIA + DRCs); the RIB-LIM cap — max(82.5% PIA, the deceased's actual
+  // reduced benefit) when he claimed early — is applied AFTER, as a min().
+  // Callers without a cap (legacy/direct) default to Infinity (no limit).
+  const cap = Number.isFinite(survivorCap) ? survivorCap : Infinity;
+  const reducedSurvivor = Math.round(Math.min(survivorSS * factor, cap));
   const usesOwnRecord = sarahAge >= 62 && sarahOwnSS > reducedSurvivor;
   return {
     amount: usesOwnRecord ? sarahOwnSS : reducedSurvivor,
@@ -151,6 +159,7 @@ export function buildRetirementContext({
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  survivorCap,
   sarahSpousalClaimAge,
   trustMonthly,
   pensionMonthly,
@@ -174,6 +183,7 @@ export function buildRetirementContext({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    survivorCap,
     sarahSpousalClaimAge,
     pensionMonthly: pensionMonthly || 0,
   };
@@ -239,6 +249,7 @@ export function buildSupplementalFlows({
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  survivorCap,
   sarahSpousalClaimAge,
   trustMonthly,
   pensionMonthly,
@@ -255,6 +266,7 @@ export function buildSupplementalFlows({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    survivorCap,
     sarahSpousalClaimAge,
     trustMonthly,
     pensionMonthly,
@@ -315,6 +327,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   ssFRA,
   sarahOwnSS,
   survivorSS,
+  survivorCap,
   sarahSpousalClaimAge,
   pensionMonthly,
 }) {
@@ -325,6 +338,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    survivorCap,
     sarahSpousalClaimAge,
     // Lock the SSA survivor reduction at the age Sarah is widowed (D3).
     survivorClaimAge: chadPassesAge - ageDiff,

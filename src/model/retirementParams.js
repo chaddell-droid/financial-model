@@ -53,14 +53,22 @@ export function deriveRetirementParams({
   // Sarah's own-record SS benefit — state field (was hardcoded 1900).
   // `?? 1900` keeps an explicit 0 (no own benefit) intact.
   const ownSS = sarahOwnSS ?? 1900;
-  // Survivor benefit: if Chad claimed before FRA, Sarah gets
-  // max(his benefit, 82.5% of PIA). If Chad claimed at/after FRA (or SSDI,
-  // which converts at FRA), Sarah gets his full benefit.
+  // Survivor benefit (A1 — 2026-06-10 retirement review): SSA's widow(er)
+  // limit (RIB-LIM) is a CAP applied AFTER the survivor's claim-age reduction:
+  //   benefit = min(widowFactor(claimAge) × base, cap)
+  // where base = PIA + DRCs and — only when the worker claimed early —
+  // cap = max(82.5% of PIA, the worker's actual reduced benefit).
+  // The pre-fix code folded the 82.5% floor into the BASE and then reduced it
+  // (widow-at-60 got 0.715 × 0.825 × PIA = 59% of PIA instead of 71.5%).
+  // survivorSS = the reduction BASE; survivorCap = the RIB-LIM cap (Infinity
+  // when Chad claimed at/after FRA, or on the SSDI path — SSDI converts to
+  // the full unreduced PIA at FRA, so no limit applies).
   const claimAge = ssClaimAge || 67;
   const claimedEarly = ssType === 'ss' && claimAge < 67;
-  const survivorSS = claimedEarly
+  const survivorSS = claimedEarly ? ssFRA : chadSS;
+  const survivorCap = claimedEarly
     ? Math.max(chadSS, Math.round(ssFRA * 0.825))
-    : chadSS;
+    : Infinity;
   const trustMonthly = trustIncomeFuture || 0;
   // C14: single-life accrual × J&S 50% option factor (survivor coverage is
   // always modeled — getPensionAtMonth pays the 50% continuance).
@@ -74,7 +82,7 @@ export function deriveRetirementParams({
 
   return {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
-    ssFRA, chadSS, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS,
+    ssFRA, chadSS, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
     sarahSpousalClaimAge: spousalClaimAge,
     trustMonthly, pensionMonthly, startingCoupleIncome,
   };

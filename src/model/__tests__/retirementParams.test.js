@@ -24,7 +24,7 @@ import {
   SURVIVOR_SPEND_RATIO,
   PERS_JS50_FACTOR,
 } from '../retirementParams.js';
-import { getPensionAtMonth } from '../retirementIncome.js';
+import { getPensionAtMonth, getRetirementSSInfo } from '../retirementIncome.js';
 import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
 import { simulatePath } from '../ernWithdrawal.js';
 import { ssRecalculatedBenefit } from '../constants.js';
@@ -167,10 +167,81 @@ test('C2: SS path — chadSS uses the earnings-test recalculated benefit', () =>
   eq(p.chadSS, ssRecalculatedBenefit(4214, 62, 10));
 });
 
-test('C3: early SS claim — survivor benefit floors at 82.5% of PIA', () => {
+test('C3: early SS claim — survivor base is the PIA, RIB-LIM is a separate CAP (A1)', () => {
+  // A1 (2026-06-10 retirement review): the widow(er)'s limit (RIB-LIM) is a
+  // CAP applied AFTER the widow's claim-age reduction — never folded into the
+  // reduction base. Base = PIA (no DRCs when claimed early); cap =
+  // max(82.5% of PIA, the deceased's actual reduced benefit).
   const p = deriveRetirementParams({ ssType: 'ss', ssPIA: 4214, ssClaimAge: 62 });
   eq(p.claimedEarly, true);
-  eq(p.survivorSS, Math.max(p.chadSS, Math.round(4214 * 0.825)));
+  eq(p.survivorSS, 4214, 'reduction base = PIA when Chad claimed early');
+  eq(p.survivorCap, Math.max(p.chadSS, Math.round(4214 * 0.825)), 'RIB-LIM cap');
+});
+
+// ── A1 (2026-06-10 retirement review): RIB-LIM ordering ──────────────────
+// SSA rule: widow(er) benefit = min(widowFactor(claimAge) × base, cap) where
+// base = PIA + DRCs and, when the worker claimed early, cap =
+// max(82.5% × PIA, worker's actual reduced benefit). The pre-fix code baked
+// the 82.5% floor into the BASE and then applied the factor — paying a
+// widow-at-60 0.715 × 0.825 × PIA = 59% of PIA instead of 71.5%.
+
+test('A1-1: widow at 60 after Chad claims 62 (PIA $4,214) pays $3,013 — not $2,486', () => {
+  const p = deriveRetirementParams({
+    chadCurrentAge: 61, sarahCurrentAge: 59,
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 62, sarahOwnSS: 0,
+  });
+  eq(p.chadSS, 2950, 'claimed at 62 → 70% of PIA');
+  const widow60 = getRetirementSSInfo(62, false, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap, survivorClaimAge: 60,
+  });
+  // min(0.715 × 4214, max(0.825 × 4214, 2950)) = min(3013, 3477) = 3013.
+  eq(widow60.amount, 3013, 'factor applies to the PIA; cap does not bind at 60');
+  eq(widow60.label, 'Sarah survivor (reduced)');
+});
+
+test('A1-2: widow at FRA after Chad claims 62 — RIB-LIM cap binds at 82.5% of PIA', () => {
+  const p = deriveRetirementParams({ ssType: 'ss', ssPIA: 4214, ssClaimAge: 62, sarahOwnSS: 0 });
+  const widowFRA = getRetirementSSInfo(69, false, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap, survivorClaimAge: 67,
+  });
+  // min(1.0 × 4214, max(3477, 2950)) = 3477 — same as the pre-fix value.
+  eq(widowFRA.amount, Math.round(4214 * 0.825), 'cap binds: 82.5% of PIA');
+});
+
+test('A1-3: Chad claims 66 — cap is HIS benefit when it exceeds 82.5% of PIA', () => {
+  const p = deriveRetirementParams({ ssType: 'ss', ssPIA: 4214, ssClaimAge: 66, sarahOwnSS: 0 });
+  eq(p.chadSS, ssRecalculatedBenefit(4214, 66, 0), 'claimed 12 months early');
+  eq(p.survivorCap, p.chadSS, 'cap = max(82.5% PIA, chadSS) = chadSS here');
+  const widowFRA = getRetirementSSInfo(69, false, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap, survivorClaimAge: 67,
+  });
+  eq(widowFRA.amount, p.chadSS, 'widow at FRA gets at least what Chad was receiving');
+  const widow60 = getRetirementSSInfo(62, false, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap, survivorClaimAge: 60,
+  });
+  eq(widow60.amount, 3013, 'factor × PIA still under the higher cap');
+});
+
+test('A1-4: Chad claimed at/after FRA — no cap; factor applies to his full benefit', () => {
+  const p = deriveRetirementParams({ ssType: 'ss', ssPIA: 4214, ssClaimAge: 67, sarahOwnSS: 0 });
+  eq(p.claimedEarly, false);
+  eq(p.survivorSS, p.chadSS, 'base = his benefit (incl. DRCs)');
+  eq(p.survivorCap, Infinity, 'no RIB-LIM when claimed at/after FRA');
+  const widow60 = getRetirementSSInfo(62, false, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap, survivorClaimAge: 60,
+  });
+  eq(widow60.amount, Math.round(p.chadSS * 0.715), '71.5% of his benefit');
+});
+
+test('A1-5: SSDI path unchanged — base = PIA, no cap (default scenario regression)', () => {
+  const p = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214 });
+  eq(p.survivorSS, 4214);
+  eq(p.survivorCap, Infinity);
 });
 
 test('C4: startingCoupleIncome = chadSS + trust + J&S-reduced pension; survivor ratio constant exported', () => {

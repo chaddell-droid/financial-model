@@ -77,7 +77,7 @@ export function useRetirementSimulation({
   // via a pure function so node tests can verify parity with gatherState.
   const {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
-    ssFRA, chadSS, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly, startingCoupleIncome,
+    ssFRA, chadSS, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, trustMonthly, pensionMonthly, startingCoupleIncome,
   } = deriveRetirementParams({
     chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
     ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
@@ -137,11 +137,12 @@ export function useRetirementSimulation({
       ssFRA,
       sarahOwnSS,
       survivorSS,
+      survivorCap,
       sarahSpousalClaimAge,
       trustMonthly,
       pensionMonthly,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, trustMonthly, pensionMonthly]);
 
   // Only `scaling` is consumed here: the inheritance "rescue" carrier is
   // legacy — every cash event flows through simulationSupplementalFlows
@@ -166,6 +167,7 @@ export function useRetirementSimulation({
       ssFRA,
       sarahOwnSS,
       survivorSS,
+      survivorCap,
       sarahSpousalClaimAge,
       trustMonthly,
       pensionMonthly,
@@ -173,7 +175,7 @@ export function useRetirementSimulation({
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, sarahSpousalClaimAge, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Closed-form cohort math includes inheritance as a future cash event (like
   // SS/trust). Since the inheritance double-count fix (finding 2026-06-09 2.1)
@@ -379,6 +381,7 @@ export function useRetirementSimulation({
     ssFRA,
     sarahOwnSS,
     survivorSS,
+    survivorCap,
     sarahSpousalClaimAge,
     pensionMonthly,
   };

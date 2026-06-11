@@ -38,7 +38,7 @@ function RetirementIncomeChart({
   // B3 (2026-06-10 retirement review): persisted chart assumptions + writer
   retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
   retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
-  retKeepHouse, retImputedRentSaved,
+  retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct,
   onFieldChange,
   onSpendingTargets,
 }) {
@@ -62,6 +62,7 @@ function RetirementIncomeChart({
     endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
     trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
     keepHouse, setKeepHouse, imputedRentSaved, setImputedRentSaved,
+    survivorTaxDragPct, setSurvivorTaxDrag,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
     pwaCurrentDistribution, pwaCurrentSelection, pwaCurrentView,
@@ -70,7 +71,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, retKeepHouse, retImputedRentSaved, onFieldChange });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct, onFieldChange });
 
   // Report spending targets to parent
   useEffect(() => {
@@ -678,6 +679,17 @@ function RetirementIncomeChart({
                     format={(v) => v === 0 ? 'None' : fmtFull(v) + '/mo'} />
                 )}
               </div>
+              {/* Item 8 (2026-06-10 batch 2): survivor-phase tax drag */}
+              <div>
+                <Slider label="Survivor tax drag (single-filer step-up)" value={survivorTaxDragPct} onChange={setSurvivorTaxDrag}
+                  testId="retirement-survivor-tax-drag-pwa"
+                  commitStrategy={commitStrategy}
+                  min={0} max={30} step={0.5} color={COLORS.amber}
+                  format={(v) => v + '%'} />
+                <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, lineHeight: 1.4 }}>
+                  After Chad passes, Sarah files single - the same real income lands in higher brackets. Each net dollar of survivor spending drawn from the pool costs 1/(1-drag) gross.
+                </div>
+              </div>
               {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
                 <>
                   <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent={COLORS.blue} />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
@@ -796,6 +808,17 @@ function RetirementIncomeChart({
                     min={0} max={10000} step={100} color={COLORS.teal}
                     format={(v) => v === 0 ? 'None' : fmtFull(v) + '/mo'} />
                 )}
+              </div>
+              {/* Item 8 (2026-06-10 batch 2): survivor-phase tax drag */}
+              <div>
+                <Slider label="Survivor tax drag (single-filer step-up)" value={survivorTaxDragPct} onChange={setSurvivorTaxDrag}
+                  testId="retirement-survivor-tax-drag"
+                  commitStrategy={commitStrategy}
+                  min={0} max={30} step={0.5} color={COLORS.amber}
+                  format={(v) => v + '%'} />
+                <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, lineHeight: 1.4 }}>
+                  After Chad passes, Sarah files single - the same real income lands in higher brackets. Each net dollar of survivor spending drawn from the pool costs 1/(1-drag) gross.
+                </div>
               </div>
             </div>
           </ControlSection>

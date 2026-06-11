@@ -26,7 +26,8 @@ import {
 } from '../retirementParams.js';
 import { getPensionAtMonth, getRetirementSSInfo, buildRetirementContext } from '../retirementIncome.js';
 import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
-import { simulatePath } from '../ernWithdrawal.js';
+import { simulatePath, computeSWR } from '../ernWithdrawal.js';
+function require_ern() { return { computeSWR, simulatePath }; }
 import { ssRecalculatedBenefit } from '../constants.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
 import { gatherStateWithOverrides } from '../../state/gatherState.js';
@@ -371,6 +372,57 @@ test('K3: imputed rent flows through guaranteed income in couple AND survivor ph
   eq(ctx.guaranteedIncome[0] - noRent.guaranteedIncome[0], 3000, 'couple phase credits the rent');
   eq(ctx.guaranteedIncome[120] - noRent.guaranteedIncome[120], 3000, 'survivor phase keeps the rent (house persists)');
   eq(ctx.imputedRentIncome[0], 3000, 'exposed as its own component (not folded into trust)');
+});
+
+// ── Item 8 (2026-06-10 batch 2): survivor-phase tax drag ───────────────────
+// After Chad passes, Sarah files SINGLE - the same real income lands in
+// higher brackets, so each NET dollar of survivor spending financed from the
+// pool costs 1/(1-drag) gross. Implemented as a uniform gross-up of the
+// survivor-phase pool-dynamics carriers (scaling AND supplementalFlows), so
+// the closed-form SWR <-> simulatePath round-trip is preserved by
+// construction. Engine-level default is 0 (direct callers unchanged); the
+// state default (7%) flows through deriveRetirementParams.
+
+test('TD1: deriveRetirementParams - survivorTaxDragPct defaults to 7, clamps 0-30, keeps explicit 0', () => {
+  eq(deriveRetirementParams({}).survivorTaxDragPct, 7, 'state default');
+  eq(deriveRetirementParams({ retSurvivorTaxDragPct: 0 }).survivorTaxDragPct, 0, 'explicit 0 respected');
+  eq(deriveRetirementParams({ retSurvivorTaxDragPct: 50 }).survivorTaxDragPct, 30, 'clamped to 30');
+  eq(deriveRetirementParams({ retSurvivorTaxDragPct: -5 }).survivorTaxDragPct, 0, 'clamped to 0');
+});
+
+test('TD2: drag grosses up survivor-phase scaling + flows; displayed income stays NET', () => {
+  const base = {
+    horizonMonths: 240, chadPassesAge: 74, ageDiff: 2, survivorSpendRatio: 0.6,
+    chadSS: 4214, ssFRA: 4214, sarahOwnSS: 0, survivorSS: 4214, survivorCap: Infinity,
+    chadSSStartAge: 67, sarahSpousalClaimAge: 67,
+    trustMonthly: 2000, pensionMonthly: 0,
+  };
+  const dragged = buildRetirementContext({ ...base, survivorTaxDragPct: 10 });
+  const flat = buildRetirementContext(base);
+  // Couple phase (t=0): untouched.
+  eq(dragged.scaling[0], 1, 'couple scaling unchanged');
+  eq(dragged.supplementalFlows[0], flat.supplementalFlows[0], 'couple flows unchanged');
+  // Survivor phase (t=120): scaling and flows grossed up by 1/(1-0.10).
+  assert.ok(Math.abs(dragged.scaling[120] - 0.6 / 0.9) < 1e-12, 'survivor scaling = ratio/(1-d)');
+  assert.ok(Math.abs(dragged.supplementalFlows[120] - flat.supplementalFlows[120] / 0.9) < 1e-9,
+    'survivor flows grossed up symmetrically (documented approximation)');
+  eq(dragged.guaranteedIncome[120], flat.guaranteedIncome[120], 'DISPLAYED income stays net');
+  // Engine default 0 = identity (direct callers / old snapshots unchanged).
+  eq(flat.scaling[120], 0.6);
+});
+
+test('TD3: closed-form SWR round-trips through simulatePath WITH the drag applied', () => {
+  const ctx = buildRetirementContext({
+    horizonMonths: 120, chadPassesAge: 72, ageDiff: 2, survivorSpendRatio: 0.6,
+    chadSS: 3000, ssFRA: 4214, sarahOwnSS: 0, survivorSS: 4214, survivorCap: Infinity,
+    chadSSStartAge: 67, sarahSpousalClaimAge: 67,
+    trustMonthly: 1000, pensionMonthly: 0, survivorTaxDragPct: 15,
+  });
+  const blended = new Float64Array(600).fill(0.003);
+  const { computeSWR: swr, simulatePath: sim } = require_ern();
+  const w = swr(blended, 0, 120, ctx.supplementalFlows, ctx.scaling, 50000, 800000);
+  const path = sim(blended, 0, 120, w, ctx.supplementalFlows, ctx.scaling, 800000, 0);
+  assert.ok(Math.abs(path.finalPool - 50000) < 2, `round-trip hits targetFV, got ${path.finalPool}`);
 });
 
 // ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──

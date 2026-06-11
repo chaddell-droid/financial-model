@@ -195,6 +195,16 @@ export function buildRetirementContext({
   trustMonthly,
   pensionMonthly,
   imputedRentMonthly,
+  // Item 8 (2026-06-10 batch 2): survivor-phase tax drag %. Applied as a
+  // uniform gross-up of the survivor-phase POOL-DYNAMICS carriers (scaling
+  // and supplementalFlows): each net survivor dollar financed from the pool
+  // costs 1/(1-d) gross. Because BOTH carriers transform identically, the
+  // closed-form SWR <-> simulatePath round-trip is preserved by construction.
+  // Documented approximation: survivor months where guaranteed income exceeds
+  // spending get their surplus grossed up symmetrically (a small pro-pool
+  // rebate, ~d x surplus). Display arrays (guaranteedIncome/ssIncome/...)
+  // stay NET. Engine default 0 = identity (direct callers unchanged).
+  survivorTaxDragPct = 0,
 }) {
   const supplementalFlows = new Float64Array(horizonMonths);
   const scaling = new Float64Array(horizonMonths);
@@ -224,10 +234,12 @@ export function buildRetirementContext({
     imputedRentMonthly: imputedRentMonthly || 0,
   };
 
+  const survivorGrossUp = 1 / (1 - Math.min(Math.max((survivorTaxDragPct || 0) / 100, 0), 0.9));
   for (let t = 0; t < horizonMonths; t++) {
     const details = getRetirementMonthDetails(t, config);
-    supplementalFlows[t] = details.guaranteedIncome;
-    scaling[t] = details.scaling;
+    const grossUp = details.chadAlive ? 1 : survivorGrossUp;
+    supplementalFlows[t] = details.guaranteedIncome * grossUp;
+    scaling[t] = details.scaling * grossUp;
     guaranteedIncome[t] = details.guaranteedIncome;
     ssIncome[t] = details.ssIncome;
     trustIncome[t] = details.trustIncome;
@@ -263,13 +275,17 @@ export function buildScalingAndRescueFlows({
   hasInheritance,
   inheritanceMonth,
   inheritanceAmount,
+  // Item 8: must match buildRetirementContext's survivor gross-up exactly -
+  // the hook feeds THIS scaling into computeSWR against the context's flows.
+  survivorTaxDragPct = 0,
 }) {
   const rescueFlows = new Float64Array(horizonMonths);
   const scaling = new Float64Array(horizonMonths);
   const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
+  const survivorGrossUp = 1 / (1 - Math.min(Math.max((survivorTaxDragPct || 0) / 100, 0), 0.9));
 
   for (let t = 0; t < horizonMonths; t++) {
-    scaling[t] = t < survivorStartMonth ? 1.0 : survivorSpendRatio;
+    scaling[t] = t < survivorStartMonth ? 1.0 : survivorSpendRatio * survivorGrossUp;
   }
 
   if (hasInheritance && inheritanceMonth >= 0 && inheritanceMonth < horizonMonths) {
@@ -294,6 +310,7 @@ export function buildSupplementalFlows({
   trustMonthly,
   pensionMonthly,
   imputedRentMonthly,
+  survivorTaxDragPct = 0,
   hasInheritance,
   inheritanceMonth,
   inheritanceAmount,
@@ -314,6 +331,7 @@ export function buildSupplementalFlows({
     trustMonthly,
     pensionMonthly,
     imputedRentMonthly,
+    survivorTaxDragPct,
   });
   const supplementalFlows = new Float64Array(context.supplementalFlows);
 

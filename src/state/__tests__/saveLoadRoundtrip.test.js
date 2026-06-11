@@ -210,6 +210,7 @@ const NON_DEFAULT_VALUES = {
   retPwaStrategy: 'fixed_percentile',
   retKeepHouse: true,              // Item 7 (2026-06-10 batch 2): keep-the-house lever
   retImputedRentSaved: 3500,
+  retSurvivorTaxDragPct: 12,       // Item 8 (2026-06-10 batch 2): survivor tax drag
 
   // Sequence of returns
   seqBadY1: -15,
@@ -432,6 +433,13 @@ test('Item 7: keepHouse toggle + imputed rent round-trip (default, override, cla
   assert.strictEqual(r.retImputedRentSaved, 3500);
   assert.strictEqual(roundTrip({ retImputedRentSaved: 999999 }).retImputedRentSaved, 20000, 'corruption guard');
   assert.strictEqual(roundTrip({ retKeepHouse: 'yes' }).retKeepHouse, true, 'boolean coercion');
+});
+
+test('Item 8: survivorTaxDragPct round-trip (default 7, override, clamp)', () => {
+  assert.strictEqual(roundTrip({}).retSurvivorTaxDragPct, 7, 'default: MFJ->single step-up');
+  assert.strictEqual(roundTrip({ retSurvivorTaxDragPct: 0 }).retSurvivorTaxDragPct, 0, 'explicit 0 (no drag)');
+  assert.strictEqual(roundTrip({ retSurvivorTaxDragPct: 12.5 }).retSurvivorTaxDragPct, 12.5);
+  assert.strictEqual(roundTrip({ retSurvivorTaxDragPct: 80 }).retSurvivorTaxDragPct, 30, 'clamped to 30');
 });
 
 test('B3: edges — range clamps, nullable clamp, bad enum reverts to default', () => {

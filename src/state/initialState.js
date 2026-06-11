@@ -360,6 +360,14 @@ export const INITIAL_STATE = {
   // avoided rent) is credited as guaranteed income in BOTH phases.
   retKeepHouse: false,
   retImputedRentSaved: 0,
+  // Item 8 (2026-06-10 batch 2): survivor-phase tax drag %. After Chad passes
+  // Sarah files SINGLE - the same real income lands in higher brackets, so a
+  // NET dollar of survivor spending financed from the pool costs 1/(1-drag)
+  // gross. 7 = the approximate MFJ->single effective-rate step-up at this
+  // household's retirement income level (the 401(k) haircut was calibrated
+  // MFJ at 13%; single-filer brackets on the same real income run ~5-9pp
+  // hotter - 7 is the midpoint, user-adjustable 0-30).
+  retSurvivorTaxDragPct: 7,
 
   // Sequence of Returns
   seqBadY1: -10,
@@ -452,7 +460,7 @@ export const MODEL_KEYS = [
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate', 'retirement401kTaxRate',
   'retChadPassesAge', 'retEquityAllocation', 'retWithdrawalRate', 'retPoolFloor', 'retBequestTarget',
   'retInheritanceAmount', 'retInheritanceSarahAge', 'retPwaStrategy',
-  'retKeepHouse', 'retImputedRentSaved',
+  'retKeepHouse', 'retImputedRentSaved', 'retSurvivorTaxDragPct',
   'seqBadY1', 'seqBadY2',
   // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
   'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',

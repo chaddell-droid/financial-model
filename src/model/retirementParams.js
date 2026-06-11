@@ -34,7 +34,7 @@ export function deriveRetirementParams({
   ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
   trustIncomeFuture, chadJobPensionMonthly,
   sarahSpousalClaimAge, sarahSpousalEnabled,
-  retKeepHouse, retImputedRentSaved,
+  retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct,
 } = {}) {
   // Age gap from state — the sim indexes time by Chad's age (retires at 67),
   // so Sarah's age at month t is chadAge - ageDiff.
@@ -88,6 +88,9 @@ export function deriveRetirementParams({
   // proceeds to the pool via computeRetirementPool). Credited in both the
   // couple and survivor phases — the survivor keeps living in the house.
   const imputedRentMonthly = retKeepHouse ? Math.max(0, retImputedRentSaved || 0) : 0;
+  // Item 8 (2026-06-10 batch 2): survivor-phase tax drag (MFJ -> single
+  // filing step-up). State default 7%; clamped to the slider's 0-30 window.
+  const survivorTaxDragPct = Math.min(30, Math.max(0, retSurvivorTaxDragPct ?? 7));
   // A2: the seam-month guaranteed income excludes a not-yet-payable delayed
   // claim — it must equal the engine's guaranteedIncome at t=0 (age 67).
   const startingCoupleIncome = (chadSSStartAge <= 67 ? chadSS : 0) + trustMonthly + pensionMonthly + imputedRentMonthly;
@@ -108,7 +111,7 @@ export function deriveRetirementParams({
     ssFRA, chadSS, chadSSStartAge, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
     sarahSpousalClaimAge: spousalClaimAge,
     sarahSpousalEnabled: spousalEnabled,
-    trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
+    trustMonthly, pensionMonthly, imputedRentMonthly, survivorTaxDragPct, startingCoupleIncome,
   };
 }
 

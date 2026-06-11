@@ -167,6 +167,8 @@ const RANGE = {
   // Item 7 (2026-06-10 batch 2): imputed rent saved by keeping the house.
   // $20K/mo is a corruption guard, not a UI mirror.
   retImputedRentSaved: { min: 0, max: 20000 },
+  // Item 8 (2026-06-10 batch 2): survivor-phase tax drag (MFJ->single).
+  retSurvivorTaxDragPct: { min: 0, max: 30 },
   // Cut items can be zero but not negative
   cutOliver: { min: 0 },
   cutVacation: { min: 0 },

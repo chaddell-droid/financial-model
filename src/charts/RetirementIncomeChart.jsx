@@ -142,13 +142,13 @@ function RetirementIncomeChart({
         title: 'Adaptive PWA',
         summary: 'Use this mode when you want a spending target that can re-solve each year from the remaining pool, remaining horizon, and bequest goal.',
         primaryLabel: 'Headline meaning',
-        primaryValue: `${pwaConfidencePct}% won't need to cut later`,
+        primaryValue: `${pwaConfidencePct}% of historical cohorts could sustain this target from day one`,
         secondaryLabel: 'Planning constraint',
         secondaryValue: `Stay near ${fmtFull(Math.round(pwaCurrentSelection.selectedWithdrawal || 0))}/mo while still ending near ${fmtFull(bequestTarget)}.`,
         bullets: [
           'Start by choosing the bequest target and strategy. The app then recommends a current total spending target, not just a raw pool draw.',
           'Use tolerance controls only after the target framework feels right. They decide when the model recenters versus staying sticky.',
-          'Compare this mode against Historical Safe by framework, not by headline percentage. The top metric here is future-cut risk, not reserve survival.',
+          'Compare this mode against Historical Safe by framework, not by headline percentage. The top metric here is day-one sustainability across history, not reserve survival.',
         ],
       }
     : {
@@ -211,7 +211,7 @@ function RetirementIncomeChart({
               textAlign: 'right',
             }}>
               {isPwaMode
-                ? `${pwaConfidencePct}% won't need to cut later (${pwaCurrentDistribution.sampleCount.toLocaleString()} cohorts)`
+                ? `${pwaConfidencePct}% of historical cohorts could sustain this target from day one (${pwaCurrentDistribution.sampleCount.toLocaleString()} overlapping cohorts)`
                 : `${Math.round(endAboveReserveRate * 100)}% finish above reserve by Sarah ${sarahTargetAge} (${optimalRates.numCohorts.toLocaleString()} cohorts, ${optimalRates.cohortRange})`}
             </span>
             <HelpTip

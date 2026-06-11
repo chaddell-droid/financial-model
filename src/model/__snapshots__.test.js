@@ -1405,7 +1405,11 @@ test('Adaptive PWA branch keeps reserve-floor and inheritance controls out of th
   assert.ok(source.includes("!isPwaMode && withdrawalRate > optRate"), 'over-withdrawal warning should stay in historical mode');
   assert.ok(source.includes("isPwaMode ? ("), 'component should branch on PWA mode');
   assert.ok(source.includes('Bequest target'), 'PWA mode should expose a bequest target control');
-  assert.ok(source.includes("won't need to cut later"), 'PWA confidence copy should use future-cut language');
+  // Item 12 (2026-06-10 batch 2, PWA review finding 2): the headline now
+  // states what it MEASURES — day-one full-horizon sustainability across
+  // historical cohorts — not a realized never-cut probability the adaptive
+  // strategy doesn't actually compute.
+  assert.ok(source.includes('could sustain this target from day one'), 'PWA confidence copy states what it measures');
 });
 test('PWA distribution chart is wired into the retirement surface', () => {
   const retirementSource = fs.readFileSync(new URL('../charts/RetirementIncomeChart.jsx', import.meta.url), 'utf8');

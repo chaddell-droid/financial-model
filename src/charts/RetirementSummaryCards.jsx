@@ -63,7 +63,7 @@ function RetirementSummaryCards({
           {pwaConfidencePct}%
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Chance this starting target won't need to cut later while still ending at {fmtFull(bequestTarget)}
+          Share of historical cohorts that could sustain this starting target for the whole horizon while still ending at {fmtFull(bequestTarget)}
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
           Tolerance band {fmtFull(Math.round(pwaCurrentSelection.lowerToleranceWithdrawal || 0))} – {fmtFull(Math.round(pwaCurrentSelection.upperToleranceWithdrawal || 0))}/mo

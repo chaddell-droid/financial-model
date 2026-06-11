@@ -33,14 +33,23 @@ export const HELP = {
     body: [
       'It is looser than reserve-never-touched safety.',
       'A cohort can still count here even if it touched the reserve earlier, as long as it finishes above it at the end.',
+      // Item 13 (2026-06-10 batch 2, PWA review finding 3): the cohorts are
+      // overlapping monthly windows, not independent draws.
+      'Caveat: the cohorts are OVERLAPPING monthly windows that share most of their months — over a ~25-year horizon, history holds only about six truly independent windows. Read these percentages as robustness rankings across historical starts, not calibrated probabilities.',
     ],
   },
   probability_no_cut: {
-    title: "Won't Need To Cut Later",
-    short: 'This is the share of current-state historical samples that support the chosen spending target or more.',
+    title: 'Could Sustain This Target',
+    short: 'This is the share of historical cohorts whose full-horizon math supports the chosen spending target from day one.',
     body: [
-      'It is a future-cut confidence measure, not a reserve survival measure.',
-      'Higher values mean fewer historical samples would force a later reduction in the chosen target while still meeting the bequest target.',
+      // Item 12 (2026-06-10 batch 2, PWA review finding 2): measured at the
+      // START only — the sticky strategies re-decide annually against the
+      // cross-cohort distribution, so this is full-horizon sustainability,
+      // not the realized probability that the strategy never cuts.
+      'It measures day-one sustainability across history, not the realized chance the adaptive strategy never cuts (mid-path drawdowns can still force a recenter).',
+      'Higher values mean more historical cohorts could have sustained the chosen target for the whole horizon while still meeting the bequest target.',
+      // Item 13 (finding 3): overlapping-cohort caveat.
+      'Caveat: the cohorts are OVERLAPPING monthly windows that share most of their months — over a ~25-year horizon, history holds only about six truly independent windows. Read these percentages as robustness rankings across historical starts, not calibrated probabilities.',
     ],
   },
   bequest_target: {

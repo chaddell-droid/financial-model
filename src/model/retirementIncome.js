@@ -30,6 +30,7 @@ function getRetirementMonthDetails(t, {
   sarahSpousalClaimAge,
   sarahSpousalEnabled,
   pensionMonthly,
+  imputedRentMonthly,
 }) {
   const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
   const chadAge = 67 + t / 12;
@@ -49,7 +50,11 @@ function getRetirementMonthDetails(t, {
     survivorClaimAge: chadPassesAge - ageDiff,
   });
   const pension = getPensionAtMonth(t, pensionMonthly || 0, chadAlive);
-  const guaranteedIncome = trustMonthly + ssInfo.amount + pension;
+  // Item 7 (2026-06-10 batch 2): imputed rent (house kept) is guaranteed
+  // income in BOTH phases — exposed as its own component so charts never
+  // fold it into the trust layer.
+  const imputedRent = imputedRentMonthly || 0;
+  const guaranteedIncome = trustMonthly + ssInfo.amount + pension + imputedRent;
 
   return {
     chadAge,
@@ -62,6 +67,7 @@ function getRetirementMonthDetails(t, {
     ssLabel: ssInfo.label,
     trustIncome: trustMonthly,
     pensionIncome: pension,
+    imputedRentIncome: imputedRent,
   };
 }
 
@@ -188,6 +194,7 @@ export function buildRetirementContext({
   sarahSpousalEnabled,
   trustMonthly,
   pensionMonthly,
+  imputedRentMonthly,
 }) {
   const supplementalFlows = new Float64Array(horizonMonths);
   const scaling = new Float64Array(horizonMonths);
@@ -195,6 +202,7 @@ export function buildRetirementContext({
   const ssIncome = new Float64Array(horizonMonths);
   const trustIncome = new Float64Array(horizonMonths);
   const pensionIncome = new Float64Array(horizonMonths);
+  const imputedRentIncome = new Float64Array(horizonMonths);
   const chadAges = new Float64Array(horizonMonths);
   const sarahAges = new Float64Array(horizonMonths);
   const phases = new Array(horizonMonths);
@@ -213,6 +221,7 @@ export function buildRetirementContext({
     sarahSpousalClaimAge,
     sarahSpousalEnabled,
     pensionMonthly: pensionMonthly || 0,
+    imputedRentMonthly: imputedRentMonthly || 0,
   };
 
   for (let t = 0; t < horizonMonths; t++) {
@@ -223,6 +232,7 @@ export function buildRetirementContext({
     ssIncome[t] = details.ssIncome;
     trustIncome[t] = details.trustIncome;
     pensionIncome[t] = details.pensionIncome;
+    imputedRentIncome[t] = details.imputedRentIncome;
     chadAges[t] = details.chadAge;
     sarahAges[t] = details.sarahAge;
     phases[t] = details.phase;
@@ -238,6 +248,7 @@ export function buildRetirementContext({
     ssIncome,
     trustIncome,
     pensionIncome,
+    imputedRentIncome,
     chadAges,
     sarahAges,
     phases,
@@ -282,6 +293,7 @@ export function buildSupplementalFlows({
   sarahSpousalEnabled,
   trustMonthly,
   pensionMonthly,
+  imputedRentMonthly,
   hasInheritance,
   inheritanceMonth,
   inheritanceAmount,
@@ -301,6 +313,7 @@ export function buildSupplementalFlows({
     sarahSpousalEnabled,
     trustMonthly,
     pensionMonthly,
+    imputedRentMonthly,
   });
   const supplementalFlows = new Float64Array(context.supplementalFlows);
 
@@ -363,6 +376,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   sarahSpousalClaimAge,
   sarahSpousalEnabled,
   pensionMonthly,
+  imputedRentMonthly,
 }) {
   const chadAlive = chadAge < chadPassesAge;
   const ssInfo = getRetirementSSInfo(chadAge, chadAlive, {
@@ -381,7 +395,8 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   const yearsFromRetirement = Math.max(0, chadAge - 67);
   const pension = getPensionAtMonth(yearsFromRetirement * 12, pensionMonthly || 0, chadAlive);
   const totalTarget = Math.round(baseMonthlyConsumption * (chadAlive ? 1 : survivorSpendRatio));
-  const guaranteedIncome = ssInfo.amount + trustMonthly + pension;
+  const imputedRent = imputedRentMonthly || 0;
+  const guaranteedIncome = ssInfo.amount + trustMonthly + pension + imputedRent;
   const poolDraw = poolActive ? Math.max(0, totalTarget - guaranteedIncome) : 0;
   const savedToPool = poolActive ? Math.max(0, guaranteedIncome - totalTarget) : 0;
 
@@ -396,6 +411,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     ssIncome: ssInfo.amount,
     ssLabel: ssInfo.label,
     pensionIncome: pension,
+    imputedRentIncome: imputedRent,
   };
 }
 

@@ -2,6 +2,7 @@ import React, { memo, useState, useEffect } from 'react';
 import { fmtFull } from '../model/formatters.js';
 import RetirementCompositionChart from './RetirementCompositionChart.jsx';
 import Slider from '../components/Slider.jsx';
+import Toggle from '../components/Toggle.jsx';
 import HelpDrawer from '../components/help/HelpDrawer.jsx';
 import HelpTip from '../components/help/HelpTip.jsx';
 import ActionButton from '../components/ui/ActionButton.jsx';
@@ -37,6 +38,7 @@ function RetirementIncomeChart({
   // B3 (2026-06-10 retirement review): persisted chart assumptions + writer
   retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
   retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
+  retKeepHouse, retImputedRentSaved,
   onFieldChange,
   onSpendingTargets,
 }) {
@@ -58,7 +60,8 @@ function RetirementIncomeChart({
     showPwaIntro, pwaIntroReady, dismissPwaIntro,
     ageDiff, sarahTargetAge, years,
     endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
-    trustMonthly, pensionMonthly, startingCoupleIncome,
+    trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
+    keepHouse, setKeepHouse, imputedRentSaved, setImputedRentSaved,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
     pwaCurrentDistribution, pwaCurrentSelection, pwaCurrentView,
@@ -67,7 +70,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, onFieldChange });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, retKeepHouse, retImputedRentSaved, onFieldChange });
 
   // Report spending targets to parent
   useEffect(() => {
@@ -227,7 +230,7 @@ function RetirementIncomeChart({
           </>
         ) : (
           <>
-            House sold at 67 · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
+            {keepHouse ? `House kept (rent saved ${fmtFull(imputedRentSaved)}/mo)` : 'House sold at 67'} · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
             {optimalRates.worstCohort.year > 0 && ` · Worst start: ${optimalRates.worstCohort.year}`}
           </>
         )}
@@ -322,7 +325,7 @@ function RetirementIncomeChart({
         pwaCurrentView={pwaCurrentView} pwaStartContext={pwaStartContext} pwaCurrentSelection={pwaCurrentSelection}
         pwaConfidencePct={pwaConfidencePct}
         bequestTarget={bequestTarget}
-        trustMonthly={trustMonthly} pensionMonthly={pensionMonthly}
+        trustMonthly={trustMonthly} pensionMonthly={pensionMonthly} imputedRentMonthly={imputedRentMonthly} keepHouse={keepHouse}
         chadPassesAge={chadPassesAge}
         bandResult={bandResult} deterministicPools={deterministicPools}
         inhDuringCouple={inhDuringCouple} inheritanceChadAge={inheritanceChadAge}
@@ -532,7 +535,7 @@ function RetirementIncomeChart({
               </div>
             )}
             <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {fmtFull(tooltip.poolDraw)} + SS {fmtFull(tooltip.ssIncome)} + trust {fmtFull(trustMonthly)}{pensionMonthly > 0 ? ` + pension ${fmtFull(tooltip.pensionIncome || 0)}` : ''}
+              Pool draw {fmtFull(tooltip.poolDraw)} + SS {fmtFull(tooltip.ssIncome)} + trust {fmtFull(trustMonthly)}{pensionMonthly > 0 ? ` + pension ${fmtFull(tooltip.pensionIncome || 0)}` : ''}{imputedRentMonthly > 0 ? ` + rent saved ${fmtFull(imputedRentMonthly)}` : ''}
             </div>
             {tooltip.savedToPool > 0 && (
               <div style={{ fontSize: 11, color: retirementTextBody, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -589,7 +592,7 @@ function RetirementIncomeChart({
               {fmtFull(survivorSummary.totalTarget)}/mo
             </div>
             <div style={{ fontSize: 10, color: retirementTextBody, marginTop: 2, lineHeight: 1.35, fontFamily: "'JetBrains Mono', monospace" }}>
-              Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
+              Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}{imputedRentMonthly > 0 ? ` + ${fmtFull(imputedRentMonthly)}/mo rent saved` : ''}
             </div>
           </div>
         </div>
@@ -663,6 +666,18 @@ function RetirementIncomeChart({
                 testId="retirement-chad-passes-age"
                 commitStrategy={commitStrategy}
                 min={67} max={95} step={1} format={(v) => v + ''} color={COLORS.amber} />
+              {/* Item 7 (2026-06-10 batch 2): keep-the-house lever (shared state) */}
+              <div>
+                <Toggle label="Keep the house (don't sell at retirement)" checked={keepHouse} onChange={setKeepHouse}
+                  color={COLORS.teal} testId="retirement-keep-house-pwa" />
+                {keepHouse && (
+                  <Slider label="Imputed rent saved" value={imputedRentSaved} onChange={setImputedRentSaved}
+                    testId="retirement-imputed-rent-pwa"
+                    commitStrategy={commitStrategy}
+                    min={0} max={10000} step={100} color={COLORS.teal}
+                    format={(v) => v === 0 ? 'None' : fmtFull(v) + '/mo'} />
+                )}
+              </div>
               {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
                 <>
                   <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent={COLORS.blue} />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
@@ -770,6 +785,18 @@ function RetirementIncomeChart({
                 testId="retirement-inheritance-sarah-age"
                 commitStrategy={commitStrategy}
                 min={55} max={80} step={1} format={(v) => v + ''} color={COLORS.green} />
+              {/* Item 7 (2026-06-10 batch 2): keep-the-house lever */}
+              <div>
+                <Toggle label="Keep the house (don't sell at retirement)" checked={keepHouse} onChange={setKeepHouse}
+                  color={COLORS.teal} testId="retirement-keep-house" />
+                {keepHouse && (
+                  <Slider label="Imputed rent saved" value={imputedRentSaved} onChange={setImputedRentSaved}
+                    testId="retirement-imputed-rent"
+                    commitStrategy={commitStrategy}
+                    min={0} max={10000} step={100} color={COLORS.teal}
+                    format={(v) => v === 0 ? 'None' : fmtFull(v) + '/mo'} />
+                )}
+              </div>
             </div>
           </ControlSection>
         </div>

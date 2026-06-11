@@ -12,6 +12,9 @@ const LAYERS = [
   { key: 'ssIncome', label: 'Social Security', color: COLORS.emerald },
   { key: 'trustIncome', label: 'Trust LLC', color: COLORS.purpleLight },
   { key: 'pensionIncome', label: 'PERS Pension', color: COLORS.yellow },
+  // Item 7 (2026-06-10 batch 2): imputed rent when the house is kept —
+  // its own layer so it is never mislabeled as trust income.
+  { key: 'imputedRentIncome', label: 'Rent Saved (house kept)', color: COLORS.teal },
   { key: 'poolDraw', label: 'Pool Draw', color: COLORS.blue },
 ];
 
@@ -25,8 +28,9 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   const enriched = useMemo(() => (yearlyData || []).map((d, i) => ({
     ...d,
     i,
-    trustIncome: Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0) - (d.pensionIncome || 0)),
+    trustIncome: Math.max(0, (d.guaranteedIncome || 0) - (d.ssIncome || 0) - (d.pensionIncome || 0) - (d.imputedRentIncome || 0)),
     pensionIncome: d.pensionIncome || 0,
+    imputedRentIncome: d.imputedRentIncome || 0,
   })), [yearlyData]);
 
   const n = enriched.length;
@@ -36,7 +40,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   const plotH = svgH - padT - padB;
 
   // Dynamic scale
-  const maxIncome = Math.max(...enriched.map(d => (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome + (d.pensionIncome || 0)));
+  const maxIncome = Math.max(...enriched.map(d => (d.poolDraw || 0) + (d.ssIncome || 0) + d.trustIncome + (d.pensionIncome || 0) + (d.imputedRentIncome || 0)));
   const maxTarget = Math.max(...enriched.map(d => d.totalTarget || 0));
   const yMax = Math.max(maxIncome, maxTarget) * 1.1 || 1;
 
@@ -58,7 +62,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
   }
 
   // Build stacked area paths (bottom-up: SS, Trust, Pension, Pool Draw)
-  const layerKeys = ['ssIncome', 'trustIncome', 'pensionIncome', 'poolDraw'];
+  const layerKeys = ['ssIncome', 'trustIncome', 'pensionIncome', 'imputedRentIncome', 'poolDraw'];
   const cumulative = enriched.map(() => 0);
   const areaPaths = layerKeys.map((key, li) => {
     const prevCum = [...cumulative];
@@ -204,6 +208,7 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
                 { label: 'Social Security', color: COLORS.emerald, value: d.ssIncome || 0, detail: d.ssLabel },
                 { label: 'Trust', color: COLORS.purpleLight, value: d.trustIncome },
                 { label: 'PERS Pension', color: COLORS.yellow, value: d.pensionIncome || 0 },
+                { label: 'Rent Saved (house kept)', color: COLORS.teal, value: d.imputedRentIncome || 0 },
               ].filter(s => s.value > 0).map((s, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 2 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

@@ -42,6 +42,7 @@ export function useRetirementSimulation({
   // see them and they survive reload.
   retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
   retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
+  retKeepHouse, retImputedRentSaved,
   onFieldChange,
 }) {
   // ── State ────────────────────────────────────────────────────────────
@@ -84,6 +85,11 @@ export function useRetirementSimulation({
   // Writing any number through the slider makes it dirty by construction.
   const withdrawalRateDirty = retWithdrawalRate != null;
   const setWithdrawalRate = useMemo(() => setField('retWithdrawalRate'), [setField]);
+  // Item 7 (2026-06-10 batch 2): keep-the-house lever + imputed rent saved.
+  const keepHouse = !!retKeepHouse;
+  const setKeepHouse = useMemo(() => setField('retKeepHouse'), [setField]);
+  const imputedRentSaved = retImputedRentSaved ?? 0;
+  const setImputedRentSaved = useMemo(() => setField('retImputedRentSaved'), [setField]);
 
   // ── Deferred slider values ───────────────────────────────────────────
   // Slider thumbs + labels use the immediate value; expensive computations
@@ -104,13 +110,14 @@ export function useRetirementSimulation({
   // via a pure function so node tests can verify parity with gatherState.
   const {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
-    ssFRA, chadSS, chadSSStartAge, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, startingCoupleIncome,
+    ssFRA, chadSS, chadSSStartAge, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
   } = deriveRetirementParams({
     chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
     ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
     trustIncomeFuture, chadJobPensionMonthly,
     sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
     sarahSpousalEnabled: sarahSpousalEnabledFromState,
+    retKeepHouse: keepHouse, retImputedRentSaved: imputedRentSaved,
   });
 
   // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths).
@@ -128,6 +135,7 @@ export function useRetirementSimulation({
     retirement401kTaxRate,
     expenseInflation, expenseInflationRate,
     monthsToRetirement: Math.max(0, endIdx),
+    keepHouse,
   });
 
   const normalizedPwaToleranceLow = Math.min(dPwaToleranceLow, dPwaToleranceHigh);
@@ -169,8 +177,9 @@ export function useRetirementSimulation({
       sarahSpousalEnabled,
       trustMonthly,
       pensionMonthly,
+      imputedRentMonthly,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, imputedRentMonthly]);
 
   // Only `scaling` is consumed here: the inheritance "rescue" carrier is
   // legacy — every cash event flows through simulationSupplementalFlows
@@ -201,11 +210,12 @@ export function useRetirementSimulation({
       sarahSpousalEnabled,
       trustMonthly,
       pensionMonthly,
+      imputedRentMonthly,
       hasInheritance,
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, imputedRentMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Closed-form cohort math includes inheritance as a future cash event (like
   // SS/trust). Since the inheritance double-count fix (finding 2026-06-09 2.1)
@@ -429,6 +439,7 @@ export function useRetirementSimulation({
     sarahSpousalClaimAge,
     sarahSpousalEnabled,
     pensionMonthly,
+    imputedRentMonthly,
   };
 
   const yearlyData = deterministicPools.map((pool, y) => {
@@ -494,7 +505,8 @@ export function useRetirementSimulation({
     // Constants
     ageDiff, sarahTargetAge, years, survivorSpendRatio,
     endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
-    trustMonthly, pensionMonthly, startingCoupleIncome,
+    trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
+    keepHouse, setKeepHouse, imputedRentSaved, setImputedRentSaved,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
 

@@ -208,6 +208,8 @@ const NON_DEFAULT_VALUES = {
   retInheritanceAmount: 750000,
   retInheritanceSarahAge: 68,
   retPwaStrategy: 'fixed_percentile',
+  retKeepHouse: true,              // Item 7 (2026-06-10 batch 2): keep-the-house lever
+  retImputedRentSaved: 3500,
 
   // Sequence of returns
   seqBadY1: -15,
@@ -419,6 +421,17 @@ test('B3: overrides round-trip; retWithdrawalRate keeps an explicit number', () 
   assert.strictEqual(r.retInheritanceAmount, 0, 'explicit 0 (no inheritance) preserved');
   assert.strictEqual(r.retInheritanceSarahAge, 72);
   assert.strictEqual(r.retPwaStrategy, 'sticky_quartile_nudge');
+});
+
+test('Item 7: keepHouse toggle + imputed rent round-trip (default, override, clamp)', () => {
+  const d = roundTrip({});
+  assert.strictEqual(d.retKeepHouse, false, 'default: house sold at the seam (old behavior)');
+  assert.strictEqual(d.retImputedRentSaved, 0);
+  const r = roundTrip({ retKeepHouse: true, retImputedRentSaved: 3500 });
+  assert.strictEqual(r.retKeepHouse, true);
+  assert.strictEqual(r.retImputedRentSaved, 3500);
+  assert.strictEqual(roundTrip({ retImputedRentSaved: 999999 }).retImputedRentSaved, 20000, 'corruption guard');
+  assert.strictEqual(roundTrip({ retKeepHouse: 'yes' }).retKeepHouse, true, 'boolean coercion');
 });
 
 test('B3: edges — range clamps, nullable clamp, bad enum reverts to default', () => {

@@ -331,6 +331,48 @@ test('A2-4: spousal requires the worker to be entitled — nothing before Chad f
     'spousal begins with his entitlement at her age 68 → unreduced ceiling');
 });
 
+// ── Item 7 (2026-06-10 batch 2): keep-the-house toggle + imputed rent ──────
+// retKeepHouse excludes the home-sale proceeds from the retirement pool (the
+// old model ALWAYS liquidated at the seam with no lever); retImputedRentSaved
+// credits the avoided rent as guaranteed income in BOTH phases (the survivor
+// keeps living there).
+
+test('K1: keepHouse excludes homeSaleNet from the pool; default (false) unchanged', () => {
+  const sold = computeRetirementPool({ endSavings: 500_000, end401k: 0, homeEquity: 700_000 });
+  eq(sold.homeSaleNet, Math.round(700_000 * 0.94), 'default: sale net of 6% costs');
+  eq(sold.totalPool, 500_000 + Math.round(700_000 * 0.94));
+  const kept = computeRetirementPool({ endSavings: 500_000, end401k: 0, homeEquity: 700_000, keepHouse: true });
+  eq(kept.homeSaleNet, 0, 'kept: no sale proceeds');
+  eq(kept.totalPool, 500_000, 'pool excludes the house');
+});
+
+test('K2: imputed rent joins startingCoupleIncome ONLY when the house is kept', () => {
+  const sold = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214, trustIncomeFuture: 2000, retKeepHouse: false, retImputedRentSaved: 3000 });
+  eq(sold.imputedRentMonthly, 0, 'selling: no imputed rent');
+  eq(sold.startingCoupleIncome, 4214 + 2000);
+  const kept = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214, trustIncomeFuture: 2000, retKeepHouse: true, retImputedRentSaved: 3000 });
+  eq(kept.imputedRentMonthly, 3000);
+  eq(kept.startingCoupleIncome, 4214 + 2000 + 3000);
+});
+
+test('K3: imputed rent flows through guaranteed income in couple AND survivor phases', () => {
+  const ctx = buildRetirementContext({
+    horizonMonths: 240, chadPassesAge: 74, ageDiff: 2, survivorSpendRatio: 0.6,
+    chadSS: 4214, ssFRA: 4214, sarahOwnSS: 0, survivorSS: 4214, survivorCap: Infinity,
+    chadSSStartAge: 67, sarahSpousalClaimAge: 67,
+    trustMonthly: 2000, pensionMonthly: 0, imputedRentMonthly: 3000,
+  });
+  const noRent = buildRetirementContext({
+    horizonMonths: 240, chadPassesAge: 74, ageDiff: 2, survivorSpendRatio: 0.6,
+    chadSS: 4214, ssFRA: 4214, sarahOwnSS: 0, survivorSS: 4214, survivorCap: Infinity,
+    chadSSStartAge: 67, sarahSpousalClaimAge: 67,
+    trustMonthly: 2000, pensionMonthly: 0,
+  });
+  eq(ctx.guaranteedIncome[0] - noRent.guaranteedIncome[0], 3000, 'couple phase credits the rent');
+  eq(ctx.guaranteedIncome[120] - noRent.guaranteedIncome[120], 3000, 'survivor phase keeps the rent (house persists)');
+  eq(ctx.imputedRentIncome[0], 3000, 'exposed as its own component (not folded into trust)');
+});
+
 // ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──
 // The "Model Sarah's spousal benefit" toggle gated the ACCUMULATION engine
 // (projection.js / gatherState) but the retirement sim kept paying her

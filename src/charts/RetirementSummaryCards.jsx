@@ -16,7 +16,7 @@ function RetirementSummaryCards({
   totalPool, endSavings, end401kAfterTax, homeSaleNet,
   pwaReferenceSimulation, pwaCurrentView, pwaStartContext, pwaCurrentSelection,
   pwaConfidencePct, bequestTarget,
-  trustMonthly, pensionMonthly,
+  trustMonthly, pensionMonthly, imputedRentMonthly = 0, keepHouse = false,
   chadPassesAge, bandResult, deterministicPools,
   inhDuringCouple, inheritanceChadAge,
   coupleSummary, postInheritanceSummary, survivorSummary,
@@ -29,7 +29,7 @@ function RetirementSummaryCards({
           {fmtFull(totalPool)}
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + Home {fmtFull(homeSaleNet)}
+          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + {keepHouse ? 'Home kept (not pooled)' : `Home ${fmtFull(homeSaleNet)}`}
         </div>
         {pwaReferenceSimulation && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -46,7 +46,7 @@ function RetirementSummaryCards({
           {fmtFull(Math.round(pwaCurrentView.totalSpendingTarget))}/mo
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Pool draw {fmtFull(Math.round(pwaCurrentView.currentPortfolioDraw))}/mo + SS {fmtFull(Math.round(pwaStartContext.currentSSIncome))}/mo + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
+          Pool draw {fmtFull(Math.round(pwaCurrentView.currentPortfolioDraw))}/mo + SS {fmtFull(Math.round(pwaStartContext.currentSSIncome))}/mo + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}{imputedRentMonthly > 0 ? ` + ${fmtFull(imputedRentMonthly)}/mo rent saved` : ''}
         </div>
         {pwaCurrentView.outsideIncomeReinvested > 0 && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -79,7 +79,7 @@ function RetirementSummaryCards({
           {fmtFull(totalPool)}
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + Home {fmtFull(homeSaleNet)}
+          Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + {keepHouse ? 'Home kept (not pooled)' : `Home ${fmtFull(homeSaleNet)}`}
         </div>
         {chadPassesAge > 70 && bandResult.bands[0].series.length > (chadPassesAge - 67) && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -101,7 +101,7 @@ function RetirementSummaryCards({
           {fmtFull(coupleSummary.totalTarget)}/mo
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Pool draw {formatRange(coupleSummary.start.poolDraw, coupleSummary.end.poolDraw, '/mo')} + SS {formatRange(coupleSummary.start.ssIncome, coupleSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
+          Pool draw {formatRange(coupleSummary.start.poolDraw, coupleSummary.end.poolDraw, '/mo')} + SS {formatRange(coupleSummary.start.ssIncome, coupleSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}{imputedRentMonthly > 0 ? ` + ${fmtFull(imputedRentMonthly)}/mo rent saved` : ''}
         </div>
         {(coupleSummary.start.savedToPool > 0 || coupleSummary.end.savedToPool > 0) && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -124,7 +124,7 @@ function RetirementSummaryCards({
             {fmtFull(postInheritanceSummary.totalTarget)}/mo
           </div>
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            Pool draw {formatRange(postInheritanceSummary.start.poolDraw, postInheritanceSummary.end.poolDraw, '/mo')} + SS {formatRange(postInheritanceSummary.start.ssIncome, postInheritanceSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
+            Pool draw {formatRange(postInheritanceSummary.start.poolDraw, postInheritanceSummary.end.poolDraw, '/mo')} + SS {formatRange(postInheritanceSummary.start.ssIncome, postInheritanceSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}{imputedRentMonthly > 0 ? ` + ${fmtFull(imputedRentMonthly)}/mo rent saved` : ''}
           </div>
           {(postInheritanceSummary.start.savedToPool > 0 || postInheritanceSummary.end.savedToPool > 0) && (
             <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -147,7 +147,7 @@ function RetirementSummaryCards({
           {fmtFull(survivorSummary.totalTarget)}/mo
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-          Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}
+          Pool draw {formatRange(survivorSummary.start.poolDraw, survivorSummary.end.poolDraw, '/mo')} + SS {formatRange(survivorSummary.start.ssIncome, survivorSummary.end.ssIncome, '/mo')} + {fmtFull(trustMonthly)}/mo trust{pensionMonthly > 0 ? ` + ${fmtFull(pensionMonthly)}/mo pension` : ''}{imputedRentMonthly > 0 ? ` + ${fmtFull(imputedRentMonthly)}/mo rent saved` : ''}
         </div>
         {(survivorSummary.start.savedToPool > 0 || survivorSummary.end.savedToPool > 0) && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>

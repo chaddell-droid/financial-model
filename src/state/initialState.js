@@ -354,6 +354,12 @@ export const INITIAL_STATE = {
   retInheritanceAmount: 1000000, // Expected inheritance lump $
   retInheritanceSarahAge: 60,   // Sarah's age when the inheritance lands
   retPwaStrategy: 'sticky_median', // PWA selection strategy
+  // Item 7 (2026-06-10 batch 2): keep-the-house lever. Default false = the
+  // old behavior (sell at the seam, 94% of equity joins the pool). When true,
+  // the pool excludes the sale proceeds and retImputedRentSaved ($/mo of
+  // avoided rent) is credited as guaranteed income in BOTH phases.
+  retKeepHouse: false,
+  retImputedRentSaved: 0,
 
   // Sequence of Returns
   seqBadY1: -10,
@@ -446,6 +452,7 @@ export const MODEL_KEYS = [
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate', 'retirement401kTaxRate',
   'retChadPassesAge', 'retEquityAllocation', 'retWithdrawalRate', 'retPoolFloor', 'retBequestTarget',
   'retInheritanceAmount', 'retInheritanceSarahAge', 'retPwaStrategy',
+  'retKeepHouse', 'retImputedRentSaved',
   'seqBadY1', 'seqBadY2',
   // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
   'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',

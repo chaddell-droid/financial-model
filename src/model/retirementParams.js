@@ -34,6 +34,7 @@ export function deriveRetirementParams({
   ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
   trustIncomeFuture, chadJobPensionMonthly,
   sarahSpousalClaimAge, sarahSpousalEnabled,
+  retKeepHouse, retImputedRentSaved,
 } = {}) {
   // Age gap from state — the sim indexes time by Chad's age (retires at 67),
   // so Sarah's age at month t is chadAge - ageDiff.
@@ -82,9 +83,14 @@ export function deriveRetirementParams({
   // C14: single-life accrual × J&S 50% option factor (survivor coverage is
   // always modeled — getPensionAtMonth pays the 50% continuance).
   const pensionMonthly = Math.round((chadJobPensionMonthly || 0) * PERS_JS50_FACTOR);
+  // Item 7 (2026-06-10 batch 2): avoided rent counts as guaranteed income
+  // ONLY while the house is kept (selling forfeits it but adds the sale
+  // proceeds to the pool via computeRetirementPool). Credited in both the
+  // couple and survivor phases — the survivor keeps living in the house.
+  const imputedRentMonthly = retKeepHouse ? Math.max(0, retImputedRentSaved || 0) : 0;
   // A2: the seam-month guaranteed income excludes a not-yet-payable delayed
   // claim — it must equal the engine's guaranteedIncome at t=0 (age 67).
-  const startingCoupleIncome = (chadSSStartAge <= 67 ? chadSS : 0) + trustMonthly + pensionMonthly;
+  const startingCoupleIncome = (chadSSStartAge <= 67 ? chadSS : 0) + trustMonthly + pensionMonthly + imputedRentMonthly;
   // A7 (remediation 2026-06-10, item 1.5): Sarah's spousal claim age flows
   // from state (D9 default 67, slider 62–70) into the retirement sim, which
   // gates her benefit at this age and applies the SPOUSAL reduction factor
@@ -102,7 +108,7 @@ export function deriveRetirementParams({
     ssFRA, chadSS, chadSSStartAge, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
     sarahSpousalClaimAge: spousalClaimAge,
     sarahSpousalEnabled: spousalEnabled,
-    trustMonthly, pensionMonthly, startingCoupleIncome,
+    trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
   };
 }
 
@@ -135,6 +141,10 @@ export function deriveRetirementParams({
 export function computeRetirementPool({
   endSavings = 0, end401k = 0, homeEquity = 0, retirement401kTaxRate,
   expenseInflation, expenseInflationRate, monthsToRetirement = 0,
+  // Item 7 (2026-06-10 batch 2): keep-the-house lever — when true the home is
+  // NOT liquidated at the seam, so no sale proceeds join the spendable pool
+  // (equity remains on the net-worth surfaces, untouched by this engine).
+  keepHouse = false,
 } = {}) {
   const inflOn = expenseInflation ?? true;
   const months = Math.max(0, monthsToRetirement || 0);
@@ -148,7 +158,7 @@ export function computeRetirementPool({
   // floor (not round): any positive pre-tax balance with a positive rate loses
   // at least the tax dollar — never rounds the haircut away (A5 regression).
   const end401kAfterTax = Math.floor(gross401k * (1 - taxRate));
-  const homeSaleNet = Math.round((homeEquity / deflator) * 0.94);
+  const homeSaleNet = keepHouse ? 0 : Math.round((homeEquity / deflator) * 0.94);
   const totalPool = Math.max(0, savings + end401kAfterTax + homeSaleNet);
   return { endSavings: savings, end401k: gross401k, end401kAfterTax, homeSaleNet, totalPool, deflator };
 }

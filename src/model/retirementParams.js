@@ -33,7 +33,7 @@ export function deriveRetirementParams({
   chadCurrentAge, sarahCurrentAge, sarahOwnSS,
   ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
   trustIncomeFuture, chadJobPensionMonthly,
-  sarahSpousalClaimAge,
+  sarahSpousalClaimAge, sarahSpousalEnabled,
 } = {}) {
   // Age gap from state — the sim indexes time by Chad's age (retires at 67),
   // so Sarah's age at month t is chadAge - ageDiff.
@@ -90,11 +90,18 @@ export function deriveRetirementParams({
   // gates her benefit at this age and applies the SPOUSAL reduction factor
   // to the 50%-of-PIA ceiling (see getRetirementSSInfo).
   const spousalClaimAge = Math.min(70, Math.max(62, sarahSpousalClaimAge ?? 67));
+  // A3 (2026-06-10 retirement review): the "Model Sarah's spousal benefit"
+  // toggle now reaches this engine too (same `!== false` default convention
+  // as gatherState/projection.js). OFF suppresses only the spousal TOP-UP —
+  // her own-record benefit and the survivor benefit are different SSA
+  // benefits and are unaffected.
+  const spousalEnabled = sarahSpousalEnabled !== false;
 
   return {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
     ssFRA, chadSS, chadSSStartAge, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
     sarahSpousalClaimAge: spousalClaimAge,
+    sarahSpousalEnabled: spousalEnabled,
     trustMonthly, pensionMonthly, startingCoupleIncome,
   };
 }

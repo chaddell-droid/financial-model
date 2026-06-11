@@ -146,7 +146,7 @@ export default function FinancialModel() {
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
     postJobBenefit,
-    sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS,
+    sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockTotal, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
     chadCurrentAge, chadAge65VestOverride,
     chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
@@ -671,12 +671,13 @@ export default function FinancialModel() {
     chadCurrentAge,
     sarahCurrentAge,
     sarahSpousalClaimAge, // A7 (2026-06-10): retirement sim gates + reduces her spousal by claim age
+    sarahSpousalEnabled, // A3 (2026-06-10 retirement review): the spousal toggle reaches this engine too
     sarahOwnSS,
     retirement401kTaxRate, // A5 (2026-06-10): pool haircuts the pre-tax 401(k) leg by this rate
     expenseInflation, // B8 (2026-06-10): nominal pool deflated to today's dollars at the seam
     expenseInflationRate,
     onSpendingTargets: setRetirementSpendingTargets,
-  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate]);
+  }), [savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssWithheldSummary, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate]);
   const deferredRetirementRailProps = useDeferredValue(retirementRailProps);
   const deferredGoalPanelProps = useDeferredValue(goalPanelProps);
   // Removed: useLaggedValue debounce layer — useDeferredValue already handles prioritization

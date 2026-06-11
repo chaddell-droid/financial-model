@@ -33,6 +33,7 @@ export function useRetirementSimulation({
   savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly,
   chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
   sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
+  sarahSpousalEnabled: sarahSpousalEnabledFromState,
   retirement401kTaxRate,
   expenseInflation, expenseInflationRate,
 }) {
@@ -77,12 +78,13 @@ export function useRetirementSimulation({
   // via a pure function so node tests can verify parity with gatherState.
   const {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
-    ssFRA, chadSS, chadSSStartAge, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, trustMonthly, pensionMonthly, startingCoupleIncome,
+    ssFRA, chadSS, chadSSStartAge, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, startingCoupleIncome,
   } = deriveRetirementParams({
     chadCurrentAge, sarahCurrentAge, sarahOwnSS: sarahOwnSSFromState,
     ssType, ssPIA, ssClaimAge, ssMonthsWithheld,
     trustIncomeFuture, chadJobPensionMonthly,
     sarahSpousalClaimAge: sarahSpousalClaimAgeFromState,
+    sarahSpousalEnabled: sarahSpousalEnabledFromState,
   });
 
   // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths).
@@ -140,10 +142,11 @@ export function useRetirementSimulation({
       survivorCap,
       chadSSStartAge,
       sarahSpousalClaimAge,
+      sarahSpousalEnabled,
       trustMonthly,
       pensionMonthly,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, trustMonthly, pensionMonthly]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, survivorSpendRatio, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly]);
 
   // Only `scaling` is consumed here: the inheritance "rescue" carrier is
   // legacy — every cash event flows through simulationSupplementalFlows
@@ -171,13 +174,14 @@ export function useRetirementSimulation({
       survivorCap,
       chadSSStartAge,
       sarahSpousalClaimAge,
+      sarahSpousalEnabled,
       trustMonthly,
       pensionMonthly,
       hasInheritance,
       inheritanceMonth,
       inheritanceAmount: dInheritanceAmount,
     });
-  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
+  }, [horizonMonths, dChadPassesAge, ageDiff, chadSS, chadSSStartAge, ssFRA, sarahOwnSS, survivorSS, survivorCap, sarahSpousalClaimAge, sarahSpousalEnabled, trustMonthly, pensionMonthly, hasInheritance, inheritanceMonth, dInheritanceAmount]);
 
   // Closed-form cohort math includes inheritance as a future cash event (like
   // SS/trust). Since the inheritance double-count fix (finding 2026-06-09 2.1)
@@ -386,6 +390,7 @@ export function useRetirementSimulation({
     survivorCap,
     chadSSStartAge,
     sarahSpousalClaimAge,
+    sarahSpousalEnabled,
     pensionMonthly,
   };
 

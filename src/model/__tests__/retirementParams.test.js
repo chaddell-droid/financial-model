@@ -331,6 +331,60 @@ test('A2-4: spousal requires the worker to be entitled — nothing before Chad f
     'spousal begins with his entitlement at her age 68 → unreduced ceiling');
 });
 
+// ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──
+// The "Model Sarah's spousal benefit" toggle gated the ACCUMULATION engine
+// (projection.js / gatherState) but the retirement sim kept paying her
+// spousal top-up regardless — a cross-engine display-parity gap.
+
+test('A3-1: spousal toggle off (own benefit 0) → Chad-only SS in retirement income', () => {
+  const p = deriveRetirementParams({
+    ssType: 'ssdi', ssPIA: 4214, sarahOwnSS: 0, sarahSpousalEnabled: false,
+  });
+  eq(p.sarahSpousalEnabled, false, 'flag flows through the derived params');
+  const info = getRetirementSSInfo(81, true, {
+    ageDiff: 14, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap,
+    chadSSStartAge: p.chadSSStartAge, sarahSpousalClaimAge: 67,
+    sarahSpousalEnabled: p.sarahSpousalEnabled,
+  });
+  eq(info.amount, 4214, 'Chad only — no spousal top-up');
+  eq(info.label, 'Chad only');
+});
+
+test('A3-2: spousal toggle off — Sarah\'s OWN record still pays from her claim age', () => {
+  const info = getRetirementSSInfo(81, true, {
+    ageDiff: 14, chadSS: 4214, ssFRA: 4214, sarahOwnSS: 1900,
+    survivorSS: 4214, survivorCap: Infinity,
+    chadSSStartAge: 67, sarahSpousalClaimAge: 67,
+    sarahSpousalEnabled: false,
+  });
+  eq(info.amount, 4214 + 1900, 'own record unaffected by the spousal toggle');
+  eq(info.label, 'Chad + Sarah own record');
+});
+
+test('A3-3: toggle absent/true → spousal top-up unchanged (back-compat default)', () => {
+  const base = {
+    ageDiff: 14, chadSS: 4214, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: 4214, survivorCap: Infinity,
+    chadSSStartAge: 67, sarahSpousalClaimAge: 67,
+  };
+  const absent = getRetirementSSInfo(81, true, base);
+  eq(absent.amount, 4214 + Math.round(4214 * 0.5), 'absent flag pays spousal');
+  const on = getRetirementSSInfo(81, true, { ...base, sarahSpousalEnabled: true });
+  eq(on.amount, 4214 + Math.round(4214 * 0.5), 'explicit true pays spousal');
+  const off = deriveRetirementParams({});
+  eq(off.sarahSpousalEnabled, true, 'derived default is enabled (matches gatherState !== false)');
+});
+
+test('A3-4: survivor benefits are NOT gated by the spousal toggle (different SSA benefit)', () => {
+  const info = getRetirementSSInfo(82, false, {
+    ageDiff: 14, chadSS: 4214, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: 4214, survivorCap: Infinity, survivorClaimAge: 67,
+    sarahSpousalEnabled: false,
+  });
+  eq(info.amount, 4214, 'widow benefit unaffected');
+});
+
 test('A4: one consistent ssClaimAge fallback (62 — the state default)', () => {
   // Pre-fix, chadSS fell back to claimed-at-62 (70% PIA) while claimedEarly
   // fell back to 67 (false) — skipping the RIB-LIM cap entirely.
@@ -566,8 +620,8 @@ test('W3: hook gates the sync effect on the dirty flag and marks manual slider w
   assert.ok(hookSource.includes('setWithdrawalRateDirty(true)'), 'manual setter should mark the slider dirty');
 });
 
-test('W4: FinancialModel passes chadCurrentAge/sarahCurrentAge/sarahOwnSS into the retirement rail props', () => {
-  for (const field of ['chadCurrentAge', 'sarahCurrentAge', 'sarahOwnSS']) {
+test('W4: FinancialModel passes chadCurrentAge/sarahCurrentAge/sarahOwnSS/sarahSpousalEnabled into the retirement rail props', () => {
+  for (const field of ['chadCurrentAge', 'sarahCurrentAge', 'sarahOwnSS', 'sarahSpousalEnabled']) {
     assert.ok(
       new RegExp(`retirementRailProps[\\s\\S]{0,600}${field}`).test(appSource),
       `retirementRailProps should include ${field}`
@@ -578,7 +632,7 @@ test('W4: FinancialModel passes chadCurrentAge/sarahCurrentAge/sarahOwnSS into t
 test('W5: RetirementIncomeChart forwards the state fields into useRetirementSimulation', () => {
   const callMatch = chartSource.match(/useRetirementSimulation\(\{[\s\S]*?\}\)/);
   assert.ok(callMatch, 'chart should call useRetirementSimulation with a props object');
-  for (const field of ['chadCurrentAge', 'sarahCurrentAge', 'sarahOwnSS']) {
+  for (const field of ['chadCurrentAge', 'sarahCurrentAge', 'sarahOwnSS', 'sarahSpousalEnabled']) {
     assert.ok(callMatch[0].includes(field), `hook call should pass ${field}`);
   }
 });

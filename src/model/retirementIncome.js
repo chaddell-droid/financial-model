@@ -28,6 +28,7 @@ function getRetirementMonthDetails(t, {
   survivorCap,
   chadSSStartAge,
   sarahSpousalClaimAge,
+  sarahSpousalEnabled,
   pensionMonthly,
 }) {
   const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
@@ -42,6 +43,7 @@ function getRetirementMonthDetails(t, {
     survivorCap,
     chadSSStartAge,
     sarahSpousalClaimAge,
+    sarahSpousalEnabled,
     // Survivor claim age = Sarah's age when widowed (floored at 60 inside the
     // helper) — locks the SSA reduction factor at claim time (D3).
     survivorClaimAge: chadPassesAge - ageDiff,
@@ -95,6 +97,7 @@ export function getRetirementSSInfo(chadAge, chadAlive, {
   chadSSStartAge,
   survivorClaimAge,
   sarahSpousalClaimAge,
+  sarahSpousalEnabled,
 }) {
   const sarahAge = chadAge - ageDiff;
 
@@ -124,7 +127,9 @@ export function getRetirementSSInfo(chadAge, chadAlive, {
     // the spousal reduction is measured at her age when the benefit BEGINS
     // (no reduction once she's past FRA), not at the earlier election age.
     const spousalStartAge = Math.max(spousalClaimAge, (chadSSStartAge ?? 0) - ageDiff);
-    const spousalCeiling = chadFiled
+    // A3: the spousal toggle suppresses only the TOP-UP (ceiling) — Sarah's
+    // own-record benefit below is a different SSA benefit and still pays.
+    const spousalCeiling = (chadFiled && sarahSpousalEnabled !== false)
       ? Math.round(ssFRA * 0.5 * ssSpousalAdjustmentFactor(Math.min(70, spousalStartAge)))
       : 0;
     const sarahBenefit = sarahAge >= spousalClaimAge ? Math.max(spousalCeiling, sarahOwnSS) : 0;
@@ -180,6 +185,7 @@ export function buildRetirementContext({
   survivorCap,
   chadSSStartAge,
   sarahSpousalClaimAge,
+  sarahSpousalEnabled,
   trustMonthly,
   pensionMonthly,
 }) {
@@ -205,6 +211,7 @@ export function buildRetirementContext({
     survivorCap,
     chadSSStartAge,
     sarahSpousalClaimAge,
+    sarahSpousalEnabled,
     pensionMonthly: pensionMonthly || 0,
   };
 
@@ -272,6 +279,7 @@ export function buildSupplementalFlows({
   survivorCap,
   chadSSStartAge,
   sarahSpousalClaimAge,
+  sarahSpousalEnabled,
   trustMonthly,
   pensionMonthly,
   hasInheritance,
@@ -290,6 +298,7 @@ export function buildSupplementalFlows({
     survivorCap,
     chadSSStartAge,
     sarahSpousalClaimAge,
+    sarahSpousalEnabled,
     trustMonthly,
     pensionMonthly,
   });
@@ -352,6 +361,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   survivorCap,
   chadSSStartAge,
   sarahSpousalClaimAge,
+  sarahSpousalEnabled,
   pensionMonthly,
 }) {
   const chadAlive = chadAge < chadPassesAge;
@@ -364,6 +374,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     survivorCap,
     chadSSStartAge,
     sarahSpousalClaimAge,
+    sarahSpousalEnabled,
     // Lock the SSA survivor reduction at the age Sarah is widowed (D3).
     survivorClaimAge: chadPassesAge - ageDiff,
   });

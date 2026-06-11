@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import {
   deriveRetirementParams,
   computeOptimalRates,
+  EMPTY_OPTIMAL_RATES,
   withdrawalScaleFactor,
   buildTwoPhaseSchedule,
   shouldAutoSyncWithdrawalRate,
@@ -449,6 +450,29 @@ test('TS2: retSarahTargetAge - default 90, clamps 80-100, drives the horizon', (
   eq(deriveRetirementParams({ retSarahTargetAge: 120 }).sarahTargetAge, 100, 'clamped to 100');
 });
 
+// ── Item 10 (2026-06-10 batch 2, PWA review finding 1): band semantics ─────
+// Pre-fix, inheritance-mode bands ran EACH cohort at its own closed-form
+// schedule (scaled), so (a) the percentiles answered a different question
+// than the no-inheritance bands, and (b) bad cohorts with NEGATIVE SWRs
+// quietly DEPOSITED money, propping up exactly the low percentiles the
+// chart highlights. Now: one shared user pre/post schedule, clamped at 0.
+
+test('BT1: buildTwoPhaseSchedule clamps negative spending at 0 (no phantom deposits)', () => {
+  const sched = buildTwoPhaseSchedule(6, 3, -2000, 5000, 1);
+  for (let t = 0; t < 3; t++) eq(sched[t], 0, `pre month ${t} clamped`);
+  for (let t = 3; t < 6; t++) eq(sched[t], 5000, `post month ${t}`);
+  const negFactor = buildTwoPhaseSchedule(4, 2, 1000, -500, 2);
+  eq(negFactor[0], 2000);
+  eq(negFactor[3], 0, 'negative post rate clamped');
+});
+
+test('BT2: computeOptimalRates exposes optimalPreConsumption (uniform band schedule input)', () => {
+  const empty = computeOptimalRates({ cohortSWRs: new Float64Array(0), cohortPreSwrs: null, totalPool: 0, horizonMonths: 300, startingCoupleIncome: 0 });
+  eq(empty.optimalPreConsumption, 0, 'empty fallback stays numeric');
+  assert.ok('optimalPreConsumption' in EMPTY_OPTIMAL_RATES, 'EMPTY shape includes the field');
+});
+
+
 // ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──
 // The "Model Sarah's spousal benefit" toggle gated the ACCUMULATION engine
 // (projection.js / gatherState) but the retirement sim kept paying her
@@ -767,6 +791,14 @@ test('W8: B3 - chart assumptions are state-backed (no local useState; reducer-wr
   assert.strictEqual(INITIAL_STATE.retInheritanceSarahAge, 60);
   assert.strictEqual(INITIAL_STATE.retPwaStrategy, 'sticky_median');
 });
+
+test('BT3: hook bands simulate ONE shared user schedule, not per-cohort closed forms', () => {
+  assert.ok(!hookSource.includes('cohortPreSwrs[c], cohortSWRs[c]'),
+    'per-cohort schedules must be gone from the band loop');
+  assert.ok(hookSource.includes('optimalPreConsumption'),
+    'shared schedule derives from the optimal pre-consumption x the slider factor');
+});
+
 
 test('W4: FinancialModel passes chadCurrentAge/sarahCurrentAge/sarahOwnSS/sarahSpousalEnabled into the retirement rail props', () => {
   for (const field of ['chadCurrentAge', 'sarahCurrentAge', 'sarahOwnSS', 'sarahSpousalEnabled']) {

@@ -383,19 +383,23 @@ export function useRetirementSimulation({
       if (cohortSWRs.length > c && cohortSWRs[c] >= userConsumption) survivedCount++;
     }
 
-    // Simulation for chart band rendering — per-cohort two-phase withdrawal when
-    // inheritance active. Each cohort's closed-form schedule is scaled by the
-    // USER's slider (factor = userConsumption / optimalConsumption) so the bands
-    // actually respond to the pool-draw slider (finding 2026-06-09 2.5a) —
-    // previously every cohort ran at its own full SWR regardless of the slider.
-    // Inheritance arrives via simulationSupplementalFlows ONLY (single carrier,
-    // finding 2026-06-09 2.1) — simulatePath no longer takes a rescue array.
+    // Simulation for chart band rendering — Item 10 (2026-06-10 batch 2, PWA
+    // review finding 1): inheritance mode runs ONE shared user schedule —
+    // optimalPreConsumption × slider factor before the inheritance, the
+    // user's consumption after — for EVERY cohort, so the bands answer the
+    // same question ("what if WE spend $X") with and without an inheritance.
+    // The pre-fix per-cohort closed-form schedules tightened the spread
+    // artificially and let negative-SWR cohorts DEPOSIT money (clamped now
+    // inside buildTwoPhaseSchedule). Slider responsiveness (finding 2.5a)
+    // is preserved via the same withdrawalScaleFactor. Inheritance arrives
+    // via simulationSupplementalFlows ONLY (single carrier, finding 2.1).
     const sliderFactor = withdrawalScaleFactor(userConsumption, optimalRates.optimalConsumption);
+    const userPreConsumption = Math.max(0, (optimalRates.optimalPreConsumption || userConsumption) * sliderFactor);
+    const sharedSchedule = useTwoPhase
+      ? buildTwoPhaseSchedule(horizonMonths, inheritanceMonth, userPreConsumption, userConsumption, 1)
+      : null;
     for (let c = 0; c < numCohorts; c++) {
-      let withdrawal = userConsumption;
-      if (useTwoPhase) {
-        withdrawal = buildTwoPhaseSchedule(horizonMonths, inheritanceMonth, cohortPreSwrs[c], cohortSWRs[c], sliderFactor);
-      }
+      const withdrawal = sharedSchedule || userConsumption;
       const sim = simulatePath(blendedReturns, c, horizonMonths, withdrawal, simulationSupplementalFlows, scaling, totalPool, pf);
       allYearlyPools[c] = sim.yearlyPools;
     }
@@ -416,7 +420,7 @@ export function useRetirementSimulation({
     const bands = percentiles.map((p, i) => ({ pct: p, series: bandSeries[i] }));
 
     return { finishAboveReserveRate: survivedCount / numCohorts, bands };
-  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, cohortSWRs, cohortPreSwrs, inheritanceMonth, optimalRates.optimalConsumption]);
+  }, [blendedReturns, totalPool, baseMonthlyConsumption, dPoolFloor, simulationSupplementalFlows, scaling, horizonMonths, years, cohortSWRs, cohortPreSwrs, inheritanceMonth, optimalRates.optimalConsumption, optimalRates.optimalPreConsumption]);
 
   // Deterministic trajectory at the GEOMETRIC mean historical return (B10,
   // item 3.4 — the arithmetic mean ignored volatility drag and ran ~0.4pp/yr

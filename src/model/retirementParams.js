@@ -243,7 +243,11 @@ export function withdrawalScaleFactor(userConsumption, optimalConsumption) {
 export function buildTwoPhaseSchedule(horizonMonths, inheritanceMonth, preRate, postRate, factor = 1) {
   const schedule = new Float64Array(horizonMonths);
   for (let t = 0; t < horizonMonths; t++) {
-    schedule[t] = (t < inheritanceMonth ? preRate : postRate) * factor;
+    // Item 10 (2026-06-10 batch 2): clamp at 0 — a negative closed-form rate
+    // (terrible cohort / tiny pool) must never become a phantom DEPOSIT in
+    // simulatePath, which would prop up exactly the low percentiles the
+    // bands exist to show.
+    schedule[t] = Math.max(0, (t < inheritanceMonth ? preRate : postRate) * factor);
   }
   return schedule;
 }
@@ -262,7 +266,7 @@ export function shouldAutoSyncWithdrawalRate({ isPwaMode, dirty, optimalRate }) 
 export const EMPTY_OPTIMAL_RATES = Object.freeze({
   optimalRate: 0, optimalMonthly: 0, optimalPreRate: 0, optimalPreMonthly: 0,
   numCohorts: 0, worstCohort: Object.freeze({ year: 0 }), cohortRange: '',
-  optimalConsumption: 0, sliderMax: 30,
+  optimalConsumption: 0, optimalPreConsumption: 0, sliderMax: 30,
 });
 
 /**
@@ -298,11 +302,16 @@ export function computeOptimalRates({
     ? Math.round(optimalPoolDraw * 12 / totalPool * 1000) / 10 : 0;
   const optimalMonthly = Math.round(optimalPoolDraw);
 
-  // Pre-inheritance rate via closed-form (if applicable)
+  // Pre-inheritance rate via closed-form (if applicable). Item 10: the
+  // pre-phase CONSUMPTION is exported too — the band simulation builds ONE
+  // shared user schedule (optimalPreConsumption × slider factor before the
+  // inheritance, user consumption after) instead of per-cohort closed forms.
   let optimalPreRate = optimalRate, optimalPreMonthly = optimalMonthly;
+  let optimalPreConsumption = optimalConsumption;
   if (cohortPreSwrs && cohortPreSwrs.length > 0) {
     const sortedPre = Float64Array.from(cohortPreSwrs).sort();
     const preConsumption = Math.max(0, interpolatedPercentile(sortedPre, 10, { sorted: true }));
+    optimalPreConsumption = preConsumption;
     const prePoolDraw = Math.max(0, preConsumption - initialIncome);
     optimalPreRate = totalPool > 0
       ? Math.round(prePoolDraw * 12 / totalPool * 1000) / 10 : 0;
@@ -326,6 +335,6 @@ export function computeOptimalRates({
   return {
     optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,
     numCohorts, worstCohort: { year: worstLabel.year }, cohortRange,
-    optimalConsumption, sliderMax,
+    optimalConsumption, optimalPreConsumption, sliderMax,
   };
 }

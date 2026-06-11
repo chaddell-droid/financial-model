@@ -330,7 +330,9 @@ export function computeOptimalRates({
   const lastLabel = getCohortLabel(numCohorts - 1);
   const cohortRange = `${firstLabel.year}–${lastLabel.year}`;
 
-  const sliderMax = Math.max(30, Math.ceil(optimalRate / 5) * 5 + 5);
+  // Item 11 (finding 7, cosmetic): cap at 100% — a tiny pool with big
+  // guaranteed income produces a huge optimal rate and an unusable slider.
+  const sliderMax = Math.min(100, Math.max(30, Math.ceil(optimalRate / 5) * 5 + 5));
 
   return {
     optimalRate, optimalMonthly, optimalPreRate, optimalPreMonthly,

@@ -28,6 +28,8 @@ import {
 import { getPensionAtMonth, getRetirementSSInfo, buildRetirementContext } from '../retirementIncome.js';
 import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
 import { simulatePath, computeSWR } from '../ernWithdrawal.js';
+import { getPwaSummary } from '../pwaDistribution.js';
+import { selectPwaWithdrawal } from '../pwaStrategies.js';
 function require_ern() { return { computeSWR, simulatePath }; }
 import { ssRecalculatedBenefit } from '../constants.js';
 import { INITIAL_STATE } from '../../state/initialState.js';
@@ -472,6 +474,38 @@ test('BT2: computeOptimalRates exposes optimalPreConsumption (uniform band sched
   assert.ok('optimalPreConsumption' in EMPTY_OPTIMAL_RATES, 'EMPTY shape includes the field');
 });
 
+
+// ── Item 11 (2026-06-10 batch 2, PWA review findings 4/6/7): hardening ─────
+
+test('H1: PWA selection values clamp at 0 (tiny pool / long horizon never shows negative $/mo)', () => {
+  const allNegative = Float64Array.from([-4000, -3000, -2000, -1000]);
+  const summary = getPwaSummary(allNegative, { selectedPercentile: 50, lowerTolerancePercentile: 25, upperTolerancePercentile: 75 });
+  eq(summary.selectedWithdrawal, 0, 'selected clamped');
+  eq(summary.lowerToleranceWithdrawal, 0, 'lower band clamped');
+  eq(summary.median, 0, 'median clamped');
+  eq(summary.upperToleranceWithdrawal, 0, 'upper band clamped');
+  eq(summary.min, -4000, 'raw distribution min preserved for display');
+});
+
+test('H2: selectPwaWithdrawal normalizes an inverted tolerance band internally', () => {
+  const dist = Float64Array.from([1000, 2000, 3000, 4000, 5000]);
+  const inverted = selectPwaWithdrawal(dist, {
+    strategy: 'sticky_median', previousWithdrawal: 3000,
+    basePercentile: 50, lowerTolerancePercentile: 75, upperTolerancePercentile: 25,
+  });
+  assert.ok(inverted.lowerTolerancePercentile <= inverted.upperTolerancePercentile,
+    'band normalized lo<=hi');
+  eq(inverted.reason, 'keep_within_band', 'previous 3000 sits inside the normalized 25-75 band');
+});
+
+test('H4: sliderMax caps at 100% (tiny pool + big income no longer explodes the slider)', () => {
+  const r = computeOptimalRates({
+    cohortSWRs: Float64Array.from([20000, 21000, 22000, 23000]),
+    cohortPreSwrs: null, totalPool: 10000, horizonMonths: 24, startingCoupleIncome: 0,
+  });
+  assert.ok(r.optimalRate > 100, `precondition: optimal rate is huge (${r.optimalRate}%)`);
+  eq(r.sliderMax, 100, 'capped');
+});
 
 // ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──
 // The "Model Sarah's spousal benefit" toggle gated the ACCUMULATION engine

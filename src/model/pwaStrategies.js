@@ -2,12 +2,18 @@ import { buildPwaDistribution, getPwaSummary } from './pwaDistribution.js';
 import { deriveCurrentWithdrawalView, sliceRetirementContext } from './retirementIncome.js';
 
 function normalizeStrategyConfig(strategyConfig = {}) {
+  const lower = Number.isFinite(strategyConfig.lowerTolerancePercentile) ? strategyConfig.lowerTolerancePercentile : 25;
+  const upper = Number.isFinite(strategyConfig.upperTolerancePercentile) ? strategyConfig.upperTolerancePercentile : 75;
   return {
     strategy: strategyConfig.strategy || 'fixed_percentile',
     previousWithdrawal: Number.isFinite(strategyConfig.previousWithdrawal) ? strategyConfig.previousWithdrawal : null,
     basePercentile: Number.isFinite(strategyConfig.basePercentile) ? strategyConfig.basePercentile : 50,
-    lowerTolerancePercentile: Number.isFinite(strategyConfig.lowerTolerancePercentile) ? strategyConfig.lowerTolerancePercentile : 25,
-    upperTolerancePercentile: Number.isFinite(strategyConfig.upperTolerancePercentile) ? strategyConfig.upperTolerancePercentile : 75,
+    // Item 11 (2026-06-10 batch 2, PWA review finding 6): normalize HERE —
+    // an inverted band (lo > hi) from any caller would otherwise produce a
+    // never-within band and a recenter every single year. The hook already
+    // pre-normalizes; this makes the function safe for every caller.
+    lowerTolerancePercentile: Math.min(lower, upper),
+    upperTolerancePercentile: Math.max(lower, upper),
   };
 }
 
@@ -95,9 +101,12 @@ function buildFallbackContext(horizonMonths, supplementalFlows, scaling) {
     scaling: ArrayBuffer.isView(scaling)
       ? scaling
       : Float64Array.from(scaling),
-    guaranteedIncome: ArrayBuffer.isView(supplementalFlows)
-      ? supplementalFlows
-      : Float64Array.from(supplementalFlows),
+    // Item 11 (2026-06-10 batch 2, PWA review finding 5): supplementalFlows
+    // may carry LUMPS (an inheritance) — labeling them guaranteed INCOME
+    // made the fallback report a one-month seven-figure income. The fallback
+    // (hook always passes a real context) now reports zero guaranteed income
+    // rather than a wrong number.
+    guaranteedIncome: zeros,
     ssIncome: zeros,
     trustIncome: zeros,
     chadAges,

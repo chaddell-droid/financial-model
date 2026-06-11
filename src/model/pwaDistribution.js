@@ -135,15 +135,20 @@ export function getPwaSummary(samples, {
   const boundedLowerTolerance = clampPercentile(lowerTolerancePercentile);
   const boundedUpperTolerance = clampPercentile(upperTolerancePercentile);
 
+  // Item 11 (2026-06-10 batch 2, PWA review finding 4): selection values are
+  // SPENDING TARGETS — a tiny pool over a long horizon can push the raw
+  // percentiles negative, which would render as negative $/mo and feed a
+  // phantom deposit into the realized simulation. Clamp the four selection
+  // values at 0; min/max stay raw (distribution display).
   return {
     sampleCount: sortedSampleValues.length,
     selectedPercentile: boundedSelectedPercentile,
     lowerTolerancePercentile: boundedLowerTolerance,
     upperTolerancePercentile: boundedUpperTolerance,
-    selectedWithdrawal: getDistributionPercentile(sortedSampleValues, boundedSelectedPercentile),
-    lowerToleranceWithdrawal: getDistributionPercentile(sortedSampleValues, boundedLowerTolerance),
-    median: getDistributionPercentile(sortedSampleValues, 50),
-    upperToleranceWithdrawal: getDistributionPercentile(sortedSampleValues, boundedUpperTolerance),
+    selectedWithdrawal: Math.max(0, getDistributionPercentile(sortedSampleValues, boundedSelectedPercentile)),
+    lowerToleranceWithdrawal: Math.max(0, getDistributionPercentile(sortedSampleValues, boundedLowerTolerance)),
+    median: Math.max(0, getDistributionPercentile(sortedSampleValues, 50)),
+    upperToleranceWithdrawal: Math.max(0, getDistributionPercentile(sortedSampleValues, boundedUpperTolerance)),
     min: sortedSampleValues[0],
     max: sortedSampleValues[sortedSampleValues.length - 1],
   };

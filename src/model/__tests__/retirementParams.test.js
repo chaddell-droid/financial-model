@@ -24,7 +24,7 @@ import {
   SURVIVOR_SPEND_RATIO,
   PERS_JS50_FACTOR,
 } from '../retirementParams.js';
-import { getPensionAtMonth, getRetirementSSInfo } from '../retirementIncome.js';
+import { getPensionAtMonth, getRetirementSSInfo, buildRetirementContext } from '../retirementIncome.js';
 import { getNumCohorts, getCohortLabel } from '../historicalReturns.js';
 import { simulatePath } from '../ernWithdrawal.js';
 import { ssRecalculatedBenefit } from '../constants.js';
@@ -242,6 +242,103 @@ test('A1-5: SSDI path unchanged — base = PIA, no cap (default scenario regress
   const p = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214 });
   eq(p.survivorSS, 4214);
   eq(p.survivorCap, Infinity);
+});
+
+// ── A2 (2026-06-10 retirement review): delayed claiming gates the benefit ──
+// The couple branch paid chadSS unconditionally from t=0 (age 67), so a
+// claim age of 68–70 paid the DRC-inflated benefit 1–3 years before SSA
+// would. Years 67→claim must be pool-financed.
+
+test('A2-1: ssClaimAge=70 → $0 Chad SS at 67-69, $5,225 (124% PIA) from 70', () => {
+  const p = deriveRetirementParams({
+    chadCurrentAge: 61, sarahCurrentAge: 59,
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 70, sarahOwnSS: 0,
+  });
+  eq(p.chadSS, 5225, 'DRC benefit: round(4214 × 1.24)');
+  eq(p.chadSSStartAge, 70, 'benefit starts at the claim age');
+  for (const age of [67, 68, 69]) {
+    const info = getRetirementSSInfo(age, true, {
+      ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+      survivorSS: p.survivorSS, survivorCap: p.survivorCap,
+      sarahSpousalClaimAge: 67, chadSSStartAge: p.chadSSStartAge,
+    });
+    eq(info.amount, 0, `age ${age}: nothing payable before the age-70 claim`);
+  }
+  // sarahSpousalClaimAge 70 keeps her spousal out of frame at chadAge 70
+  // (sarahAge 68) so the assertion isolates Chad's benefit.
+  const at70 = getRetirementSSInfo(70, true, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap,
+    sarahSpousalClaimAge: 70, chadSSStartAge: p.chadSSStartAge,
+  });
+  eq(at70.amount, 5225, 'full DRC benefit from 70');
+  eq(at70.label, 'Chad only');
+});
+
+test('A2-2: buildRetirementContext — ssIncome is 0 for months 0-35, paid from month 36 (claim 70)', () => {
+  const p = deriveRetirementParams({
+    chadCurrentAge: 61, sarahCurrentAge: 59,
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 70, sarahOwnSS: 0,
+  });
+  const ctx = buildRetirementContext({
+    horizonMonths: 60, chadPassesAge: 95, ageDiff: 2, survivorSpendRatio: 0.6,
+    chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap,
+    sarahSpousalClaimAge: 70, chadSSStartAge: p.chadSSStartAge,
+    trustMonthly: 0, pensionMonthly: 0,
+  });
+  eq(ctx.ssIncome[0], 0, 'month 0 (age 67): not yet claimed');
+  eq(ctx.ssIncome[35], 0, 'month 35 (age 69.92): not yet claimed');
+  eq(ctx.ssIncome[36], 5225, 'month 36 (age 70): claim starts');
+});
+
+test('A2-3: startingCoupleIncome excludes Chad SS when the claim is after 67', () => {
+  const late = deriveRetirementParams({
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 70, sarahOwnSS: 0,
+    trustIncomeFuture: 2083, chadJobPensionMonthly: 800,
+  });
+  eq(late.startingCoupleIncome, 2083 + 760, 'trust + pension only at the seam');
+  const fra = deriveRetirementParams({
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 67, sarahOwnSS: 0,
+    trustIncomeFuture: 2083, chadJobPensionMonthly: 800,
+  });
+  eq(fra.startingCoupleIncome, fra.chadSS + 2083 + 760, 'claim ≤ 67: in payment at the seam');
+  const ssdi = deriveRetirementParams({ ssType: 'ssdi', ssPIA: 4214, trustIncomeFuture: 2083 });
+  eq(ssdi.startingCoupleIncome, 4214 + 2083, 'SSDI converts at FRA — in payment');
+});
+
+test('A2-4: spousal requires the worker to be entitled — nothing before Chad files', () => {
+  // Chad claims at 70; Sarah elected spousal at 62 (her own benefit 0). The
+  // spousal benefit is payable only once Chad is entitled — and the reduction
+  // is measured at her age when it BEGINS (68 here → no reduction), not at
+  // her earlier election age.
+  const p = deriveRetirementParams({
+    chadCurrentAge: 61, sarahCurrentAge: 59,
+    ssType: 'ss', ssPIA: 4214, ssClaimAge: 70, sarahOwnSS: 0, sarahSpousalClaimAge: 62,
+  });
+  const before = getRetirementSSInfo(69, true, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap,
+    sarahSpousalClaimAge: 62, chadSSStartAge: p.chadSSStartAge,
+  });
+  eq(before.amount, 0, 'no spousal while Chad is unentitled');
+  const after = getRetirementSSInfo(70, true, {
+    ageDiff: 2, chadSS: p.chadSS, ssFRA: 4214, sarahOwnSS: 0,
+    survivorSS: p.survivorSS, survivorCap: p.survivorCap,
+    sarahSpousalClaimAge: 62, chadSSStartAge: p.chadSSStartAge,
+  });
+  eq(after.amount, 5225 + Math.round(4214 * 0.5),
+    'spousal begins with his entitlement at her age 68 → unreduced ceiling');
+});
+
+test('A4: one consistent ssClaimAge fallback (62 — the state default)', () => {
+  // Pre-fix, chadSS fell back to claimed-at-62 (70% PIA) while claimedEarly
+  // fell back to 67 (false) — skipping the RIB-LIM cap entirely.
+  const p = deriveRetirementParams({ ssType: 'ss', ssPIA: 4214 });
+  eq(p.claimAge, 62, 'single fallback');
+  eq(p.chadSS, 2950, 'benefit computed at the same fallback age');
+  eq(p.claimedEarly, true, 'claimed-early flag agrees with the benefit math');
+  eq(p.survivorCap, Math.max(2950, Math.round(4214 * 0.825)), 'RIB-LIM cap present');
 });
 
 test('C4: startingCoupleIncome = chadSS + trust + J&S-reduced pension; survivor ratio constant exported', () => {

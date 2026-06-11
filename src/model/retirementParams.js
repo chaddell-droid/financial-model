@@ -46,10 +46,20 @@ export function deriveRetirementParams({
 
   // Chad's SS — PIA from state. SS-retirement path credits months withheld by
   // the earnings test via the SSA recalculation at FRA.
+  // A4 (2026-06-10 retirement review): ONE claim-age fallback (62, the state
+  // default) used by BOTH the benefit math and the claimed-early flag — the
+  // old split (62 here, 67 below) could compute a reduced benefit while
+  // believing Chad claimed at FRA, silently skipping the RIB-LIM cap.
+  const claimAge = ssClaimAge || 62;
   const ssFRA = ssPIA || 4214;
   const chadSS = (ssType === 'ss')
-    ? ssRecalculatedBenefit(ssFRA, ssClaimAge || 62, ssMonthsWithheld || 0)
+    ? ssRecalculatedBenefit(ssFRA, claimAge, ssMonthsWithheld || 0)
     : ssFRA;
+  // A2 (2026-06-10 retirement review): a delayed claim (68–70) is NOT in
+  // payment at the retirement seam — the engine pays Chad's benefit only from
+  // this age (years 67→claim are pool-financed). Early/FRA claims and SSDI
+  // (which converts to the retirement benefit at FRA) are in payment at 67.
+  const chadSSStartAge = ssType === 'ss' ? Math.max(67, claimAge) : 67;
   // Sarah's own-record SS benefit — state field (was hardcoded 1900).
   // `?? 1900` keeps an explicit 0 (no own benefit) intact.
   const ownSS = sarahOwnSS ?? 1900;
@@ -63,7 +73,6 @@ export function deriveRetirementParams({
   // survivorSS = the reduction BASE; survivorCap = the RIB-LIM cap (Infinity
   // when Chad claimed at/after FRA, or on the SSDI path — SSDI converts to
   // the full unreduced PIA at FRA, so no limit applies).
-  const claimAge = ssClaimAge || 67;
   const claimedEarly = ssType === 'ss' && claimAge < 67;
   const survivorSS = claimedEarly ? ssFRA : chadSS;
   const survivorCap = claimedEarly
@@ -73,7 +82,9 @@ export function deriveRetirementParams({
   // C14: single-life accrual × J&S 50% option factor (survivor coverage is
   // always modeled — getPensionAtMonth pays the 50% continuance).
   const pensionMonthly = Math.round((chadJobPensionMonthly || 0) * PERS_JS50_FACTOR);
-  const startingCoupleIncome = chadSS + trustMonthly + pensionMonthly;
+  // A2: the seam-month guaranteed income excludes a not-yet-payable delayed
+  // claim — it must equal the engine's guaranteedIncome at t=0 (age 67).
+  const startingCoupleIncome = (chadSSStartAge <= 67 ? chadSS : 0) + trustMonthly + pensionMonthly;
   // A7 (remediation 2026-06-10, item 1.5): Sarah's spousal claim age flows
   // from state (D9 default 67, slider 62–70) into the retirement sim, which
   // gates her benefit at this age and applies the SPOUSAL reduction factor
@@ -82,7 +93,7 @@ export function deriveRetirementParams({
 
   return {
     ageDiff, sarahTargetAge, endAge, years, horizonMonths, survivorSpendRatio,
-    ssFRA, chadSS, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
+    ssFRA, chadSS, chadSSStartAge, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
     sarahSpousalClaimAge: spousalClaimAge,
     trustMonthly, pensionMonthly, startingCoupleIncome,
   };

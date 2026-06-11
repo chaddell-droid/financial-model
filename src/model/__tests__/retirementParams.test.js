@@ -425,6 +425,30 @@ test('TD3: closed-form SWR round-trips through simulatePath WITH the drag applie
   assert.ok(Math.abs(path.finalPool - 50000) < 2, `round-trip hits targetFV, got ${path.finalPool}`);
 });
 
+// ── Item 9 (2026-06-10 batch 2): survivor-spend ratio + horizon sliders ────
+// SURVIVOR_SPEND_RATIO (0.6) and SARAH_TARGET_AGE (90) were constants; both
+// are judgment calls Chad wants to flex. State fields with the old constants
+// as defaults; the exported constants remain the fallback values.
+
+test('TS1: retSurvivorSpendRatio - default 60%, clamps 40-100, drives the scaling', () => {
+  eq(deriveRetirementParams({}).survivorSpendRatio, 0.6, 'default = old constant');
+  eq(deriveRetirementParams({ retSurvivorSpendRatio: 75 }).survivorSpendRatio, 0.75);
+  eq(deriveRetirementParams({ retSurvivorSpendRatio: 10 }).survivorSpendRatio, 0.4, 'clamped to 40%');
+  eq(deriveRetirementParams({ retSurvivorSpendRatio: 150 }).survivorSpendRatio, 1, 'clamped to 100%');
+});
+
+test('TS2: retSarahTargetAge - default 90, clamps 80-100, drives the horizon', () => {
+  const d = deriveRetirementParams({ chadCurrentAge: 61, sarahCurrentAge: 59 });
+  eq(d.sarahTargetAge, 90, 'default = old constant');
+  eq(d.years, 25, '90 + 2 - 67');
+  const long = deriveRetirementParams({ chadCurrentAge: 61, sarahCurrentAge: 59, retSarahTargetAge: 95 });
+  eq(long.sarahTargetAge, 95);
+  eq(long.years, 30, '95 + 2 - 67');
+  eq(long.horizonMonths, 360);
+  eq(deriveRetirementParams({ retSarahTargetAge: 70 }).sarahTargetAge, 80, 'clamped to 80');
+  eq(deriveRetirementParams({ retSarahTargetAge: 120 }).sarahTargetAge, 100, 'clamped to 100');
+});
+
 // ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──
 // The "Model Sarah's spousal benefit" toggle gated the ACCUMULATION engine
 // (projection.js / gatherState) but the retirement sim kept paying her

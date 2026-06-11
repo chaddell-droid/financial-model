@@ -43,6 +43,7 @@ export function useRetirementSimulation({
   retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
   retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
   retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct,
+  retSurvivorSpendRatio, retSarahTargetAge,
   onFieldChange,
 }) {
   // ── State ────────────────────────────────────────────────────────────
@@ -91,6 +92,9 @@ export function useRetirementSimulation({
   const imputedRentSaved = retImputedRentSaved ?? 0;
   const setImputedRentSaved = useMemo(() => setField('retImputedRentSaved'), [setField]);
   const setSurvivorTaxDrag = useMemo(() => setField('retSurvivorTaxDragPct'), [setField]);
+  // Item 9 (2026-06-10 batch 2): survivor-spend ratio + horizon sliders.
+  const setSurvivorSpendRatio = useMemo(() => setField('retSurvivorSpendRatio'), [setField]);
+  const setSarahTargetAge = useMemo(() => setField('retSarahTargetAge'), [setField]);
 
   // ── Deferred slider values ───────────────────────────────────────────
   // Slider thumbs + labels use the immediate value; expensive computations
@@ -120,6 +124,7 @@ export function useRetirementSimulation({
     sarahSpousalEnabled: sarahSpousalEnabledFromState,
     retKeepHouse: keepHouse, retImputedRentSaved: imputedRentSaved,
     retSurvivorTaxDragPct,
+    retSurvivorSpendRatio, retSarahTargetAge,
   });
 
   // Assets at end of variable-length projection (age 67+ depending on chadWorkMonths/sarahWorkMonths).
@@ -513,6 +518,7 @@ export function useRetirementSimulation({
     trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
     keepHouse, setKeepHouse, imputedRentSaved, setImputedRentSaved,
     survivorTaxDragPct, setSurvivorTaxDrag,
+    setSurvivorSpendRatio, setSarahTargetAge,
     normalizedPwaToleranceLow, normalizedPwaToleranceHigh,
     hasInheritance, inheritanceChadAge, inheritanceYear, inhDuringCouple,
 

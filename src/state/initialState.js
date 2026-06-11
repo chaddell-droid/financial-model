@@ -368,6 +368,12 @@ export const INITIAL_STATE = {
   // MFJ at 13%; single-filer brackets on the same real income run ~5-9pp
   // hotter - 7 is the midpoint, user-adjustable 0-30).
   retSurvivorTaxDragPct: 7,
+  // Item 9 (2026-06-10 batch 2): the survivor-spending ratio (% of couple
+  // spending after Chad passes) and the planning horizon (simulate until
+  // Sarah reaches this age) were hardcoded constants (0.6 / 90). Both are
+  // judgment calls - now user-adjustable, defaults = the old constants.
+  retSurvivorSpendRatio: 60,
+  retSarahTargetAge: 90,
 
   // Sequence of Returns
   seqBadY1: -10,
@@ -461,6 +467,7 @@ export const MODEL_KEYS = [
   'retChadPassesAge', 'retEquityAllocation', 'retWithdrawalRate', 'retPoolFloor', 'retBequestTarget',
   'retInheritanceAmount', 'retInheritanceSarahAge', 'retPwaStrategy',
   'retKeepHouse', 'retImputedRentSaved', 'retSurvivorTaxDragPct',
+  'retSurvivorSpendRatio', 'retSarahTargetAge',
   'seqBadY1', 'seqBadY2',
   // Tax engine controls (Tax tab — remediation 2026-06-09 D1)
   'taxMode', 'taxInflationAdjust', 'taxInflationRate', 'taxSchCExpenseRatio',

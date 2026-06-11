@@ -35,15 +35,20 @@ export function deriveRetirementParams({
   trustIncomeFuture, chadJobPensionMonthly,
   sarahSpousalClaimAge, sarahSpousalEnabled,
   retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct,
+  retSurvivorSpendRatio, retSarahTargetAge,
 } = {}) {
   // Age gap from state — the sim indexes time by Chad's age (retires at 67),
   // so Sarah's age at month t is chadAge - ageDiff.
   const ageDiff = (chadCurrentAge ?? 61) - (sarahCurrentAge ?? 59);
-  const sarahTargetAge = SARAH_TARGET_AGE;
+  // Item 9 (2026-06-10 batch 2): horizon + survivor ratio are state fields
+  // now (defaults = the old SARAH_TARGET_AGE / SURVIVOR_SPEND_RATIO
+  // constants, which remain the exported fallbacks).
+  const sarahTargetAge = Math.min(100, Math.max(80, retSarahTargetAge ?? SARAH_TARGET_AGE));
   const endAge = sarahTargetAge + ageDiff; // Chad's age when Sarah reaches target
   const years = Math.max(1, endAge - 67); // guard: never a non-positive horizon
   const horizonMonths = years * 12;
-  const survivorSpendRatio = SURVIVOR_SPEND_RATIO;
+  const survivorSpendRatio =
+    Math.min(100, Math.max(40, retSurvivorSpendRatio ?? SURVIVOR_SPEND_RATIO * 100)) / 100;
 
   // Chad's SS — PIA from state. SS-retirement path credits months withheld by
   // the earnings test via the SSA recalculation at FRA.

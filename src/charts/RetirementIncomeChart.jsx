@@ -39,6 +39,7 @@ function RetirementIncomeChart({
   retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor,
   retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy,
   retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct,
+  retSurvivorSpendRatio, retSarahTargetAge,
   onFieldChange,
   onSpendingTargets,
 }) {
@@ -58,7 +59,8 @@ function RetirementIncomeChart({
     inheritanceAmount, setInheritanceAmount,
     inheritanceSarahAge, setInheritanceSarahAge,
     showPwaIntro, pwaIntroReady, dismissPwaIntro,
-    ageDiff, sarahTargetAge, years,
+    ageDiff, sarahTargetAge, years, survivorSpendRatio,
+    setSurvivorSpendRatio, setSarahTargetAge,
     endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
     trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
     keepHouse, setKeepHouse, imputedRentSaved, setImputedRentSaved,
@@ -71,7 +73,7 @@ function RetirementIncomeChart({
     deterministicPools, avgAnnualReal,
     yearlyData,
     coupleSummary, postInheritanceSummary, survivorSummary,
-  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct, onFieldChange });
+  } = useRetirementSimulation({ savingsData, wealthData, ssType, ssPersonal, ssPIA, ssClaimAge, chadJob, trustIncomeFuture, ssMonthsWithheld, chadJobPensionMonthly, chadCurrentAge, sarahCurrentAge, sarahSpousalClaimAge, sarahSpousalEnabled, sarahOwnSS, retirement401kTaxRate, expenseInflation, expenseInflationRate, retChadPassesAge, retEquityAllocation, retWithdrawalRate, retPoolFloor, retBequestTarget, retInheritanceAmount, retInheritanceSarahAge, retPwaStrategy, retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct, retSurvivorSpendRatio, retSarahTargetAge, onFieldChange });
 
   // Report spending targets to parent
   useEffect(() => {
@@ -690,6 +692,17 @@ function RetirementIncomeChart({
                   After Chad passes, Sarah files single - the same real income lands in higher brackets. Each net dollar of survivor spending drawn from the pool costs 1/(1-drag) gross.
                 </div>
               </div>
+              {/* Item 9 (2026-06-10 batch 2): survivor ratio + horizon sliders */}
+              <Slider label="Survivor spending ratio" value={Math.round(survivorSpendRatio * 100)} onChange={setSurvivorSpendRatio}
+                testId="retirement-survivor-spend-ratio-pwa"
+                commitStrategy={commitStrategy}
+                min={40} max={100} step={5} color={COLORS.amber}
+                format={(v) => v + '% of couple spend'} />
+              <Slider label="Plan horizon - Sarah's age" value={sarahTargetAge} onChange={setSarahTargetAge}
+                testId="retirement-sarah-target-age-pwa"
+                commitStrategy={commitStrategy}
+                min={80} max={100} step={1} color={COLORS.amber}
+                format={(v) => 'to ' + v} />
               {(pwaStrategy === 'sticky_median' || pwaStrategy === 'sticky_quartile_nudge') && (
                 <>
                   <Slider label={<LabelWithHelp label="Tolerance low" help={HELP.pwa_tolerance_band} accent={COLORS.blue} />} value={pwaToleranceLow} onChange={setPwaToleranceLow}
@@ -820,6 +833,17 @@ function RetirementIncomeChart({
                   After Chad passes, Sarah files single - the same real income lands in higher brackets. Each net dollar of survivor spending drawn from the pool costs 1/(1-drag) gross.
                 </div>
               </div>
+              {/* Item 9 (2026-06-10 batch 2): survivor ratio + horizon sliders */}
+              <Slider label="Survivor spending ratio" value={Math.round(survivorSpendRatio * 100)} onChange={setSurvivorSpendRatio}
+                testId="retirement-survivor-spend-ratio"
+                commitStrategy={commitStrategy}
+                min={40} max={100} step={5} color={COLORS.amber}
+                format={(v) => v + '% of couple spend'} />
+              <Slider label="Plan horizon - Sarah's age" value={sarahTargetAge} onChange={setSarahTargetAge}
+                testId="retirement-sarah-target-age"
+                commitStrategy={commitStrategy}
+                min={80} max={100} step={1} color={COLORS.amber}
+                format={(v) => 'to ' + v} />
             </div>
           </ControlSection>
         </div>

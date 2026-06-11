@@ -211,6 +211,8 @@ const NON_DEFAULT_VALUES = {
   retKeepHouse: true,              // Item 7 (2026-06-10 batch 2): keep-the-house lever
   retImputedRentSaved: 3500,
   retSurvivorTaxDragPct: 12,       // Item 8 (2026-06-10 batch 2): survivor tax drag
+  retSurvivorSpendRatio: 75,       // Item 9 (2026-06-10 batch 2): survivor ratio + horizon
+  retSarahTargetAge: 95,
 
   // Sequence of returns
   seqBadY1: -15,
@@ -440,6 +442,17 @@ test('Item 8: survivorTaxDragPct round-trip (default 7, override, clamp)', () =>
   assert.strictEqual(roundTrip({ retSurvivorTaxDragPct: 0 }).retSurvivorTaxDragPct, 0, 'explicit 0 (no drag)');
   assert.strictEqual(roundTrip({ retSurvivorTaxDragPct: 12.5 }).retSurvivorTaxDragPct, 12.5);
   assert.strictEqual(roundTrip({ retSurvivorTaxDragPct: 80 }).retSurvivorTaxDragPct, 30, 'clamped to 30');
+});
+
+test('Item 9: survivor ratio + Sarah target age round-trip (defaults = old constants)', () => {
+  const d = roundTrip({});
+  assert.strictEqual(d.retSurvivorSpendRatio, 60, 'default = old SURVIVOR_SPEND_RATIO');
+  assert.strictEqual(d.retSarahTargetAge, 90, 'default = old SARAH_TARGET_AGE');
+  const r = roundTrip({ retSurvivorSpendRatio: 75, retSarahTargetAge: 95 });
+  assert.strictEqual(r.retSurvivorSpendRatio, 75);
+  assert.strictEqual(r.retSarahTargetAge, 95);
+  assert.strictEqual(roundTrip({ retSurvivorSpendRatio: 10 }).retSurvivorSpendRatio, 40, 'clamped to 40');
+  assert.strictEqual(roundTrip({ retSarahTargetAge: 120 }).retSarahTargetAge, 100, 'clamped to 100');
 });
 
 test('B3: edges — range clamps, nullable clamp, bad enum reverts to default', () => {

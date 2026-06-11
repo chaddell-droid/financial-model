@@ -169,6 +169,9 @@ const RANGE = {
   retImputedRentSaved: { min: 0, max: 20000 },
   // Item 8 (2026-06-10 batch 2): survivor-phase tax drag (MFJ->single).
   retSurvivorTaxDragPct: { min: 0, max: 30 },
+  // Item 9 (2026-06-10 batch 2): survivor-spending ratio + planning horizon.
+  retSurvivorSpendRatio: { min: 40, max: 100 },
+  retSarahTargetAge: { min: 80, max: 100 },
   // Cut items can be zero but not negative
   cutOliver: { min: 0 },
   cutVacation: { min: 0 },

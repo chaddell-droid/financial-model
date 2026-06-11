@@ -637,6 +637,21 @@ test('W5: RetirementIncomeChart forwards the state fields into useRetirementSimu
   }
 });
 
+test('W6: B2 — pre-retirement inheritance renders a visible "not modeled" warning chip', () => {
+  // 2026-06-10 retirement review B2: since ageDiff became state-derived (2,
+  // not the old hardcoded 14), the DEFAULT $1M inheritance at Sarah-60 lands
+  // BEFORE the retirement seam (inheritanceYear < 0) and is silently excluded
+  // from every flow — with no marker and no callout. The chart must surface
+  // an explicit warning instead of letting the sliders silently do nothing.
+  assert.ok(chartSource.includes('inheritance lands before retirement'),
+    'chart should render the pre-retirement inheritance warning copy');
+  assert.ok(chartSource.includes('retirement-inheritance-before-seam'),
+    'warning chip should carry a testId');
+  assert.ok(/hasInheritance\s*&&\s*inheritanceYear\s*<\s*0/.test(chartSource),
+    'chip must be gated on an inheritance that lands before the seam');
+});
+
+
 // ════════════════════════════════════════════════════════════════════════
 // Section 8: tax-aware retirement pool (A5 — remediation 2026-06-10 item 3.1)
 // ════════════════════════════════════════════════════════════════════════

@@ -771,6 +771,21 @@ function RetirementIncomeChart({
         </div>
       )}
 
+      {/* B2 (2026-06-10 retirement review): an inheritance dated BEFORE the
+          retirement seam (Sarah {inheritanceSarahAge} ⇒ Chad < 67) is excluded
+          from every flow — the sliders would otherwise silently do nothing.
+          Since ageDiff became state-derived (2, not the old hardcoded 14), the
+          default Sarah-60 setting lands pre-retirement, so this warning is
+          load-bearing for the default configuration. */}
+      {hasInheritance && inheritanceYear < 0 && (
+        <div data-testid="retirement-inheritance-before-seam" style={{
+          marginTop: 8, padding: '8px 12px', background: COLORS.bgCard, borderRadius: 6,
+          border: `1px solid ${COLORS.amber}55`, fontSize: 12, color: COLORS.amber, lineHeight: 1.5,
+        }}>
+          {fmtPool(inheritanceAmount)} inheritance lands before retirement (Sarah {inheritanceSarahAge} = Chad {inheritanceChadAge}, before the age-67 seam) — <span style={{ fontWeight: 700 }}>not modeled</span>. This chart starts at retirement; move Sarah&apos;s inheritance age to {67 - ageDiff}+ to include it here.
+        </div>
+      )}
+
       {/* Inheritance pre-withdrawal callout */}
       {!isPwaMode && hasInheritance && (optPreRate - optRate >= 0.5) && (
         <div style={{

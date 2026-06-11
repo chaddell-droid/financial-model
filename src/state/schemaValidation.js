@@ -7,7 +7,7 @@
 
 import { INITIAL_STATE, MODEL_KEYS } from './initialState.js';
 
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 // --- Type map derived from INITIAL_STATE at module load ---
 
@@ -88,10 +88,7 @@ const RANGE = {
   chadJobBonusMonth: { min: 0, max: 11 },
   chadJobStockRefresh: { min: 0 },
   chadJobRefreshStartMonth: { min: 0, max: 24 },
-  chadJobHireStockY1: { min: 0 },
-  chadJobHireStockY2: { min: 0 },
-  chadJobHireStockY3: { min: 0 },
-  chadJobHireStockY4: { min: 0 },
+  chadJobHireStockTotal: { min: 0 },
   chadJobSignOnCash: { min: 0 },
   chadJob401kDeferral: { min: 0, max: 24500 },        // IRC §402(g) 2026 elective deferral limit
   chadJob401kCatchupRoth: { min: 0, max: 11250 },     // SECURE 2.0 super catch-up ages 60-63 ($11,250); regular 50+ = $8,000
@@ -317,6 +314,29 @@ const MIGRATIONS = [
       // default). The mortgage scalar fields (mortgagePI/Balance/Rate) fall
       // through validateAndSanitize defaults (0 = no-op).
       if (!Array.isArray(result.debts)) result.debts = [];
+      return result;
+    },
+  },
+  {
+    from: 8,
+    to: 9,
+    fn: (state) => {
+      const result = { ...state };
+      // 2026-06-10: one-slider hire stock. Legacy chadJobHireStockY1..Y4
+      // (annual anniversary lumps) collapse into chadJobHireStockTotal,
+      // which vests 25% at month 12 then 6.25% quarterly through month 48
+      // (HIRE_VEST_TRANCHES in model/vesting.js). DATA PROTECTION: a saved
+      // scenario's hire-stock value must NEVER be lost — when the new field
+      // is absent/0 and any legacy Y field is set, total = Y1+Y2+Y3+Y4.
+      // Legacy keys are left on the object (validateAndSanitize drops them
+      // from MODEL_KEYS output; they remain readable in raw saved payloads).
+      const legacySum = (result.chadJobHireStockY1 || 0)
+        + (result.chadJobHireStockY2 || 0)
+        + (result.chadJobHireStockY3 || 0)
+        + (result.chadJobHireStockY4 || 0);
+      if (!(result.chadJobHireStockTotal > 0) && legacySum > 0) {
+        result.chadJobHireStockTotal = legacySum;
+      }
       return result;
     },
   },

@@ -217,7 +217,7 @@ function summarizeState(state) {
       jobBonusPct: r2(state.chadJobBonusPct),
       jobStockRefresh: r(state.chadJobStockRefresh),
       jobRefreshStartMonth: state.chadJobRefreshStartMonth,
-      hireStock: [r(state.chadJobHireStockY1), r(state.chadJobHireStockY2), r(state.chadJobHireStockY3), r(state.chadJobHireStockY4)],
+      hireStockTotal: r(state.chadJobHireStockTotal),
       signOnCash: r(state.chadJobSignOnCash),
       raisePct: r2(state.chadJobRaisePct),
       noFICA: !!state.chadJobNoFICA,
@@ -620,10 +620,8 @@ export const TOOLS = Object.freeze([
           refreshNetYrSteady: r(d.refreshNetYrSteady),
         },
         hireStock: {
-          hireY1: r(d.chadJobHireStockY1),
-          hireY2: r(d.chadJobHireStockY2),
-          hireY3: r(d.chadJobHireStockY3),
-          hireY4: r(d.chadJobHireStockY4),
+          // 2026-06-10: one total grant; vests 25% at month 12 then 6.25%
+          // quarterly through month 48 (see W2_DIAGNOSTIC_NOTES.hireStock).
           hireTotalAtHire: r(d.hireTotalAtHire),
           hireGrownTotal: r(d.hireGrownTotal),
           hireNetAvgYr: r(d.hireNetAvgYr),

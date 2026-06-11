@@ -20,10 +20,14 @@
  *     mean of (1+g)^(k/4) for k = 1..20 — matches the engine's quarterly vest
  *     ages 0.25..5.0 yrs (the old annual-midpoint mean of (1+g)^(0.5..4.5) ran
  *     ~1.23% low at g=10%). With g=0 this collapses to 1.
- *   - Hire stock Y1-Y4 vest on anniversaries; each scaled by (1+g)^n
- *     (engine: projection.js:253 via msftMultIssueToVest).
+ *   - Hire stock (2026-06-10): chadJobHireStockTotal vests 25% at month 12,
+ *     then 6.25% every 3 months through month 48 (HIRE_VEST_TRANCHES in
+ *     vesting.js — the engine's single source of truth). Each tranche is
+ *     scaled by (1+g)^(months/12); the steady-state mean across all 13
+ *     tranches comes from hireVestGrowthWeightedMean.
  */
 import { computeW2EmployeeFica, computeAdditionalMedicare } from './taxEngine.js';
+import { hireVestGrowthWeightedMean } from './vesting.js';
 import { SS_EARNINGS_LIMIT_ANNUAL, SS_EARNINGS_LIMIT_FRA_YEAR } from './constants.js';
 
 /**
@@ -43,10 +47,7 @@ export function computeW2Diagnostic(state) {
   const chadJobBonusPct = state.chadJobBonusPct || 0;
   const chadJobStockRefresh = state.chadJobStockRefresh || 0;
   const chadJobRefreshStartMonth = state.chadJobRefreshStartMonth ?? 0;
-  const chadJobHireStockY1 = state.chadJobHireStockY1 || 0;
-  const chadJobHireStockY2 = state.chadJobHireStockY2 || 0;
-  const chadJobHireStockY3 = state.chadJobHireStockY3 || 0;
-  const chadJobHireStockY4 = state.chadJobHireStockY4 || 0;
+  const chadJobHireStockTotal = state.chadJobHireStockTotal || 0;
   const chadJob401kEnabled = !!state.chadJob401kEnabled;
   const chadJob401kDeferral = chadJob401kEnabled ? (state.chadJob401kDeferral || 0) : 0;
   const chadJob401kCatchupRoth = chadJob401kEnabled ? (state.chadJob401kCatchupRoth || 0) : 0;
@@ -91,12 +92,13 @@ export function computeW2Diagnostic(state) {
         .reduce((acc, t) => acc + Math.pow(1 + growth, t), 0) / 20;
   const refreshNetYr = chadJobStockRefresh * bonusMult * refreshSteadyMult;
 
-  // ─── Hire stock Y1-Y4 (grown to vest year, taxed, averaged over 4 yrs) ───
-  const hireTotalAtHire = chadJobHireStockY1 + chadJobHireStockY2 + chadJobHireStockY3 + chadJobHireStockY4;
-  const hireGrownTotal = chadJobHireStockY1 * Math.pow(1 + growth, 1)
-                       + chadJobHireStockY2 * Math.pow(1 + growth, 2)
-                       + chadJobHireStockY3 * Math.pow(1 + growth, 3)
-                       + chadJobHireStockY4 * Math.pow(1 + growth, 4);
+  // ─── Hire stock (grown per tranche to vest month, taxed, averaged ÷ 4) ───
+  // 2026-06-10 schedule change: 25% at month 12, then 6.25% quarterly through
+  // month 48. hireGrownTotal = total × growth-weighted mean across the 13
+  // tranches (Σ fᵢ(1+g)^(tᵢ/12) — collapses to total at g=0). The 4-year
+  // averaging (÷ 4) is unchanged: the grant still pays out over months 12–48.
+  const hireTotalAtHire = chadJobHireStockTotal;
+  const hireGrownTotal = chadJobHireStockTotal * hireVestGrowthWeightedMean(msftGrowth);
   const hireNetAvgYr = hireGrownTotal * bonusMult / 4;
 
   // ─── Sign-on cash (ONE-TIME, non-steady) ──────────────────────────────────
@@ -156,10 +158,7 @@ export function computeW2Diagnostic(state) {
     chadJobBonusPct,
     chadJobStockRefresh,
     chadJobRefreshStartMonth,
-    chadJobHireStockY1,
-    chadJobHireStockY2,
-    chadJobHireStockY3,
-    chadJobHireStockY4,
+    chadJobHireStockTotal,
     chadJob401kEnabled,
     chadJob401kDeferral,
     chadJob401kCatchupRoth,
@@ -270,7 +269,7 @@ export function estimateEarningsTestImpact(state) {
  */
 export const W2_DIAGNOSTIC_NOTES = Object.freeze({
   refreshSteadyState: 'Refresh assumes steady state with 5 grants in flight (each vests 20%/yr over 5 years). MSFT growth is applied as the time-weighted mean across all 5 grants.',
-  hireStock: 'Hire stock Y1-Y4 vest on each anniversary. Each tranche is grown by (1+msftGrowth)^n where n = years to vest.',
+  hireStock: 'On-hire stock (one total grant $) vests 25% at month 12 after job start, then 6.25% every 3 months through month 48. Each tranche is grown by (1+msftGrowth)^(months/12) from hire to vest.',
   bonusMult: 'Bonus and RSU dollars use the same net multiplier as salary: 1 − taxRate (+ 6.2% FICA savings if noFICA toggle is on).',
   pension: 'Pension is deducted separately from the salary mult because FICA still applies on pension dollars (1.45% Medicare-only when noFICA=true, else 7.65%).',
   source: 'Mirrors projection.js exactly. Single source of truth for both the on-screen diagnostic and the advisor tool.',

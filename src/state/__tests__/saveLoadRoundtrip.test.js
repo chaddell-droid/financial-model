@@ -104,10 +104,7 @@ const NON_DEFAULT_VALUES = {
   chadJobBonusProrateFirst: false, // flipped
   chadJobStockRefresh: 60000,
   chadJobRefreshStartMonth: 8,
-  chadJobHireStockY1: 50000,
-  chadJobHireStockY2: 75000,
-  chadJobHireStockY3: 100000,
-  chadJobHireStockY4: 25000,
+  chadJobHireStockTotal: 250000, // 2026-06-10: one total grant field
   chadJobSignOnCash: 80000,
   chadJob401kEnabled: true,        // flipped
   chadJob401kDeferral: 23500,
@@ -409,15 +406,31 @@ test('msftPrice + msftGrowth float round-trip preserves decimals', () => {
   assert.strictEqual(result.msftGrowth, 12.5);
 });
 
-test('Hire stock Y1-Y4 all round-trip', () => {
-  const result = roundTrip({
+test('Hire stock total round-trips', () => {
+  const result = roundTrip({ chadJobHireStockTotal: 270000 });
+  assert.strictEqual(result.chadJobHireStockTotal, 270000);
+});
+
+test('Legacy hire stock Y1-Y4 migrate to chadJobHireStockTotal on load (v8 → v9)', () => {
+  // DATA PROTECTION (2026-06-10 hire-stock change): saved scenarios and
+  // Chad's live localStorage predating v9 carry chadJobHireStockY1..Y4.
+  // The 8→9 migration must fold them into the new total — losing a saved
+  // scenario's hire-stock value is unacceptable.
+  const legacySaved = {
+    schemaVersion: 8,
+    chadJob: true,
     chadJobHireStockY1: 40000, chadJobHireStockY2: 80000,
     chadJobHireStockY3: 120000, chadJobHireStockY4: 30000,
-  });
-  assert.strictEqual(result.chadJobHireStockY1, 40000);
-  assert.strictEqual(result.chadJobHireStockY2, 80000);
-  assert.strictEqual(result.chadJobHireStockY3, 120000);
-  assert.strictEqual(result.chadJobHireStockY4, 30000);
+  };
+  const restored = validateAndSanitize(migrate(legacySaved));
+  assert.strictEqual(restored.chadJobHireStockTotal, 270000,
+    'legacy Y1+Y2+Y3+Y4 must migrate into the total');
+  // An already-migrated payload with the new field set must NOT be clobbered
+  // by stale legacy keys left in an old JSON export.
+  const mixed = validateAndSanitize(migrate({
+    schemaVersion: 8, chadJobHireStockTotal: 95000, chadJobHireStockY1: 40000,
+  }));
+  assert.strictEqual(mixed.chadJobHireStockTotal, 95000);
 });
 
 test('401(k) fields all round-trip (including disabled state)', () => {

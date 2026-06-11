@@ -129,28 +129,13 @@ export const LEVER_CLASSIFICATION = Object.freeze({
     max: 5,                     // 5% annual raise ceiling
     defaultStep: 0.25,
   },
-  chadJobHireStockY1: {
+  // 2026-06-10: one TOTAL on-hire grant slider (vests 25% at month 12, then
+  // 6.25% quarterly through month 48). Max 400K ≈ the old 4 × 200K halved to
+  // a realistic single-grant ceiling; matches the IncomeControls slider.
+  chadJobHireStockTotal: {
     classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
     min: 0,
-    max: 200000,
-    defaultStep: 5000,
-  },
-  chadJobHireStockY2: {
-    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
-    min: 0,
-    max: 200000,
-    defaultStep: 5000,
-  },
-  chadJobHireStockY3: {
-    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
-    min: 0,
-    max: 200000,
-    defaultStep: 5000,
-  },
-  chadJobHireStockY4: {
-    classification: LEVER_CLASS.BOUNDED_CONTINUOUS,
-    min: 0,
-    max: 200000,
+    max: 400000,
     defaultStep: 5000,
   },
   chadJobSignOnCash: {

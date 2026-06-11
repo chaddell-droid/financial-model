@@ -27,7 +27,7 @@ function test(name, fn) {
 }
 
 // Representative state from the task spec:
-//   salary 180K, refresh 40K, hire 40K × 4 yrs, growth 15%
+//   salary 180K, refresh 40K, hire 160K total, growth 15%
 const repState = () => gatherStateWithOverrides({
   chadJob: true,
   chadJobSalary: 180000,
@@ -36,10 +36,7 @@ const repState = () => gatherStateWithOverrides({
   chadJobNoFICA: false,
   chadJobStockRefresh: 40000,
   chadJobRefreshStartMonth: 12,
-  chadJobHireStockY1: 40000,
-  chadJobHireStockY2: 40000,
-  chadJobHireStockY3: 40000,
-  chadJobHireStockY4: 40000,
+  chadJobHireStockTotal: 160000, // 2026-06-10: one total grant (was 4 × 40K)
   chadJob401kEnabled: false,
   chadJobPensionContrib: 0,
   msftGrowth: 15,
@@ -132,7 +129,7 @@ test('Degenerate input — zero salary, zero refresh, zero hire — returns fini
     chadJobTaxRate: 25,
     chadJobBonusPct: 0,
     chadJobStockRefresh: 0,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
     msftGrowth: 0,
     chadJob401kEnabled: false,
     chadJobPensionContrib: 0,

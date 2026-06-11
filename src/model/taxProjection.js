@@ -28,7 +28,7 @@ function nextStockVestMonthAfter(month) {
 }
 import { BRACKETS_MFJ_2026, LTCG_BRACKETS_MFJ_2026, STD_DED, getSaltCapForYear, getSaltThresholdForYear } from './taxConstants.js';
 import { calculateTax, computeAdditionalMedicare, computeSSTaxableAmount } from './taxEngine.js';
-import { getVestingGrossMonthly } from './vesting.js';
+import { getVestingGrossMonthly, hireVestGrossInMonth } from './vesting.js';
 
 /**
  * Inflate bracket thresholds by a compounding factor.
@@ -283,12 +283,11 @@ export function buildTaxSchedule(s) {
   const chadJobRefreshStartMonth = s.chadJobRefreshStartMonth ?? 12;
   // L63 baseline values (chadJobSalary, chadJobBonusPct, chadJobStockRefresh)
   // are pulled per-month via levelAtMonthsWorked() to support promotions.
-  const chadJobHireStock = [
-    s.chadJobHireStockY1 || 0,
-    s.chadJobHireStockY2 || 0,
-    s.chadJobHireStockY3 || 0,
-    s.chadJobHireStockY4 || 0,
-  ];
+  // One-time on-hire stock grant — TOTAL grant-date $ value, vesting 25% at
+  // month 12 then 6.25% quarterly through month 48 (HIRE_VEST_TRANCHES in
+  // vesting.js — same source projection.js consumes, so W-2 stock gross
+  // matches cashflow month-for-month).
+  const chadJobHireStockTotal = s.chadJobHireStockTotal || 0;
   const chadJobSignOnCash = s.chadJobSignOnCash || 0;
   // MSFT growth scales each refresh-grant vest's gross dollars (mirrors
   // projection.js so tax engine W-2 stock numbers match cashflow). Multiplier
@@ -453,14 +452,10 @@ export function buildTaxSchedule(s) {
             }
           }
         }
-        // Hire stock: lump on each work anniversary. Y1-Y4 sliders are
-        // dollars-at-hire; vests appreciate with msftGrowth from hire month.
-        if (monthsWorked > 0 && monthsWorked % 12 === 0) {
-          const yearIdx = monthsWorked / 12 - 1;
-          if (yearIdx >= 0 && yearIdx < 4) {
-            chadAnnualStock += chadJobHireStock[yearIdx] * msftMultIssueToVest(chadJobStartMonth, m);
-          }
-        }
+        // Hire stock (2026-06-10): 25% cliff at month 12, then 6.25% every 3
+        // months through month 48. Total is dollars-at-hire; each tranche
+        // appreciates with msftGrowth from hire month → vest month.
+        chadAnnualStock += hireVestGrossInMonth(chadJobHireStockTotal, monthsWorked, msftGrowthPct);
         // Cash sign-on: 50% on hire date, 50% on 1-yr anniversary
         if (chadJobSignOnCash > 0) {
           if (monthsWorked === 0 || monthsWorked === 12) {

@@ -200,17 +200,18 @@ const PARITY_BASE = {
   msftGrowth: 0, chadWorkMonths: 60, sarahWorkMonths: 72,
 };
 
-test('PARITY-1: hire stock Y1 lands in year-1 W-2 gross via the gathered state', () => {
+test('PARITY-1: hire stock lands in year-1 W-2 gross via the gathered state', () => {
   // The old hand-built ~20-field subset in TaxSettingsPanel/TaxVisualization
-  // omitted chadJobHireStockY1-Y4 entirely, so $50K of vesting stock was
-  // invisible to the displayed tax schedule. Fed the FULL gathered state, the
-  // year-1 anniversary vest (monthsWorked=12 → month 12 → year index 1) must
-  // raise chadW2Gross by exactly the grant (msftGrowth=0 ⇒ multiplier 1).
+  // omitted hire stock entirely, so vesting stock was invisible to the
+  // displayed tax schedule. Fed the FULL gathered state, the 2026-06-10
+  // quarterly schedule's calendar-2027 tranches (m=12, 15, 18, 21 = 25% +
+  // 3 × 6.25% = 43.75% of the total) must raise chadW2Gross by exactly that
+  // sum (msftGrowth=0 ⇒ multiplier 1).
   const noStock = buildTaxSchedule(gatherStateWithOverrides(PARITY_BASE));
-  const withStock = buildTaxSchedule(gatherStateWithOverrides({ ...PARITY_BASE, chadJobHireStockY1: 50000 }));
+  const withStock = buildTaxSchedule(gatherStateWithOverrides({ ...PARITY_BASE, chadJobHireStockTotal: 80000 }));
   assert.strictEqual(
-    withStock[1].chadW2Gross - noStock[1].chadW2Gross, 50000,
-    `year-1 W-2 gross must include the $50K hire-stock vest; ` +
+    withStock[1].chadW2Gross - noStock[1].chadW2Gross, 80000 * 0.4375,
+    `year-1 W-2 gross must include the year-1 hire-stock tranches (${80000 * 0.4375}); ` +
     `got ${withStock[1].chadW2Gross} vs ${noStock[1].chadW2Gross}`
   );
 });

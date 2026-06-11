@@ -1,7 +1,8 @@
 /**
  * Tests for the MSFT-specific grant-issuance cadence:
  *   - Refresh grants always issue end-of-August.
- *   - Hire-stock grants vest on each anniversary of hire date and scale
+ *   - Hire-stock grants vest 25% at month 12 after hire then 6.25% every
+ *     3 months through month 48 (2026-06-10 schedule change), scaling
  *     with msftGrowth from hire month → vest month.
  *
  * Run with:
@@ -111,25 +112,21 @@ test('vestSchedule: late hire (m=8 = Nov 2026) → first refresh at m=29 (Aug 20
 
 console.log('\n=== Hire stock scales with MSFT growth ===');
 
-test('Hire stock at vest equals slider × growth multiplier from hire month', () => {
-  // Run a single year of projection, observe Y1 hire stock.
-  // Computing through projection.js indirectly is heavy; instead check the
-  // formula directly: Y1 vest at month=startMonth+12, growth multiplier = (1+g)^1.
-  const startMonth = 4;
+test('Hire stock tranche at vest equals total × fraction × growth multiplier from hire month', () => {
+  // 2026-06-10 schedule: the m12 cliff is 25% of the total, grown (1+g)^1.
+  // The engine formula is hireVestGrossInMonth (vesting.js) — locked in
+  // detail by hireVestSchedule.test.js; this documents the expectation.
   const g = 10; // 10%/yr
-  const y1 = 50000;
-  const expected = y1 * Math.pow(1 + g / 100, (startMonth + 12 - startMonth) / 12); // = y1 × 1.10
-  // The formula `chadJobHireStock[yearIdx] * msftMultIssueToVest(chadJobStartMonth, m)`
-  // matches exactly; this test documents the expectation.
-  const computed = y1 * Math.pow(1 + g / 100, 1);
-  assert.ok(Math.abs(computed - expected) < 1e-9);
-  assert.ok(Math.abs(computed - 55000) < 1e-9, `Y1 hire stock with 10%/yr should be $55K, got ${computed}`);
+  const total = 200000;
+  const computed = total * 0.25 * Math.pow(1 + g / 100, 1);
+  assert.ok(Math.abs(computed - 55000) < 1e-9,
+    `m12 cliff (25% of $200K) with 10%/yr should be $55K, got ${computed}`);
 });
 
-test('Hire stock with msftGrowth=0 returns slider value unchanged', () => {
-  const y1 = 75000;
-  const computed = y1 * Math.pow(1, 1); // any month offset, growth=0
-  assert.strictEqual(computed, 75000);
+test('Hire stock with msftGrowth=0 vests exactly the scheduled fraction', () => {
+  const total = 80000;
+  const computed = total * 0.0625 * Math.pow(1, 15 / 12); // any tranche, growth=0
+  assert.strictEqual(computed, 5000);
 });
 
 console.log('\n=== Cliff rule + August cadence interaction ===');

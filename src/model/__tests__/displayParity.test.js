@@ -1027,14 +1027,14 @@ function computeUiW2Diagnostic(s) {
     : Array.from({ length: 20 }, (_, i) => (i + 1) / 4)
         .reduce((acc, t) => acc + Math.pow(1 + g, t), 0) / 20;
   const refreshNetYr = (s.chadJobStockRefresh || 0) * bonusMult * refreshSteadyMult;
-  const hireY1 = s.chadJobHireStockY1 || 0;
-  const hireY2 = s.chadJobHireStockY2 || 0;
-  const hireY3 = s.chadJobHireStockY3 || 0;
-  const hireY4 = s.chadJobHireStockY4 || 0;
-  const hireGrownTotal = hireY1 * Math.pow(1 + g, 1)
-                       + hireY2 * Math.pow(1 + g, 2)
-                       + hireY3 * Math.pow(1 + g, 3)
-                       + hireY4 * Math.pow(1 + g, 4);
+  // 2026-06-10 hire-stock schedule change: ONE total grant vesting 25% at
+  // month 12 then 6.25% every 3 months through month 48 (13 tranches).
+  // Independently re-derived here (NOT imported from vesting.js) so drift in
+  // either place fails this parity suite.
+  const hireTotal = s.chadJobHireStockTotal || 0;
+  const hireTrancheMonths = [12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48];
+  const hireGrownTotal = hireTrancheMonths.reduce((acc, t, i) =>
+    acc + hireTotal * (i === 0 ? 0.25 : 0.0625) * Math.pow(1 + g, t / 12), 0);
   const hireNetAvgYr = hireGrownTotal * bonusMult / 4;
   const totalAvgMo = Math.round((annualSalaryNet + bonusNetYr + refreshNetYr + hireNetAvgYr) / 12);
   return {
@@ -1086,18 +1086,24 @@ test('W2-3: pension salary walk matches engine with 5% pension (full FICA)', () 
     `Engine salaryNet (${monthlyData[0].chadJobSalaryNet}) must match UI walk (${ui.salaryNetMo}) with pension=5%`);
 });
 
-test('W2-4: hire stock avg applies MSFT growth (Y1−Y4 each × (1+g)^n)', () => {
-  // With g=10%, Y1*1.1 + Y2*1.21 + Y3*1.331 + Y4*1.4641, all × bonusMult ÷ 4.
+test('W2-4: hire stock avg applies MSFT growth per tranche (25% @ m12, 6.25% quarterly → m48)', () => {
+  // 2026-06-10 schedule change: one $160K total grant (same $ as the old
+  // 4 × $40K) vesting 25% at month 12 then 6.25% every 3 months through
+  // month 48. With g=10% each tranche grows (1.1)^(t/12) — earlier average
+  // vest age than the old annual lumps, so the grown total is slightly LOWER
+  // than the old anniversary math at the same g (≈1.205× vs ≈1.276× mean).
   const overrides = {
     chadJobSalary: 180000, chadJobTaxRate: 25, msftGrowth: 10,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
   };
   const ui = computeUiW2Diagnostic(overrides);
-  const expectedGrown = 40000 * 1.1 + 40000 * 1.21 + 40000 * 1.331 + 40000 * 1.4641;
+  const months = [12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48];
+  const expectedGrown = months.reduce((acc, t, i) =>
+    acc + 160000 * (i === 0 ? 0.25 : 0.0625) * Math.pow(1.1, t / 12), 0);
   const expectedNetAvgYr = expectedGrown * 0.75 / 4;
   assert.ok(Math.abs(ui.hireNetAvgYr - expectedNetAvgYr) < 1,
     `Hire stock avg (g=10%): expected ~${expectedNetAvgYr.toFixed(0)}, got ${ui.hireNetAvgYr.toFixed(0)}`);
-  // Sanity: with g=0, value should be flat sum × bonusMult ÷ 4 = $30,000/yr
+  // Sanity: with g=0, value should be flat total × bonusMult ÷ 4 = $30,000/yr
   const flat = computeUiW2Diagnostic({ ...overrides, msftGrowth: 0 });
   assert.strictEqual(Math.round(flat.hireNetAvgYr), 30000,
     `With g=0, hire avg should be flat $30,000, got ${flat.hireNetAvgYr}`);
@@ -1145,7 +1151,7 @@ test('W2-7: SSDI net impact uses W-2 total monthly + monthly health (not salary-
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
     chadJobBonusPct: 20, chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0, chadJobHealthSavings: 4200,
     ssType: 'ssdi', ssdiFamilyTotal: 6321, ssdiPersonal: 4214,
   };
@@ -1165,7 +1171,7 @@ test('W2-8: totalAvgMo includes salary + bonus + refresh + hire stock (with MSFT
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25,
     chadJobBonusPct: 20, chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 8,
   };
   const ui = computeUiW2Diagnostic(overrides);
@@ -1254,7 +1260,7 @@ test('W2-REAL (§2c#1): EXPORTED computeW2Diagnostic field-by-field for the W2-7
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250,
     chadJobBonusPct: 20, chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0, chadJobHealthSavings: 4200,
     ssType: 'ssdi', ssdiFamilyTotal: 6321, ssdiPersonal: 4214,
   };
@@ -1291,9 +1297,9 @@ test('W2-REAL (§2c#1): EXPORTED computeW2Diagnostic field-by-field for the W2-7
 test('W2-REAL-parity: exported computeW2Diagnostic agrees with computeUiW2Diagnostic copy', () => {
   // Field-by-field equality between the two implementations (closes §2a#3 drift gap).
   const cases = [
-    { chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJobBonusPct: 20, chadJobStockRefresh: 40000, chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000, msftGrowth: 0, chadJobHealthSavings: 4200 },
+    { chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJob401kEnabled: true, chadJob401kDeferral: 24500, chadJob401kCatchupRoth: 11250, chadJobBonusPct: 20, chadJobStockRefresh: 40000, chadJobHireStockTotal: 160000, msftGrowth: 0, chadJobHealthSavings: 4200 },
     { chadJob: true, chadJobSalary: 120000, chadJobTaxRate: 28, chadJobNoFICA: true, chadJobPensionContrib: 5, chadJobStockRefresh: 50000, msftGrowth: 10, chadJobHealthSavings: 6000 },
-    { chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 22, chadJobHireStockY1: 10000, chadJobHireStockY2: 20000, msftGrowth: 8 },
+    { chadJob: true, chadJobSalary: 80000, chadJobTaxRate: 22, chadJobHireStockTotal: 30000, msftGrowth: 8 },
   ];
   for (const o of cases) {
     const ui = computeUiW2Diagnostic(o);
@@ -1354,7 +1360,7 @@ test('W2-GrossTotal: computeW2Diagnostic returns totalGrossYr = salary + bonus +
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0,
   };
   const s = gatherStateWithOverrides(overrides);
@@ -1379,7 +1385,7 @@ test('W2-Basis (remediation 2.2): gross, net, FICA and blended % share ONE stead
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0,
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
@@ -1405,7 +1411,7 @@ test('W2-FICA: SS/Medicare/Addl computed on the W-2 gross via the tax engine', (
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0,
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
@@ -1424,7 +1430,7 @@ test('W2-FICA: reconciles exactly with taxEngine.computeW2EmployeeFica (single s
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0,
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
@@ -1440,7 +1446,7 @@ test('W2-FICA: no-FICA employer suppresses SS but keeps Medicare', () => {
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0, chadJobNoFICA: true,
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
@@ -1453,7 +1459,7 @@ test('W2-FICA: adding the breakdown does NOT change net totals (engine parity pr
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 20,
     chadJobStockRefresh: 40000,
-    chadJobHireStockY1: 40000, chadJobHireStockY2: 40000, chadJobHireStockY3: 40000, chadJobHireStockY4: 40000,
+    chadJobHireStockTotal: 160000,
     msftGrowth: 0,
   };
   const d = computeW2Diagnostic(gatherStateWithOverrides(overrides));
@@ -1592,7 +1598,7 @@ test('ET-1: wage basis includes bonus + RSU (not salary-only) and matches totalG
   const overrides = {
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 10,
     chadJobStockRefresh: 40000, msftGrowth: 0,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
     chadJobSignOnCash: 0,
   };
   const s = gatherStateWithOverrides(overrides);
@@ -1612,7 +1618,7 @@ test('ET-2: FRA-calendar-year tier uses the higher exempt amount and $1/$3', () 
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 180000, chadJobTaxRate: 25, chadJobBonusPct: 0,
     chadJobStockRefresh: 0, msftGrowth: 0,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
   });
   const et = estimateEarningsTestImpact(s);
   assert.strictEqual(et.annualEarned, 180000, 'salary-only basis');
@@ -1632,7 +1638,7 @@ test('ET-3: wages between the two exempt amounts → FRA-year reduction is 0, st
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 48000, chadJobTaxRate: 25, chadJobBonusPct: 0,
     chadJobStockRefresh: 0, msftGrowth: 0,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
   });
   const et = estimateEarningsTestImpact(s);
   assert.ok(et.annualEarned > SS_EARNINGS_LIMIT_ANNUAL && et.annualEarned < SS_EARNINGS_LIMIT_FRA_YEAR,
@@ -1645,7 +1651,7 @@ test('ET-4: wages below both exempt amounts → both reductions are 0', () => {
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 20000, chadJobTaxRate: 25, chadJobBonusPct: 0,
     chadJobStockRefresh: 0, msftGrowth: 0,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
   });
   const et = estimateEarningsTestImpact(s);
   assert.strictEqual(et.monthlyReductionStandard, 0);

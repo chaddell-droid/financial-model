@@ -25,7 +25,7 @@ const IncomeControls = ({
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
   chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst,
-  chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
+  chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockTotal,
   chadJobSignOnCash,
   chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
   chadCurrentAge, chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
@@ -58,7 +58,7 @@ const IncomeControls = ({
   const _w2Inputs = {
     chadJob, chadJobSalary, chadJobTaxRate, chadJobHealthSavings, chadJobNoFICA,
     chadJobBonusPct, chadJobStockRefresh, chadJobRefreshStartMonth,
-    chadJobHireStockY1, chadJobHireStockY2, chadJobHireStockY3, chadJobHireStockY4,
+    chadJobHireStockTotal,
     chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth,
     chadJobPensionContrib, chadJobSignOnCash, msftGrowth,
   };
@@ -399,15 +399,11 @@ const IncomeControls = ({
                         </div>
                       </>
                     )}
-                    <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 8, marginBottom: 4 }}>One-time hire stock — anniversary lump</div>
-                    <Slider label="Year 1 vest" value={chadJobHireStockY1} onChange={set('chadJobHireStockY1')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
-                    <Slider label="Year 2 vest" value={chadJobHireStockY2} onChange={set('chadJobHireStockY2')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
-                    <Slider label="Year 3 vest" value={chadJobHireStockY3} onChange={set('chadJobHireStockY3')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
-                    <Slider label="Year 4 vest" value={chadJobHireStockY4} onChange={set('chadJobHireStockY4')} commitStrategy={commitStrategy} min={0} max={200000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
-                    {(chadJobHireStockY1 + chadJobHireStockY2 + chadJobHireStockY3 + chadJobHireStockY4 > 0) && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
-                        <span style={{ color: COLORS.textDim }}>Total hire stock:</span>
-                        <span style={{ color: COLORS.blue, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmtFull(chadJobHireStockY1 + chadJobHireStockY2 + chadJobHireStockY3 + chadJobHireStockY4)}</span>
+                    <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 8, marginBottom: 4 }}>One-time hire stock — total grant</div>
+                    <Slider label="On-hire stock (total grant $)" value={chadJobHireStockTotal || 0} onChange={set('chadJobHireStockTotal')} commitStrategy={commitStrategy} min={0} max={400000} step={5000} color={COLORS.blue} format={(v) => v === 0 ? "—" : "$" + (v/1000).toFixed(0) + "K"} />
+                    {(chadJobHireStockTotal || 0) > 0 && (
+                      <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2, marginBottom: 6 }}>
+                        25% vests 12 mo after hire, then 6.25% every 3 mo through month 48 (MSFT schedule).
                       </div>
                     )}
                   </div>

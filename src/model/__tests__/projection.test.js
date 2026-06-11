@@ -365,31 +365,32 @@ test('14d-refresh-start-custom. refreshStartMonth=6 still snaps to August (m=17)
     'm=20 (Nov yr2): first vest snaps to August even with refreshStartMonth=6');
 });
 
-test('14e. One-time hire stock vests as anniversary lumps', () => {
-  // Schedule: $55K Y1, $30K Y2, $25K Y3, $10K Y4 — paid at anniversary months 12/24/36/48.
+test('14e. One-time hire stock vests 25% at month 12, then 6.25% quarterly through month 48', () => {
+  // 2026-06-10 schedule change (was: annual anniversary lumps Y1-Y4). One
+  // TOTAL grant: 25% cliff at month 12, then 6.25% every 3 months (m15..m48).
+  // Boundary cases locked in detail in hireVestSchedule.test.js.
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
-    chadJobHireStockY1: 55000, chadJobHireStockY2: 30000,
-    chadJobHireStockY3: 25000, chadJobHireStockY4: 10000,
+    chadJobHireStockTotal: 120000,
     chadWorkMonths: 72,
   });
   const { monthlyData } = runMonthlySimulation(s);
   const monthlySalaryNet = Math.round(100000 * 0.75 / 12);
-  // Months 0-11: no hire stock vest yet (first vest is at anniversary = m=12)
-  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet, 'no hire vest before anniversary');
+  const cliffNet = Math.round(120000 * 0.25 * 0.75);     // 22500
+  const quarterlyNet = Math.round(120000 * 0.0625 * 0.75); // 5625
+  // Months 0-11: nothing before the 12-month cliff.
+  assert.strictEqual(monthlyData[0].chadJobIncome, monthlySalaryNet, 'no hire vest before cliff');
   assert.strictEqual(monthlyData[11].chadJobIncome, monthlySalaryNet, 'still no vest at month 11');
-  // Month 12 (1st anniversary): $55K lump
-  const y1Net = Math.round(55000 * 0.75);
-  assert.strictEqual(monthlyData[12].chadJobIncome, monthlySalaryNet + y1Net, 'anniversary 1: $55K lump');
-  // Month 13: back to salary only
+  // Month 12: 25% cliff.
+  assert.strictEqual(monthlyData[12].chadJobIncome, monthlySalaryNet + cliffNet, 'month 12: 25% cliff');
+  // Months 13-14: between tranches.
   assert.strictEqual(monthlyData[13].chadJobIncome, monthlySalaryNet, 'month 13: no vest');
-  // Month 24 (2nd anniversary): $30K lump
-  const y2Net = Math.round(30000 * 0.75);
-  assert.strictEqual(monthlyData[24].chadJobIncome, monthlySalaryNet + y2Net, 'anniversary 2: $30K lump');
-  // Month 48 (4th anniversary): $10K lump
-  const y4Net = Math.round(10000 * 0.75);
-  assert.strictEqual(monthlyData[48].chadJobIncome, monthlySalaryNet + y4Net, 'anniversary 4: $10K lump');
-  // Month 60 (5th anniversary): no Y5 entry — hire stock fully vested
+  // Month 15, 24, 48: quarterly 6.25% tranches (m24 is NOT a fat annual lump anymore).
+  assert.strictEqual(monthlyData[15].chadJobIncome, monthlySalaryNet + quarterlyNet, 'month 15: 6.25%');
+  assert.strictEqual(monthlyData[24].chadJobIncome, monthlySalaryNet + quarterlyNet, 'month 24: 6.25% quarterly');
+  assert.strictEqual(monthlyData[48].chadJobIncome, monthlySalaryNet + quarterlyNet, 'month 48: final 6.25%');
+  // Months 51+: fully vested.
+  assert.strictEqual(monthlyData[51].chadJobIncome, monthlySalaryNet, 'no hire vest after month 48');
   assert.strictEqual(monthlyData[60].chadJobIncome, monthlySalaryNet, 'no hire vest in Y5+');
 });
 
@@ -433,7 +434,7 @@ test('14g-late-start. Sign-on respects chadJobStartMonth offset', () => {
 test('14f. Stock vesting stops after chadRetirementMonth', () => {
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
-    chadJobStockRefresh: 50000, chadJobHireStockY1: 50000,
+    chadJobStockRefresh: 50000, chadJobHireStockTotal: 50000,
     chadWorkMonths: 24, // Chad leaves at month 24
   });
   const { monthlyData } = runMonthlySimulation(s);
@@ -2702,7 +2703,7 @@ test('EARN-test-1. SS earnings test: 6yr employed, refresh grant 1 expired → 5
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
     chadJobStockRefresh: 100000, chadJobRefreshStartMonth: 12,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
     chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
     chadWorkMonths: 96,
   });
@@ -2731,40 +2732,36 @@ test('EARN-test-1. SS earnings test: 6yr employed, refresh grant 1 expired → 5
   assert.ok(18280 > 5 * 2950, 'six-grant withholding would still be withholding at m=74');
 });
 
-// FIX #7a: SS earnings test — hire stock projection uses ANNIVERSARY indexing.
-// At m=startMonth (Y0), no Y1 lump has paid yet → hire stock contribution = 0.
-// At m=startMonth+12 (Y1 anniversary), Y1 lump just paid → contribution = chadJobHireStockY1.
-test('EARN-test-2. SS earnings test: hire stock projection respects anniversary timing', () => {
+// FIX #7a + 2026-06-10 schedule change: the SS earnings-test hire estimate
+// uses the schedule-derived EMPLOYMENT-YEAR sums (year 1 = 43.75%, years 2-3
+// = 25%, year 4 = 6.25%) — nothing in employment year 0, nothing after year 4.
+test('EARN-test-2. SS earnings test: hire stock projection follows the quarterly schedule', () => {
   // Run with SS coexisting with the job so the earnings-test code path is exercised.
-  // Start month 0 puts Y0 = m=0..11, Y1 anniv at m=12, etc.
   // chadJobSalary=0 isolates the stock effect.
   const s = gatherStateWithOverrides({
     expenseInflation: false, // A2 (2026-06-10): isolate from SS COLA (locked in ssCola.test.js)
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
-    chadJobHireStockY1: 50000, chadJobHireStockY2: 0,
-    chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 100000,
     chadJobStockRefresh: 0, chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
-    chadWorkMonths: 96,
+    chadWorkMonths: 96, msftGrowth: 0,
   });
   const { monthlyData } = runMonthlySimulation(s);
-  // SS doesn't start until m=19 in this scenario. Probe m=19 (still in Y1, before anniversary
-  // m=24 since Y1 anniv was at m=12 and we're past it). yearsWorkedForSS at m=19 = 1
-  // (Math.floor(19/12) = 1) → hireStockForSS = chadJobHireStock[0] = 50000.
-  // annualStockProjected = 50000. After SS_EARNINGS_LIMIT_ANNUAL = $24,480 (B3):
-  // annual withholding = round((50000 − 24480)/2) = $12,760.
-  // B1 (2026-06-10) whole-check at the $6,110 family rate: m=19 and m=20 are
-  // $0 checks (cum $12,220), m=21 pays the boundary remainder ($6,110 − $540
-  // = $5,570).
+  // SS doesn't start until m=19. yearsWorkedForSS at m=19 = 1 → hire estimate
+  // = 100000 × 43.75% (m12 cliff + 3 quarterly tranches) = $43,750.
+  // After SS_EARNINGS_LIMIT_ANNUAL = $24,480 (B3): annual withholding =
+  // round((43750 − 24480)/2) = $9,635. B1 whole-check at the $6,110 family
+  // rate: m=19 is a $0 check, m=20 pays the boundary remainder
+  // ($6,110 − (9635 − 6110) = $2,585), m=21 pays in full.
   assert.strictEqual(monthlyData[19].ssBenefitGross, 0,
-    'm=19 (Y1 anniv passed): hire stock annualized to 50000 → whole check withheld'); // A1: gross
-  assert.strictEqual(monthlyData[20].ssBenefitGross, 0, 'm=20: still fully withheld');
-  assert.strictEqual(monthlyData[21].ssBenefitGross, s.ssFamilyTotal - (12760 - 2 * s.ssFamilyTotal),
-    'm=21: boundary month pays the remainder');
+    'm=19 (employment year 1): hire estimate 43750 → whole check withheld'); // A1: gross
+  assert.strictEqual(monthlyData[20].ssBenefitGross, s.ssFamilyTotal - (9635 - s.ssFamilyTotal),
+    'm=20: boundary month pays the remainder');
+  assert.strictEqual(monthlyData[21].ssBenefitGross, s.ssFamilyTotal, 'm=21: full check');
 
   // Probe an even later month — m=72 (6 yrs employed, yearsWorkedForSS=6).
-  // Per FIX #7a, yearsWorkedForSS=6 is OUTSIDE the 1..4 range → no hire stock contribution.
-  // No refresh either → annualStockProjected = 0 → no reduction → full personal SS.
+  // Outside the 1..4 window → no hire stock contribution. No refresh either →
+  // annualStockProjected = 0 → no reduction → full personal SS.
   assert.strictEqual(monthlyData[72].ssBenefitGross, s.ssPersonal,
     `m=72: no hire/refresh → no earnings test reduction → ssPersonal=${s.ssPersonal}, got ${monthlyData[72].ssBenefitGross}`);
 });
@@ -2784,7 +2781,7 @@ test('EARN-test-3. SS earnings test: no refresh counted before the first AUGUST 
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 12,
     chadJobStockRefresh: 200000, chadJobRefreshStartMonth: 12,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
     chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
     chadWorkMonths: 96, msftGrowth: 0,
   });
@@ -2815,7 +2812,7 @@ test('EARN-test-4. SS earnings test: annualStockFromRefresh matches summed actua
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0, chadJobTaxRate: 25, chadJobNoFICA: false,
     chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 12,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
     chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
     chadWorkMonths: 120, msftGrowth: 0,
   });
@@ -2891,7 +2888,7 @@ test('EARN-C18. earnings-test refresh estimate includes msftGrowth appreciation'
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 12,
     chadJobStockRefresh: 200000, chadJobRefreshStartMonth: 12,
-    chadJobHireStockY1: 0, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 0,
     chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
     chadWorkMonths: 96, msftGrowth: growth,
   });
@@ -2916,24 +2913,30 @@ test('EARN-C18. earnings-test refresh estimate includes msftGrowth appreciation'
 });
 
 test('EARN-C18b. earnings-test hire-stock estimate includes msftGrowth appreciation', () => {
+  // 2026-06-10 schedule change: the estimate is the employment-year tranche
+  // sum, growth-weighted PER TRANCHE (issue→vest) — year 1 = total ×
+  // (0.25·(1+g)^1 + 0.0625·((1+g)^1.25 + (1+g)^1.5 + (1+g)^1.75)).
   const mk = (growth) => gatherStateWithOverrides({
     expenseInflation: false,
     ssType: 'ss', ssClaimAge: 62, ssPIA: 4214,
     chadJob: true, chadJobSalary: 0, chadJobStartMonth: 0,
-    chadJobHireStockY1: 25000, chadJobHireStockY2: 0, chadJobHireStockY3: 0, chadJobHireStockY4: 0,
+    chadJobHireStockTotal: 60000,
     chadJobStockRefresh: 0, chadJobSignOnCash: 0, chadJobBonusPct: 0, chadJobRaisePct: 0,
     chadWorkMonths: 96, msftGrowth: growth,
   });
-  // Jan 2028 = m=22, employment year 1 → hire estimate = 25000 (flat) or
-  // 25000 × 1.12^(22/12) (grown). Both are under one family check, so the
-  // January boundary month shows the exact difference.
+  // Jan 2028 = m=22, employment year 1. Flat estimate = 60000 × 43.75% =
+  // $26,250; grown (g=12%) weights each tranche by (1.12)^(t/12). Both are
+  // under one family check, so the January boundary month shows the exact
+  // difference.
   const { monthlyData: flat } = runMonthlySimulation(mk(0));
   const { monthlyData: grown } = runMonthlySimulation(mk(12));
-  const flatRequired = Math.round((25000 - 24480) / 2);
-  const grownRequired = Math.round((25000 * Math.pow(1.12, 22 / 12) - 24480) / 2);
+  const year1Est = (g) => 60000 * (0.25 * Math.pow(1 + g, 1)
+    + 0.0625 * (Math.pow(1 + g, 15 / 12) + Math.pow(1 + g, 18 / 12) + Math.pow(1 + g, 21 / 12)));
+  const flatRequired = Math.round((year1Est(0) - 24480) / 2);
+  const grownRequired = Math.round((year1Est(0.12) - 24480) / 2);
   assert.strictEqual(flat[22].ssBenefitGross, 6110 - flatRequired, 'flat hire estimate');
   assert.strictEqual(grown[22].ssBenefitGross, 6110 - grownRequired,
-    'grown hire estimate scales from hire month to the test month');
+    'grown hire estimate is growth-weighted per tranche');
   assert.ok(grownRequired > flatRequired, 'growth raises the hire-stock wage estimate');
 });
 
@@ -3413,7 +3416,7 @@ test('P13. Post-retirement vest month: only stock refresh, no salary/bonus/hire/
   const s = promoBaseState({
     chadCurrentAge: 64, chadWorkMonths: 36, // age 67 at retirement
     chadJobStockRefresh: 50000, chadJobRefreshStartMonth: 12,
-    chadJobHireStockY1: 25000, chadJobHireStockY2: 20000,
+    chadJobHireStockTotal: 45000,
     chadJobSignOnCash: 10000,
     chadAge65VestOverride: 'auto',
   });

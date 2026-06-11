@@ -188,7 +188,8 @@ test('20. getOptimizerEligibleLevers returns exactly the bounded-continuous set'
     'chadConsulting', 'ssClaimAge', 'chadJobStartMonth', 'vanSaleMonth',
     // MSFT job/comp levers (gated on chadJob via prereq map)
     'chadJobSalary', 'chadJobBonusPct', 'chadJobStockRefresh', 'chadJobRaisePct',
-    'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
+    // 2026-06-10: one TOTAL hire-stock lever (25% @ m12, 6.25% quarterly → m48)
+    'chadJobHireStockTotal',
     'chadJobSignOnCash', 'chadJobRefreshStartMonth',
     // 401(k) levers (gated on chadJob401kEnabled via prereq map)
     'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',

@@ -85,10 +85,11 @@ export const INITIAL_STATE = {
   chadJobBonusProrateFirst: true, // Prorate first-year bonus by months worked
   chadJobStockRefresh: 0,       // Annual stock refresh grant $ (each grant vests 20%/yr × 5)
   chadJobRefreshStartMonth: 12, // Months from hire until first refresh grant is issued (MSFT default ~12 = after first review)
-  chadJobHireStockY1: 0,        // One-time hire stock $ vesting in year 1
-  chadJobHireStockY2: 0,        // ... year 2
-  chadJobHireStockY3: 0,        // ... year 3
-  chadJobHireStockY4: 0,        // ... year 4 (typically tail end of 4-yr vesting)
+  // One-time on-hire stock grant — TOTAL grant-date $ value. Vests on the
+  // MSFT schedule: 25% at month 12 after job start, then 6.25% every 3 months
+  // (months 15..48 — 13 tranches; see HIRE_VEST_TRANCHES in model/vesting.js).
+  // Replaces legacy chadJobHireStockY1..Y4 (migrated v8→v9: total = ΣY).
+  chadJobHireStockTotal: 0,
   chadJobSignOnCash: 0,         // One-time cash sign-on bonus (50% on hire, 50% on 1yr anniv)
   // 401(k) — annual dollar amounts. Pre-tax deferral reduces W2 wages + cashflow + adds to 401k.
   // Roth catch-up (SECURE 2.0 mandate for high earners 50+) is post-tax — reduces cashflow + adds to 401k but no tax benefit.
@@ -399,7 +400,7 @@ export const MODEL_KEYS = [
   'chadJob', 'chadJobSalary', 'chadJobTaxRate', 'chadJobStartMonth', 'chadJobHealthSavings',
   'chadJobNoFICA', 'chadJobPensionRate', 'chadJobPensionContrib',
   'chadJobRaisePct', 'chadJobBonusPct', 'chadJobBonusMonth', 'chadJobBonusProrateFirst',
-  'chadJobStockRefresh', 'chadJobRefreshStartMonth', 'chadJobHireStockY1', 'chadJobHireStockY2', 'chadJobHireStockY3', 'chadJobHireStockY4',
+  'chadJobStockRefresh', 'chadJobRefreshStartMonth', 'chadJobHireStockTotal',
   'chadJobSignOnCash',
   'chadJob401kEnabled', 'chadJob401kDeferral', 'chadJob401kCatchupRoth', 'chadJob401kMatch',
   'chadCurrentAge',

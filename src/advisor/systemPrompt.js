@@ -124,8 +124,8 @@ export function summarizeHousehold(state) {
       lines.push(`  - Annual refresh $${r(state.chadJobStockRefresh).toLocaleString()}${hasL64 ? `/$${r(state.chadL64StockRefresh).toLocaleString()}(L64)` : ''}${hasL65 ? `/$${r(state.chadL65StockRefresh).toLocaleString()}(L65)` : ''}, first refresh ${state.chadJobRefreshStartMonth}mo after hire (snaps to next August).`);
       lines.push(`  - Age-65 RSU vest continuation: ${state.chadAge65VestOverride || 'auto'}.`);
     }
-    const hire = [state.chadJobHireStockY1, state.chadJobHireStockY2, state.chadJobHireStockY3, state.chadJobHireStockY4].map((v) => r(v || 0));
-    if (hire.some((v) => v > 0)) lines.push(`  - Hire stock Y1-Y4: $${hire.map((v) => v.toLocaleString()).join(' / ')} (vest on anniversaries).`);
+    const hireTotal = r(state.chadJobHireStockTotal || 0);
+    if (hireTotal > 0) lines.push(`  - On-hire stock $${hireTotal.toLocaleString()} total (25% vests at month 12, then 6.25% every 3 months through month 48).`);
     if ((state.chadJobSignOnCash || 0) > 0) lines.push(`  - Sign-on $${r(state.chadJobSignOnCash).toLocaleString()} (50% on hire, 50% at 1yr).`);
     if (has401k) {
       lines.push(`  - 401(k) ACTIVE: pre-tax $${r(state.chadJob401kDeferral).toLocaleString()}/yr, Roth catchup $${r(state.chadJob401kCatchupRoth).toLocaleString()}, match $${r(state.chadJob401kMatch).toLocaleString()}/yr.`);

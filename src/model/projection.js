@@ -15,7 +15,7 @@ function nextStockVestMonthAfter(month) {
   }
   return month + 3; // fallback (shouldn't hit — vest months are every 3 months)
 }
-import { getVestingMonthly, getVestingLumpSum, getVestingGrossMonthly, getVestingGrossLumpSum } from './vesting.js';
+import { getVestingMonthly, getVestingLumpSum, getVestingGrossMonthly, getVestingGrossLumpSum, hireVestGrossInMonth, hireVestGrossForEmploymentYear } from './vesting.js';
 import { getTaxParamsForYear, TAX_PARAMS_BASE_YEAR, RSU_VEST_WITHHOLDING_RATE, RMD_START_AGE, rmdDivisorForAge } from './taxConstants.js';
 import { buildTaxSchedule } from './taxProjection.js';
 
@@ -176,12 +176,10 @@ export function runMonthlySimulation(s) {
   // levelAtMonthsWorked() so promotions can step them up. The L63 baseline
   // values (chadJobSalary, chadJobBonusPct, chadJobStockRefresh) remain on
   // state and are returned by levelAtMonthsWorked when no promotion has fired.
-  const chadJobHireStock = [
-    s.chadJobHireStockY1 || 0,
-    s.chadJobHireStockY2 || 0,
-    s.chadJobHireStockY3 || 0,
-    s.chadJobHireStockY4 || 0,
-  ];
+  // One-time on-hire stock grant — TOTAL grant-date $ value. Vest schedule
+  // (HIRE_VEST_TRANCHES, model/vesting.js — single source of truth): 25% at
+  // month 12 after job start, then 6.25% every 3 months through month 48.
+  const chadJobHireStockTotal = s.chadJobHireStockTotal || 0;
   const chadJobSignOnCash = s.chadJobSignOnCash || 0;
   // 401(k) — annual amounts; spread monthly over 12. Pre-tax deferral reduces taxable salary
   // (so net cashflow falls by deferral × tax-saved-fraction less than the gross deduction);
@@ -512,16 +510,11 @@ export function runMonthlySimulation(s) {
           }
         }
       }
-      // Hire stock: lump on each work anniversary (start + 12, +24, +36, +48).
-      // Each Y1-Y4 slider value is the dollar value AT HIRE; vests appreciate
-      // with msftGrowth from hire month → vest month (matches refresh treatment).
-      let hireGrossThisMonth = 0;
-      if (monthsWorked > 0 && monthsWorked % 12 === 0) {
-        const yearIdx = monthsWorked / 12 - 1; // m=startMonth+12 → Y1 amount
-        if (yearIdx >= 0 && yearIdx < 4) {
-          hireGrossThisMonth = chadJobHireStock[yearIdx] * msftMultIssueToVest(chadJobStartMonth, m);
-        }
-      }
+      // Hire stock (2026-06-10): 25% cliff at month 12, then 6.25% every 3
+      // months through month 48 (MSFT actual). The slider is the TOTAL grant
+      // value AT HIRE; each tranche appreciates with msftGrowth from hire
+      // month → vest month (hireVestGrossInMonth mirrors msftMultIssueToVest).
+      const hireGrossThisMonth = hireVestGrossInMonth(chadJobHireStockTotal, monthsWorked, msftGrowthPct);
       chadJobStockGross = refreshGrossThisMonth + hireGrossThisMonth;
       // P7 / b-14: engine mode withholds the statutory 29.65% at vest (the
       // true-up below settles against the engine rate each April).
@@ -756,13 +749,13 @@ export function runMonthlySimulation(s) {
       // lumpy (only nonzero on quarterly vest / anniversary months), so project
       // the expected annual stock comp from the current year of employment.
       const yearsWorkedForSS = Math.max(0, Math.floor((m - chadJobStartMonth) / 12));
-      // FIX #7a: Hire stock — Y1 lump pays at the 1-year ANNIVERSARY, not in Y0.
-      // So during employment year 1 (yearsWorkedForSS=0), no hire stock has paid yet
-      // for SS earnings test purposes. yearsWorkedForSS=1 → Y1 anniversary fell this
-      // calendar year → use chadJobHireStock[0]. Index = yearsWorkedForSS - 1.
-      // Y4 (yearsWorkedForSS=4) is the last year where Y4 lump pays this calendar year.
+      // FIX #7a + 2026-06-10 schedule change: hire stock vests 25% at month 12
+      // then 6.25% quarterly through month 48, so employment year 0 pays
+      // nothing; years 1-4 pay the schedule-derived (growth-weighted) sums
+      // 43.75% / 25% / 25% / 6.25% (hireVestGrossForEmploymentYear — same
+      // HIRE_VEST_TRANCHES source the vest engine above consumes).
       const hireStockForSS = (yearsWorkedForSS >= 1 && yearsWorkedForSS <= 4)
-        ? (chadJobHireStock[yearsWorkedForSS - 1] || 0)
+        ? hireVestGrossForEmploymentYear(chadJobHireStockTotal, yearsWorkedForSS, msftGrowthPct)
         : 0;
       // FIX #7b: Refresh grants vest 60 months (5 years × 4 quarters) from issuance.
       // Old logic: Math.min(5, floor(...) + 1) — never dropped below 5 even when
@@ -786,8 +779,9 @@ export function runMonthlySimulation(s) {
         const grantSize = levelAtMonthsWorked(issueMonth - chadJobStartMonth, s).refresh;
         annualStockFromRefresh += grantSize * 0.20 * msftMultIssueToVest(issueMonth, m); // 20% per year while vesting
       }
-      const annualStockProjected = annualStockFromRefresh
-        + hireStockForSS * msftMultIssueToVest(chadJobStartMonth, m); // C18: hire vests appreciate from hire month
+      // C18 note: hireStockForSS is already growth-weighted per tranche
+      // (issue→vest inside hireVestGrossForEmploymentYear) — no extra mult.
+      const annualStockProjected = annualStockFromRefresh + hireStockForSS;
       // Sign-on cash: 50% in employment year 0, 50% in year 1.
       const signOnYear = yearsWorkedForSS === 0 || yearsWorkedForSS === 1 ? chadJobSignOnCash * 0.5 : 0;
       // Bonus pct comes from current level (month m) — bonus due this year reflects

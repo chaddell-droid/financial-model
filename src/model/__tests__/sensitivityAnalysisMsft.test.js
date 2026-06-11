@@ -54,11 +54,11 @@ test('Bundle exists when chadJob is off', () => {
   assert.ok(bundle.monthlyImpact > 0, 'monthlyImpact should be positive');
 });
 
-test('Bundle includes hire stock fields in mutation', () => {
+test('Bundle includes hire stock total in mutation', () => {
   const s = baseStateNoJob();
   const bundle = findMsftBundle(s);
-  assert.ok((bundle.mutation.chadJobHireStockY1 || 0) > 0, 'hire stock Y1 should be filled');
-  assert.ok((bundle.mutation.chadJobHireStockY4 || 0) > 0, 'hire stock Y4 should be filled');
+  // 2026-06-10: one total grant field ($120K default = the old 4 × $30K).
+  assert.strictEqual(bundle.mutation.chadJobHireStockTotal, 120000, 'hire stock total default');
   assert.ok((bundle.mutation.chadJobStockRefresh || 0) > 0, 'refresh should be filled');
 });
 
@@ -150,15 +150,10 @@ test('User-tuned salary survives bundle (orDefault keeps non-zero)', () => {
 });
 
 test('User-tuned hire stock survives bundle', () => {
-  const s = baseStateNoJob({
-    chadJobHireStockY1: 45000,
-    chadJobHireStockY2: 40000,
-    chadJobHireStockY3: 35000,
-    chadJobHireStockY4: 20000,
-  });
+  const s = baseStateNoJob({ chadJobHireStockTotal: 140000 });
   const bundle = findMsftBundle(s);
-  assert.strictEqual(bundle.mutation.chadJobHireStockY1, 45000);
-  assert.strictEqual(bundle.mutation.chadJobHireStockY4, 20000);
+  assert.strictEqual(bundle.mutation.chadJobHireStockTotal, 140000,
+    'custom hire-stock total should be preserved, not overwritten with default 120000');
 });
 
 // ════════════════════════════════════════════════════════════════════════

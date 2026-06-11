@@ -3,6 +3,7 @@ import { gatherState } from '../state/gatherState.js';
 import { evaluateAllGoals } from './goalEvaluation.js';
 import { getEndingResourceValue } from './projectionMetrics.js';
 import { SOLO_401K_EMPLOYEE_LIMIT, K401_SUPER_CATCHUP_LIMIT } from './taxConstants.js';
+import { hireVestGrowthWeightedMean } from './vesting.js';
 
 /**
  * "Your Top 3 Moves" / Sensitivity analysis.
@@ -150,10 +151,9 @@ export function buildLeverCandidates(state) {
       chadJobStockRefresh: orDefault(state.chadJobStockRefresh, 60000),
       chadJobRaisePct: orDefault(state.chadJobRaisePct, 3.5),
       chadJobRefreshStartMonth: state.chadJobRefreshStartMonth ?? 12,
-      chadJobHireStockY1: orDefault(state.chadJobHireStockY1, 30000),
-      chadJobHireStockY2: orDefault(state.chadJobHireStockY2, 30000),
-      chadJobHireStockY3: orDefault(state.chadJobHireStockY3, 30000),
-      chadJobHireStockY4: orDefault(state.chadJobHireStockY4, 30000),
+      // One-time hire stock TOTAL (2026-06-10: 25% at month 12, then 6.25%
+      // quarterly through month 48). $120K matches the old 4 × $30K default.
+      chadJobHireStockTotal: orDefault(state.chadJobHireStockTotal, 120000),
       chadJobSignOnCash: orDefault(state.chadJobSignOnCash, 50000),
       // L64 ladder
       chadL64Enabled: true,
@@ -198,11 +198,11 @@ export function buildLeverCandidates(state) {
           .reduce((acc, t) => acc + Math.pow(1 + w2Growth, t), 0) / 20;
     const refreshNetAnnual = (msftBundle.chadJobStockRefresh || 0)
       * (1 - msftBundle.chadJobTaxRate / 100) * refreshSteadyMult;
-    // Hire stock: each tranche grown by (1+g)^n then averaged over 4-yr vest.
-    const hireGrownTotal = (msftBundle.chadJobHireStockY1 || 0) * Math.pow(1 + w2Growth, 1)
-                         + (msftBundle.chadJobHireStockY2 || 0) * Math.pow(1 + w2Growth, 2)
-                         + (msftBundle.chadJobHireStockY3 || 0) * Math.pow(1 + w2Growth, 3)
-                         + (msftBundle.chadJobHireStockY4 || 0) * Math.pow(1 + w2Growth, 4);
+    // Hire stock: 25% at month 12 + 6.25% quarterly through month 48, each
+    // tranche grown issue→vest, then averaged over the 4-yr payout window —
+    // hireVestGrowthWeightedMean is the same source w2Diagnostic.js uses.
+    const hireGrownTotal = (msftBundle.chadJobHireStockTotal || 0)
+      * hireVestGrowthWeightedMean(state.msftGrowth || 0);
     const hireNetAvgAnnual = hireGrownTotal * (1 - msftBundle.chadJobTaxRate / 100) / 4;
     // 401(k) match is employer contribution — counted as steady-state benefit,
     // not taxed at withdrawal here (rough proxy for the panel chip).

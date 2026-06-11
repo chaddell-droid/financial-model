@@ -26,10 +26,7 @@ function CashflowAssumeColumn({ incomeControlsProps, ...props }) {
           chadJob={vp.chadJob}
           chadJobStockRefresh={vp.chadJobStockRefresh}
           chadJobRefreshStartMonth={vp.chadJobRefreshStartMonth}
-          chadJobHireStockY1={vp.chadJobHireStockY1}
-          chadJobHireStockY2={vp.chadJobHireStockY2}
-          chadJobHireStockY3={vp.chadJobHireStockY3}
-          chadJobHireStockY4={vp.chadJobHireStockY4}
+          chadJobHireStockTotal={vp.chadJobHireStockTotal}
           chadJob401kEnabled={vp.chadJob401kEnabled}
           chadJob401kDeferral={vp.chadJob401kDeferral}
           chadJob401kCatchupRoth={vp.chadJob401kCatchupRoth}

@@ -111,7 +111,7 @@ test('C6a: chadJobIncome row exposes salary/bonus/stock breakdown for tooltip', 
   const s = gatherStateWithOverrides({
     chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
     chadJobBonusPct: 15, chadJobBonusMonth: 8, chadJobBonusProrateFirst: true,
-    chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 0, chadJobHireStockY1: 50000,
+    chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 0, chadJobHireStockTotal: 50000,
     chadWorkMonths: 60,
   });
   const { monthlyData } = runMonthlySimulation(s);
@@ -128,8 +128,8 @@ test('C6a: chadJobIncome row exposes salary/bonus/stock breakdown for tooltip', 
   // Month 6 = first September → bonus paid (lump). Refresh issues at Aug (m=5) so first vest is m=8 (Nov).
   assert.ok(monthlyData[6].chadJobSalaryNet > 0, 'm6: salary > 0');
   assert.ok(monthlyData[6].chadJobBonusNet > 0, 'm6 (Sept): bonus > 0');
-  // Month 12 = anniversary → hire stock lump
-  assert.ok(monthlyData[12].chadJobStockHireNet > 0, 'm12: hire stock anniversary lump');
+  // Month 12 = 25% cliff vest (2026-06-10 quarterly hire schedule)
+  assert.ok(monthlyData[12].chadJobStockHireNet > 0, 'm12: hire stock cliff vest');
   // Month 8 = Nov → first refresh vest after Aug grant (m=5 issue, m=8 first vest)
   assert.ok(monthlyData[8].chadJobStockRefreshNet > 0, 'm8 (Nov): first refresh vest after Aug issue');
 });
@@ -559,7 +559,7 @@ const taxSchedule = buildTaxSchedule(baseState);
 const taxJobState = gatherStateWithOverrides({
   chadJob: true, chadJobSalary: 100000, chadJobTaxRate: 25, chadJobStartMonth: 0,
   chadJobBonusPct: 15, chadJobBonusMonth: 8, chadJobBonusProrateFirst: true,
-  chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 0, chadJobHireStockY1: 50000,
+  chadJobStockRefresh: 60000, chadJobRefreshStartMonth: 0, chadJobHireStockTotal: 50000,
   chadWorkMonths: 60,
 });
 const taxJobSchedule = buildTaxSchedule(taxJobState);

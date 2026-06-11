@@ -28,10 +28,7 @@ const CONTINUOUS_LEVER_PREREQS = {
   chadJobBonusPct: (s) => Boolean(s.chadJob),
   chadJobStockRefresh: (s) => Boolean(s.chadJob),
   chadJobRaisePct: (s) => Boolean(s.chadJob),
-  chadJobHireStockY1: (s) => Boolean(s.chadJob),
-  chadJobHireStockY2: (s) => Boolean(s.chadJob),
-  chadJobHireStockY3: (s) => Boolean(s.chadJob),
-  chadJobHireStockY4: (s) => Boolean(s.chadJob),
+  chadJobHireStockTotal: (s) => Boolean(s.chadJob),
   chadJobSignOnCash: (s) => Boolean(s.chadJob),
   chadJobRefreshStartMonth: (s) => Boolean(s.chadJob),
   // 401(k) deferral/catchup/match only relevant when 401(k) is enabled.
@@ -83,14 +80,8 @@ function labelForContinuousMove(leverKey, currentValue, newValue) {
       return `Negotiate annual refresh to ${dollarsK(rounded)}`;
     case 'chadJobRaisePct':
       return `Raise % target to ${rounded.toFixed(2)}%/yr`;
-    case 'chadJobHireStockY1':
-      return `Y1 hire stock to ${dollarsK(rounded)}`;
-    case 'chadJobHireStockY2':
-      return `Y2 hire stock to ${dollarsK(rounded)}`;
-    case 'chadJobHireStockY3':
-      return `Y3 hire stock to ${dollarsK(rounded)}`;
-    case 'chadJobHireStockY4':
-      return `Y4 hire stock to ${dollarsK(rounded)}`;
+    case 'chadJobHireStockTotal':
+      return `On-hire stock grant to ${dollarsK(rounded)}`;
     case 'chadJobSignOnCash':
       return `Sign-on cash to ${dollarsK(rounded)}`;
     case 'chadJobRefreshStartMonth':

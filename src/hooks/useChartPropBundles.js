@@ -28,7 +28,7 @@ export function useChartPropBundles({
     msftPrice, msftGrowth,
     ssType, ssdiApprovalMonth, ssdiDenied, ssdiPersonal, ssdiFamilyTotal, kidsAgeOutMonths, chadConsulting,
     ssClaimAge, ssPIA, ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
+    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge, sarahOwnSS,
     postJobBenefit,
     twpEnabled, // P8 (2026-06-10, b-1): TWP/EPE module toggle
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings, chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockTotal, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
@@ -128,7 +128,8 @@ export function useChartPropBundles({
     ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
     ssClaimAge, ssPIA,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge, // A7 (2026-06-10): spousal claim-age slider
+    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
+    sarahOwnSS, // D1 (2026-06-10 retirement review): own-record benefit slider
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockTotal, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,
@@ -150,7 +151,7 @@ export function useChartPropBundles({
     ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
     ssClaimAge, ssPIA,
     ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
+    sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge, sarahOwnSS,
     chadConsulting,
     chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
     chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib, chadJobRaisePct, chadJobBonusPct, chadJobBonusMonth, chadJobBonusProrateFirst, chadJobStockRefresh, chadJobRefreshStartMonth, chadJobHireStockTotal, chadJobSignOnCash, chadJob401kEnabled, chadJob401kDeferral, chadJob401kCatchupRoth, chadJob401kMatch,

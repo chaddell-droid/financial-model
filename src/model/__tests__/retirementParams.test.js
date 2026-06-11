@@ -652,6 +652,15 @@ test('W6: B2 — pre-retirement inheritance renders a visible "not modeled" warn
 });
 
 
+test('W7: D1 — sarahOwnSS is editable from IncomeControls and flows through the prop bundle', () => {
+  const incomeControlsSource = fs.readFileSync(new URL('../../panels/IncomeControls.jsx', import.meta.url), 'utf8');
+  const bundlesSource = fs.readFileSync(new URL('../../hooks/useChartPropBundles.js', import.meta.url), 'utf8');
+  assert.ok(incomeControlsSource.includes("set('sarahOwnSS')"),
+    'IncomeControls should bind a slider to sarahOwnSS');
+  assert.ok(/incomeControlsProps[\s\S]{0,900}sarahOwnSS/.test(bundlesSource),
+    'incomeControlsProps should pass sarahOwnSS');
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // Section 8: tax-aware retirement pool (A5 — remediation 2026-06-10 item 3.1)
 // ════════════════════════════════════════════════════════════════════════

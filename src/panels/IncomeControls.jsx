@@ -20,7 +20,7 @@ const IncomeControls = ({
   ssdiApprovalMonth, ssdiBackPayMonths, ssdiBackPayGross, ssdiAttorneyFee, ssdiBackPayActual,
   ssClaimAge, ssPIA,
   ssFamilyTotal, ssPersonal, ssStartMonth, ssKidsAgeOutMonths,
-  sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge,
+  sarahSpousalEnabled, sarahSpousalClaimAge, sarahCurrentAge, sarahOwnSS,
   chadConsulting,
   chadJob, chadJobSalary, chadJobTaxRate, chadJobStartMonth, chadJobHealthSavings,
   chadJobNoFICA, chadJobPensionRate, chadJobPensionContrib,
@@ -769,6 +769,23 @@ const IncomeControls = ({
             <div style={{ marginTop: 12, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
               <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sarah Spousal SS</h4>
               <Toggle label="Model Sarah's spousal benefit" checked={spEnabled} onChange={set('sarahSpousalEnabled')} color={COLORS.green} testId="income-sarah-spousal" />
+              {/* D1 (2026-06-10 retirement review): sarahOwnSS was a MODEL_KEY
+                  with no UI control. NOT gated by the spousal toggle — her
+                  own-record benefit is a different SSA benefit: it caps the
+                  spousal top-up while Chad is alive and floors her survivor
+                  benefit after he passes (Retirement + Survivor chart). */}
+              <Slider
+                label="Sarah's own-record benefit"
+                value={sarahOwnSS ?? 1900}
+                onChange={set('sarahOwnSS')}
+                commitStrategy={commitStrategy}
+                min={0} max={4000} step={50}
+                color={COLORS.green}
+                format={(v) => v === 0 ? "None" : fmtFull(v) + "/mo"}
+              />
+              <div style={{ fontSize: 10, color: COLORS.borderLight, marginTop: 2, marginBottom: 4, fontStyle: "italic" }}>
+                Her own SS at claim. Used by the Retirement + Survivor chart: caps the spousal top-up while Chad is alive, floors her survivor benefit after.
+              </div>
               {spEnabled && (
                 <>
                   <Slider

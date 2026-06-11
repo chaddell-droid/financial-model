@@ -36,6 +36,10 @@ export function deriveRetirementParams({
   sarahSpousalClaimAge, sarahSpousalEnabled,
   retKeepHouse, retImputedRentSaved, retSurvivorTaxDragPct,
   retSurvivorSpendRatio, retSarahTargetAge,
+  // Item 14 / B1 (2026-06-10 batch 2): Chad's age at the accumulation->
+  // retirement seam (round(chadCurrentAge + endIdx/12)). Default 67 = the
+  // old hardcoded anchor, so direct callers are bit-identical.
+  retirementStartAge,
 } = {}) {
   // Age gap from state — the sim indexes time by Chad's age (retires at 67),
   // so Sarah's age at month t is chadAge - ageDiff.
@@ -44,8 +48,9 @@ export function deriveRetirementParams({
   // now (defaults = the old SARAH_TARGET_AGE / SURVIVOR_SPEND_RATIO
   // constants, which remain the exported fallbacks).
   const sarahTargetAge = Math.min(100, Math.max(80, retSarahTargetAge ?? SARAH_TARGET_AGE));
+  const startAge = Number.isFinite(retirementStartAge) ? retirementStartAge : 67;
   const endAge = sarahTargetAge + ageDiff; // Chad's age when Sarah reaches target
-  const years = Math.max(1, endAge - 67); // guard: never a non-positive horizon
+  const years = Math.max(1, endAge - startAge); // guard: never a non-positive horizon
   const horizonMonths = years * 12;
   const survivorSpendRatio =
     Math.min(100, Math.max(40, retSurvivorSpendRatio ?? SURVIVOR_SPEND_RATIO * 100)) / 100;
@@ -66,6 +71,8 @@ export function deriveRetirementParams({
   // this age (years 67→claim are pool-financed). Early/FRA claims and SSDI
   // (which converts to the retirement benefit at FRA) are in payment at 67.
   const chadSSStartAge = ssType === 'ss' ? Math.max(67, claimAge) : 67;
+  // B1: the seam can sit past a claim age <= 67 - the gate stays correct
+  // because getRetirementSSInfo compares against chadAge (anchored below).
   // Sarah's own-record SS benefit — state field (was hardcoded 1900).
   // `?? 1900` keeps an explicit 0 (no own benefit) intact.
   const ownSS = sarahOwnSS ?? 1900;
@@ -116,6 +123,7 @@ export function deriveRetirementParams({
     ssFRA, chadSS, chadSSStartAge, sarahOwnSS: ownSS, claimAge, claimedEarly, survivorSS, survivorCap,
     sarahSpousalClaimAge: spousalClaimAge,
     sarahSpousalEnabled: spousalEnabled,
+    retirementStartAge: startAge,
     trustMonthly, pensionMonthly, imputedRentMonthly, survivorTaxDragPct, startingCoupleIncome,
   };
 }

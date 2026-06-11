@@ -17,6 +17,7 @@ function RetirementSummaryCards({
   pwaReferenceSimulation, pwaCurrentView, pwaStartContext, pwaCurrentSelection,
   pwaConfidencePct, bequestTarget,
   trustMonthly, pensionMonthly, imputedRentMonthly = 0, keepHouse = false,
+  retirementStartAge = 67,
   chadPassesAge, bandResult, deterministicPools,
   inhDuringCouple, inheritanceChadAge,
   coupleSummary, postInheritanceSummary, survivorSummary,
@@ -24,7 +25,7 @@ function RetirementSummaryCards({
   return isPwaMode ? (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
       <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.bgCard}` }}>
-        <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
+        <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age {retirementStartAge})</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
           {fmtFull(totalPool)}
         </div>
@@ -74,16 +75,16 @@ function RetirementSummaryCards({
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
       {/* Pool card */}
       <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.bgCard}` }}>
-        <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age 67)</div>
+        <div style={{ fontSize: 10, color: retirementTextBody, marginBottom: 4, fontWeight: 600 }}>Investment Pool (age {retirementStartAge})</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: retirementTextStrong, fontFamily: "'JetBrains Mono', monospace" }}>
           {fmtFull(totalPool)}
         </div>
         <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
           Savings {fmtFull(endSavings)} + 401k {fmtFull(end401kAfterTax)} after tax + {keepHouse ? 'Home kept (not pooled)' : `Home ${fmtFull(homeSaleNet)}`}
         </div>
-        {chadPassesAge > 70 && bandResult.bands[0].series.length > (chadPassesAge - 67) && (
+        {chadPassesAge > retirementStartAge + 3 && bandResult.bands[0].series.length > (chadPassesAge - retirementStartAge) && (
           <div style={{ fontSize: 9, color: retirementTextBody, marginTop: 4, lineHeight: 1.4, fontFamily: "'JetBrains Mono', monospace" }}>
-            At {chadPassesAge}: {fmtPool(bandResult.bands[0].series[chadPassesAge - 67])} (worst) – {fmtPool(deterministicPools[chadPassesAge - 67])} (expected)
+            At {chadPassesAge}: {fmtPool(bandResult.bands[0].series[chadPassesAge - retirementStartAge])} (worst) – {fmtPool(deterministicPools[chadPassesAge - retirementStartAge])} (expected)
           </div>
         )}
       </div>
@@ -92,7 +93,7 @@ function RetirementSummaryCards({
         <div style={{ background: COLORS.bgDeep, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COLORS.blue}33` }}>
         <div style={{ fontSize: 10, color: COLORS.blue, marginBottom: 4, fontWeight: 600 }}>
           <LabelWithHelp
-            label={inhDuringCouple ? `Pre-Inheritance Spending Target (67-${inheritanceChadAge})` : `Couple Spending Target (67-${chadPassesAge})`}
+            label={inhDuringCouple ? `Pre-Inheritance Spending Target (${retirementStartAge}-${inheritanceChadAge})` : `Couple Spending Target (${retirementStartAge}-${chadPassesAge})`}
             help={HELP.spending_target}
             accent={COLORS.blue}
           />

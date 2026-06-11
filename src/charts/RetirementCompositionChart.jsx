@@ -18,7 +18,7 @@ const LAYERS = [
   { key: 'poolDraw', label: 'Pool Draw', color: COLORS.blue },
 ];
 
-function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChadAge, inhDuringCouple, hasInheritance }) {
+function RetirementCompositionChart({ yearlyData, retirementStartAge = 67, chadPassesAge, inheritanceChadAge, inhDuringCouple, hasInheritance }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const svgW = useContainerWidth(containerRef);
@@ -136,23 +136,23 @@ function RetirementCompositionChart({ yearlyData, chadPassesAge, inheritanceChad
             strokeLinejoin="round" strokeLinecap="round" />
 
           {/* Phase boundary: Chad passes */}
-          {chadPassesAge && chadPassesAge - 67 > 0 && chadPassesAge - 67 < n && (
+          {chadPassesAge && chadPassesAge - retirementStartAge > 0 && chadPassesAge - retirementStartAge < n && (
             <>
-              <line x1={xOf(chadPassesAge - 67)} y1={padT}
-                x2={xOf(chadPassesAge - 67)} y2={padT + plotH}
+              <line x1={xOf(chadPassesAge - retirementStartAge)} y1={padT}
+                x2={xOf(chadPassesAge - retirementStartAge)} y2={padT + plotH}
                 stroke={COLORS.yellow} strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
-              <text x={xOf(chadPassesAge - 67)} y={padT - 2} textAnchor="middle"
+              <text x={xOf(chadPassesAge - retirementStartAge)} y={padT - 2} textAnchor="middle"
                 fill={COLORS.yellow} fontSize={8} fontWeight={600}>Survivor</text>
             </>
           )}
 
           {/* Phase boundary: Inheritance */}
-          {inhDuringCouple && inheritanceChadAge && inheritanceChadAge - 67 > 0 && inheritanceChadAge - 67 < n && (
+          {inhDuringCouple && inheritanceChadAge && inheritanceChadAge - retirementStartAge > 0 && inheritanceChadAge - retirementStartAge < n && (
             <>
-              <line x1={xOf(inheritanceChadAge - 67)} y1={padT}
-                x2={xOf(inheritanceChadAge - 67)} y2={padT + plotH}
+              <line x1={xOf(inheritanceChadAge - retirementStartAge)} y1={padT}
+                x2={xOf(inheritanceChadAge - retirementStartAge)} y2={padT + plotH}
                 stroke={COLORS.emerald} strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
-              <text x={xOf(inheritanceChadAge - 67)} y={padT - 2} textAnchor="middle"
+              <text x={xOf(inheritanceChadAge - retirementStartAge)} y={padT - 2} textAnchor="middle"
                 fill={COLORS.emerald} fontSize={8} fontWeight={600}>Inheritance</text>
             </>
           )}

@@ -1,7 +1,9 @@
 import { ssSpousalAdjustmentFactor } from './constants.js';
 
-function getSurvivorStartMonth(chadPassesAge) {
-  return (chadPassesAge - 67) * 12;
+function getSurvivorStartMonth(chadPassesAge, retirementStartAge = 67) {
+  // Item 14 / B1 (2026-06-10 batch 2): t=0 is the accumulation->retirement
+  // seam, which is only Chad-67 when work months land exactly there.
+  return (chadPassesAge - retirementStartAge) * 12;
 }
 
 export function getPensionAtMonth(t, pensionMonthly, chadAlive) {
@@ -31,9 +33,10 @@ function getRetirementMonthDetails(t, {
   sarahSpousalEnabled,
   pensionMonthly,
   imputedRentMonthly,
+  retirementStartAge = 67,
 }) {
-  const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
-  const chadAge = 67 + t / 12;
+  const survivorStartMonth = getSurvivorStartMonth(chadPassesAge, retirementStartAge);
+  const chadAge = retirementStartAge + t / 12;
   const chadAlive = t < survivorStartMonth;
   const ssInfo = getRetirementSSInfo(chadAge, chadAlive, {
     ageDiff,
@@ -205,6 +208,7 @@ export function buildRetirementContext({
   // rebate, ~d x surplus). Display arrays (guaranteedIncome/ssIncome/...)
   // stay NET. Engine default 0 = identity (direct callers unchanged).
   survivorTaxDragPct = 0,
+  retirementStartAge = 67,
 }) {
   const supplementalFlows = new Float64Array(horizonMonths);
   const scaling = new Float64Array(horizonMonths);
@@ -232,6 +236,7 @@ export function buildRetirementContext({
     sarahSpousalEnabled,
     pensionMonthly: pensionMonthly || 0,
     imputedRentMonthly: imputedRentMonthly || 0,
+    retirementStartAge,
   };
 
   const survivorGrossUp = 1 / (1 - Math.min(Math.max((survivorTaxDragPct || 0) / 100, 0), 0.9));
@@ -253,7 +258,7 @@ export function buildRetirementContext({
 
   return {
     horizonMonths,
-    survivorStartMonth: getSurvivorStartMonth(chadPassesAge),
+    survivorStartMonth: getSurvivorStartMonth(chadPassesAge, retirementStartAge),
     supplementalFlows,
     scaling,
     guaranteedIncome,
@@ -278,10 +283,11 @@ export function buildScalingAndRescueFlows({
   // Item 8: must match buildRetirementContext's survivor gross-up exactly -
   // the hook feeds THIS scaling into computeSWR against the context's flows.
   survivorTaxDragPct = 0,
+  retirementStartAge = 67,
 }) {
   const rescueFlows = new Float64Array(horizonMonths);
   const scaling = new Float64Array(horizonMonths);
-  const survivorStartMonth = getSurvivorStartMonth(chadPassesAge);
+  const survivorStartMonth = getSurvivorStartMonth(chadPassesAge, retirementStartAge);
   const survivorGrossUp = 1 / (1 - Math.min(Math.max((survivorTaxDragPct || 0) / 100, 0), 0.9));
 
   for (let t = 0; t < horizonMonths; t++) {
@@ -311,6 +317,7 @@ export function buildSupplementalFlows({
   pensionMonthly,
   imputedRentMonthly,
   survivorTaxDragPct = 0,
+  retirementStartAge = 67,
   hasInheritance,
   inheritanceMonth,
   inheritanceAmount,
@@ -332,6 +339,7 @@ export function buildSupplementalFlows({
     pensionMonthly,
     imputedRentMonthly,
     survivorTaxDragPct,
+    retirementStartAge,
   });
   const supplementalFlows = new Float64Array(context.supplementalFlows);
 
@@ -395,6 +403,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
   sarahSpousalEnabled,
   pensionMonthly,
   imputedRentMonthly,
+  retirementStartAge = 67,
 }) {
   const chadAlive = chadAge < chadPassesAge;
   const ssInfo = getRetirementSSInfo(chadAge, chadAlive, {
@@ -410,7 +419,7 @@ export function getRetirementIncomePlan(chadAge, poolActive, {
     // Lock the SSA survivor reduction at the age Sarah is widowed (D3).
     survivorClaimAge: chadPassesAge - ageDiff,
   });
-  const yearsFromRetirement = Math.max(0, chadAge - 67);
+  const yearsFromRetirement = Math.max(0, chadAge - (retirementStartAge || 67));
   const pension = getPensionAtMonth(yearsFromRetirement * 12, pensionMonthly || 0, chadAlive);
   const totalTarget = Math.round(baseMonthlyConsumption * (chadAlive ? 1 : survivorSpendRatio));
   const imputedRent = imputedRentMonthly || 0;

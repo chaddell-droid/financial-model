@@ -59,7 +59,7 @@ function RetirementIncomeChart({
     inheritanceAmount, setInheritanceAmount,
     inheritanceSarahAge, setInheritanceSarahAge,
     showPwaIntro, pwaIntroReady, dismissPwaIntro,
-    ageDiff, sarahTargetAge, years, survivorSpendRatio,
+    ageDiff, sarahTargetAge, years, survivorSpendRatio, retirementStartAge,
     setSurvivorSpendRatio, setSarahTargetAge,
     endSavings, end401k, end401kAfterTax, homeSaleNet, totalPool,
     trustMonthly, pensionMonthly, imputedRentMonthly, startingCoupleIncome,
@@ -233,7 +233,7 @@ function RetirementIncomeChart({
           </>
         ) : (
           <>
-            {keepHouse ? `House kept (rent saved ${fmtFull(imputedRentSaved)}/mo)` : 'House sold at 67'} · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
+            {keepHouse ? `House kept (rent saved ${fmtFull(imputedRentSaved)}/mo)` : `House sold at ${retirementStartAge}`} · {withdrawalRate}% pool draw · {equityAllocation}/{100 - equityAllocation} portfolio · {avgAnnualReal}% avg real return · Chad passes at {chadPassesAge}
             {optimalRates.worstCohort.year > 0 && ` · Worst start: ${optimalRates.worstCohort.year}`}
           </>
         )}
@@ -329,6 +329,7 @@ function RetirementIncomeChart({
         pwaConfidencePct={pwaConfidencePct}
         bequestTarget={bequestTarget}
         trustMonthly={trustMonthly} pensionMonthly={pensionMonthly} imputedRentMonthly={imputedRentMonthly} keepHouse={keepHouse}
+        retirementStartAge={retirementStartAge}
         chadPassesAge={chadPassesAge}
         bandResult={bandResult} deterministicPools={deterministicPools}
         inhDuringCouple={inhDuringCouple} inheritanceChadAge={inheritanceChadAge}
@@ -337,6 +338,7 @@ function RetirementIncomeChart({
 
       <RetirementCompositionChart
         yearlyData={yearlyData}
+        retirementStartAge={retirementStartAge}
         chadPassesAge={chadPassesAge}
         inheritanceChadAge={inheritanceChadAge}
         inhDuringCouple={inhDuringCouple}
@@ -476,7 +478,7 @@ function RetirementIncomeChart({
 
         {/* Hover dot */}
         {tooltip && (
-          <circle cx={xScale(tooltip.age - 67)} cy={yPool(tooltip.p10)} r="5"
+          <circle cx={xScale(tooltip.age - retirementStartAge)} cy={yPool(tooltip.p10)} r="5"
             fill={COLORS.orange} stroke={COLORS.textPrimary} strokeWidth="2" />
         )}
 
@@ -485,11 +487,11 @@ function RetirementIncomeChart({
             convention: 10px JetBrains Mono, COLORS.textDim primary row. */}
         {yearlyData.filter((_, i) => i % 5 === 0).map((d, i) => (
           <g key={i}>
-            <text x={xScale(d.age - 67)} y={svgH - 18} textAnchor="middle"
+            <text x={xScale(d.age - retirementStartAge)} y={svgH - 18} textAnchor="middle"
               fill={COLORS.textDim} fontSize="10" fontFamily="'JetBrains Mono', monospace">
               C:{d.age}
             </text>
-            <text x={xScale(d.age - 67)} y={svgH - 6} textAnchor="middle"
+            <text x={xScale(d.age - retirementStartAge)} y={svgH - 6} textAnchor="middle"
               fill={COLORS.amber} fontSize="10" fontFamily="'JetBrains Mono', monospace" opacity="0.7">
               S:{d.sarahAge}
             </text>
@@ -860,7 +862,7 @@ function RetirementIncomeChart({
           marginTop: 8, padding: '8px 12px', background: COLORS.bgCard, borderRadius: 6,
           border: `1px solid ${COLORS.amber}55`, fontSize: 12, color: COLORS.amber, lineHeight: 1.5,
         }}>
-          {fmtPool(inheritanceAmount)} inheritance lands before retirement (Sarah {inheritanceSarahAge} = Chad {inheritanceChadAge}, before the age-67 seam) — <span style={{ fontWeight: 700 }}>not modeled</span>. This chart starts at retirement; move Sarah&apos;s inheritance age to {67 - ageDiff}+ to include it here.
+          {fmtPool(inheritanceAmount)} inheritance lands before retirement (Sarah {inheritanceSarahAge} = Chad {inheritanceChadAge}, before the age-{retirementStartAge} seam) — <span style={{ fontWeight: 700 }}>not modeled</span>. This chart starts at retirement; move Sarah&apos;s inheritance age to {retirementStartAge - ageDiff}+ to include it here.
         </div>
       )}
 

@@ -507,6 +507,48 @@ test('H4: sliderMax caps at 100% (tiny pool + big income no longer explodes the 
   eq(r.sliderMax, 100, 'capped');
 });
 
+// ── Item 14 / B1 (2026-06-10 batch 2): derived retirement start age ────────
+// The engine hardcoded t=0 = Chad-67, but the pool is taken at the END of
+// the variable-length accumulation (max of chadWorkMonths/sarahWorkMonths +
+// the vest tail). With sarahWorkMonths 96 the seam is Chad ~69 — every age
+// label, the survivor start month, the SS gates and the Sarah-90 horizon
+// were shifted. retirementStartAge = round(chadCurrentAge + endIdx/12) now
+// anchors everything; default 67 keeps direct callers identical.
+
+test('B1-1: deriveRetirementParams — horizon anchors at retirementStartAge (default 67)', () => {
+  const d = deriveRetirementParams({ chadCurrentAge: 61, sarahCurrentAge: 59 });
+  eq(d.retirementStartAge, 67, 'default anchor');
+  eq(d.years, 25, '90 + 2 - 67');
+  const late = deriveRetirementParams({ chadCurrentAge: 61, sarahCurrentAge: 59, retirementStartAge: 69 });
+  eq(late.retirementStartAge, 69);
+  eq(late.years, 23, '90 + 2 - 69: a later seam shortens the sim horizon');
+  eq(late.horizonMonths, 276);
+});
+
+test('B1-2: buildRetirementContext — ages, survivor start, and SS gates anchor at the seam age', () => {
+  const base = {
+    horizonMonths: 120, chadPassesAge: 74, ageDiff: 2, survivorSpendRatio: 0.6,
+    chadSS: 5225, ssFRA: 4214, sarahOwnSS: 0, survivorSS: 5225, survivorCap: Infinity,
+    chadSSStartAge: 70, sarahSpousalClaimAge: 70,
+    trustMonthly: 0, pensionMonthly: 0,
+  };
+  const ctx69 = buildRetirementContext({ ...base, retirementStartAge: 69 });
+  eq(ctx69.chadAges[0], 69, 't=0 is the seam age, not 67');
+  eq(ctx69.sarahAges[0], 67);
+  eq(ctx69.survivorStartMonth, (74 - 69) * 12, 'survivor phase anchored at the seam');
+  eq(ctx69.phases[59], 'couple');
+  eq(ctx69.phases[60], 'survivor');
+  // A2 interplay: claim-70 starts at month (70-69)*12 = 12, not 36.
+  eq(ctx69.ssIncome[11], 0, 'age 69.9: not yet claimed');
+  eq(ctx69.ssIncome[12], 5225, 'age 70: claim starts — measured from the seam age');
+  // Default stays bit-identical to the old literal-67 behavior.
+  const ctx67 = buildRetirementContext(base);
+  eq(ctx67.chadAges[0], 67);
+  eq(ctx67.survivorStartMonth, (74 - 67) * 12);
+  eq(ctx67.ssIncome[35], 0);
+  eq(ctx67.ssIncome[36], 5225);
+});
+
 // ── A3 (2026-06-10 retirement review): sarahSpousalEnabled reaches this engine ──
 // The "Model Sarah's spousal benefit" toggle gated the ACCUMULATION engine
 // (projection.js / gatherState) but the retirement sim kept paying her

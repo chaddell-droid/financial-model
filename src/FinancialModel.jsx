@@ -884,9 +884,7 @@ export default function FinancialModel() {
           onFieldChange={set}
           monthlyDetail={monthlyDetail} investmentReturn={investmentReturn} ssType={ssType}
           ssBenefitPersonal={ssType === 'ss' ? ssPersonal : ssdiPersonal}
-          chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
-          vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
-          bcsYearsLeft={bcsYearsLeft} milestones={milestones}
+          milestones={milestones}
           compareProjections={compareProjections} compareColors={COMPARE_COLORS}
         />
       )}
@@ -992,12 +990,9 @@ export default function FinancialModel() {
     investmentReturn,
     ssPersonal,
     ssdiPersonal,
-    chadJob,
-    chadJobStartMonth,
-    chadJobHealthSavings,
-    vanSold,
-    vanSaleMonth,
-    bcsYearsLeft,
+    // (2026-06-12) chadJob*/van*/bcsYearsLeft left this memo with the
+    // hand-coded expense-event heuristics — markers now derive from
+    // monthlyDetail's expenseBreakdown inside the chart.
     milestones,
     compareProjections,
     // tax

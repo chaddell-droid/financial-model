@@ -4,6 +4,7 @@ import { fmt, fmtFull } from '../model/formatters.js';
 import { buildIncomeSources, COLORS } from '../charts/chartUtils.js';
 import { buildLegendItems, getSummaryTimeframeLabel } from './chartContract.js';
 import { getSsBenefitLabelForMonth } from './ssBenefitLabel.js';
+import { deriveExpenseChangeEvents, EXPENSE_COMPONENT_LABELS } from '../model/expenseEvents.js';
 import ChartEmptyState from './ChartEmptyState.jsx';
 
 /**
@@ -14,7 +15,7 @@ import ChartEmptyState from './ChartEmptyState.jsx';
  * Annotations: dashed vertical lines through chart with labels ABOVE the chart area,
  * matching the SavingsDrawdownChart visual pattern.
  */
-function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones, chadJob, chadJobStartMonth, chadJobHealthSavings, compareProjections, compareColors }) {
+function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, milestones, compareProjections, compareColors }) {
   const [incomeTooltip, setIncomeTooltip] = useState(null);
 
   // Friendly empty state AFTER the hook (stable hook order) — previously
@@ -69,28 +70,26 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
     return mo === 0 ? `Y${yr}` : `Y${yr}.${Math.round(mo / 12 * 10)}`;
   };
 
-  // --- Build expense event annotations ---
-  const expenseEvents = [];
-  if (chadJob && (chadJobHealthSavings || 0) > 0) {
-    expenseEvents.push({ month: chadJobStartMonth ?? 0, label: 'Health ins. saved', savings: chadJobHealthSavings });
-  }
-  if (vanSold) {
-    expenseEvents.push({ month: vanSaleMonth ?? 6, label: 'Van sold', savings: vanMonthlySavings || 2597 });
-  }
-  if (bcsYearsLeft) {
-    const bcsEndMonth = bcsYearsLeft * 12;
-    const bcsIdx = data.findIndex(d => d.month >= bcsEndMonth);
-    const bcsDrop = bcsIdx > 0 ? Math.max(0, data[bcsIdx - 1].expenses - data[bcsIdx].expenses) : 0;
-    const milestonesAtSameMonth = (milestones || []).filter(ms => ms.savings > 0 && ms.month === bcsEndMonth);
-    const milestoneSavings = milestonesAtSameMonth.reduce((s, ms) => s + ms.savings, 0);
-    const bcsSavings = Math.max(0, bcsDrop - milestoneSavings);
-    if (bcsSavings > 0) expenseEvents.push({ month: bcsEndMonth, label: 'BCS ends', savings: bcsSavings });
-  }
-  if (milestones) {
-    for (const ms of milestones) {
-      if (ms.savings > 0) expenseEvents.push({ month: ms.month, label: ms.name, savings: ms.savings });
-    }
-  }
+  // --- Expense change annotations: derived from the engine's per-month
+  // expenseBreakdown (src/model/expenseEvents.js). Every discrete move in the
+  // expense line gets ONE marker naming exactly what drove it — college
+  // start/end, BCS end, debt/mortgage payoffs, Medicare relief, one-time
+  // extras windows, milestones, employer health coverage, … (replaces the
+  // four hand-coded heuristics that missed every newer expense line).
+  // Increases label in COLORS.red, decreases keep the green look.
+  const expenseChangeEvents = deriveExpenseChangeEvents(data, { milestones });
+  const expenseEventByMonth = new Map(expenseChangeEvents.map(ev => [ev.month, ev]));
+  const expenseEvents = expenseChangeEvents.map(ev => {
+    const sign = ev.netDelta > 0 ? '+' : '-';
+    return {
+      month: ev.month,
+      text: `${ev.items[0].label} ${sign}${fmtFull(Math.abs(ev.netDelta))}`,
+      sub: ev.items.length > 1
+        ? (ev.items.length === 2 ? ev.items[1].label : `+${ev.items.length - 1} more`)
+        : null,
+      color: ev.netDelta > 0 ? COLORS.red : COLORS.green,
+    };
+  });
 
   // --- P8 (improvement b-1): TWP/EPE phase-boundary annotations ---
   // The engine emits twpPhase per month ('twp'|'grace'|'suspended'|'epe'|
@@ -110,30 +109,32 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
       const ph = d.twpPhase || null;
       if (ph && !seenPhases.has(ph)) {
         seenPhases.add(ph);
-        twpEvents.push({ month: d.month, label: TWP_PHASE_LABELS[ph] || ph, savings: null, color: COLORS.blue });
+        twpEvents.push({ month: d.month, text: TWP_PHASE_LABELS[ph] || ph, sub: null, color: COLORS.blue });
       }
     }
   }
 
-  const markers = [...expenseEvents.filter(ev => ev.savings > 0), ...twpEvents].map(ev => {
+  const markers = [...expenseEvents, ...twpEvents].map(ev => {
     const idx = data.findIndex(d => d.month >= ev.month);
     if (idx < 0) return null;
     const pctX = ((idx + 0.5) / n) * 100;
     return { ...ev, idx, pctX };
   }).filter(Boolean).sort((a, b) => a.pctX - b.pctX);
 
-  // Stagger annotation rows to prevent horizontal overlap
+  // Stagger annotation rows to prevent horizontal overlap. A marker with a
+  // second line ('sub') occupies two 16px rows so neighbors clear both lines.
   const usedSlots = [];
   for (const m of markers) {
+    m.lines = m.sub ? 2 : 1;
     let row = 0;
     for (const slot of usedSlots) {
-      if (Math.abs(m.pctX - slot.pctX) < 14) row = Math.max(row, slot.row + 1);
+      if (Math.abs(m.pctX - slot.pctX) < 14) row = Math.max(row, slot.row + slot.lines);
     }
-    usedSlots.push({ pctX: m.pctX, row });
+    usedSlots.push({ pctX: m.pctX, row, lines: m.lines });
     m.row = row;
   }
-  const maxAnnotationRow = markers.length > 0 ? Math.max(...markers.map(m => m.row)) : -1;
-  const annotationRowH = (maxAnnotationRow + 1) * 16 + (markers.length > 0 ? 4 : 0);
+  const maxAnnotationRowEnd = markers.length > 0 ? Math.max(...markers.map(m => m.row + m.lines)) : 0;
+  const annotationRowH = maxAnnotationRowEnd * 16 + (markers.length > 0 ? 4 : 0);
 
   return (
     <div data-testid="income-composition-chart" style={{
@@ -177,8 +178,12 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                 color: m.color || COLORS.green,
                 whiteSpace: 'nowrap',
                 pointerEvents: 'none',
+                textAlign: 'center',
               }}>
-                {m.savings != null ? `${m.label} -${fmtFull(m.savings)}` : m.label}
+                {m.text}
+                {m.sub && (
+                  <div style={{ fontSize: 8, fontWeight: 500, opacity: 0.85 }}>{m.sub}</div>
+                )}
               </div>
             ))}
           </div>
@@ -283,36 +288,23 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                     }
                   }
                   // Build expense components list from d.expenseBreakdown (emitted by projection).
-                  // Label + sort: positive additions first (biggest to smallest), then negative reductions.
-                  const EXPENSE_LABELS = {
-                    baseLiving: 'Base living',
-                    debtService: 'Debt service',
-                    van: 'Van (loan + fuel)',
-                    bcs: 'BCS tuition',
-                    oneTimeExtras: 'One-time extras',
-                    lifestyleCuts: 'Lifestyle cuts',
-                    milestones: 'Milestones',
-                    // 6.2 (2026-06-10): twins' tuition (out-of-pocket after the 529)
-                    college: 'College (twins)',
-                    healthInsurance: 'Health ins. (employer)',
-                    // 6.4 (2026-06-10): premium carved from base (medical trend);
-                    // Medicare relieves Chad's share (SSDI 24-month rule / age 65).
-                    healthPremium: 'Health premium',
-                    medicareRelief: 'Medicare (Chad\'s share)',
-                    // C12: cuts over-shot total expenses — floor-at-$0 adjustment.
-                    clampAdjustment: 'Floor at $0 (cuts exceed expenses)',
-                  };
+                  // Labels come from the shared EXPENSE_COMPONENT_LABELS map (single source
+                  // with the annotation markers — src/model/expenseEvents.js).
+                  // Sort: positive additions first (biggest to smallest), then negative reductions.
                   const expenseComponents = [];
                   if (d.expenseBreakdown) {
                     const entries = Object.entries(d.expenseBreakdown);
                     const additions = entries.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
                     const reductions = entries.filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]);
                     for (const [k, v] of [...additions, ...reductions]) {
-                      expenseComponents.push({ key: k, label: EXPENSE_LABELS[k] || k, amount: v });
+                      expenseComponents.push({ key: k, label: EXPENSE_COMPONENT_LABELS[k] || k, amount: v });
                     }
                   }
+                  // "Vs prior month" delta detail when this month carries an
+                  // expense-change event (same helper that drives the markers).
+                  const expenseChange = expenseEventByMonth.get(d.month) || null;
                   // Use smoothedNet (total - expenses) for consistency with bar heights
-                  setIncomeTooltip({ pctX, barRect, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseComponents, net: smoothedNet });
+                  setIncomeTooltip({ pctX, barRect, label: formatMonthLabel(d.month), sources: tooltipSources, total, expenses: d.expenses, expenseComponents, expenseChange, net: smoothedNet });
                 }}>
                 {/* Stacked segments */}
                 <div style={{
@@ -458,6 +450,21 @@ function IncomeCompositionChart({ monthlyDetail, investmentReturn, ssType, ssBen
                       <span style={{ color: COLORS.textMuted }}>{c.label}</span>
                       <span style={{ color: c.amount < 0 ? COLORS.green : COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
                         {c.amount >= 0 ? "+" : ""}{fmtFull(c.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {incomeTooltip.expenseChange && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 2 }}>
+                    Vs prior month
+                  </div>
+                  {incomeTooltip.expenseChange.items.map((it, ii) => (
+                    <div key={ii} style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginTop: 1, marginLeft: 8 }}>
+                      <span style={{ color: COLORS.textMuted }}>{it.label}</span>
+                      <span style={{ color: it.delta > 0 ? COLORS.red : COLORS.green, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {it.delta > 0 ? "+" : "-"}{fmtFull(Math.abs(it.delta))}
                       </span>
                     </div>
                   ))}

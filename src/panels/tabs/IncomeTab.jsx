@@ -9,9 +9,7 @@ export default function IncomeTab({
   sarahCurrentClients, sarahMaxClients, sarahClientGrowth,
   sarahTaxRate, sarahWorkMonths, sarahCurrentGross, sarahCurrentNet, sarahCeilingGross, sarahCeiling,
   onFieldChange,
-  monthlyDetail, investmentReturn, ssType, ssBenefitPersonal,
-  chadJob, chadJobStartMonth, chadJobHealthSavings,
-  vanSold, vanSaleMonth, vanMonthlySavings, bcsYearsLeft, milestones,
+  monthlyDetail, investmentReturn, ssType, ssBenefitPersonal, milestones,
   compareProjections, compareColors,
 }) {
   return (
@@ -29,10 +27,7 @@ export default function IncomeTab({
         onFieldChange={onFieldChange}
       />
       <IncomeCompositionChart monthlyDetail={monthlyDetail} investmentReturn={investmentReturn} ssType={ssType}
-        ssBenefitPersonal={ssBenefitPersonal}
-        chadJob={chadJob} chadJobStartMonth={chadJobStartMonth} chadJobHealthSavings={chadJobHealthSavings}
-        vanSold={vanSold} vanSaleMonth={vanSaleMonth} vanMonthlySavings={vanMonthlySavings}
-        bcsYearsLeft={bcsYearsLeft} milestones={milestones}
+        ssBenefitPersonal={ssBenefitPersonal} milestones={milestones}
         compareProjections={compareProjections} compareColors={compareColors} />
     </>
   );

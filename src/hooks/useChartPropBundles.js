@@ -288,18 +288,18 @@ export function useChartPropBundles({
   // Income-composition chart props — single memo shared by the rail's
   // 'income' entry and PlanTab (remediation 6.3: the inline object literals
   // re-rendered the memo'd IncomeCompositionChart on every parent render).
+  // (2026-06-12) Expense annotations are now derived inside the chart from
+  // monthlyDetail's expenseBreakdown (deriveExpenseChangeEvents) — the
+  // hand-coded heuristics' inputs (chadJob*, van*, bcsYearsLeft) left the
+  // bundle; milestones stays for resolving milestone names on markers.
   const incomeChartProps = useMemo(() => ({
     monthlyDetail, investmentReturn, ssType,
     ssBenefitPersonal: ssType === 'ss' ? ssPersonal : ssdiPersonal,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    vanSold, vanSaleMonth, vanMonthlySavings,
-    bcsYearsLeft, milestones,
+    milestones,
     compareProjections, compareColors,
   }), [
     monthlyDetail, investmentReturn, ssType, ssPersonal, ssdiPersonal,
-    chadJob, chadJobStartMonth, chadJobHealthSavings,
-    vanSold, vanSaleMonth, vanMonthlySavings,
-    bcsYearsLeft, milestones, compareProjections,
+    milestones, compareProjections,
   ]);
 
   // Tax tab prop bundle. The panels read the individual tax* fields for their

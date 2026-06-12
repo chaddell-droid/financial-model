@@ -131,6 +131,12 @@ const RANGE = {
   collegeStartMonth: { min: 0, max: 240 },
   collegeMonths: { min: 0, max: 120 },
   college529Balance: { min: 0, max: 5_000_000 },
+  // Retirement budget cap (2026-06-12). Both fields are NULLABLE (null = off /
+  // auto-start) — the nullable branch in validateAndSanitize applies these
+  // clamps to non-null values. $200k/mo is a corruption guard, not a UI
+  // mirror; the start-month guard parallels the college/milestone guards.
+  retirementBudgetMonthly: { min: 0, max: 200000 },
+  retirementBudgetStartMonth: { min: 0, max: 360 },
   trustIncomeNow: { min: 0 },
   trustIncomeFuture: { min: 0 },
   vanMonthlySavings: { min: 0 },

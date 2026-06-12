@@ -35,6 +35,9 @@ export const EXPENSE_COMPONENT_LABELS = {
   healthInsurance: 'Health ins. (employer)',
   oneTimeExtras: 'One-time extras',
   clampAdjustment: 'Floor at $0 (cuts exceed expenses)',
+  // Retirement budget cap (2026-06-12): the cut applied when the bottom-up
+  // stack exceeds Chad's top-line retirement budget.
+  retirementBudget: 'Retirement budget cap',
 };
 
 export const DEFAULT_EVENT_THRESHOLD_DOLLARS = 150;

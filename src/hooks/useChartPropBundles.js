@@ -35,6 +35,8 @@ export function useChartPropBundles({
     chadCurrentAge, chadAge65VestOverride,
     chadL64Enabled, chadL64Month, chadL64Salary, chadL64StockRefresh, chadL64BonusPct,
     chadL65Enabled, chadL65Month, chadL65Salary, chadL65StockRefresh, chadL65BonusPct,
+    sarahWorkMonths, // Retirement budget cap (2026-06-12): auto-start derivation
+    retirementBudgetMonthly, retirementBudgetStartMonth, // Retirement budget cap (2026-06-12)
     totalMonthlySpend, debtService, expenseInflation, expenseInflationRate, ssColaRate,
     debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
     healthPremiumMonthly, medicalTrendRate, ssdiEntitlementMonth, // 6.4 (2026-06-10, D6)
@@ -167,6 +169,30 @@ export function useChartPropBundles({
     chadTaxBreakdown, set,
   ]);
 
+  // Retirement budget cap (2026-06-12): engine-derived readout for the
+  // ExpenseControls section. null while the feature is off (stable identity —
+  // zero re-render cost for everyone not using it); when a budget is set the
+  // preview MUST track monthlyDetail so the numbers shown are the engine's,
+  // never re-derived UI math. Mirrors projection.js: auto start =
+  // max(chad, sarah) retirement; cut/floor read from the engine rows.
+  const retirementBudgetAutoStart = Math.max(chadWorkMonths || 72, sarahWorkMonths || 72);
+  const retirementBudgetPreview = useMemo(() => {
+    if ((retirementBudgetMonthly ?? 0) <= 0 || !monthlyDetail || monthlyDetail.length === 0) return null;
+    const startMonth = retirementBudgetStartMonth ?? retirementBudgetAutoStart;
+    const row = monthlyDetail.find((d) => d.month === startMonth);
+    if (!row) return { startMonth, inHorizon: false, binding: false, floored: false };
+    const cut = -(row.expenseBreakdown?.retirementBudget || 0);
+    return {
+      startMonth,
+      inHorizon: true,
+      binding: cut > 0,
+      cappedExpenses: row.expenses,
+      bottomUp: row.expenses + cut,
+      cut,
+      floored: monthlyDetail.some((d) => d.retirementBudgetFloored),
+    };
+  }, [retirementBudgetMonthly, retirementBudgetStartMonth, retirementBudgetAutoStart, monthlyDetail]);
+
   const expenseControlsProps = useMemo(() => ({
     totalMonthlySpend, baseExpenses: effectiveBaseExpenses, debtService,
     debts, mortgagePI, mortgageBalance, mortgageRate, // 6.3 (2026-06-10, D5)
@@ -179,6 +205,9 @@ export function useChartPropBundles({
     vanSold, vanMonthlySavings, vanSaleMonth,
     chadJob, chadJobStartMonth, chadJobHealthSavings,
     milestones,
+    // Retirement budget cap (2026-06-12)
+    retirementBudgetMonthly, retirementBudgetStartMonth,
+    retirementBudgetAutoStart, retirementBudgetPreview,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
     // Milestone month slider max should match the actual projection horizon,
@@ -197,6 +226,9 @@ export function useChartPropBundles({
     vanSold, vanMonthlySavings, vanSaleMonth,
     chadJob, chadJobStartMonth, chadJobHealthSavings,
     milestones,
+    // Retirement budget cap (2026-06-12)
+    retirementBudgetMonthly, retirementBudgetStartMonth,
+    retirementBudgetAutoStart, retirementBudgetPreview,
     moldCost, moldInclude, roofCost, roofInclude,
     otherProjects, otherInclude,
     monthlyDetail, set,

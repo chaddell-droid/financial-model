@@ -15,6 +15,8 @@ const ExpenseControls = ({
   collegeCostPerKidMonthly, collegeStartMonth, collegeMonths, college529Balance,
   vanMonthlySavings,
   milestones,
+  retirementBudgetMonthly, retirementBudgetStartMonth, // Retirement budget cap (2026-06-12)
+  retirementBudgetAutoStart, retirementBudgetPreview,
   moldCost, moldInclude, roofCost, roofInclude, otherProjects, otherInclude,
   totalProjectionMonths,
   hideCapital = false,
@@ -101,6 +103,129 @@ const ExpenseControls = ({
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Retirement budget cap (2026-06-12). Chad sets the TOP-LINE
+                monthly budget for retirement (today's dollars, CPI-trended).
+                The engine keeps the bottom-up stack and applies the budget
+                as a CAP from the start month (default: when BOTH are
+                retired); the cut shows up as its own expense-breakdown line,
+                an annotation marker on the income chart, and a DataTable
+                column. The cap never cuts below contractual lines. */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: COLORS.bgDeep, borderRadius: 8, border: `1px solid ${COLORS.border}` }} data-testid="expense-retirement-budget">
+              <h4 style={{ fontSize: 11, color: COLORS.green, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Retirement Budget</h4>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 6 }}>
+                <span style={{ color: COLORS.textMuted }}>Monthly budget (today's $):</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: COLORS.textDim, fontSize: 11 }}>$</span>
+                  <input
+                    type="number"
+                    value={retirementBudgetMonthly ?? ''}
+                    placeholder="—"
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      set('retirementBudgetMonthly')(v === '' ? null : Math.max(0, Math.round(Number(v))));
+                    }}
+                    data-testid="expense-retirement-budget-monthly"
+                    aria-label="Retirement budget per month in today's dollars"
+                    style={{
+                      width: 80, background: COLORS.bgCard, border: `1px solid ${retirementBudgetMonthly != null ? COLORS.green : COLORS.border}`,
+                      borderRadius: 4, color: retirementBudgetMonthly != null ? COLORS.green : COLORS.textDim,
+                      padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+                      textAlign: "right", outline: "none",
+                    }}
+                  />
+                  {retirementBudgetMonthly != null && (
+                    <button
+                      onClick={() => set('retirementBudgetMonthly')(null)}
+                      aria-label="Clear retirement budget"
+                      data-testid="expense-retirement-budget-clear"
+                      style={{ background: "transparent", border: "none", color: COLORS.textDim, fontSize: 10, cursor: "pointer", padding: "2px 4px" }}
+                    >✕</button>
+                  )}
+                </div>
+              </div>
+              {(retirementBudgetMonthly ?? 0) > 0 && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: COLORS.textMuted }}>Starts month:</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input
+                        type="number"
+                        value={retirementBudgetStartMonth ?? ''}
+                        placeholder={String(retirementBudgetAutoStart)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          set('retirementBudgetStartMonth')(v === '' ? null : Math.max(0, Math.round(Number(v))));
+                        }}
+                        data-testid="expense-retirement-budget-start"
+                        aria-label="Retirement budget start month (blank = when both retired)"
+                        style={{
+                          width: 64, background: COLORS.bgCard, border: `1px solid ${retirementBudgetStartMonth != null ? COLORS.green : COLORS.border}`,
+                          borderRadius: 4, color: retirementBudgetStartMonth != null ? COLORS.green : COLORS.textDim,
+                          padding: "3px 6px", fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
+                          textAlign: "right", outline: "none",
+                        }}
+                      />
+                      {retirementBudgetStartMonth != null && (
+                        <button
+                          onClick={() => set('retirementBudgetStartMonth')(null)}
+                          aria-label="Clear retirement budget start month (use both-retired default)"
+                          style={{ background: "transparent", border: "none", color: COLORS.textDim, fontSize: 10, cursor: "pointer", padding: "2px 4px" }}
+                        >✕</button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Engine-derived readout — every number below comes from the
+                      projection rows, never re-derived UI math. */}
+                  {retirementBudgetPreview && retirementBudgetPreview.inHorizon && (
+                    <div data-testid="expense-retirement-budget-readout">
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, color: COLORS.textDim }}>
+                        <span>Bottom-up at month {retirementBudgetPreview.startMonth}:</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.red }}>
+                          {fmtFull(retirementBudgetPreview.bottomUp)}/mo
+                        </span>
+                      </div>
+                      {retirementBudgetPreview.binding ? (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2, color: COLORS.textDim }}>
+                            <span>Capped to (budget, inflated):</span>
+                            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.green }}>
+                              {fmtFull(retirementBudgetPreview.cappedExpenses)}/mo
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2, color: COLORS.textDim }}>
+                            <span>Cut required:</span>
+                            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.green }}>
+                              -{fmtFull(retirementBudgetPreview.cut)}/mo
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 11, marginTop: 2, color: COLORS.green }}>
+                          Bottom-up is already under your budget at the start month — no cut needed.
+                        </div>
+                      )}
+                      {retirementBudgetPreview.floored && (
+                        <div data-testid="expense-retirement-budget-floor-warning" style={{ fontSize: 10, color: COLORS.yellow, marginTop: 4 }}>
+                          ⚠ Budget is below contractual obligations (debt / mortgage / tuition / van) in some months —
+                          expenses floor at the contractual minimum instead of the budget.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {retirementBudgetPreview && !retirementBudgetPreview.inHorizon && (
+                    <div style={{ fontSize: 10, color: COLORS.yellow, marginTop: 4 }}>
+                      Start month {retirementBudgetPreview.startMonth} is beyond the projection horizon — the cap never applies.
+                    </div>
+                  )}
+                </>
+              )}
+              <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
+                {(retirementBudgetMonthly ?? 0) > 0
+                  ? <>Caps total expenses from month {retirementBudgetStartMonth ?? retirementBudgetAutoStart}{retirementBudgetStartMonth == null ? " (when you're both retired)" : ""}. Stated in today's dollars; grows with inflation. Months already under budget are untouched.</>
+                  : "Set the top-line monthly budget for retirement. Blank = off; expenses follow the bottom-up projection forever."}
+              </div>
             </div>
 
             {/* Healthcare cost path (6.4 — remediation 2026-06-10, improvement

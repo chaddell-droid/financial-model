@@ -2016,6 +2016,21 @@ test('ActiveTogglePills exposes a compact active-plan summary row', () => {
   assert.ok(source.includes('overview-active-pill-'), 'ActiveTogglePills should expose stable active-pill selectors');
 });
 
+test('Retirement budget controls expose stable selectors and engine-derived readouts', () => {
+  // Retirement budget cap (2026-06-12): the ExpenseControls section must use
+  // the nullable-input pattern, surface the engine-derived readout (never
+  // re-derived UI math), and warn when the contractual floor binds.
+  const source = fs.readFileSync(new URL('../panels/ExpenseControls.jsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('data-testid="expense-retirement-budget"'), 'ExpenseControls should expose the retirement budget section selector');
+  assert.ok(source.includes('expense-retirement-budget-monthly'), 'ExpenseControls should expose the budget amount input selector');
+  assert.ok(source.includes('expense-retirement-budget-start'), 'ExpenseControls should expose the start-month input selector');
+  assert.ok(source.includes('expense-retirement-budget-readout'), 'ExpenseControls should expose the engine-derived readout selector');
+  assert.ok(source.includes('expense-retirement-budget-floor-warning'), 'ExpenseControls should warn when the contractual floor binds');
+  assert.ok(source.includes('retirementBudgetPreview'), 'readout values must come from the engine-derived preview, not local math');
+  const pills = fs.readFileSync(new URL('../components/ActiveTogglePills.jsx', import.meta.url), 'utf8');
+  assert.ok(pills.includes("'retirement-budget'"), 'ActiveTogglePills should surface an active retirement-budget pill');
+});
+
 console.log('\n=== Wave 3 UI Contract Guards ===');
 
 test('Retirement surface distinguishes planning modes with identity and control sections', () => {

@@ -88,6 +88,8 @@ const DataTable = ({ data, presentMode }) => {
     // Medicare relieves Chad's share from min(entitlement+24, age 65).
     { key: 'healthPremium',   label: 'Health Prem.' },
     { key: 'medicareRelief',  label: 'Medicare (−)' },
+    // Retirement budget cap (2026-06-12): cut applied above the budget.
+    { key: 'retirementBudget', label: 'Budget Cap (−)' },
     // C12: floor-at-$0 adjustment when cuts/milestones exceed total expenses.
     { key: 'clampAdjustment', label: 'Floor at $0 (+)' },
   ].filter(c => hasBreakdown(c.key));

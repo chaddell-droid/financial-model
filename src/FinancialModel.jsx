@@ -159,6 +159,7 @@ export default function FinancialModel() {
     trustIncomeNow, trustIncomeFuture, trustIncreaseMonth,
     vanSold, vanMonthlySavings, vanSalePrice, vanLoanBalance, vanSaleMonth,
     milestones,
+    retirementBudgetMonthly, // Retirement budget cap (2026-06-12): Overview pill
     retireDebt,
     startingSavings, investmentReturn,
     ssdiBackPayMonths,
@@ -730,6 +731,7 @@ export default function FinancialModel() {
           vanSold={vanSold}
           debtService={debtService}
           totalCuts={effectiveCutsTotal}
+          retirementBudgetMonthly={retirementBudgetMonthly}
         />
 
         {showCompareBanner ? (
@@ -776,6 +778,7 @@ export default function FinancialModel() {
     vanMonthlySavings,
     bcsFamilyMonthly,
     effectiveCutsTotal,
+    retirementBudgetMonthly, // Retirement budget cap (2026-06-12): Overview pill
     showCompareBanner,
     comparisons,
     compareProjections,

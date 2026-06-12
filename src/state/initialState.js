@@ -223,6 +223,19 @@ export const INITIAL_STATE = {
   // Milestones
   milestones: [{ name: "Twins to college", month: 36, savings: 3000 }],
 
+  // Retirement budget cap (2026-06-12). Chad sets the TOP-LINE monthly
+  // budget for retirement; the engine keeps computing the bottom-up expense
+  // stack and, from the start month on, applies the budget as a CAP — the
+  // cut lands as its own expenseBreakdown.retirementBudget reduction line
+  // (Σ breakdown == expenses still holds; charts/DataTable/advisor pick it
+  // up automatically). Stated in TODAY's dollars; trends at CPI while
+  // expenseInflation is on (a nominal cap would silently become austerity
+  // over a 25-year retirement). The cut can never push expenses below the
+  // contractual lines (mortgage P&I, debt service, van, BCS, college,
+  // one-time extras) — the row flags retirementBudgetFloored when bound.
+  retirementBudgetMonthly: null,    // $/mo top-line budget in today's dollars (null = off)
+  retirementBudgetStartMonth: null, // null = auto: max(chad, sarah) retirement ("both retired")
+
   // Scenario toggles
   retireDebt: false,
 
@@ -463,6 +476,8 @@ export const MODEL_KEYS = [
   'moldCost', 'moldInclude', 'roofCost', 'roofInclude', 'otherProjects', 'otherInclude',
   'capitalItems', 'capitalFundingSource', 'customLevers', 'leverConstraintsOverride',
   'debtCC', 'debtPersonal', 'debtIRS', 'debtFirstmark', 'milestones',
+  // Retirement budget cap (2026-06-12)
+  'retirementBudgetMonthly', 'retirementBudgetStartMonth',
   'starting401k', 'return401k', 'homeEquity', 'homeAppreciation', 'deficit401kTaxRate', 'retirement401kTaxRate',
   'retChadPassesAge', 'retEquityAllocation', 'retWithdrawalRate', 'retPoolFloor', 'retBequestTarget',
   'retInheritanceAmount', 'retInheritanceSarahAge', 'retPwaStrategy',

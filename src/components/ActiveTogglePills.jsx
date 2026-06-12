@@ -2,11 +2,13 @@ import React from "react";
 import { fmtFull } from "../model/formatters.js";
 import { UI_COLORS, UI_SPACE, UI_TEXT } from "../ui/tokens.js";
 
-export default function ActiveTogglePills({ retireDebt, lifestyleCutsApplied, vanSold, debtService, totalCuts }) {
+export default function ActiveTogglePills({ retireDebt, lifestyleCutsApplied, vanSold, debtService, totalCuts, retirementBudgetMonthly }) {
   const pills = [];
   if (retireDebt) pills.push({ id: 'debt-retired', label: `Debt retired`, detail: `+${fmtFull(debtService)}/mo`, color: UI_COLORS.positive });
   if (lifestyleCutsApplied) pills.push({ id: 'cuts-applied', label: `Cuts applied`, detail: `+${fmtFull(totalCuts)}/mo`, color: UI_COLORS.positive });
   if (vanSold) pills.push({ id: 'van-sold', label: "Van sold", detail: 'Monthly cost removed', color: UI_COLORS.positive });
+  // Retirement budget cap (2026-06-12): top-line expense max in retirement.
+  if ((retirementBudgetMonthly ?? 0) > 0) pills.push({ id: 'retirement-budget', label: 'Retirement budget', detail: `${fmtFull(retirementBudgetMonthly)}/mo cap`, color: UI_COLORS.positive });
 
   return (
     <div

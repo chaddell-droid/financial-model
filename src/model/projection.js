@@ -344,6 +344,17 @@ export function runMonthlySimulation(s) {
   // Sarah's practice stops at her work duration
   const sarahRetirementMonth = s.sarahWorkMonths || 72;
 
+  // Retirement budget cap (2026-06-12): Chad's top-line monthly budget for
+  // retirement. null/0 = off. Start defaults to "when BOTH are retired";
+  // an explicit retirementBudgetStartMonth overrides. The budget is stated
+  // in TODAY's dollars and trends at CPI while expenseInflation is on (same
+  // nominal frame as baseLiving). Applied as a CAP inside the monthly loop —
+  // see the block after one-time extras.
+  const retirementBudgetActive = (s.retirementBudgetMonthly ?? 0) > 0;
+  const retirementBudgetStart = retirementBudgetActive
+    ? (s.retirementBudgetStartMonth ?? Math.max(chadRetirementMonth, sarahRetirementMonth))
+    : null;
+
   // 6.2 (remediation 2026-06-10, improvement a-3, gate D4): twins' college.
   // Tuition for BOTH twins runs collegeStartMonth..+collegeMonths at
   // collegeCostPerKidMonthly × 2 (nominal dollars — treated like BCS as a
@@ -1020,6 +1031,30 @@ export function runMonthlySimulation(s) {
       expenses += oneTimeExtras;
       expenseBreakdown.oneTimeExtras = oneTimeExtras;
     }
+    // Retirement budget cap (2026-06-12): from the start month on, the
+    // bottom-up stack is capped at the CPI-trended budget. The cut lands as
+    // its own reduction line so Σ breakdown == expenses still holds and the
+    // chart annotations/DataTable/advisor attribute it. CONTRACTUAL FLOOR:
+    // the cut can never push expenses below the contracted lines (mortgage
+    // P&I, debt service, van loan, BCS, college, one-time extras) — a budget
+    // below them would be fiction; the row is flagged so the UI can warn.
+    // Cap only, never a target: months already under budget are untouched.
+    let retirementBudgetFloored = false;
+    if (retirementBudgetStart !== null && m >= retirementBudgetStart) {
+      const retirementBudgetNominal = s.expenseInflation
+        ? Math.round(s.retirementBudgetMonthly * Math.pow(1 + (s.expenseInflationRate || 0) / 100, m / 12))
+        : s.retirementBudgetMonthly;
+      const contractualFloor = (expenseBreakdown.mortgagePI || 0)
+        + (expenseBreakdown.debtService || 0) + (expenseBreakdown.van || 0)
+        + (expenseBreakdown.bcs || 0) + (expenseBreakdown.college || 0)
+        + (expenseBreakdown.oneTimeExtras || 0);
+      const capTo = Math.max(retirementBudgetNominal, contractualFloor);
+      if (expenses > capTo) {
+        expenseBreakdown.retirementBudget = -(expenses - capTo);
+        expenses = capTo;
+        retirementBudgetFloored = capTo > retirementBudgetNominal;
+      }
+    }
     // C12 (remediation 2026-06-10, item 5.3): the floor-at-zero clamp must be
     // visible — when cuts/milestones over-shoot total expenses, record the
     // adjustment as its own breakdown line so Σ breakdown still equals
@@ -1174,6 +1209,10 @@ export function runMonthlySimulation(s) {
       mortgageBalance: Math.round(mortgageBalance),
       mortgagePrincipal: Math.round(mortgagePrincipal),
       expensesClamped, // C12: true when the floor-at-zero clamp bound this month
+      // Retirement budget cap (2026-06-12): true when the budget was set
+      // BELOW the contractual lines this month and expenses floored at the
+      // contractual sum instead — drives the UI honesty warning.
+      retirementBudgetFloored,
       // P8 (improvement b-1): TWP/EPE phase this month (null when the module
       // is inactive or the month is an ordinary SSDI month). Drives the
       // IncomeCompositionChart phase-boundary annotations.

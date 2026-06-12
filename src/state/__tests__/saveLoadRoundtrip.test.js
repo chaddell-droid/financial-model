@@ -154,6 +154,9 @@ const NON_DEFAULT_VALUES = {
   collegeStartMonth: 45,
   collegeMonths: 36,
   college529Balance: 80000,
+  // Retirement budget cap (2026-06-12) — both nullable; non-null exercised here
+  retirementBudgetMonthly: 18000,
+  retirementBudgetStartMonth: 54,
   // Spending cuts
   lifestyleCutsApplied: true,      // flipped
   cutsOverride: 1500,              // non-null

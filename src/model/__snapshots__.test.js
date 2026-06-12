@@ -2027,6 +2027,12 @@ test('Retirement budget controls expose stable selectors and engine-derived read
   assert.ok(source.includes('expense-retirement-budget-readout'), 'ExpenseControls should expose the engine-derived readout selector');
   assert.ok(source.includes('expense-retirement-budget-floor-warning'), 'ExpenseControls should warn when the contractual floor binds');
   assert.ok(source.includes('retirementBudgetPreview'), 'readout values must come from the engine-derived preview, not local math');
+  // Option 1 (Chad, 2026-06-12): the CPI trending must be explicit — the
+  // readout shows the cap growing to the LAST capped engine row's value, and
+  // the hint explains that charts plot nominal dollars.
+  assert.ok(source.includes('expense-retirement-budget-trend'), 'ExpenseControls should show the cap growing across the horizon (engine-derived trend row)');
+  assert.ok(source.includes('lastCapped'), 'trend row must read the LAST capped engine row, not re-derived math');
+  assert.ok(source.includes('charts plot future (nominal) dollars'), 'hint must explain why the chart shows more than the typed budget');
   const pills = fs.readFileSync(new URL('../components/ActiveTogglePills.jsx', import.meta.url), 'utf8');
   assert.ok(pills.includes("'retirement-budget'"), 'ActiveTogglePills should surface an active retirement-budget pill');
 });

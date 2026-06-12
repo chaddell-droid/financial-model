@@ -182,6 +182,18 @@ export function useChartPropBundles({
     const row = monthlyDetail.find((d) => d.month === startMonth);
     if (!row) return { startMonth, inHorizon: false, binding: false, floored: false };
     const cut = -(row.expenseBreakdown?.retirementBudget || 0);
+    // Last month the cap binds — its expenses ARE the CPI-trended budget
+    // (unless the contractual floor bound that month), so the readout can
+    // show "your $X today grows to $Y/mo by month M" straight from the
+    // engine rows. Answers Chad's "I set $25k, why does the line show ~$30k?"
+    let lastCapped = null;
+    for (let i = monthlyDetail.length - 1; i >= 0; i--) {
+      const d = monthlyDetail[i];
+      if (d.expenseBreakdown && d.expenseBreakdown.retirementBudget) {
+        lastCapped = { month: d.month, expenses: d.expenses, floored: !!d.retirementBudgetFloored };
+        break;
+      }
+    }
     return {
       startMonth,
       inHorizon: true,
@@ -190,6 +202,7 @@ export function useChartPropBundles({
       bottomUp: row.expenses + cut,
       cut,
       floored: monthlyDetail.some((d) => d.retirementBudgetFloored),
+      lastCapped,
     };
   }, [retirementBudgetMonthly, retirementBudgetStartMonth, retirementBudgetAutoStart, monthlyDetail]);
 

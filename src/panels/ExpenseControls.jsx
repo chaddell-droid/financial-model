@@ -189,7 +189,7 @@ const ExpenseControls = ({
                       {retirementBudgetPreview.binding ? (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2, color: COLORS.textDim }}>
-                            <span>Capped to (budget, inflated):</span>
+                            <span>Capped to ({fmtFull(retirementBudgetMonthly)} today{expenseInflation ? ` + ${expenseInflationRate}%/yr` : ''}):</span>
                             <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.green }}>
                               {fmtFull(retirementBudgetPreview.cappedExpenses)}/mo
                             </span>
@@ -200,6 +200,22 @@ const ExpenseControls = ({
                               -{fmtFull(retirementBudgetPreview.cut)}/mo
                             </span>
                           </div>
+                          {/* Option 1 (Chad, 2026-06-12): make the CPI trending of the
+                              cap explicit — "$25k today shows as ~$30k on the chart by
+                              Y6." Value comes from the LAST capped engine row (its
+                              expenses ARE the trended budget when the floor isn't
+                              binding), never re-derived UI math. */}
+                          {expenseInflation
+                            && retirementBudgetPreview.lastCapped
+                            && !retirementBudgetPreview.lastCapped.floored
+                            && retirementBudgetPreview.lastCapped.month > retirementBudgetPreview.startMonth && (
+                            <div data-testid="expense-retirement-budget-trend" style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2, color: COLORS.textDim }}>
+                              <span>…growing to (by month {retirementBudgetPreview.lastCapped.month}):</span>
+                              <span style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.green }}>
+                                {fmtFull(retirementBudgetPreview.lastCapped.expenses)}/mo
+                              </span>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div style={{ fontSize: 11, marginTop: 2, color: COLORS.green }}>
@@ -223,7 +239,7 @@ const ExpenseControls = ({
               )}
               <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontStyle: "italic" }}>
                 {(retirementBudgetMonthly ?? 0) > 0
-                  ? <>Caps total expenses from month {retirementBudgetStartMonth ?? retirementBudgetAutoStart}{retirementBudgetStartMonth == null ? " (when you're both retired)" : ""}. Stated in today's dollars; grows with inflation. Months already under budget are untouched.</>
+                  ? <>Caps total expenses from month {retirementBudgetStartMonth ?? retirementBudgetAutoStart}{retirementBudgetStartMonth == null ? " (when you're both retired)" : ""}. Stated in <b>today's dollars</b> — charts plot future (nominal) dollars, so the capped line shows the inflated amount above, not the number you typed. Months already under budget are untouched.</>
                   : "Set the top-line monthly budget for retirement. Blank = off; expenses follow the bottom-up projection forever."}
               </div>
             </div>
